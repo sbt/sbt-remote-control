@@ -41,12 +41,67 @@ class DefaultSbtProcessLauncher(
     def classpathExtra = Array[File]()
   }
 
+  private object uiPlugin extends ApplicationID {
+    // TODO - Pull these constants from some build-generated properties or something.
+    def groupID = "com.typesafe.sbtrc"
+    def name = "sbt-shim-ui-interface"
+    def version = configuration.provider.id.version // Cheaty way to get version
+    def mainClass = "com.typesafe.sbt.ui.SbtUiPlugin" // TODO - What main class?
+    def mainComponents = Array[String]("") // TODO - is this correct.
+    def crossVersioned = false
+    def classpathExtra = Array[File]()
+  }
+
   // This will resolve the probe artifact using our launcher and then
   // give us the classpath
   private lazy val probeClassPath: Seq[File] =
     launcher.app(probeApp, SBT_SCALA_VERSION).mainClasspath
 
-  // TODO - Find the launcher.
+  private lazy val uiContextClassPath: Seq[File] =
+    //   This will resolve the uiContextJar artifact using our launcher and then
+    // give us the classpath
+    launcher.app(uiPlugin, SBT_SCALA_VERSION).mainClasspath
+
+  // Here we write out our startup props file
+  // What we use this for is to hack
+  private lazy val propsFile = {
+    val tmp = File.createTempFile("sbtrc", "properties")
+    val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
+    try {
+      writer.write(s"""
+[scala]
+  version: auto
+
+[app]
+  org: org.scala-sbt
+  name: sbt
+  version: ${SBT_VERSION}
+  class: sbt.xMain
+  components: xsbti,extra
+  cross-versioned: false
+  resources: ${uiContextClassPath map (_.getCanonicalPath) mkString ","}
+
+[repositories]
+  local
+  typesafe-ivy-releases: http://repo.typesafe.com/typesafe/ivy-releases/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
+  typesafe-ivy-snapshots: http://repo.typesafe.com/typesafe/ivy-snapshots/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
+  maven-central
+
+[boot]
+ directory: $${sbt.boot.directory-$${sbt.global.base-$${user.home}/.sbt}/boot/}
+
+[ivy]
+  ivy-home: $${sbt.ivy.home-$${user.home}/.ivy2/}
+  checksums: $${sbt.checksums-sha1,md5}
+  override-build-repos: $${sbt.override.build.repos-false}
+  repository-config: $${sbt.repository.config-$${sbt.global.base-$${user.home}/.sbt}/repositories}
+""")
+    } finally {
+      writer.close()
+    }
+    tmp.deleteOnExit()
+    tmp
+  }
 
   def arguments(port: Int): Seq[String] = {
     val portArg = "-Dsbtrc.control-port=" + port.toString
@@ -60,10 +115,8 @@ class DefaultSbtProcessLauncher(
       "-XX:+CMSClassUnloadingEnabled")
     // TODO - handle spaces in strings and such...
     val sbtProps = Seq(
-      // TODO - better handling of missing sbt.boot.directory property!
-      "-Dsbt.boot.directory=" + (sys.props get "sbt.boot.directory" getOrElse (sys.props("user.home") + "/.sbt")),
-      // TODO - Don't allow user-global plugins?
-      //"-Dsbt.global.base=/tmp/.sbtboot",
+      // TODO - Remove this junk once we don't have to hack our classes into sbt's classloader.
+      "-Dsbt.boot.properties=" + propsFile.getAbsolutePath,
       portArg)
     // TODO - Can we look up the launcher.jar via a class?
     val jar = Seq("-jar", launcherJar.getAbsolutePath)
