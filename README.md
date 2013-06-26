@@ -12,6 +12,10 @@ TODO - Let's write some documentation, for now check out the tests.
 
 This project uses [sbt 0.12](http://scala-sbt.org/). Make sure you have an SBT launcher, and run it in the checked out directory.
 
+
+Please check out the [Architecture](https://github.com/sbt/sbt-remote-control/wiki/Architecture) wiki page for information on 
+project layout, structure and goals.
+
 ### Testing
 
 There are two types of tests:  unit and integration.   To run all unit tests, simple run:
