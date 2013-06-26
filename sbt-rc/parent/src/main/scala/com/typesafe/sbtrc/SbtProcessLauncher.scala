@@ -34,7 +34,7 @@ class DefaultSbtProcessLauncher(
     // TODO - Pull these constants from some build-generated properties or something.
     def groupID = "com.typesafe.sbtrc"
     def name = "sbt-rc-controller"
-    def version = configuration.provider.id.version // Cheaty way to get version
+    def version = APP_VERSION // Cheaty way to get version
     def mainClass = "com.typesafe.sbtrc.SetupSbtChild" // TODO - What main class?
     def mainComponents = Array[String]("") // TODO - is this correct.
     def crossVersioned = false
@@ -45,7 +45,7 @@ class DefaultSbtProcessLauncher(
     // TODO - Pull these constants from some build-generated properties or something.
     def groupID = "com.typesafe.sbtrc"
     def name = "sbt-shim-ui-interface"
-    def version = configuration.provider.id.version // Cheaty way to get version
+    def version = APP_VERSION // Cheaty way to get version
     def mainClass = "com.typesafe.sbt.ui.SbtUiPlugin" // TODO - What main class?
     def mainComponents = Array[String]("") // TODO - is this correct.
     def crossVersioned = false
