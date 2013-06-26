@@ -130,6 +130,9 @@ object TheBuild extends Build {
   lazy val sbtDriver = (
     SbtRemoteControlProject("parent")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
+    settings(
+      Keys.publishArtifact in (Test, Keys.packageBin) := true 
+    )
     dependsOnSource("../protocol")
     dependsOn(props)
     dependsOnRemote(akkaActor,
