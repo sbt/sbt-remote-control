@@ -1,1 +1,1 @@
-libraryDependencies += "org.eclipse.jgit" % "org.eclipse.jgit.pgm" % "2.2.0.201212191850-r"
+addSbtPlugin("com.typesafe.sbt" % "sbt-git" % "0.6.1")
