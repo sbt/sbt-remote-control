@@ -2,51 +2,12 @@ import sbt._
 import Keys._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
+import com.typesafe.sbt.SbtGit
 
 object SbtRcBuild {
-  val gitHeadCommit = SettingKey[Option[String]]("git-head-commit")
-  val gitCurrentTags = SettingKey[Seq[String]]("git-current-tags")
 
-  // TODO - Don't calculate versions EVERYWHERE, just in global...
-  def baseVersions: Seq[Setting[_]] = Seq(
-    gitHeadCommit <<= (baseDirectory) apply { bd =>
-      jgit(bd).headCommit
-    },
-    gitCurrentTags <<= (baseDirectory) apply { bd =>
-      // sort these descending
-      jgit(bd).currentTags.sorted.reverse
-    },
-    version <<= (gitHeadCommit, gitCurrentTags) apply makeVersion
-  )
+	def baseVersions: Seq[Setting[_]] = SbtGit.versionWithGit
 
-  def makeVersion(headCommit: Option[String], currentTags: Seq[String]): String = {
-    // TODO - move this into a setting somewhere....
-    val baseVersion = "1.0"
-    
-    def releaseVersion: Option[String] = {
-      val releaseVersions = 
-        for {
-          tag <- currentTags
-          if tag matches "v[0-9].*"
-        } yield tag drop 1
-      releaseVersions.headOption
-    }
-    
-    def commitVersion: Option[String] =
-      headCommit map (sha => baseVersion + "-" + sha)
-    
-    def dateVersion: String = {
-      val df = new java.text.SimpleDateFormat("yyyyMMdd'T'HHmmss")
-      df setTimeZone java.util.TimeZone.getTimeZone("GMT")
-      baseVersion + "-" + (df format (new java.util.Date))
-    }
-
-    def overrideVersion = Option(sys.props("activator.version")) 
-    
-	// Now we fall through the potential version numbers...
-    overrideVersion  orElse releaseVersion orElse commitVersion getOrElse dateVersion 
-  }
-  
   def formatPrefs = {
     import scalariform.formatter.preferences._
     FormattingPreferences()
