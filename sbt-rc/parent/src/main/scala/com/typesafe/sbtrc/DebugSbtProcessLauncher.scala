@@ -96,8 +96,11 @@ object DebugSbtProcessLauncher extends SbtProcessLauncher {
     // This is a hack specifically for running debug runs, so that the classpath is correct.
     // In production, we do this via the launcher...
     val jar = Seq("-jar", sbtLauncherJar)
+    val commandClasspathString =
+      "\"\"\"" + ((commandClasspath map (_.getAbsolutePath)).distinct mkString File.pathSeparator) + "\"\"\""
+    val escapedCP = commandClasspathString.replaceAll("\\\\", "/")
     val sbtcommands = Seq(
-      "apply -cp " + cp(commandClasspath) + " com.typesafe.sbtrc.SetupSbtChild",
+      s"apply -cp $escapedCP com.typesafe.sbtrc.SetupSbtChild",
       "listen")
     val result = Seq("java") ++
       defaultJvmArgs ++
