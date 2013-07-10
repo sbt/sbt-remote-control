@@ -67,9 +67,18 @@ class ProcessActorTest {
 
   @Test
   def testSimpleProcess(): Unit = {
-    val output = extractOutput(recordProcess("testSimpleProcess", Seq("echo", "hello world"), new File(".")))
-    assertEquals("hello world\n", output.stdout)
-    assertEquals("", output.stderr)
+    val isWindows =
+      sys.props("os.name").toLowerCase contains "windows"
+    val cmd =
+      if (isWindows) Seq("cmd.exe", "/c", "echo", "hello world")
+      else Seq("echo", "hello world")
+
+    val expected =
+      if (isWindows) "\"hello world\""
+      else "hello world"
+    val output = extractOutput(recordProcess("testSimpleProcess", cmd, new File(".")))
+    assertEquals(expected, output.stdout.trim)
+    assertEquals("", output.stderr.trim)
     assertEquals(Seq(ProcessStopped(0)), output.events)
   }
 }

@@ -145,11 +145,11 @@ class SbtProcessTest {
 
   object EchoHelloChildProcessMaker extends SbtProcessLauncher {
 
-    private def isWindows = 
+    private def isWindows =
       sys.props("os.name").toLowerCase contains "windows"
-      
-    def arguments(port: Int): Seq[String] = 
-      if(isWindows) Seq("cmd.exe", "/c", "echo", "Hello World")
+
+    def arguments(port: Int): Seq[String] =
+      if (isWindows) Seq("cmd.exe", "/c", "echo", "Hello World")
       else Seq("echo", "Hello World")
   }
 
