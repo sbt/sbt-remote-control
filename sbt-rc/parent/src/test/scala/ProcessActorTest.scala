@@ -27,7 +27,9 @@ class ProcessActorTest {
 
   private def recordProcess(systemName: String, argv: Seq[String], cwd: File): Seq[Any] = {
     val system = ActorSystem(systemName)
-    val process = ProcessActor(system, "testProcess", argv, cwd)
+    import collection.JavaConverters._
+    val builder = (new ProcessBuilder).command(argv.asJava).directory(cwd)
+    val process = ProcessActor(system, "testProcess", builder)
     val resultPromise = Promise[Seq[Any]]()
     val recorder = system.actorOf(Props(new TestRecorder({
       case stopped: ProcessStopped => true
