@@ -6,21 +6,28 @@ object Dependencies {
   val sbtPluginVersion = "0.12"
   val sbtPluginScalaVersion = "2.9.2"
   val scalaVersion = "2.10.1"
-  val sbtSnapshotVersion = "0.13.0-Beta2"
+  val sbtMainVersion = "0.13.0-RC3"
   val playVersion = "2.1.1"
   val akkaVersion = "2.1.2"
 
 
-  val sbtIo210             = "org.scala-sbt" % "io" % sbtSnapshotVersion
-  val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtVersion
-  val sbtMain              = "org.scala-sbt" % "main" % sbtVersion
-  val sbtTheSbt            = "org.scala-sbt" % "sbt" % sbtVersion
-  val sbtIo                = "org.scala-sbt" % "io" % sbtVersion
-  val sbtLogging           = "org.scala-sbt" % "logging" % sbtVersion
-  val sbtProcess           = "org.scala-sbt" % "process" % sbtVersion
+  val sbtOrg = "org.scala-sbt"
+  val sbtIo                = sbtOrg % "io" % sbtMainVersion
+  // We use an old version here, so we're compatible...
+  val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % "0.12.4"
+  val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
+
+  def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
+    Seq(
+      sbtOrg % "main" % sbtVersion % "provided",
+      sbtOrg % "sbt" % sbtVersion% "provided",
+      sbtOrg % "io" % sbtVersion % "provided",
+      sbtOrg % "logging" % sbtVersion,
+      sbtOrg % "process" % sbtVersion
+    )
+  }
+
   
-  // TODO - Don't use a snapshot version for this...
-  val sbtCompletion           = "org.scala-sbt" % "completion" % sbtSnapshotVersion
   
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion

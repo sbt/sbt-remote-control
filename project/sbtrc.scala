@@ -45,23 +45,38 @@ object SbtRcBuild {
       ScalariformKeys.preferences in Test    := formatPrefs
     )
 
-  def sbtShimPluginSettings: Seq[Setting[_]] =
+  def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
     sbtrcDefaults ++
     Seq(
-      scalaVersion := Dependencies.sbtPluginScalaVersion,
-      scalaBinaryVersion := Dependencies.sbtPluginScalaVersion,
+      scalaVersion := getScalaVersionForSbtVersion(sbtVersion),
+      scalaBinaryVersion := sbtVersion,
       sbtPlugin := true,
       publishMavenStyle := false
     )
+
+  def getScalaVersionForSbtVersion(sbt: String) =
+    getBinaryVersion(sbt) match {
+      case "0.12" => "2.9.2"
+      case "0.13" => "2.10.2"
+      case _ => sys.error("Unsupported sbt version: " + sbt)
+    }
+  def getBinaryVersion(version: String): String = {
+    val BC = new scala.util.matching.Regex("""(\d+\.\d+).*""")
+    // TODO - handle errors?
+    version match {
+      case BC(bv) => bv
+      case _ => version
+    }
+  }
 
   def SbtRemoteControlProject(name: String): Project = (
     Project("sbt-rc-" + name, file("sbt-rc") / name)
     settings(sbtrcDefaults:_*)
   )
 
-  def SbtShimPlugin(name: String): Project = (
-    Project("sbt-shim-" + name, file("sbt-shim") / name)
-    settings(sbtShimPluginSettings:_*)
+  def SbtShimPlugin(name: String, sbtVersion: String = Dependencies.sbtPluginVersion): Project = (
+    Project("sbt-shim-" + name, file("sbt-shim") / getBinaryVersion(sbtVersion) / name)
+    settings(sbtShimPluginSettings(sbtVersion):_*)
   )
   def PropsProject(name: String): Project = (
     Project("sbt-rc-" + name, file(name))

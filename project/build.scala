@@ -53,12 +53,7 @@ object TheBuild extends Build {
           Keys.projectID <<=  Keys.projectID apply { id =>
             id.copy(extraAttributes = Map.empty)
           })
-      dependsOnRemote(
-          sbtMain % "provided",
-          sbtTheSbt % "provided",
-          sbtIo % "provided",
-          sbtLogging % "provided",
-          sbtProcess % "provided")
+      dependsOnRemote(sbtControllerDeps(Dependencies.sbtVersion):_*)
   )
 
   // This is the embedded controller for sbt projects.
@@ -68,11 +63,7 @@ object TheBuild extends Build {
     dependsOnSource("../protocol")
     dependsOn(props, sbtUiInterface % "provided")
     dependsOnRemote(
-      sbtMain % "provided",
-      sbtTheSbt % "provided",
-      sbtIo % "provided",
-      sbtLogging % "provided",
-      sbtProcess % "provided"
+      sbtControllerDeps(Dependencies.sbtVersion):_*
     )
     settings(requiredJars(props, sbtUiInterface))
   )
@@ -137,7 +128,7 @@ object TheBuild extends Build {
     dependsOn(props)
     dependsOnRemote(akkaActor,
                     sbtLauncherInterface,
-                    sbtIo210)
+                    sbtIo)
     settings(configureSbtTest(Keys.test): _*)
     settings(configureSbtTest(Keys.testOnly): _*)
   )
@@ -147,7 +138,7 @@ object TheBuild extends Build {
   lazy val it = (
     SbtRemoteControlProject("integration-tests")
     settings(integration.settings(dontusemeresolvers): _*)
-    dependsOnRemote(sbtLauncherInterface, sbtIo210)
+    dependsOnRemote(sbtLauncherInterface, sbtIo)
     dependsOn(sbtDriver, props)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
