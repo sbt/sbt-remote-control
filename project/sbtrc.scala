@@ -39,6 +39,8 @@ object SbtRcBuild {
       javacOptions in Compile := Seq("-target", "1.6", "-source", "1.6"),
       javacOptions in (Compile, doc) := Seq("-source", "1.6"),
       libraryDependencies += Dependencies.junitInterface % "test",
+      // Scaladoc is slow as molasses.
+      Keys.publishArtifact in (Compile, packageDoc) := false,
       scalaVersion := Dependencies.scalaVersion,
       scalaBinaryVersion := "2.10",
       ScalariformKeys.preferences in Compile := formatPrefs,

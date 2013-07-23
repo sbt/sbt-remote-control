@@ -1,6 +1,7 @@
 import sbt._
 import SbtRcBuild._
 import Dependencies._
+import IvyRepositories.{localRepoArtifacts}
 // NOTE - This file is only used for SBT 0.12.x, in 0.13.x we'll use build.sbt and scala libraries.
 // As such try to avoid putting stuff in here so we can see how good build.sbt is without build.scala.
 
@@ -12,7 +13,7 @@ object TheBuild extends Build {
 
   val root = (
     Project("root", file("."))  // TODO - Oddities with clean..
-    aggregate((publishedProjects.map(_.project) ++ Seq(it.project)):_*)
+    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project)):_*)
     settings(
       // Stub out commands we run frequently but don't want them to really do anything.
       Keys.publish := {},
@@ -24,19 +25,6 @@ object TheBuild extends Build {
   lazy val publishedSbtShimProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin)
   lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, sbtDriver, props) ++ publishedSbtShimProjects
 
-
-  // A hack project just for convenient IvySBT when resolving artifacts into new local repositories.
-  lazy val dontusemeresolvers = (
-    Project("dontuseme", file("dontuseme"))
-    settings(
-      // This hack removes the project resolver so we don't resolve stub artifacts.
-      Keys.fullResolvers <<= (Keys.externalResolvers, Keys.sbtResolver) map (_ :+ _),
-      Keys.resolvers += Resolver.url("sbt-plugin-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
-      Keys.publish := {},
-      Keys.publishLocal := {}
-    )
-  )
-  
   // TODO - This should be the default properties we re-use between the controller and the driver.
   lazy val props = (
     PropsProject("props")
@@ -133,37 +121,29 @@ object TheBuild extends Build {
     settings(configureSbtTest(Keys.testOnly): _*)
   )
 
-  import IvyRepositories.localRepoArtifacts
-  import IvyRepositories.localRepoProjectsPublished
-  lazy val it = (
+  // Set up a repository that has all our dependencies.
+  import Project.Initialize
+
+  lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
-    settings(integration.settings(dontusemeresolvers): _*)
     dependsOnRemote(sbtLauncherInterface, sbtIo)
     dependsOn(sbtDriver, props)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
+      Keys.publish := {}
+    )
+  )
+
+  lazy val itRunner: Project = (
+    SbtRemoteControlProject("it-runner")
+    settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
+    settings(
+      //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
-      localRepoProjectsPublished <<= (publishedProjects map (Keys.publishLocal in _)).dependOn,
-      localRepoProjectsPublished <<= (localRepoProjectsPublished, Keys.publishLocal) map { (_,_) => () },
-      localRepoArtifacts <++= (publishedProjects filterNot publishedSbtShimProjects map { ref =>
-        // The annoyance caused by cross-versioning.
-        (Keys.projectID in ref, Keys.scalaBinaryVersion in ref, Keys.scalaVersion in ref) apply {
-          (id, sbv, sv) =>
-            CrossVersion(sbv, sv)(id)
-        }
-      }).join,
-      localRepoArtifacts <++= (publishedSbtShimProjects.toSeq map { ref =>
-        (Keys.projectID in ref) apply { id =>
-          Defaults.sbtPluginExtra(id, sbtPluginVersion, sbtPluginScalaVersion)
-        }
-      }).join,
-      localRepoArtifacts ++= Seq(
-          // We need sbt itself to run our tests, here are the dependnecies.
-          "org.scala-sbt" % "sbt" % Dependencies.sbtVersion,
-          // For some reason, these are not resolving transitively correctly!
-          "org.scala-lang" % "scala-compiler" % Dependencies.sbtPluginScalaVersion,
-          "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
-          "net.java.dev.jna" % "jna" % "3.2.3")
+      Keys.publishLocal := {},
+      // Additional dependencies required to run tests:
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2"
     )
   )
   

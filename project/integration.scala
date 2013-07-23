@@ -2,7 +2,7 @@ import sbt._
 import Keys._
 import SbtSupport.sbtLaunchJar
 import xsbt.api.Discovery
-import IvyRepositories.{localRepoArtifacts, localRepoProjectsPublished, localRepoCreated, makeLocalRepoSettings}
+import IvyRepositories.{localRepoCreated, makeLocalRepoSettings}
 
 
 /** This helps set up tests which run inside the sbt launcher. */
@@ -13,12 +13,10 @@ object integration {
   val tests = TaskKey[Unit]("integration-tests", "Runs all integration tests")
   val singleTest = InputKey[Unit]("integration-test-only", "Runs integration tests that match the given glob")
   
-  def settings(projectWithNoInterProjectResolver: Project): Seq[Setting[_]] = 
-    makeLocalRepoSettings("install-to-it-repository", projectWithNoInterProjectResolver) ++ Seq(
-    localRepoArtifacts := Seq.empty,
+  def settings(publishedProjects: Seq[Project], itProject: Project): Seq[Setting[_]] =
+    makeLocalRepoSettings(publishedProjects) ++ Seq(
     // Make sure we publish this project.
-    localRepoProjectsPublished <<= publishLocal,
-    mains <<= compile in Compile map { a =>
+    mains <<= compile in Compile in itProject map { a =>
       val defs = a.apis.internal.values.flatMap(_.api.definitions)
       val results = Discovery(Set("xsbti.Main"), Set())(defs.toSeq)
       results collect { 
@@ -29,9 +27,6 @@ object integration {
     tests <<= (itContext, mains) map { (ctx, ms) =>
       ms foreach ctx.runTest
     },	
-    localRepoArtifacts <+= (Keys.projectID, Keys.scalaBinaryVersion, Keys.scalaVersion) apply {
-      (id, sbv, sv) => CrossVersion(sbv,sv)(id)
-    },
     singleTest <<= inputTask { argTask =>
       (argTask, itContext, mains) map { (args, ctx, mains) =>
         val glob = args mkString " "

@@ -14,7 +14,7 @@ object Dependencies {
   val sbtOrg = "org.scala-sbt"
   val sbtIo                = sbtOrg % "io" % sbtMainVersion
   // We use an old version here, so we're compatible...
-  val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % "0.12.4"
+  val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
 
   def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {

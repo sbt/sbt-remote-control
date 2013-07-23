@@ -6,6 +6,16 @@ import java.io.File
 import properties.SbtRcProperties._
 import scala.util.control.NonFatal
 
+/** A class we use to help us look up jars using the launcher. */
+case class LookupApplicationId(name: String, mainClass: String) extends ApplicationID {
+  final val groupID = "com.typesafe.sbtrc"
+  def version = APP_VERSION // Cheaty way to get version from our properties file.
+  final val mainComponents = Array[String]("")
+  final val classpathExtra = Array[File]()
+  final val crossVersioned = false
+  def crossVersionedValue: xsbti.CrossValue = xsbti.CrossValue.Disabled
+}
+
 /**
  * This class is able to create the command line for Sbt child processes
  * using the launcher to discover the controller jars.
@@ -30,27 +40,12 @@ class DefaultSbtProcessLauncher(
    */
   object sbt012support extends SbtBasicProcessLaunchInfo {
     // The Application for the controller jars.  We can use this to get the classpath.
-    private object probeApp extends ApplicationID {
-      // TODO - Pull these constants from some build-generated properties or something.
-      def groupID = "com.typesafe.sbtrc"
-      def name = "sbt-rc-controller"
-      def version = APP_VERSION // Cheaty way to get version
-      def mainClass = "com.typesafe.sbtrc.SetupSbtChild" // TODO - What main class?
-      def mainComponents = Array[String]("") // TODO - is this correct.
-      def crossVersioned = false
-      def classpathExtra = Array[File]()
-    }
-    private object uiPlugin extends ApplicationID {
-      // TODO - Pull these constants from some build-generated properties or something.
-      def groupID = "com.typesafe.sbtrc"
-      def name = "sbt-shim-ui-interface"
-      def version = APP_VERSION // Cheaty way to get version
-      def mainClass = "com.typesafe.sbt.ui.SbtUiPlugin" // TODO - What main class?
-      def mainComponents = Array[String]("") // TODO - is this correct.
-      def crossVersioned = false
-      def classpathExtra = Array[File]()
-    }
-
+    private object probeApp extends LookupApplicationId(
+      name = "sbt-rc-controller",
+      mainClass = "com.typesafe.sbtrc.SetupSbtChild")
+    private object uiPlugin extends LookupApplicationId(
+      name = "sbt-shim-ui-interface",
+      mainClass = "com.typesafe.sbt.ui.SbtUiPlugin")
     // This will resolve the probe artifact using our launcher and then
     // give us the classpath
     lazy val controllerClasspath: Seq[File] =
@@ -111,7 +106,7 @@ object DefaultSbtProcessLauncher {
   def defaultLauncherLookup: File =
     findLauncherReflectively getOrElse sys.error("Unable to find sbt launcher.jar file.")
 
-  // Attempts to grab the JAR for the sbt launcher reflectively from 
+  // Attempts to grab the JAR for the sbt launcher reflectively from
   // the classloader of launcher classes.
   def findLauncherReflectively: Option[File] =
     try {

@@ -1,5 +1,5 @@
 import sbt._
-import Keys.{target, resolvers, publishLocal, ivySbt, streams}
+import Keys.{target, resolvers, publishLocal, ivySbt, streams, state, resolvedScoped}
 import org.apache.ivy.core.resolve.IvyNode
 import org.apache.ivy.core.module.id.ModuleRevisionId
 import org.apache.ivy.core.report.ResolveReport
@@ -10,31 +10,92 @@ import org.apache.ivy.core.resolve.IvyNode
 import collection.JavaConverters._
 import java.io.BufferedWriter
 import org.apache.ivy.core.module.id.ModuleId
+import Project.Initialize
 
 
 
 object IvyRepositories {
 
-  val localRepoProjectsPublished = TaskKey[Unit]("local-repo-projects-published", "Ensures local projects are published before generating the local repo.")
+  // Here are the keys used to resolve local artifacts into an integration testing repo.
+  val localArtRepoName = "install-to-local-project-repository"
+  val localArtRepo = SettingKey[File]("local-art-repository", "The location to install our projects.")
+  val localArtPublished = TaskKey[Unit]("local-art-published", "A task which will publish our local artifacts.")
+  val localArtRepoCreation = TaskKey[File]("local-art-repository-creation", "Creates a local repository in the specified location.")
+
+  // Here are the keys used to resolve remote artifacts into an integration testing repo.
   val localRepoArtifacts = SettingKey[Seq[ModuleID]]("local-repository-artifacts", "Artifacts included in the local repository.")
-  val localRepoName = "install-to-local-repository"
-  val localRepo = SettingKey[File]("local-repository", "The location to install a local repository.")
-  val localRepoCreation = TaskKey[LocalRepoReport]("local-repository-creation", "Creates a local repository in the specified location.")
-  val localRepoLicenses = TaskKey[Unit]("local-repository-licenses", "Prints all the licenses used by software in the local repo.")
+  val localDepRepoName = "install-to-local-dep-repository"
+  val localDepRepo = SettingKey[File]("local-dep-repository", "The location to install a local repository of our dependencies.")
+  val localDepRepoCreation = TaskKey[LocalRepoReport]("local-dep-repository-creation", "Creates a local repository in the specified location.")
+  val localDepRepoLicenses = TaskKey[Unit]("local-repository-licenses", "Prints all the licenses used by software in the local repo.")
+  val localDepRepoCreated = TaskKey[File]("local-dep-repository-created", "Creates a local repository in the specified location.")
+
+  // This task joins together the dependency repo and the remote artifact repo.
+  val localRepo = SettingKey[File]("local-repository", "The location of the local repository..")
   val localRepoCreated = TaskKey[File]("local-repository-created", "Creates a local repository in the specified location.")
   
+  import sbinary.DefaultProtocol.ClassFormat
+
+  // This method caches *ONCE PER RELOAD* a task.  TODO - We should add hooks to detect
+  // changes in dependencies that require us to reload....
+  def useCacheOr[T](key: TaskKey[T], staleCheck: Initialize[Task[Boolean]], action: Initialize[Task[T]]): Initialize[Task[T]] = {
+    val withStaleCheck: Initialize[Task[Option[T]]] =
+      getPrevious(key).zipWith(staleCheck) { (previous, staleCheck) =>
+        staleCheck flatMap { flag =>
+          if(flag) task(None) else previous
+        }
+      }
+    withStaleCheck.zipWith(action) { (previous, current) =>
+      previous flatMap {
+        case Some(value) => task(value)
+        case None => current
+      }
+    } keepAs key  // TODO - Why isn't this saving...
+  }
+
+  def makeLocalDepRepo: Initialize[Task[LocalRepoReport]] =
+    (localDepRepo, localRepoArtifacts, ivySbt, streams, state) map { (r, m, i, s, state) =>
+      val licenses = IvyHelper.createLocalRepository(m, localDepRepoName, i, s.log)
+      val result = LocalRepoReport(r, licenses)
+      result
+    }
+
+  def publishProjectTo(project: ProjectReference): Initialize[Task[Unit]] =
+    (Keys.publishLocalConfiguration in project, Keys.moduleSettings in project, Keys.ivySbt, streams) map rejiggerPublishing
+
+  def rejiggerPublishing(config: PublishConfiguration, moduleSettings: ModuleSettings, ivy: IvySbt, s: Keys.TaskStreams): Unit = {
+    val module =
+        new ivy.Module(moduleSettings)
+      val newConfig =
+         new PublishConfiguration(
+             config.ivyFile,
+             localArtRepoName,
+             config.artifacts,
+             config.checksums,
+             config.logging)
+      s.log.info("Publishing " + module + " to local repo: " + localArtRepoName)
+      IvyActions.publish(module, newConfig, s.log)
+  }
   
-  def makeLocalRepoSettings(lrepoName: String, projectWithNoInterProjectResolver: Project): Seq[Setting[_]] = Seq(
+  def makeLocalRepoSettings(publishedProjects: Seq[Project]): Seq[Setting[_]] = Seq(
+    localDepRepo <<= target(_ / "local-dep-repository"),
+    localArtRepo <<= target(_ / "local-art-repository"),
     localRepo <<= target(_ / "local-repository"),
-    localRepoArtifacts := Seq.empty,
-    resolvers in projectWithNoInterProjectResolver <+= localRepo apply { f => Resolver.file(lrepoName, f)(Resolver.ivyStylePatterns) },
-    localRepoProjectsPublished := (),
-    localRepoCreation <<= (localRepo, localRepoArtifacts, ivySbt in projectWithNoInterProjectResolver, streams, localRepoProjectsPublished) map { (r, m, i, s, _) =>
-      val licenses = IvyHelper.createLocalRepository(m, lrepoName, i, s.log)
-      LocalRepoReport(r, licenses)
+    localRepoArtifacts <<= {
+      val projectDeps: Seq[Initialize[Seq[ModuleID]]] =
+        publishedProjects map (Keys.libraryDependencies in _)
+      projectDeps reduce { (left, right) =>
+        left.zipWith(right) { _ ++ _ }
+      }
     },
-    localRepoCreated <<= localRepoCreation map (_.location),
-    localRepoLicenses <<= (localRepoCreation, streams) map { (config, s) =>
+    resolvers <+= localDepRepo apply { f => Resolver.file(localDepRepoName, f)(Resolver.ivyStylePatterns) },
+    resolvers <+= localArtRepo apply { f => Resolver.file(localArtRepoName, f)(Resolver.ivyStylePatterns) },
+    localDepRepoCreation <<= useCacheOr(
+        key = localDepRepoCreation,
+        staleCheck = (localDepRepo) map (_.isDirectory),
+        action = makeLocalDepRepo),
+    localDepRepoCreated <<= localDepRepoCreation map (_.location),
+    localDepRepoLicenses <<= (localDepRepoCreation, streams) map { (config, s) =>
       // Stylize the licenses we used and give an inline report...
       s.log.info("--- Licenses ---")
       val badList = Set("and", "the", "license", "revised")
@@ -44,6 +105,27 @@ object IvyRepositories {
         s.log.info(" * " + license.name + " @ " + license.url)
          s.log.info("    - " + license.deps.mkString(", "))
       }
+    },
+    // Here we hack our projects to publish to a repository of our choosing.
+    localArtPublished <<= {
+      val publishProjects: Seq[Initialize[Task[Unit]]] =
+        publishedProjects map (p => publishProjectTo(p))
+      val tmp: Initialize[Task[Unit]] =
+        (publishProjects).reduce { (l, r) =>
+          l.zipWith(r) { _ && _ }
+        }
+      tmp
+    },
+    localArtRepoCreation <<= (localArtPublished, localArtRepo) apply { (task, file) =>
+      task map (_ => file)
+    },
+    localRepoCreated <<= (localDepRepoCreated, localArtRepoCreation, localRepo) map { (art, dep, full) =>
+      def collectRepoFiles(repo: File): Seq[(File, File)] =
+        for {
+          (file, name) <- (repo.*** --- repo) x relativeTo(repo)
+        } yield file -> (full / name)
+      IO.copy(collectRepoFiles(art) ++ collectRepoFiles(dep))
+      full
     }
   )
 }
