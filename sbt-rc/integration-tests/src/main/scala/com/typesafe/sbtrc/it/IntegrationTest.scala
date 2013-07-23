@@ -11,6 +11,7 @@ abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
   /** Returns the current sbt launcher configuration for the test. */
   final def configuration: xsbti.AppConfiguration = _config
 
+  def repositories = configuration.provider.scalaProvider.launcher.appRepositories
   // Runs our test, we hardcode this to return success in the absence of failure, so we can use
   // classic exceptions to fail an integration test.
   final def run(configuration: xsbti.AppConfiguration): xsbti.MainResult =

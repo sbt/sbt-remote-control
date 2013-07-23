@@ -8,14 +8,42 @@ import akka.dispatch._
 import concurrent.duration._
 import concurrent.Await
 import akka.util.Timeout
+import xsbti.Repository
+import xsbti.MavenRepository
+import xsbti.IvyRepository
 
-class CanLaunchThroughSbtLauncher extends IntegrationTest {
+trait SbtLauncherTest extends IntegrationTest {
+  /** The local repositories we need to use for this integration test. */
+  def localRepositories: Seq[(String, File)] = {
+    def getFileLocationAndName(repo: Repository): Option[(String, File)] =
+      repo match {
+        // TODO - Support maven too?
+        case x: IvyRepository if x.url.getProtocol == "file" =>
+          Some(x.id -> new File(x.url.toURI))
+        case x: MavenRepository if x.url.getProtocol == "file" =>
+          Some(x.id -> new File(x.url.toURI))
+        case _ => None
+      }
+
+    for {
+      repo <- repositories
+      values <- getFileLocationAndName(repo)
+    } yield values
+  }
+  /** Constructs a new sbt process launcher using the repositories from our own launched app. */
+  def sbtProcessLauncher: SbtProcessLauncher =
+    new DefaultSbtProcessLauncher(configuration, optionalRepositories = localRepositories)
+
+}
+
+class CanLaunchThroughSbtLauncher extends SbtLauncherTest {
   val system = ActorSystem("ManualTest")
+
   try {
     // TODO - Create project here, rather than rely on it created by test harness....
     val dir = new File("dummy")
     makeDummySbtProject(dir)
-    val child = SbtProcess(system, dir, new DefaultSbtProcessLauncher(configuration))
+    val child = SbtProcess(system, dir, sbtProcessLauncher)
     try {
       implicit val timeout = Timeout(300.seconds)
       val name = Await.result(child ? protocol.NameRequest(sendEvents = false), timeout.duration) match {

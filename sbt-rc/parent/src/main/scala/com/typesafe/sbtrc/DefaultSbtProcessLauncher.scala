@@ -25,10 +25,12 @@ case class LookupApplicationId(name: String, mainClass: String) extends Applicat
  * @param configuration  The AppConfiguration passed to an application
  *                       via the SBT launcher.   We use this to lookup the controller jars.
  * @param launcherJar   The sbt launcher to use when launching sbt child processes.
+ * @param optionalRepositories Name-File pairs of local repositories to use when resolving stuff.
  */
 class DefaultSbtProcessLauncher(
   configuration: AppConfiguration,
-  val sbtLauncherJar: File = DefaultSbtProcessLauncher.defaultLauncherLookup)
+  val sbtLauncherJar: File = DefaultSbtProcessLauncher.defaultLauncherLookup,
+  optionalRepositories: Seq[(String, File)] = Seq.empty)
   extends BasicSbtProcessLauncher {
 
   // The launcher interface for resolving more STUFF
@@ -58,6 +60,14 @@ class DefaultSbtProcessLauncher(
     // What we use this for is to hack
     lazy val propsFile = {
       val tmp = File.createTempFile("sbtrc", "properties")
+
+      val makeRepositoryStrings =
+        for {
+          (name, file) <- optionalRepositories
+          uri = file.toURI
+        } yield s"""|$name-mvn: $uri
+                    |$name-ivy: $uri, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]""".stripMargin
+
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
       try {
         writer.write(s"""
@@ -78,6 +88,7 @@ class DefaultSbtProcessLauncher(
   typesafe-ivy-releases: http://repo.typesafe.com/typesafe/ivy-releases/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
   typesafe-ivy-snapshots: http://repo.typesafe.com/typesafe/ivy-snapshots/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
   maven-central
+  ${makeRepositoryStrings mkString "\n"}
 
 [boot]
  directory: $${sbt.boot.directory-$${sbt.global.base-$${user.home}/.sbt}/boot/}
