@@ -8,7 +8,8 @@ import java.io.File
  * so that we can run tests.  Also useful for consumers who need to run tests outside of an sbt-launched application.
  */
 // TODO - Add additional props argument so we can pass more JVM options down to the debug launcher.
-object DebugSbtProcessLauncher extends SbtProcessLauncher {
+object DebugSbtProcessLauncher extends BasicSbtProcessLauncher {
+
   private val probeClassPathProp = "sbtrc.controller.classpath"
   private val sbtLauncherJarProp = "sbtrc.launch.jar"
   private val allNeededProps = Seq(probeClassPathProp, sbtLauncherJarProp)
@@ -26,13 +27,16 @@ object DebugSbtProcessLauncher extends SbtProcessLauncher {
   private lazy val probeClassPath: Seq[File] = (sys.props(probeClassPathProp) split File.pathSeparator map (n => new File(n)))(collection.breakOut)
   private lazy val commandClasspath: Seq[File] = probeClassPath filterNot (_.getAbsolutePath contains "ui-interface")
   private lazy val uiClassDir: Seq[File] = probeClassPath filter (_.getAbsolutePath contains "ui-interface")
-  private lazy val sbtLauncherJar: String = sys.props(sbtLauncherJarProp)
+  lazy val sbtLauncherJar: File = new File(sys.props(sbtLauncherJarProp))
 
-  private lazy val propsFile = {
-    val tmp = File.createTempFile("sbtrc", "properties")
-    val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
-    try {
-      writer.write(s"""
+  /** An sbt process launch info that just pulls from the environment. */
+  object sbtLocalSupport extends SbtBasicProcessLaunchInfo {
+    override def controllerClasspath: Seq[File] = commandClasspath
+    override lazy val propsFile = {
+      val tmp = File.createTempFile("sbtrc", "properties")
+      val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
+      try {
+        writer.write(s"""
 [scala]
   version: auto
 
@@ -60,54 +64,13 @@ object DebugSbtProcessLauncher extends SbtProcessLauncher {
   override-build-repos: $${sbt.override.build.repos-false}
   repository-config: $${sbt.repository.config-$${sbt.global.base-$${user.home}/.sbt}/repositories}
 """)
-    } finally {
-      writer.close()
+      } finally {
+        writer.close()
+      }
+      tmp.deleteOnExit()
+      tmp
     }
-    tmp.deleteOnExit()
-    tmp
   }
-  //private lazy val launchClasspath: Seq[File] = uiClassDir ++ Seq(new File(sbtLauncherJar))
-
-  def cp(files: Seq[File]): String = (files map (_.getAbsolutePath)).distinct mkString File.pathSeparator
-
-  def arguments(port: Int): Seq[String] = {
-    assertPropsArentMissing()
-    val portArg = "-Dsbtrc.control-port=" + port.toString
-    // TODO - We have to create a new sbt.boot.properties
-    // with the settings we need, like:
-    // resources=<path-to-ui-interface-jar>
-
-    // TODO - These need to be configurable *and* discoverable.
-    // we have no idea if computers will be able to handle this amount of
-    // memory....
-    val defaultJvmArgs = Seq(
-      "-Xss1024K",
-      "-Xmx" + SBT_XMX,
-      "-XX:PermSize=" + SBT_PERMSIZE,
-      "-XX:+CMSClassUnloadingEnabled")
-    val sbtProps = Seq(
-      // Looks like this one is unset...
-      "-Dsbt.boot.directory=" + (sys.props get "sbt.boot.directory" getOrElse (sys.props("user.home") + "/.sbt")),
-      "-Dsbt.boot.properties=" + propsFile.toURI.toString,
-      // TODO - Don't allow user-global plugins?
-      //"-Dsbt.global.base=/tmp/.sbtboot",
-      portArg)
-    // We need to get the ui interface classes *earlier* in the classpath...
-    // This is a hack specifically for running debug runs, so that the classpath is correct.
-    // In production, we do this via the launcher...
-    val jar = Seq("-jar", sbtLauncherJar)
-    val commandClasspathString =
-      "\"\"\"" + ((commandClasspath map (_.getAbsolutePath)).distinct mkString File.pathSeparator) + "\"\"\""
-    val escapedCP = commandClasspathString.replaceAll("\\\\", "/")
-    val sbtcommands = Seq(
-      s"apply -cp $escapedCP com.typesafe.sbtrc.SetupSbtChild",
-      "listen")
-    val result = Seq("java") ++
-      defaultJvmArgs ++
-      sbtProps ++
-      jar ++
-      sbtcommands
-
-    result
-  }
+  override def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo =
+    sbtLocalSupport
 }

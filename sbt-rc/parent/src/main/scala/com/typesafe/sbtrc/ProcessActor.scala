@@ -27,7 +27,7 @@ case class ProcessStdOut(bytes: ByteString) extends ProcessEvent
 case class ProcessStdErr(bytes: ByteString) extends ProcessEvent
 case class ProcessStopped(exitValue: Int) extends ProcessEvent
 
-class ProcessActor(argv: Seq[String], cwd: File, textMode: Boolean = true) extends Actor with ActorLogging {
+class ProcessActor(builder: ProcessBuilder, textMode: Boolean = true) extends Actor with ActorLogging {
   var subscribers: Set[ActorRef] = Set.empty
   var process: Option[Process] = None
   // flag handles the race where we get a kill request
@@ -137,10 +137,9 @@ class ProcessActor(argv: Seq[String], cwd: File, textMode: Boolean = true) exten
   }
 
   def start(): Unit = {
-    log.debug("Starting process with argv={}", argv)
+    log.debug("Starting process with argv={}", builder.command.asScala)
 
-    val pb = (new ProcessBuilder(argv.asJava)).directory(cwd)
-    val process = pb.start()
+    val process = builder.start()
 
     // we don't want the process to block on stdin.
     // redirecting stdin from /dev/null would be nicer than
@@ -251,7 +250,7 @@ class ProcessActor(argv: Seq[String], cwd: File, textMode: Boolean = true) exten
 }
 
 object ProcessActor {
-  def apply(system: ActorSystem, name: String, argv: Seq[String], cwd: File): ActorRef = {
-    system.actorOf(Props(new ProcessActor(argv, cwd)), name)
+  def apply(system: ActorSystem, name: String, builder: ProcessBuilder): ActorRef = {
+    system.actorOf(Props(new ProcessActor(builder)), name)
   }
 }

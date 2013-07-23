@@ -38,8 +38,8 @@ class SbtProcessUnderlyingActor(supervisor: ActorRef, workingDir: File, sbtProce
 
   // TODO the "textMode=true" here shouldn't be needed but scala 2.9.2 seems to not
   // realize that it has a default value? maybe some local quirk on my system?
-  private val process = context.actorOf(Props(new ProcessActor(sbtProcessMaker.arguments(port),
-    workingDir, textMode = true)), "sbt-process")
+  private val process = context.actorOf(Props(new ProcessActor(sbtProcessMaker(workingDir, port),
+    textMode = true)), "sbt-process")
 
   private val server = context.actorOf(Props(new ServerActor(serverSocket, supervisor)), "sbt-server")
 
