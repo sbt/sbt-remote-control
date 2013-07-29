@@ -30,6 +30,8 @@ package object it {
 
   /** Creates a dummy project we can run Activator against. */
   def makeDummySbtProject(dir: java.io.File): java.io.File = {
+    // First clean the directory...
+    IO.delete(dir)
     IO.createDirectory(dir)
     val project = new java.io.File(dir, "project")
     IO.createDirectory(project)

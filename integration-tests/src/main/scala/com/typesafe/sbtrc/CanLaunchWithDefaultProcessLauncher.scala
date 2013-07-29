@@ -14,14 +14,14 @@ import xsbti.IvyRepository
 
 trait SbtLauncherTest extends IntegrationTest {
   /** The local repositories we need to use for this integration test. */
-  def localRepositories: Seq[(String, File)] = {
-    def getFileLocationAndName(repo: Repository): Option[(String, File)] =
+  def localRepositories: Seq[(String, File, Option[String])] = {
+    def getFileLocationAndName(repo: Repository): Option[(String, File, Option[String])] =
       repo match {
         // TODO - Support maven too?
         case x: IvyRepository if x.url.getProtocol == "file" =>
-          Some(x.id -> new File(x.url.toURI))
+          Some(RepoHelper.ivy(x.id, new File(x.url.toURI)))
         case x: MavenRepository if x.url.getProtocol == "file" =>
-          Some(x.id -> new File(x.url.toURI))
+          Some(RepoHelper.mvn(x.id, new File(x.url.toURI)))
         case _ => None
       }
 
@@ -32,7 +32,10 @@ trait SbtLauncherTest extends IntegrationTest {
   }
   /** Constructs a new sbt process launcher using the repositories from our own launched app. */
   def sbtProcessLauncher: SbtProcessLauncher =
-    new DefaultSbtProcessLauncher(configuration, optionalRepositories = localRepositories)
+    new DefaultSbtProcessLauncher(configuration,
+      // TODO - Figure out a way to prevent reading the user's ~/.sbt/repositories file in favor
+      // of our locally defined repositories....
+      optionalRepositories = localRepositories)
 
 }
 

@@ -16,6 +16,14 @@ case class LookupApplicationId(name: String, mainClass: String) extends Applicat
   def crossVersionedValue: xsbti.CrossValue = xsbti.CrossValue.Disabled
 }
 
+object RepoHelper {
+  def mvn(name: String, file: File): (String, File, Option[String]) =
+    (name, file, None)
+
+  def ivy(name: String, file: File): (String, File, Option[String]) =
+    (name, file, Some("[organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]"))
+}
+
 /**
  * This class is able to create the command line for Sbt child processes
  * using the launcher to discover the controller jars.
@@ -30,7 +38,7 @@ case class LookupApplicationId(name: String, mainClass: String) extends Applicat
 class DefaultSbtProcessLauncher(
   configuration: AppConfiguration,
   val sbtLauncherJar: File = DefaultSbtProcessLauncher.defaultLauncherLookup,
-  optionalRepositories: Seq[(String, File)] = Seq.empty)
+  optionalRepositories: Seq[(String, File, Option[String])] = Seq.empty)
   extends BasicSbtProcessLauncher {
 
   // The launcher interface for resolving more STUFF
@@ -60,15 +68,14 @@ class DefaultSbtProcessLauncher(
     // What we use this for is to hack
     lazy val propsFile = {
       val tmp = File.createTempFile("sbtrc", "properties")
-
+      def makeRepositoryString(tuple: (String, File, Option[String])): String = tuple match {
+        case (name, uri, None) => s"$name: ${uri.toURI}"
+        case (name, uri, Some(pattern)) => s"$name: ${uri.toURI}, $pattern"
+      }
       // TODO - Users should specify the *complete* definition....
       // This is just a hack for us right now...
       val makeRepositoryStrings =
-        for {
-          (name, file) <- optionalRepositories
-          uri = file.toURI
-        } yield s"""|$name-mvn: $uri
-                    |$name-ivy: $uri, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]""".stripMargin
+        optionalRepositories map makeRepositoryString
 
       val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
       try {
@@ -87,10 +94,10 @@ class DefaultSbtProcessLauncher(
 
 [repositories]
   local
+  ${makeRepositoryStrings mkString "\n  "}
   typesafe-ivy-releases: http://repo.typesafe.com/typesafe/ivy-releases/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
   typesafe-ivy-snapshots: http://repo.typesafe.com/typesafe/ivy-snapshots/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
   maven-central
-  ${makeRepositoryStrings mkString "\n"}
 
 [boot]
  directory: $${sbt.boot.directory-$${sbt.global.base-$${user.home}/.sbt}/boot/}
