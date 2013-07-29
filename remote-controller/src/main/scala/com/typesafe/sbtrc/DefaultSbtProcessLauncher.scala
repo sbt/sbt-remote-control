@@ -38,24 +38,24 @@ class DefaultSbtProcessLauncher(
 
   /**
    * Our published support for sbt 0.12.
-   *  TODO - clean this code up.
+   *  TODO - clean this code up.  We should autocreate app names and scala versions based on sbt version...
    */
   object sbt012support extends SbtBasicProcessLaunchInfo {
     // The Application for the controller jars.  We can use this to get the classpath.
     private object probeApp extends LookupApplicationId(
-      name = "sbt-rc-controller",
+      name = "sbt-rc-probe-0-12",
       mainClass = "com.typesafe.sbtrc.SetupSbtChild")
     private object uiPlugin extends LookupApplicationId(
-      name = "sbt-shim-ui-interface",
+      name = "sbt-rc-ui-interface-0-12",
       mainClass = "com.typesafe.sbt.ui.SbtUiPlugin")
     // This will resolve the probe artifact using our launcher and then
     // give us the classpath
     lazy val controllerClasspath: Seq[File] =
-      launcher.app(probeApp, SBT_SCALA_VERSION).mainClasspath
+      launcher.app(probeApp, "2.9.2").mainClasspath
     private lazy val uiContextClassPathFor012: Seq[File] =
       //   This will resolve the uiContextJar artifact using our launcher and then
       // give us the classpath
-      launcher.app(uiPlugin, SBT_SCALA_VERSION).mainClasspath
+      launcher.app(uiPlugin, "2.9.2").mainClasspath
     // Here we write out our startup props file
     // What we use this for is to hack
     lazy val propsFile = {

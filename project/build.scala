@@ -37,11 +37,7 @@ object TheBuild extends Build {
   // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
   lazy val sbtUiInterface = (
       SbtShimPlugin("ui-interface", sbt12Version)
-      settings(
-          Keys.crossVersion := CrossVersion.Disabled,
-          Keys.projectID <<=  Keys.projectID apply { id =>
-            id.copy(extraAttributes = Map.empty)
-          })
+      settings(noCrossVersioning:_*)
       dependsOnRemote(sbtControllerDeps(sbt12Version):_*)
   )
 
@@ -54,6 +50,7 @@ object TheBuild extends Build {
       sbtControllerDeps(sbt12Version):_*
     )
     settings(requiredJars(props, sbtUiInterface))
+    settings(noCrossVersioning:_*)
   )
 
   // Plugin hims

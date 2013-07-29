@@ -71,7 +71,7 @@ object SbtRcBuild {
   def SbtProbeProject(name: String, sbtVersion: String): Project = {
     val sbtBinaryVersion = CrossVersion.binarySbtVersion(sbtVersion)
     val scrubNameForId =
-      sbtVersion.replaceAll("""[\W+\-]""", "-")
+      sbtBinaryVersion.replaceAll("""[\W+\-]""", "-")
     (
       Project("sbt-rc-" + name + "-"+scrubNameForId, file("probe") / sbtBinaryVersion / name)
       settings(sbtrcDefaults:_*)
@@ -90,4 +90,12 @@ object SbtRcBuild {
         autoScalaLibrary := false
     )
   )
+
+  def noCrossVersioning: Seq[Setting[_]] =
+    Seq(
+       Keys.crossVersion := CrossVersion.Disabled,
+       Keys.projectID <<=  Keys.projectID apply { id =>
+         id.copy(extraAttributes = Map.empty)
+        }
+    )
 }
