@@ -12,7 +12,31 @@ import java.io.BufferedWriter
 import org.apache.ivy.core.module.id.ModuleId
 import Project.Initialize
 
-
+case class LocalRepoReport(location: File, licenses: Seq[License], dependencyHash: String)
+object LocalRepoReport {
+  import sbinary._
+  implicit object Myformat extends Format[LocalRepoReport] {
+                def reads(in: Input): LocalRepoReport = {
+                  val bufSize= DefaultProtocol.IntFormat.reads(in)
+                  val buf = new Array[Byte](bufSize)
+                  in.readFully(buf)
+                  val oin = new java.io.ObjectInputStream(new java.io.ByteArrayInputStream(buf))
+                  try oin.readObject.asInstanceOf[LocalRepoReport]
+                  finally oin.close()
+                }
+                def writes(out: Output, value: LocalRepoReport): Unit = {
+                  val outs = new java.io.ByteArrayOutputStream
+                  val oouts = new java.io.ObjectOutputStream(outs)
+                  try {
+            oouts.writeObject(value)
+                        oouts.flush()
+                        val buf = outs.toByteArray
+                        DefaultProtocol.IntFormat.writes(out, buf.length)
+                        out.writeAll(buf)
+                  } finally outs.close()
+                }
+        }
+}
 
 object IvyRepositories {
 
@@ -38,9 +62,9 @@ object IvyRepositories {
 
   // This method caches *ONCE PER RELOAD* a task.  TODO - We should add hooks to detect
   // changes in dependencies that require us to reload....
-  def useCacheOr[T](key: TaskKey[T], staleCheck: Initialize[Task[Boolean]], action: Initialize[Task[T]]): Initialize[Task[T]] = {
+  def useCacheOr[T](key: TaskKey[T], staleCheck: Initialize[Task[Boolean]], action: Initialize[Task[T]])(implicit format: sbinary.Format[T]): Initialize[Task[T]] = {
     val withStaleCheck: Initialize[Task[Option[T]]] =
-      getPrevious(key).zipWith(staleCheck) { (previous, staleCheck) =>
+      loadPrevious(key).zipWith(staleCheck) { (previous, staleCheck) =>
         staleCheck flatMap { flag =>
           if(flag) task(None) else previous
         }
@@ -50,13 +74,36 @@ object IvyRepositories {
         case Some(value) => task(value)
         case None => current
       }
-    } keepAs key  // TODO - Why isn't this saving...
+    } storeAs key  // TODO - Why isn't this saving...
   }
+  // Simple hash of artifacts to see if we've changed.
+  def makeDephash(arts: Seq[ModuleID]): String = {
+    val hash = java.security.MessageDigest.getInstance("SHA-1")
+    for(art <- arts)
+      hash.digest(art.toString.getBytes)
+    hash.digest.toSeq map (c => '0' + c) mkString ""
+  }
+
+  def hasLocalDepRepoChanged: Initialize[Task[Boolean]] = {
+    loadPrevious(localDepRepoCreation).zip(localDepRepo).zipWith(localRepoArtifacts) { case ((task, file), arts) =>
+      task map {
+        case Some(report) =>
+          task map {
+            case Some(previous) =>
+              !file.exists || (previous.dependencyHash != makeDephash(arts))
+            case None => true
+          }
+          false
+        case _ => true
+      }
+    }
+  }
+
 
   def makeLocalDepRepo: Initialize[Task[LocalRepoReport]] =
     (localDepRepo, localRepoArtifacts, ivySbt, streams, state) map { (r, m, i, s, state) =>
       val licenses = IvyHelper.createLocalRepository(m, localDepRepoName, i, s.log)
-      val result = LocalRepoReport(r, licenses)
+      val result = LocalRepoReport(r, licenses, makeDephash(m))
       result
     }
 
@@ -92,7 +139,7 @@ object IvyRepositories {
     resolvers <+= localArtRepo apply { f => Resolver.file(localArtRepoName, f)(Resolver.ivyStylePatterns) },
     localDepRepoCreation <<= useCacheOr(
         key = localDepRepoCreation,
-        staleCheck = (localDepRepo) map (_.isDirectory),
+        staleCheck = hasLocalDepRepoChanged,
         action = makeLocalDepRepo),
     localDepRepoCreated <<= localDepRepoCreation map (_.location),
     localDepRepoLicenses <<= (localDepRepoCreation, streams) map { (config, s) =>
@@ -141,7 +188,6 @@ package sbt {
 case class License(name: String, url: String)(val deps: Seq[String]) {
   override def toString = name + " @ " + url
 }
-case class LocalRepoReport(location: File, licenses: Seq[License])
 
 object IvyHelper {
   

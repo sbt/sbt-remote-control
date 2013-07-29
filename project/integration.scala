@@ -37,6 +37,8 @@ object integration {
 }
 
 
+
+
 case class IntegrationContext(launchJar: File, 
                                repository: File,
                                streams: TaskStreams,
@@ -47,8 +49,13 @@ case class IntegrationContext(launchJar: File,
     streams.log.info(" [IT] Running: " + name + " [IT]")
     val friendlyName = name replaceAll("\\.", "-")
     val cwd = target / "integration-test" / friendlyName
+    val logFile = target / "integration-test" / (friendlyName + ".log")
+    sbt.IO.touch(logFile)
+    val fileLogger = ConsoleLogger(new java.io.PrintWriter(new java.io.FileWriter(logFile)))
+    val logger = new MultiLogger(List(fileLogger, streams.log.asInstanceOf[AbstractLogger]))
     IO createDirectory cwd
-    setup(name, cwd) ! streams.log match {
+    // Here, let's create a new logger that can store logs in a location of our choosing too...
+    setup(name, cwd) ! logger match {
       case 0 => 
         streams.log.info( " [IT] " + name + " result: SUCCESS [IT]")
       case n => 
