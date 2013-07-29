@@ -41,7 +41,7 @@ trait SbtProcessLauncherTest extends IntegrationTest {
   implicit lazy val timeout = Timeout(300.seconds)
 
   private class TestRequestActor(dummy: File) extends Actor with ActorLogging {
-    val child = SbtProcess(context, dummy, DebugSbtProcessLauncher)
+    val child = SbtProcess(context, dummy, sbtProcessLauncher)
 
     var recorded: Seq[protocol.Message] = Nil
     var requestor: Option[ActorRef] = None

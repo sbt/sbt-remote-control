@@ -14,6 +14,8 @@ object integration {
   val tests = TaskKey[Seq[IntegrationTestResult]]("integration-tests", "Runs all integration tests")
   val singleTest = InputKey[Seq[IntegrationTestResult]]("integration-test-only", "Runs integration tests that match the given glob")
 
+  val knownBadClasses = Set("com.typesafe.sbtrc.TestUtil")
+
   def settings(publishedProjects: Seq[Project], itProject: Project): Seq[Setting[_]] =
     makeLocalRepoSettings(publishedProjects) ++ Seq(
     // Make sure we publish this project.
@@ -21,7 +23,7 @@ object integration {
       val defs = a.apis.internal.values.flatMap(_.api.definitions)
       val results = Discovery(Set("xsbti.Main"), Set())(defs.toSeq)
       results collect { 
-        case (df, di) if !di.isModule && !df.modifiers.isAbstract => df.name
+        case (df, di) if !di.isModule && !df.modifiers.isAbstract && !knownBadClasses.contains(df.name) => df.name
       }
     },
     itContext <<= (sbtLaunchJar, localRepoCreated, streams, version, target, scalaVersion) map IntegrationContext.apply,
@@ -80,6 +82,7 @@ case class IntegrationContext(launchJar: File,
     val logFile = target / "integration-test" / (friendlyName + ".log")
     sbt.IO.touch(logFile)
     val fileLogger = ConsoleLogger(new java.io.PrintWriter(new java.io.FileWriter(logFile)))
+    // TODO - Filter logs so we're not so chatty on the console.
     val logger = new MultiLogger(List(fileLogger, streams.log.asInstanceOf[AbstractLogger]))
     // First clean the old test....
     IO delete cwd
