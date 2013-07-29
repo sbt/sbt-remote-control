@@ -31,6 +31,7 @@ trait SbtProcessLauncherTest extends IntegrationTest {
       // of our locally defined repositories....
       optionalRepositories = localRepositories)
 
+  // TODO - See if we can use the same input-output tests for sbt 0.12 + 0.13 tests...
   lazy val utils = new TestUtil(new File("scratch"))
 
   import akka.actor._

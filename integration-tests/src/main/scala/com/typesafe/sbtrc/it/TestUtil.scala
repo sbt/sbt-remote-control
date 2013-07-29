@@ -17,14 +17,14 @@ final class TestUtil(val scratchDir: File) {
   }
 
   /** Creates a dummy project we can run sbt against. */
-  def makeDummySbtProject(relativeDir: String): File = {
+  def makeDummySbtProject(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
     val dir = makeDummyEmptyDirectory(relativeDir)
 
     val project = new File(dir, "project")
     if (!project.isDirectory()) project.mkdirs()
 
     val props = new File(project, "build.properties")
-    createFile(props, "sbt.version=" + properties.SbtRcProperties.SBT_VERSION)
+    createFile(props, "sbt.version=" + sbtVersion)
 
     val build = new File(dir, "build.sbt")
     createFile(build, s"""
@@ -73,8 +73,8 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithBrokenBuild(relativeDir: String): File = {
-    val dir = makeDummySbtProject(relativeDir)
+  def makeDummySbtProjectWithBrokenBuild(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+    val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val build = new File(dir, "build.sbt")
     createFile(build, "BLARG := \"" + relativeDir + "\"\n")
@@ -82,8 +82,8 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithNoMain(relativeDir: String): File = {
-    val dir = makeDummySbtProject(relativeDir)
+  def makeDummySbtProjectWithNoMain(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+    val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val main = new File(dir, "src/main/scala/hello.scala")
     // doesn't extend App
@@ -92,8 +92,8 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithMultipleMain(relativeDir: String): File = {
-    val dir = makeDummySbtProject(relativeDir)
+  def makeDummySbtProjectWithMultipleMain(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+    val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val main = new File(dir, "src/main/scala/hello.scala")
     createFile(main, """
