@@ -4,15 +4,16 @@ import SbtSupport.sbtLaunchJar
 import xsbt.api.Discovery
 import IvyRepositories.{localRepoCreated, makeLocalRepoSettings}
 
+case class IntegrationTestResult(name: String, passed: Boolean, log: File)
 
 /** This helps set up tests which run inside the sbt launcher. */
 object integration {
-  
+
   val mains = TaskKey[Seq[String]]("integration-test-mains", "Discovered integration test main classes")
   val itContext = TaskKey[IntegrationContext]("integration-test-context")
-  val tests = TaskKey[Unit]("integration-tests", "Runs all integration tests")
-  val singleTest = InputKey[Unit]("integration-test-only", "Runs integration tests that match the given glob")
-  
+  val tests = TaskKey[Seq[IntegrationTestResult]]("integration-tests", "Runs all integration tests")
+  val singleTest = InputKey[Seq[IntegrationTestResult]]("integration-test-only", "Runs integration tests that match the given glob")
+
   def settings(publishedProjects: Seq[Project], itProject: Project): Seq[Setting[_]] =
     makeLocalRepoSettings(publishedProjects) ++ Seq(
     // Make sure we publish this project.
@@ -24,16 +25,43 @@ object integration {
       }
     },
     itContext <<= (sbtLaunchJar, localRepoCreated, streams, version, target, scalaVersion) map IntegrationContext.apply,
-    tests <<= (itContext, mains) map { (ctx, ms) =>
-      ms foreach ctx.runTest
+    // TODO - A much smarter integration test launcher!
+    tests <<= (itContext, mains, streams) map { (ctx, ms, s) =>
+      val results = ms map ctx.runTest
+      handleResults(results, s)
+      results
     },	
     singleTest <<= inputTask { argTask =>
-      (argTask, itContext, mains) map { (args, ctx, mains) =>
+      (argTask, itContext, mains, streams) map { (args, ctx, mains, s ) =>
         val glob = args mkString " "
-        mains filter (_ contains glob) foreach ctx.runTest
+        val results = mains filter (_ contains glob) map ctx.runTest
+        handleResults(results, s)
+        results
       }
     }
   )
+
+  def handleResults(results: Seq[IntegrationTestResult], out: TaskStreams): Unit = {
+    // TODO - Only colorize if we're in ANSI terminal.
+    out.log.info(scala.Console.BLUE + " --- Integration Test Report ---" + scala.Console.BLUE_B)
+    val maxName = results.map(_.name.length).max
+    def padName(name: String): String = {
+      val pad = Stream.continually(' ').take(maxName - name.length).mkString("")
+      pad + name
+    }
+    for(result <- results.sortBy(r => r.passed + r.name)) {
+      val resultString =
+        if(result.passed) "[ " + scala.Console.GREEN + "PASSED"+ scala.Console.RESET +" ]"
+        else              "[ " + scala.Console.RED + "FAILED"+ scala.Console.RESET +" ]"
+      val seeString =
+        if(result.passed) ""
+        else (" see " + result.log.getAbsolutePath+scala.Console.RESET)
+      out.log.info(" * " + padName(result.name) + " " + resultString + seeString)
+    }
+    if(results.exists(!_.passed)) {
+      sys.error("Failing integration tests!")
+    }
+  }
 }
 
 
@@ -45,8 +73,8 @@ case class IntegrationContext(launchJar: File,
                                version: String,
                                target: File,
                                scalaVersion: String) {
-  def runTest(name: String): Unit = {
-    streams.log.info(" [IT] Running: " + name + " [IT]")
+  def runTest(name: String): IntegrationTestResult = {
+    streams.log.info(scala.Console.BLUE+" [IT] Running: " + name + " [IT]"+scala.Console.BLUE_B)
     val friendlyName = name replaceAll("\\.", "-")
     val cwd = target / "integration-test" / friendlyName
     val logFile = target / "integration-test" / (friendlyName + ".log")
@@ -59,10 +87,11 @@ case class IntegrationContext(launchJar: File,
     // Here, let's create a new logger that can store logs in a location of our choosing too...
     setup(name, cwd) ! logger match {
       case 0 => 
-        streams.log.info( " [IT] " + name + " result: SUCCESS [IT]")
+        streams.log.info( " [IT] " + name + " result: SUCCESS")
+        IntegrationTestResult(name, true, logFile)
       case n => 
-        streams.log.error(" [IT] " + name + " result: FAILURE [IT]")
-        sys.error("Integration test failed")
+        streams.log.error(" [IT] " + name + " result: FAILURE")
+        IntegrationTestResult(name, false, logFile)
     }
   }
   

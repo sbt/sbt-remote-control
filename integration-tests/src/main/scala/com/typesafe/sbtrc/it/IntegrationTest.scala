@@ -1,12 +1,18 @@
 package com.typesafe.sbtrc
 package it
 
+import akka.actor.ActorSystem
 /** Base class for integration tests. */
 abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
   // Junk to make delayed init work.
   private var _config: xsbti.AppConfiguration = null
   private var _test: () => Unit = null
+  // We create one per test...
+  private var _system: ActorSystem = null
   final def delayedInit(x: => Unit): Unit = _test = () => x
+
+  /** Returns an actor system we can use. */
+  final def system: ActorSystem = _system
 
   /** Returns the current sbt launcher configuration for the test. */
   final def configuration: xsbti.AppConfiguration = _config
@@ -17,7 +23,12 @@ abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
   final def run(configuration: xsbti.AppConfiguration): xsbti.MainResult =
     try withContextClassloader {
       _config = configuration
-      _test()
+      _system = ActorSystem("ManualTest")
+      try _test()
+      finally {
+        system.shutdown()
+        system.awaitTermination()
+      }
       // IF we don't throw an exception, we've succeeded
       Success
     } catch {
