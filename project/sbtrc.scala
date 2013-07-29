@@ -57,10 +57,17 @@ object SbtRcBuild {
       sbtPlugin := true
     )
 
-  def sbtShimPluginSettings: Seq[Setting[_]] =
+  def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
     Seq(
       sbtPlugin := true,
-      publishMavenStyle := false
+      publishMavenStyle := false,
+      Keys.sbtVersion := sbtVersion,
+      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion,
+      // Hacked so we get the right dependnecies...
+      allDependencies <<= (Keys.projectDependencies, Keys.libraryDependencies, Keys.sbtVersion) map { (pd, ld, sv) =>
+        val base = pd ++ ld
+        ("org.scala-sbt" % "sbt" % sv % Provided.name) +: base
+      }
     )
 
   def SbtRemoteControlProject(name: String): Project = (
@@ -81,7 +88,7 @@ object SbtRcBuild {
 
   def SbtShimPlugin(name: String, sbtVersion: String): Project = (
     SbtProbeProject(name, sbtVersion)
-    settings(sbtShimPluginSettings:_*)
+    settings(sbtShimPluginSettings(sbtVersion):_*)
   )
   def PropsProject(name: String): Project = (
     Project("sbt-rc-" + name, file(name))

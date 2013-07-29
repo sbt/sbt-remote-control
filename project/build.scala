@@ -23,7 +23,8 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt12ProbeProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects
+  lazy val sbt13ProbeProjects = Set(sbtUiInterface13)
+  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
 
   // TODO - This should be the default properties we re-use between the controller and the driver.
   lazy val props = (
@@ -38,6 +39,7 @@ object TheBuild extends Build {
   lazy val sbtUiInterface = (
       SbtShimPlugin("ui-interface", sbt12Version)
       settings(noCrossVersioning:_*)
+      dependsOnSource("commons/ui-interface")
       dependsOnRemote(sbtControllerDeps(sbt12Version):_*)
   )
 
@@ -78,6 +80,16 @@ object TheBuild extends Build {
   )
 
   // ================= END 0.12 shims ==========================
+
+
+  // ================= 0.13 shims ==========================
+
+  // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
+  lazy val sbtUiInterface13 = (
+      SbtShimPlugin("ui-interface", sbt13Version)
+      settings(noCrossVersioning:_*)
+      dependsOnSource("commons/ui-interface")
+  )
 
 
 
