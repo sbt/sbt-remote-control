@@ -36,4 +36,8 @@ abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
         t.printStackTrace()
         Failure
     }
+
+  def assertEquals(o: Any, o2: Any): Unit = {
+    if (o != o2) sys.error(s"Objects are not equal! $o != $o2")
+  }
 }
