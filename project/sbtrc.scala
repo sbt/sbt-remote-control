@@ -3,6 +3,7 @@ import Keys._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.SbtGit
+import Dependencies.getScalaVersionForSbtVersion
 
 object SbtRcBuild {
 
@@ -42,43 +43,45 @@ object SbtRcBuild {
       // Scaladoc is slow as molasses.
       Keys.publishArtifact in (Compile, packageDoc) := false,
       scalaVersion := Dependencies.scalaVersion,
-      scalaBinaryVersion := "2.10",
+      scalaBinaryVersion <<= scalaVersion apply { sv =>
+        CrossVersion.binaryScalaVersion(sv)
+      },
       ScalariformKeys.preferences in Compile := formatPrefs,
       ScalariformKeys.preferences in Test    := formatPrefs
     )
 
-  def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
-    sbtrcDefaults ++
+  def sbtProbeSettings(sbtVersion: String): Seq[Setting[_]] =
     Seq(
       scalaVersion := getScalaVersionForSbtVersion(sbtVersion),
-      scalaBinaryVersion := sbtVersion,
+      Keys.sbtVersion := sbtVersion,
+      sbtPlugin := true
+    )
+
+  def sbtShimPluginSettings: Seq[Setting[_]] =
+    Seq(
       sbtPlugin := true,
       publishMavenStyle := false
     )
 
-  def getScalaVersionForSbtVersion(sbt: String) =
-    getBinaryVersion(sbt) match {
-      case "0.12" => "2.9.2"
-      case "0.13" => "2.10.2"
-      case _ => sys.error("Unsupported sbt version: " + sbt)
-    }
-  def getBinaryVersion(version: String): String = {
-    val BC = new scala.util.matching.Regex("""(\d+\.\d+).*""")
-    // TODO - handle errors?
-    version match {
-      case BC(bv) => bv
-      case _ => version
-    }
-  }
-
   def SbtRemoteControlProject(name: String): Project = (
-    Project("sbt-rc-" + name, file("sbt-rc") / name)
+    Project("sbt-rc-" + name, file(name))
     settings(sbtrcDefaults:_*)
   )
 
-  def SbtShimPlugin(name: String, sbtVersion: String = Dependencies.sbtPluginVersion): Project = (
-    Project("sbt-shim-" + name, file("sbt-shim") / getBinaryVersion(sbtVersion) / name)
-    settings(sbtShimPluginSettings(sbtVersion):_*)
+  def SbtProbeProject(name: String, sbtVersion: String): Project = {
+    val sbtBinaryVersion = CrossVersion.binarySbtVersion(sbtVersion)
+    val scrubNameForId =
+      sbtVersion.replaceAll("""[\W+\-]""", "-")
+    (
+      Project("sbt-rc-" + name + "-"+scrubNameForId, file("probe") / sbtBinaryVersion / name)
+      settings(sbtrcDefaults:_*)
+      settings(sbtProbeSettings(sbtVersion): _*)
+    )
+  }
+
+  def SbtShimPlugin(name: String, sbtVersion: String): Project = (
+    SbtProbeProject(name, sbtVersion)
+    settings(sbtShimPluginSettings:_*)
   )
   def PropsProject(name: String): Project = (
     Project("sbt-rc-" + name, file(name))

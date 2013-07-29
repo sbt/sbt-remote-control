@@ -22,63 +22,70 @@ object TheBuild extends Build {
   )
 
   // These are the projects we want in the local repository we deploy.
-  lazy val publishedSbtShimProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, sbtDriver, props) ++ publishedSbtShimProjects
+  lazy val sbt12ProbeProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
+  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects
 
   // TODO - This should be the default properties we re-use between the controller and the driver.
   lazy val props = (
     PropsProject("props")
-    settings(Properties.makePropertyClassSetting(Dependencies.sbtVersion, Dependencies.scalaVersion):_*)
+    settings(Properties.makePropertyClassSetting(Dependencies.sbt12Version, Dependencies.scalaVersion):_*)
   )
+
+
+  // ================= 0.12 shims ==========================
 
   // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
   lazy val sbtUiInterface = (
-      SbtShimPlugin("ui-interface")
+      SbtShimPlugin("ui-interface", sbt12Version)
       settings(
-          Keys.scalaVersion := Dependencies.sbtPluginScalaVersion, 
-          Keys.scalaBinaryVersion <<= Keys.scalaVersion,
           Keys.crossVersion := CrossVersion.Disabled,
           Keys.projectID <<=  Keys.projectID apply { id =>
             id.copy(extraAttributes = Map.empty)
           })
-      dependsOnRemote(sbtControllerDeps(Dependencies.sbtVersion):_*)
+      dependsOnRemote(sbtControllerDeps(sbt12Version):_*)
   )
 
   // This is the embedded controller for sbt projects.
-  lazy val sbtRemoteController = (
-    SbtRemoteControlProject("controller")
-    settings(Keys.scalaVersion := Dependencies.sbtPluginScalaVersion, Keys.scalaBinaryVersion <<= Keys.scalaVersion)
-    dependsOnSource("../protocol")
+  lazy val sbtControllerProbe = (
+    SbtProbeProject("probe", sbt12Version)
+    dependsOnSource("commons/protocol")
     dependsOn(props, sbtUiInterface % "provided")
     dependsOnRemote(
-      sbtControllerDeps(Dependencies.sbtVersion):_*
+      sbtControllerDeps(sbt12Version):_*
     )
     settings(requiredJars(props, sbtUiInterface))
   )
 
-  // SBT Shims
+  // Plugin hims
   lazy val playShimPlugin = (
-    SbtShimPlugin("play")
+    SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
-    dependsOnRemote(playSbtPlugin)
+    dependsOnRemote(playSbtPlugin12)
   )
 
   lazy val eclipseShimPlugin = (
-    SbtShimPlugin("eclipse")
+    SbtShimPlugin("eclipse", sbt12Version)
     dependsOn(sbtUiInterface)
-    dependsOnRemote(eclipseSbtPlugin)
+    dependsOnRemote(eclipseSbtPlugin12)
   )
 
   lazy val ideaShimPlugin = (
-    SbtShimPlugin("idea")
+    SbtShimPlugin("idea", sbt12Version)
     dependsOn(sbtUiInterface)
-    dependsOnRemote(ideaSbtPlugin)
+    dependsOnRemote(ideaSbtPlugin12)
   )
 
   lazy val defaultsShimPlugin = (
-    SbtShimPlugin("defaults")
+    SbtShimPlugin("defaults", sbt12Version)
     // TODO - can we just depend on all the other plugins so we only have one shim?
   )
+
+  // ================= END 0.12 shims ==========================
+
+
+
+  // ================= Remote Controler main project ==========================
+
 
   val verboseSbtTests = Option(sys.props("sbtrc.verbose.tests")).map(_ == "true").getOrElse(false)
 
@@ -89,8 +96,8 @@ object TheBuild extends Build {
     Keys.javaOptions in testKey <<= (
       SbtSupport.sbtLaunchJar,
       Keys.javaOptions in testKey,
-      requiredClasspath in sbtRemoteController,
-      Keys.compile in Compile in sbtRemoteController) map {
+      requiredClasspath in sbtControllerProbe,
+      Keys.compile in Compile in sbtControllerProbe) map {
       (launcher, oldOptions, controllerCp, _) =>
         oldOptions ++ Seq("-Dsbtrc.no-shims=true",
                           "-Dsbtrc.launch.jar=" + launcher.getAbsoluteFile.getAbsolutePath,
@@ -106,13 +113,13 @@ object TheBuild extends Build {
 
 
   // This project is used to drive sbt processes, installing the controller.
-  lazy val sbtDriver = (
-    SbtRemoteControlProject("parent")
+  lazy val sbtRemoteController = (
+    SbtRemoteControlProject("remote-controller")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
       Keys.publishArtifact in (Test, Keys.packageBin) := true 
     )
-    dependsOnSource("../protocol")
+    dependsOnSource("commons/protocol")
     dependsOn(props)
     dependsOnRemote(akkaActor,
                     sbtLauncherInterface,
@@ -127,7 +134,7 @@ object TheBuild extends Build {
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
     dependsOnRemote(sbtLauncherInterface, sbtIo)
-    dependsOn(sbtDriver, props)
+    dependsOn(sbtRemoteController, props)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {}

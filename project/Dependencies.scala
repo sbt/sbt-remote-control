@@ -2,32 +2,40 @@ import sbt._
 import Keys._
 
 object Dependencies {
-  val sbtVersion = "0.12.4-RC3"
-  val sbtPluginVersion = "0.12"
-  val sbtPluginScalaVersion = "2.9.2"
+
+  // Helpers for sbt plugins
+  def getScalaVersionForSbtVersion(sbt: String) =
+    CrossVersion.binarySbtVersion(sbt) match {
+      case "0.12" => "2.9.2"
+      case "0.13" => "2.10.2"
+      case _ => sys.error("Unsupported sbt version: " + sbt)
+    }
+
+  def makeSbtPlugin(m: ModuleID, sbtVersion: String): ModuleID = {
+    val sbt: String = CrossVersion.binarySbtVersion(sbtVersion)
+    val fullScala: String = getScalaVersionForSbtVersion(sbtVersion)
+    val scala: String = CrossVersion.binaryScalaVersion(fullScala)
+    Defaults.sbtPluginExtra(m, sbt, scala)
+  }
+
+  // Reference versions
+  val sbt12Version = "0.12.4"
+  val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
+  val sbt13Version = "0.13.0-RC3"
+  val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
+
+  // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
   val sbtMainVersion = "0.13.0-RC3"
-  val playVersion = "2.1.1"
   val akkaVersion = "2.1.2"
 
 
-  val sbtOrg = "org.scala-sbt"
+  // Here we declare our dependencies normally
+  val sbtOrg               = "org.scala-sbt"
   val sbtIo                = sbtOrg % "io" % sbtMainVersion
   // We use an old version here, so we're compatible...
   val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
-
-  def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
-    Seq(
-      sbtOrg % "main" % sbtVersion % "provided",
-      sbtOrg % "sbt" % sbtVersion% "provided",
-      sbtOrg % "io" % sbtVersion % "provided",
-      sbtOrg % "logging" % sbtVersion,
-      sbtOrg % "process" % sbtVersion
-    )
-  }
-
-  
   
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion
@@ -42,11 +50,21 @@ object Dependencies {
   val junitInterface       = "com.novocode" % "junit-interface" % "0.7"
   //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
 
-  // SBT plugins we have to shim
-  val playSbtPlugin        =  Defaults.sbtPluginExtra("play" % "sbt-plugin" % playVersion, sbtPluginVersion, sbtPluginScalaVersion)
-  val eclipseSbtPlugin     =  Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", sbtPluginVersion, sbtPluginScalaVersion)
-  val ideaSbtPlugin        =  Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.3.0", sbtPluginVersion, sbtPluginScalaVersion)
-  val pgpPlugin            =  Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-pgp" % "0.8", sbtPluginVersion, sbtPluginScalaVersion)
+
+
+  // Here we define dependencies for the shim/probe sections.
+  def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
+    Seq(
+      sbtOrg % "main" % sbtVersion % "provided",
+      sbtOrg % "sbt" % sbtVersion% "provided",
+      sbtOrg % "io" % sbtVersion % "provided",
+      sbtOrg % "logging" % sbtVersion,
+      sbtOrg % "process" % sbtVersion
+    )
+  }
+  val playSbtPlugin12        =  makeSbtPlugin("play" % "sbt-plugin" % "2.1.1", sbt12Version)
+  val eclipseSbtPlugin12     =  makeSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", sbt12Version)
+  val ideaSbtPlugin12        =  makeSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.3.0", sbt12Version)
 
 
   // Mini DSL
@@ -58,8 +76,8 @@ object Dependencies {
   // DSL for adding source dependencies ot projects.
   def dependsOnSource(dir: String): Seq[Setting[_]] = {
     import Keys._
-    Seq(unmanagedSourceDirectories in Compile <<= (unmanagedSourceDirectories in Compile, baseDirectory) { (srcDirs, base) => (base / dir / "src/main/scala") +: srcDirs },
-        unmanagedSourceDirectories in Test <<= (unmanagedSourceDirectories in Test, baseDirectory) { (srcDirs, base) => (base / dir / "src/test/scala") +: srcDirs })
+    Seq(unmanagedSourceDirectories in Compile <<= (unmanagedSourceDirectories in Compile, baseDirectory in ThisBuild) { (srcDirs, base) => (base / dir / "src/main/scala") +: srcDirs },
+        unmanagedSourceDirectories in Test <<= (unmanagedSourceDirectories in Test, baseDirectory in ThisBuild) { (srcDirs, base) => (base / dir / "src/test/scala") +: srcDirs })
   }
   implicit def p2source(p: Project): SourceDepHelper = new SourceDepHelper(p)
   final class SourceDepHelper(p: Project) {

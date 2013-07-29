@@ -61,6 +61,8 @@ class DefaultSbtProcessLauncher(
     lazy val propsFile = {
       val tmp = File.createTempFile("sbtrc", "properties")
 
+      // TODO - Users should specify the *complete* definition....
+      // This is just a hack for us right now...
       val makeRepositoryStrings =
         for {
           (name, file) <- optionalRepositories
