@@ -53,6 +53,8 @@ case class IntegrationContext(launchJar: File,
     sbt.IO.touch(logFile)
     val fileLogger = ConsoleLogger(new java.io.PrintWriter(new java.io.FileWriter(logFile)))
     val logger = new MultiLogger(List(fileLogger, streams.log.asInstanceOf[AbstractLogger]))
+    // First clean the old test....
+    IO delete cwd
     IO createDirectory cwd
     // Here, let's create a new logger that can store logs in a location of our choosing too...
     setup(name, cwd) ! logger match {
