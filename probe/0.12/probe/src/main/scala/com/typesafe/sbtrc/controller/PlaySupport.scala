@@ -40,10 +40,4 @@ object PlaySupport {
     (s, makeResponseParams(protocol.RunResponse(success = true,
       task = taskName)))
   }
-
-  // TODO - Specify project too...
-  def isPlayProject(state: State): Boolean = {
-    val extracted = Project.extract(state)
-    extracted.getOpt(SettingKey[Boolean]("play-plugin")).isDefined
-  }
 }

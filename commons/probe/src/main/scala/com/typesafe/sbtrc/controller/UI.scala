@@ -1,7 +1,7 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.Params
+import com.typesafe.sbt.ui._
 
 final class ParamsHelper(params: Params) {
   import params._

@@ -3,11 +3,10 @@ package controller
 
 import sbt._
 import properties.SbtRcProperties._
-import com.typesafe.sbtrc.io.ShimWriter
 
-class ShimInstaller(val name: String) {
+class ShimInstaller(val name: String, sbtVersion: String = "0.12") {
 
-  private val writer = new ShimWriter(name, APP_VERSION)
+  private val writer = new io.ShimWriter(name, APP_VERSION, sbtVersion)
 
   // true if the shim was freshly installed
   def ensure(state: State): Boolean = {
