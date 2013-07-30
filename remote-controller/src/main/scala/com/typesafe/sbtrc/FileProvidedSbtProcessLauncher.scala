@@ -16,24 +16,28 @@ import java.io.File
 // TODO - Add additional props argument so we can pass more JVM options down to the debug launcher.
 class FileProvidedSbtProcessLauncher(
   override val sbtLauncherJar: File,
-  probeFiles: Seq[File]) extends BasicSbtProcessLauncher {
+  probeFiles: Seq[File],
+  optRepos: Seq[SbtPropertiesHelper.Repository] = Nil) extends BasicSbtProcessLauncher {
 
   // Support objects for the various sbts.
   object sbt12Support extends SbtDefaultPropsfileLaunchInfo {
     val myFiles =
-      probeFiles filter (_.getName contains "0_12")
-    override val controllerClasspath: Seq[File] = myFiles filterNot (_.getAbsolutePath contains "ui-interface")
-    override val extraJars: Seq[File] = myFiles filter (_.getAbsolutePath contains "ui-interface")
+      probeFiles.filter(_.getName contains "0-12") ++
+        probeFiles.filter(_.getName contains "sbt-rc-props")
+    override val controllerClasspath: Seq[File] = myFiles filterNot (_.getName contains "ui-interface")
+    override val extraJars: Seq[File] = myFiles filter (_.getName contains "ui-interface")
     // TODO - Get this version from properties!
     override val sbtVersion = "0.12.4"
+    override val optionalRepositories = optRepos
   }
   object sbt13Support extends SbtDefaultPropsfileLaunchInfo {
     val myFiles =
-      probeFiles filter (_.getName contains "0_13")
+      probeFiles filter (_.getName contains "0-13")
     override val controllerClasspath: Seq[File] = myFiles filterNot (_.getAbsolutePath contains "ui-interface")
     override val extraJars: Seq[File] = myFiles filter (_.getAbsolutePath contains "ui-interface")
     // TODO - Get this version from properties!
     override val sbtVersion = "0.13.0-RC3"
+    override val optionalRepositories = optRepos
   }
 
   override def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo =

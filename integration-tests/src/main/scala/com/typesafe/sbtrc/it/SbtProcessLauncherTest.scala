@@ -25,7 +25,7 @@ trait SbtProcessLauncherTest extends IntegrationTest {
     } yield values
   }
   /** Constructs a new sbt process launcher using the repositories from our own launched app. */
-  def sbtProcessLauncher: SbtProcessLauncher =
+  def sbtProcessLauncher: DefaultSbtProcessLauncher =
     new DefaultSbtProcessLauncher(configuration,
       // TODO - Figure out a way to prevent reading the user's ~/.sbt/repositories file in favor
       // of our locally defined repositories....
