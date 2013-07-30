@@ -6,6 +6,7 @@ import akka.dispatch._
 import scala.concurrent._
 import scala.concurrent.duration._
 import akka.util.Timeout
+import com.typesafe.sbtrc.launching.DebugSbtProcessLauncher
 
 object Main extends App {
   if (args.length < 1)

@@ -1,6 +1,7 @@
 package com.typesafe.sbtrc
 
 import com.typesafe.sbtrc.it._
+import com.typesafe.sbtrc.launching._
 import java.io.File
 import akka.actor._
 import akka.pattern._

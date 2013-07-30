@@ -5,6 +5,7 @@ import java.io.File
 import xsbti.Repository
 import xsbti.MavenRepository
 import xsbti.IvyRepository
+import launching._
 
 trait SbtProcessLauncherTest extends IntegrationTest {
   /** The local repositories we need to use for this integration test. */

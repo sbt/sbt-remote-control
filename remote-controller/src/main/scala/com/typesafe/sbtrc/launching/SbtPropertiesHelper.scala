@@ -1,4 +1,4 @@
-package com.typesafe.sbtrc
+package com.typesafe.sbtrc.launching
 
 import java.io.File
 

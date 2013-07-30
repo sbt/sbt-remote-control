@@ -1,7 +1,9 @@
 package com.typesafe.sbtrc
+package launching
 
 import java.io.File
 import properties.SbtRcProperties._
+import scala.collection.JavaConverters.seqAsJavaListConverter
 
 /**
  * This class contains all the sbt-version specific information we

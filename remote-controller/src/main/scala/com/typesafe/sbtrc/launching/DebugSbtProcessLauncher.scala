@@ -1,4 +1,5 @@
 package com.typesafe.sbtrc
+package launching
 
 import properties.SbtRcProperties._
 import java.io.File

@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.duration.Duration
 import java.util.concurrent.TimeUnit
 import akka.util.ByteString
+import com.typesafe.sbtrc.launching.SbtProcessLauncher
 
 sealed trait SbtProcessRequest
 case object KillSbtProcess extends SbtProcessRequest

@@ -1,4 +1,5 @@
 package com.typesafe.sbtrc
+package launching
 
 import xsbti.AppConfiguration
 import xsbti.ApplicationID

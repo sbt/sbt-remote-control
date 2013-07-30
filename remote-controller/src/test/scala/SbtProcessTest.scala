@@ -12,6 +12,7 @@ import scala.concurrent.duration._
 import scala.concurrent.Await
 import akka.pattern._
 import akka.util.Timeout
+import com.typesafe.sbtrc.launching.SbtProcessLauncher
 
 class SbtProcessTest {
 

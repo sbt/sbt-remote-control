@@ -4,6 +4,7 @@ import akka.actor._
 import java.io.File
 import properties.SbtRcProperties
 import com.typesafe.sbtrc.io.ShimWriter
+import com.typesafe.sbtrc.launching.SbtProcessLauncher
 
 // the "id" can be anything as long as you ensure it's unique
 // for the pool; use a uuid if in doubt. taskName is a human-readable

@@ -1,10 +1,7 @@
 package com.typesafe.sbtrc
+package launching
 
-import xsbti.AppConfiguration
-import xsbti.ApplicationID
 import java.io.File
-import properties.SbtRcProperties._
-import scala.util.control.NonFatal
 
 /**
  * A trait which can create the SBT child process
