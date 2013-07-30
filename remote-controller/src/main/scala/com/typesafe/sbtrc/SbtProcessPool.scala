@@ -42,17 +42,19 @@ trait SbtProcessFactory {
 
 class DefaultSbtProcessFactory(val workingDir: File, val sbtProcessLauncher: SbtProcessLauncher) extends SbtProcessFactory {
   override def init(log: akka.event.LoggingAdapter): Unit = {
-    for (shim <- ShimWriter.knownShims) {
-      val writer = new ShimWriter(shim, SbtRcProperties.APP_VERSION)
+    // TODO - We should error out on bad version numbers!
+    val sbtBinaryVersion =
+      io.SbtVersionUtil.findProjectBinarySbtVersion(workingDir).getOrElse("0.12")
+    for (writer <- ShimWriter.knownShims(SbtRcProperties.APP_VERSION, sbtBinaryVersion)) {
       // we update shim plugin files ONLY if they exist, because when they
       // are missing it may be because they aren't applicable. Only the
       // remote probe can decide to ADD a shim file.
       val updated =
-        if (ShimWriter.alwaysIncludedShims contains shim) {
+        if (ShimWriter.alwaysIncludedShims contains writer.name) {
           writer.ensureExists(workingDir)
         } else writer.updateIfExists(workingDir)
       if (updated)
-        log.info(s"Updated shim plugin for ${shim}")
+        log.info(s"Updated shim plugin for ${writer.name}")
 
     }
   }

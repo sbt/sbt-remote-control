@@ -170,6 +170,7 @@ object TheBuild extends Build {
       Keys.publishLocal := {},
       // Additional dependencies required to run tests:
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2"
     )
   )

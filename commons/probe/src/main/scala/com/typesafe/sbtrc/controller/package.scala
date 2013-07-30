@@ -3,6 +3,7 @@ package com.typesafe.sbtrc
 import sbt._
 import com.typesafe.sbt.ui._
 import com.typesafe.sbtrc.io.ShimWriter
+import com.typesafe.sbtrc.properties.SbtRcProperties
 
 
 package object controller {
@@ -22,9 +23,10 @@ package object controller {
   // returns true if we need to reboot (any changes were made)
   // TODO - These versions and passing are all out of whack.
   def installShims(state: State, sbtVersion: String = "0.12"): Boolean = {
-    ShimWriter.knownShims.foldLeft(false) { (sofar, name) =>
-      val installer = new ShimInstaller(name, sbtVersion)
-      val shouldInstall = shimFilters.get(name).getOrElse { state: State => true }
+    ShimWriter.knownShims(SbtRcProperties.APP_VERSION, sbtVersion).foldLeft(false) { (sofar, writer) =>
+      // TODO - We need to customize which shim installer is used based on sbt version!
+      val installer = new ShimInstaller(writer)
+      val shouldInstall = shimFilters.get(writer.name).getOrElse { state: State => true }
       if (shouldInstall(state))
         installer.ensure(state) || sofar // note, DO NOT short-circuit
       else

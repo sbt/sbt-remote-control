@@ -66,22 +66,8 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
   def sbtLauncherJar: File
 
   /** Returns the sbt binary version we're about to fork. */
-  def getSbtBinaryVersion(cwd: File): String = {
-    // TODO - Fix this a bit...
-    val buildProperties = new File(cwd, "project/build.properties")
-    // assume 0.12 as default....
-    // TODO - Move 0.12 default to our own properties file
-    if (!buildProperties.exists) "0.12"
-    else {
-      val props = new java.util.Properties
-      sbt.IO.load(props, buildProperties)
-      val VersionExtractor = new scala.util.matching.Regex("""(\d+\.\d+).*""")
-      props.getProperty("sbt.version", "0.12") match {
-        case VersionExtractor(bv) => bv
-        case unknown => sys.error(s"Bad version number: $unknown!")
-      }
-    }
-  }
+  def getSbtBinaryVersion(cwd: File): String =
+    io.SbtVersionUtil.findProjectBinarySbtVersion(cwd).getOrElse("0.12")
 
   /**
    * Generates the arguments used by the sbt process launcher.
