@@ -83,9 +83,9 @@ class ProcessActor(builder: ProcessBuilder, textMode: Boolean = true) extends Ac
   }
 
   private def bufferEvent(event: ProcessEvent): Unit = {
-    if (log.isDebugEnabled) {
-      log.debug("Buffering process event {}", event)
-    }
+    //if (log.isDebugEnabled) {
+    //  log.debug("Buffering process event {}", event)
+    //}
 
     if (!flushScheduled) {
       // timeout length is intended to be user-imperceptible, but greater than OS timer resolution,
