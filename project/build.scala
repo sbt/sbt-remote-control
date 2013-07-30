@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt12ProbeProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
-  lazy val sbt13ProbeProjects = Set(sbtUiInterface13)
+  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13)
   lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
 
   // TODO - This should be the default properties we re-use between the controller and the driver.
@@ -47,6 +47,7 @@ object TheBuild extends Build {
   lazy val sbtControllerProbe = (
     SbtProbeProject("probe", sbt12Version)
     dependsOnSource("commons/protocol")
+    dependsOnSource("commons/probe")
     dependsOn(props, sbtUiInterface % "provided")
     dependsOnRemote(
       sbtControllerDeps(sbt12Version):_*
@@ -91,7 +92,17 @@ object TheBuild extends Build {
       dependsOnSource("commons/ui-interface")
   )
 
-
+  // This is the embedded controller for sbt projects.
+  lazy val sbtControllerProbe13 = (
+    SbtProbeProject("probe", sbt13Version)
+    dependsOnSource("commons/protocol")
+    dependsOnSource("commons/probe")
+    dependsOnRemote(
+      sbtControllerDeps(sbt13Version):_*
+    )
+    dependsOn(props, sbtUiInterface13 % "provided")
+    settings(noCrossVersioning:_*)
+  )
 
   // ================= Remote Controler main project ==========================
 

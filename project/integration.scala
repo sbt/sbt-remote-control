@@ -21,9 +21,11 @@ object integration {
     // Make sure we publish this project.
     mains <<= compile in Compile in itProject map { a =>
       val defs = a.apis.internal.values.flatMap(_.api.definitions)
-      val results = Discovery(Set("xsbti.Main"), Set())(defs.toSeq)
+      val results = Discovery(Set(), Set())(defs.toSeq)
       results collect { 
         case (df, di) if !di.isModule && !df.modifiers.isAbstract && !knownBadClasses.contains(df.name) => df.name
+      } filter { name =>
+        (name contains "Test")  || (name contains "Can")
       }
     },
     itContext <<= (sbtLaunchJar, localRepoCreated, streams, version, target, scalaVersion) map IntegrationContext.apply,

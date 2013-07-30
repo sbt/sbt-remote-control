@@ -10,6 +10,7 @@ import sbt.complete.DefaultParsers
 import sbt.Load.BuildStructure
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import com.typesafe.sbt.ui.SbtUiPlugin.uiContext
+import SbtCustomHacks._
 
 object SbtUtil {
 
@@ -25,20 +26,20 @@ object SbtUtil {
 
     val merged = baseSettings.mergeSettings
 
-    (Extracted(Project.structure(state2), baseSettings, ref)(Project.showFullKey), ref)
+    (Extracted(Project.structure(state2), baseSettings, ref)(showFullKey(state2)), ref)
   }
 
   def extract(state: State, context: Option[UIContext] = None): Extracted = {
     extractWithRef(state, context)._1
   }
 
-  def runInputTask[T](key: ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
+  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
     val extracted = extract(state, context)
     implicit val display = Project.showContextKey(state)
     val it = extracted.get(SettingKey(key.key) in key.scope)
     val keyValues = KeyValue(key, it) :: Nil
 
-    val parser = Aggregation.evaluatingParser(state, extracted.structure, show = false)(keyValues)
+    val parser = Aggregation.evaluatingParser(state, extracted.structure, show = dontShowAggregate)(keyValues)
     // we put a space in front of the args because the parsers expect
     // *everything* after the task name it seems
     DefaultParsers.parse(" " + args, parser) match {
@@ -55,7 +56,7 @@ object SbtUtil {
     appendSettings
   }
 
-  def reloadWithAppended(state: State, appendSettings: Seq[Setting[_]]): State = {
+  def reloadWithAppended(state: State, appendSettings: Seq[sbt.Setting[_]]): State = {
     val session = Project.session(state)
     val structure = Project.structure(state)
     implicit val display = Project.showContextKey(state)

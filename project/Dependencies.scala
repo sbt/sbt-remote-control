@@ -21,12 +21,12 @@ object Dependencies {
   // Reference versions
   val sbt12Version = "0.12.4"
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
-  val sbt13Version = "0.13.0-RC3"
+  val sbt13Version = "0.13.0-RC4"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
-  val sbtMainVersion = "0.13.0-RC3"
+  val sbtMainVersion = sbt13Version
   val akkaVersion = "2.1.2"
 
 
@@ -55,11 +55,7 @@ object Dependencies {
   // Here we define dependencies for the shim/probe sections.
   def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
     Seq(
-      sbtOrg % "main" % sbtVersion % "provided",
-      sbtOrg % "sbt" % sbtVersion% "provided",
-      sbtOrg % "io" % sbtVersion % "provided",
-      sbtOrg % "logging" % sbtVersion,
-      sbtOrg % "process" % sbtVersion
+      sbtOrg % "sbt" % sbtVersion % Provided.name
     )
   }
   val playSbtPlugin12        =  makeSbtPlugin("play" % "sbt-plugin" % "2.1.1", sbt12Version)

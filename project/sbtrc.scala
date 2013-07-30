@@ -53,8 +53,7 @@ object SbtRcBuild {
   def sbtProbeSettings(sbtVersion: String): Seq[Setting[_]] =
     Seq(
       scalaVersion := getScalaVersionForSbtVersion(sbtVersion),
-      Keys.sbtVersion := sbtVersion,
-      sbtPlugin := true
+      Keys.sbtVersion := sbtVersion
     )
 
   def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
@@ -66,7 +65,7 @@ object SbtRcBuild {
       // Hacked so we get the right dependnecies...
       allDependencies <<= (Keys.projectDependencies, Keys.libraryDependencies, Keys.sbtVersion) map { (pd, ld, sv) =>
         val base = pd ++ ld
-        ("org.scala-sbt" % "sbt" % sv % Provided.name) +: base
+        (Dependencies.sbtOrg % "sbt" % sv % Provided.name) +: base
       }
     )
 
