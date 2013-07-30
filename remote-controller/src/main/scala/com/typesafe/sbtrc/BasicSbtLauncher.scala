@@ -16,6 +16,27 @@ trait SbtBasicProcessLaunchInfo {
   // TODO - Launcher jar?
 }
 
+/**
+ * This class uses the sbt properties helper to generate (lazily) the properties
+ *  file used to launch sbt.
+ */
+trait SbtDefaultPropsfileLaunchInfo extends SbtBasicProcessLaunchInfo {
+  /** The sbt version to use in the properties file. */
+  def sbtVersion: String
+  /** Extra jars/directories to place on sbt's classpath. */
+  def extraJars: Seq[File] = Nil
+  /** Optional repositories to use when resolvign sbt. */
+  def optionalRepositories: Seq[SbtPropertiesHelper.Repository] = Nil
+
+  final override lazy val propsFile = {
+    val tmp = File.createTempFile("sbtrc", "properties")
+    // TODO - Get this version from properties!
+    SbtPropertiesHelper.makePropertiesFile(tmp, sbtVersion, extraJars, optionalRepositories)
+    tmp.deleteOnExit()
+    tmp
+  }
+}
+
 /** A "template" for how to create an sbt process launcher. */
 trait BasicSbtProcessLauncher extends SbtProcessLauncher {
   override def apply(cwd: File, port: Int): ProcessBuilder = {

@@ -16,14 +16,6 @@ case class LookupApplicationId(name: String, mainClass: String) extends Applicat
   def crossVersionedValue: xsbti.CrossValue = xsbti.CrossValue.Disabled
 }
 
-object RepoHelper {
-  def mvn(name: String, file: File): (String, File, Option[String]) =
-    (name, file, None)
-
-  def ivy(name: String, file: File): (String, File, Option[String]) =
-    (name, file, Some("[organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]"))
-}
-
 /**
  * This class is able to create the command line for Sbt child processes
  * using the launcher to discover the controller jars.
@@ -38,7 +30,7 @@ object RepoHelper {
 class DefaultSbtProcessLauncher(
   configuration: AppConfiguration,
   val sbtLauncherJar: File = DefaultSbtProcessLauncher.defaultLauncherLookup,
-  optionalRepositories: Seq[(String, File, Option[String])] = Seq.empty)
+  optRepositories: Seq[(String, File, Option[String])] = Seq.empty)
   extends BasicSbtProcessLauncher {
 
   // The launcher interface for resolving more STUFF
@@ -48,7 +40,9 @@ class DefaultSbtProcessLauncher(
    * Our published support for sbt 0.12.
    *  TODO - clean this code up.  We should autocreate app names and scala versions based on sbt version...
    */
-  object sbt012support extends SbtBasicProcessLaunchInfo {
+  object sbt012support extends SbtDefaultPropsfileLaunchInfo {
+    // TODO - better property name
+    override val sbtVersion = SBT_VERSION
     // The Application for the controller jars.  We can use this to get the classpath.
     private object probeApp extends LookupApplicationId(
       name = "sbt-rc-probe-0-12",
@@ -58,62 +52,13 @@ class DefaultSbtProcessLauncher(
       mainClass = "com.typesafe.sbt.ui.SbtUiPlugin")
     // This will resolve the probe artifact using our launcher and then
     // give us the classpath
-    lazy val controllerClasspath: Seq[File] =
+    override val controllerClasspath: Seq[File] =
       launcher.app(probeApp, "2.9.2").mainClasspath
-    private lazy val uiContextClassPathFor012: Seq[File] =
+    override val extraJars: Seq[File] =
       //   This will resolve the uiContextJar artifact using our launcher and then
       // give us the classpath
       launcher.app(uiPlugin, "2.9.2").mainClasspath
-    // Here we write out our startup props file
-    // What we use this for is to hack
-    lazy val propsFile = {
-      val tmp = File.createTempFile("sbtrc", "properties")
-      def makeRepositoryString(tuple: (String, File, Option[String])): String = tuple match {
-        case (name, uri, None) => s"$name: ${uri.toURI}"
-        case (name, uri, Some(pattern)) => s"$name: ${uri.toURI}, $pattern"
-      }
-      // TODO - Users should specify the *complete* definition....
-      // This is just a hack for us right now...
-      val makeRepositoryStrings =
-        optionalRepositories map makeRepositoryString
-
-      val writer = new java.io.BufferedWriter(new java.io.FileWriter(tmp))
-      try {
-        writer.write(s"""
-[scala]
-  version: auto
-
-[app]
-  org: org.scala-sbt
-  name: sbt
-  version: ${SBT_VERSION}
-  class: sbt.xMain
-  components: xsbti,extra
-  cross-versioned: false
-  resources: ${uiContextClassPathFor012 map (_.getCanonicalPath) mkString ","}
-
-[repositories]
-  local
-  ${makeRepositoryStrings mkString "\n  "}
-  typesafe-ivy-releases: http://repo.typesafe.com/typesafe/ivy-releases/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
-  typesafe-ivy-snapshots: http://repo.typesafe.com/typesafe/ivy-snapshots/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
-  maven-central
-
-[boot]
- directory: $${sbt.boot.directory-$${sbt.global.base-$${user.home}/.sbt}/boot/}
-
-[ivy]
-  ivy-home: $${sbt.ivy.home-$${user.home}/.ivy2/}
-  checksums: $${sbt.checksums-sha1,md5}
-  override-build-repos: $${sbt.override.build.repos-false}
-  repository-config: $${sbt.repository.config-$${sbt.global.base-$${user.home}/.sbt}/repositories}
-""")
-      } finally {
-        writer.close()
-      }
-      tmp.deleteOnExit()
-      tmp
-    }
+    override val optionalRepositories = optRepositories
   }
 
   override def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo =

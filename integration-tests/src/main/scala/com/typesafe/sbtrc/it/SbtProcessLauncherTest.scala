@@ -29,7 +29,7 @@ trait SbtProcessLauncherTest extends IntegrationTest {
     new DefaultSbtProcessLauncher(configuration,
       // TODO - Figure out a way to prevent reading the user's ~/.sbt/repositories file in favor
       // of our locally defined repositories....
-      optionalRepositories = localRepositories)
+      optRepositories = localRepositories)
 
   // TODO - See if we can use the same input-output tests for sbt 0.12 + 0.13 tests...
   lazy val utils = new TestUtil(new File("scratch"))

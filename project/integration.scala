@@ -68,7 +68,8 @@ object integration {
 
 
 
-
+// TODO - Time how long tests take.
+// TODO - Send all logs to file, and maybe just filter errors up?
 case class IntegrationContext(launchJar: File, 
                                repository: File,
                                streams: TaskStreams,
@@ -90,7 +91,7 @@ case class IntegrationContext(launchJar: File,
     // Here, let's create a new logger that can store logs in a location of our choosing too...
     setup(name, cwd) ! logger match {
       case 0 => 
-        streams.log.info( " [IT] " + name + " result: SUCCESS")
+        streams.log.info(" [IT] " + name + " result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
       case n => 
         streams.log.error(" [IT] " + name + " result: FAILURE")
