@@ -12,7 +12,7 @@ import com.typesafe.sbtrc.launching.SbtProcessLauncher
 // "owner" will default to the sending actor, specify it
 // if that is wrong. "sbt" will be filled in when the reservation
 // is granted.
-case class SbtReservation(id: String, taskName: String, owner: Option[ActorRef] = None, sbt: Option[ActorRef] = None)
+case class SbtReservation(id: String, taskName: String, owner: Option[ActorRef] = None, sbt: Option[ActorRef] = None, generation: Int = 0)
 
 sealed trait SbtProcessPoolRequest
 
@@ -21,6 +21,10 @@ case class UnsubscribeSbts(ref: ActorRef) extends SbtProcessPoolRequest
 case class RequestAnSbt(reservation: SbtReservation) extends SbtProcessPoolRequest
 case class ReleaseAnSbt(reservationId: String) extends SbtProcessPoolRequest
 case class ForceStopAnSbt(reservationId: String) extends SbtProcessPoolRequest
+// this causes us to stop recycling any live sbt processes and
+// create new processes for all new reservations, typically this
+// is desired if the project files are modified.
+case object InvalidateSbtBuild extends SbtProcessPoolRequest
 
 // sent to owner of SbtReservation only.
 // Once granted, the owner can use the sbt actor until 1) the owner sends ReleaseAnSbt
@@ -69,9 +73,12 @@ class DefaultSbtProcessFactory(val workingDir: File, val sbtProcessLauncher: Sbt
 class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, val maxChildren: Int = 3)
   extends Actor with EventSourceActor with ActorLogging {
 
+  case class Available(sbt: ActorRef, generation: Int)
+
   var reserved = Set.empty[SbtReservation]
-  var available = Set.empty[ActorRef]
+  var available = Set.empty[Available]
   var waiting = Seq.empty[SbtReservation]
+  var generation = 1
 
   def total = reserved.size + available.size
 
@@ -91,9 +98,12 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
           // we may have removed the reservation due to sbt crash,
           // if so we don't put that sbt back in the pool obvs
           if (sbt.isTerminated) {
-            log.debug("sbt child is dead, not returning to pool {}", sbt)
+            log.debug("released sbt child is dead, not returning to pool {}", sbt)
+          } else if (r.generation != generation) {
+            log.debug(s"killing released sbt child from prior generation ${r.generation}, current is $generation: {}", sbt)
+            sbt ! KillSbtProcess
           } else {
-            available = available + sbt
+            available = available + Available(sbt, r.generation)
             log.debug("returned to sbt pool {}", sbt)
           }
           // we may need to start a replacement sbt, or use the newly-available one
@@ -124,7 +134,7 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
     require(total < maxChildren)
     val child = childFactory.newChild(context)
     log.debug("started new sbt child {}; {} were in use, {} were idle", child, reserved.size, available.size)
-    available = available + child
+    available = available + Available(child, generation)
     watch(child)
   }
 
@@ -135,7 +145,7 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
     available = available - child
     val grantee = waiting.head
     waiting = waiting.tail
-    val newReservation = grantee.copy(sbt = Some(child))
+    val newReservation = grantee.copy(sbt = Some(child.sbt), generation = child.generation)
     reserved = reserved + newReservation
     grantee.owner.foreach({ o =>
       watch(o)
@@ -157,6 +167,18 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
     reservation.owner.foreach(watch)
     waiting = waiting :+ reservation
     check()
+  }
+
+  def invalidateBuild(): Unit = {
+    generation += 1
+    log.debug("bumping sbt build generation to {}", generation)
+    available foreach { a =>
+      log.debug("killing outdated sbt process {}", a.sbt)
+      a.sbt ! KillSbtProcess
+    }
+    available = Set.empty
+    // any in-use sbt processes are lazy-dropped as they are released
+    // by their reservation-holders
   }
 
   override def receive = {
@@ -181,6 +203,9 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
 
       case UnsubscribeSbts(ref) =>
         unsubscribe(ref)
+
+      case InvalidateSbtBuild =>
+        invalidateBuild()
     }
 
     case Terminated(ref) =>
@@ -204,8 +229,8 @@ class ChildPool(val childFactory: SbtProcessFactory, val minChildren: Int = 1, v
     }
 
     // handle terminated sbt child which was idle
-    if (available contains ref) {
-      available = available - ref
+    available.find(_.sbt == ref) foreach { a =>
+      available = available - a
     }
   }
 
