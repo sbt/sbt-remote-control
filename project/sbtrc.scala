@@ -3,6 +3,7 @@ import Keys._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.SbtGit
+import Dependencies.getScalaVersionForSbtVersion
 
 object SbtRcBuild {
 
@@ -39,29 +40,54 @@ object SbtRcBuild {
       javacOptions in Compile := Seq("-target", "1.6", "-source", "1.6"),
       javacOptions in (Compile, doc) := Seq("-source", "1.6"),
       libraryDependencies += Dependencies.junitInterface % "test",
+      // Scaladoc is slow as molasses.
+      Keys.publishArtifact in (Compile, packageDoc) := false,
       scalaVersion := Dependencies.scalaVersion,
-      scalaBinaryVersion := "2.10",
+      scalaBinaryVersion <<= scalaVersion apply { sv =>
+        CrossVersion.binaryScalaVersion(sv)
+      },
       ScalariformKeys.preferences in Compile := formatPrefs,
       ScalariformKeys.preferences in Test    := formatPrefs
     )
 
-  def sbtShimPluginSettings: Seq[Setting[_]] =
-    sbtrcDefaults ++
+  def sbtProbeSettings(sbtVersion: String): Seq[Setting[_]] =
     Seq(
-      scalaVersion := Dependencies.sbtPluginScalaVersion,
-      scalaBinaryVersion := Dependencies.sbtPluginScalaVersion,
+      scalaVersion := getScalaVersionForSbtVersion(sbtVersion),
+      Keys.sbtVersion := sbtVersion
+    )
+
+  def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
+    Seq(
       sbtPlugin := true,
-      publishMavenStyle := false
+      publishMavenStyle := false,
+      Keys.sbtVersion := sbtVersion,
+      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion,
+      // Hacked so we get the right dependnecies...
+      allDependencies <<= (Keys.projectDependencies, Keys.libraryDependencies, Keys.sbtVersion) map { (pd, ld, sv) =>
+        val base = pd ++ ld
+        (Dependencies.sbtOrg % "sbt" % sv % Provided.name) +: base
+      }
     )
 
   def SbtRemoteControlProject(name: String): Project = (
-    Project("sbt-rc-" + name, file("sbt-rc") / name)
+    Project("sbt-rc-" + name, file(name))
     settings(sbtrcDefaults:_*)
   )
 
-  def SbtShimPlugin(name: String): Project = (
-    Project("sbt-shim-" + name, file("sbt-shim") / name)
-    settings(sbtShimPluginSettings:_*)
+  def SbtProbeProject(name: String, sbtVersion: String): Project = {
+    val sbtBinaryVersion = CrossVersion.binarySbtVersion(sbtVersion)
+    val scrubNameForId =
+      sbtBinaryVersion.replaceAll("""[\W+\-]""", "-")
+    (
+      Project("sbt-rc-" + name + "-"+scrubNameForId, file("probe") / sbtBinaryVersion / name)
+      settings(sbtrcDefaults:_*)
+      settings(sbtProbeSettings(sbtVersion): _*)
+    )
+  }
+
+  def SbtShimPlugin(name: String, sbtVersion: String): Project = (
+    SbtProbeProject(name, sbtVersion)
+    settings(sbtShimPluginSettings(sbtVersion):_*)
   )
   def PropsProject(name: String): Project = (
     Project("sbt-rc-" + name, file(name))
@@ -70,4 +96,12 @@ object SbtRcBuild {
         autoScalaLibrary := false
     )
   )
+
+  def noCrossVersioning: Seq[Setting[_]] =
+    Seq(
+       Keys.crossVersion := CrossVersion.Disabled,
+       Keys.projectID <<=  Keys.projectID apply { id =>
+         id.copy(extraAttributes = Map.empty)
+        }
+    )
 }
