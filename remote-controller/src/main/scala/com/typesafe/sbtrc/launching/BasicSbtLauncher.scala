@@ -55,6 +55,23 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
       "-XX:PermSize=" + SBT_PERMSIZE,
       "-XX:+CMSClassUnloadingEnabled")
 
+  def isPassThroughProperty(name: String): Boolean =
+    name match {
+      // TODO - What else should pass through?
+      case n if n startsWith "http.proxy" => true
+      case n if n startsWith "https.proxy" => true
+      case n if n startsWith "sbt" => true
+      case n if n startsWith "ivy" => true
+      case _ => false
+    }
+
+  def passThroughJvmArgs: Seq[String] = {
+    for {
+      (name, value) <- sys.props.toSeq
+      if isPassThroughProperty(name)
+    } yield s"-D$name=$value"
+  }
+
   /**
    * Returns the versoin specific information
    *  launch sbt for the given project.
@@ -77,7 +94,7 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
     // TODO - These need to be configurable *and* discoverable.
     // we have no idea if computers will be able to handle this amount of
     // memory....
-    val defaultJvmArgs = jvmArgs
+    val defaultJvmArgs = jvmArgs ++ passThroughJvmArgs
     val sbtBinaryVersion = getSbtBinaryVersion(cwd)
     val info = getLaunchInfo(sbtBinaryVersion)
     // TODO - handle spaces in strings and such...
