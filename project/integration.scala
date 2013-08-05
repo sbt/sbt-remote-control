@@ -136,7 +136,7 @@ case class IntegrationContext(launchJar: File,
        |  components: xsbti
        |
        |[repositories]
-       |  it-local: file://%s, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
+       |  it-local: %s, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
        |  local
        |  typesafe-ivy-releases: http://repo.typesafe.com/typesafe/ivy-releases/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
        |  typesafe-ivy-snapshots: http://repo.typesafe.com/typesafe/ivy-snapshots/, [organization]/[module]/[revision]/[type]s/[artifact](-[classifier]).[ext], bootOnly
@@ -149,5 +149,5 @@ case class IntegrationContext(launchJar: File,
        |  ivy-home: %s/.ivy2
        |  checksums: ${sbt.checksums-sha1,md5}
        |  override-build-repos: ${sbt.override.build.repos-false}
-       |""".stripMargin format (scalaVersion, version, name, repository, cwd.getAbsolutePath, cwd.getAbsolutePath)
+       |""".stripMargin format (scalaVersion, version, name, repository.toURI.toASCIIString, cwd.getAbsolutePath, cwd.getAbsolutePath)
 }
