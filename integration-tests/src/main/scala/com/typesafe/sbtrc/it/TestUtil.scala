@@ -16,8 +16,7 @@ final class TestUtil(val scratchDir: File) {
     dir
   }
 
-  /** Creates a dummy project we can run sbt against. */
-  def makeDummySbtProject(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+  def makeEmptySbtProject(relativeDir: String, sbtVersion: String = properties.SbtRcProperties.SBT_VERSION): File = {
     val dir = makeDummyEmptyDirectory(relativeDir)
 
     val project = new File(dir, "project")
@@ -25,6 +24,13 @@ final class TestUtil(val scratchDir: File) {
 
     val props = new File(project, "build.properties")
     createFile(props, "sbt.version=" + sbtVersion)
+
+    dir
+  }
+
+  /** Creates a dummy project we can run sbt against. */
+  def makeDummySbtProject(relativeDir: String, sbtVersion: String = properties.SbtRcProperties.SBT_VERSION): File = {
+    val dir = makeEmptySbtProject(relativeDir)
 
     val build = new File(dir, "build.sbt")
     createFile(build, s"""

@@ -12,7 +12,7 @@ import akka.util.Timeout
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanRunSbt13Project extends SbtProcessLauncherTest {
-  val dummy = utils.makeDummySbtProject("runChild", "0.13.0-RC3")
+  val dummy = utils.makeDummySbtProject("runChild13", "0.13.0-RC3")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
     Await.result(child ? RunRequest(sendEvents = false, mainClass = None), timeout.duration) match {

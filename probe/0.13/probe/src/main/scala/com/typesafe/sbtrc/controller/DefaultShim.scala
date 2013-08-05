@@ -9,7 +9,6 @@ import org.scalatools.testing._
 import sbt.testing.{ Status => TStatus }
 import SbtUtil.extract
 import SbtUtil.extractWithRef
-import SbtUtil.makeAppendSettings
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
 import protocol.TaskNames
@@ -30,53 +29,15 @@ object DefaultsShim {
     ParamsHelper.fromMap(specific.toGeneric.params)
   }
 
-  private class OurTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener]]) extends TestReportListener {
-
-    override def startGroup(name: String): Unit = {}
-
-    var overallOutcome: protocol.TestOutcome = protocol.TestPassed
-
-    override def testEvent(event: TestEvent): Unit = {
-      // event.result is just all the detail results folded,
-      // we replicate that ourselves below
-      for (detail <- event.detail) {
-        val outcome = detail.status match {
-          case TStatus.Success => protocol.TestPassed
-          case TStatus.Error => protocol.TestError
-          case TStatus.Failure => protocol.TestFailed
-          case TStatus.Skipped => protocol.TestSkipped
-        }
-
-        // each test group is in its own thread so this has to be
-        // synchronized
-        synchronized {
-          overallOutcome = overallOutcome.combine(outcome)
-        }
-
-        sendEvent(ui, "result",
-          protocol.TestEvent(detail.fullyQualifiedName,
-            None, // No descriptions in new interface?
-            outcome,
-            Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)).toGeneric.params)
-      }
-    }
-
-    override def endGroup(name: String, t: Throwable): Unit = {}
-
-    override def endGroup(name: String, result: TestResult.Value): Unit = {}
-
-    override def contentLogger(test: TestDefinition): Option[ContentLogger] = None
-  }
-
   private val listenersKey = testListeners in Test
 
   private def addTestListener(state: State, ui: UIContext): State = {
     val (extracted, ref) = extractWithRef(state)
-    val ourListener = new OurTestListener(ui, extracted.get(listenersKey))
+    val ourListener = new UiTestListener(ui, extracted.get(listenersKey))
 
-    val settings = makeAppendSettings(Seq(listenersKey <<= (listenersKey) map { listeners =>
+    val settings = Seq(listenersKey <<= (listenersKey) map { listeners =>
       listeners :+ ourListener
-    }), ref, extracted)
+    })
 
     reloadWithAppended(state, settings)
   }
@@ -87,15 +48,14 @@ object DefaultsShim {
 
     val (s1, listeners) = extracted.runTask(listenersKey, state)
 
-    val ours = listeners.flatMap({
-      case l: OurTestListener if l.ui eq ui => Seq(l)
-      case whatever => Seq.empty[OurTestListener]
+    val ours = listeners.collect({
+      case l: UiTestListener if l.ui eq ui => l
     }).headOption
       .getOrElse(throw new RuntimeException("Our test listener wasn't installed!"))
 
     // put back the original listener task
-    val settings = makeAppendSettings(Seq(
-      Def.setting(listenersKey, Def.value(ours.oldTask))), ref, extracted)
+    val settings = Seq(
+      Def.setting(listenersKey, Def.value(ours.oldTask)))
 
     (reloadWithAppended(s1, settings), ours.overallOutcome)
   }
@@ -121,26 +81,35 @@ object DefaultsShim {
   }
 
   private val runHandler: RequestHandler = { (origState, ui, params) =>
-    val s = runInputTask(run in Compile, origState, args = "")
-    (s, makeResponseParams(protocol.RunResponse(success = true,
+    val shimedState = installShims(origState, ui)
+    val s = runInputTask(run in Compile, shimedState, args = "", Some(ui))
+    (origState, makeResponseParams(protocol.RunResponse(success = true,
       task = protocol.TaskNames.run)))
   }
 
   private val runMainHandler: RequestHandler = { (origState, ui, params) =>
     import ParamsHelper._
+    val shimedState = installShims(origState, ui)
     val klass = params.toMap.get("mainClass")
       .map(_.asInstanceOf[String])
       .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(runMain in Compile, origState, args = klass)
-    (s, makeResponseParams(protocol.RunResponse(success = true,
+    val s = runInputTask(runMain in Compile, shimedState, args = klass, Some(ui))
+    (origState, makeResponseParams(protocol.RunResponse(success = true,
       task = protocol.TaskNames.runMain)))
   }
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
-    val s1 = addTestListener(origState, ui)
-    val (s2, result1) = extract(s1).runTask(test in Test, s1)
+    val shimedState = installShims(origState, ui)
+    val (s2, result1) = extract(shimedState).runTask(test in Test, shimedState)
     val (s3, outcome) = removeTestListener(s2, ui)
-    (s3, makeResponseParams(protocol.TestResponse(outcome)))
+    (origState, makeResponseParams(protocol.TestResponse(outcome)))
+  }
+
+  /** This installs all of our shim hooks into the project. */
+  def installShims(origState: State, ui: UIContext): State = {
+    val s1 = addTestListener(origState, ui)
+    val s2 = PlaySupport.installPlaySupport(s1, ui)
+    s2
   }
 
   val findHandler: PartialFunction[String, RequestHandler] = {
