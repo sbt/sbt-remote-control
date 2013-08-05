@@ -16,17 +16,12 @@ object SbtUtil {
 
   def extractWithRef(state: State, context: Option[UIContext] = None): (Extracted, ProjectRef) = {
     val state2: State = context match {
-      case Some(ui) => reloadWithAppended(state, Seq(uiContext in Global := ui))
+      case Some(ui) => 
+        reloadWithAppended(state, Seq(uiContext in Global := ui))
       case None => state
     }
     val extracted = Project.extract(state2)
-    val ref = Project.extract(state2).currentRef
-    // Append the ui context, if we have one.
-    val baseSettings = Project.session(state2)
-
-    val merged = baseSettings.mergeSettings
-
-    (Extracted(Project.structure(state2), baseSettings, ref)(showFullKey(state2)), ref)
+    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state2)), extracted.currentRef)
   }
 
   def extract(state: State, context: Option[UIContext] = None): Extracted = {
@@ -57,15 +52,15 @@ object SbtUtil {
   }
 
   def reloadWithAppended(state: State, appendSettings: Seq[sbt.Setting[_]]): State = {
+    // reloads with appended settings.
     val session = Project.session(state)
     val structure = Project.structure(state)
     implicit val display = Project.showContextKey(state)
-
-    // reloads with appended settings
-    val newStructure = Load.reapply(session.original ++ appendSettings, structure)
-
+    // When we reload, make sure we keep all reapplied settings...
+    //val newStructure = Load.reapply(session.mergeSettings ++ appendSettings, structure)
+    val newSession = session.appendRaw(appendSettings)
     // updates various aspects of State based on the new settings
     // and returns the updated State
-    Project.setProject(session, newStructure, state)
+    SessionSettings.reapply(newSession, state)
   }
 }
