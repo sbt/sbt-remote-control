@@ -105,21 +105,25 @@ case class IntegrationContext(launchJar: File,
   
   private def setup(name: String, cwd: File): ProcessBuilder = {
     val props = cwd / "sbt.boot.properties"
+    if(!cwd.isDirectory) IO.createDirectory(cwd)
     IO.write(props, makePropertiesString(name, cwd))
     IO createDirectory (cwd / "project")
     // TODO - Is this needed?
     IO.write(cwd / "project" / "build.properties", "sbt.version=" +
         Dependencies.sbt12Version)
     val boot = cwd / "boot"
-    Process(Seq("java", 
-        "-Dsbt.boot.properties=" + props.getAbsolutePath, 
+    val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 
         "-Dakka.loglevel=DEBUG",
             "-Dakka.actor.debug.autoreceive=on",
             "-Dakka.actor.debug.receive=on",
             "-Dakka.actor.debug.lifecycle=on",
         "-jar", 
-        launchJar.getAbsolutePath), cwd)
+        launchJar.getAbsolutePath,
+        "@"+props.toURI.toASCIIString)
+    // TODO - Report args:
+    println("Running with args:\n\t"+args.mkString("\n\t"))
+    Process(args, cwd)
   }
   
   // TODO - Pull information from the current project...
