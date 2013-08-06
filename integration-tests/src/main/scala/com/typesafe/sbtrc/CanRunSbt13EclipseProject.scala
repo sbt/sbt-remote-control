@@ -32,7 +32,7 @@ addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""")
       assert(file.exists, "Failed to generate file: " + file.getAbsolutePath)
     }
     exists(".classpath")
-    exists(".eclipse")
+    exists(".project")
   } finally {
     system.stop(child)
   }

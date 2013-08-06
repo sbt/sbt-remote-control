@@ -12,15 +12,18 @@ import akka.util.Timeout
 import akka.pattern.ask
 
 /** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13IdeaProject extends SbtProcessLauncherTest {
-  val dummy = utils.makeDummySbtProject("runChild13-idea", "0.13.0-RC4")
-  val ideaPluginFile = new File(dummy, "project/idea.sbt")
-  sbt.IO.write(ideaPluginFile,
-    """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.1")""")
+class CanRunSbtEclipseProject extends SbtProcessLauncherTest {
+  val dummy = utils.makeDummySbtProject("eclipe-using-project", "0.12.4")
+  val eclipsePluginFile = new File(dummy, "project/eclipse.sbt")
+  sbt.IO.write(eclipsePluginFile,
+    """
+resolvers += Resolver.url("typesafe-ivy-releases", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)      
+
+addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
-    Await.result(child ? GenericRequest(name = "gen-idea", sendEvents = false, params = Map.empty), timeout.duration) match {
-      case GenericResponse("gen-idea", _) => // We succeeded!
+    Await.result(child ? GenericRequest(name = "eclipse", sendEvents = false, params = Map.empty), timeout.duration) match {
+      case GenericResponse("eclipse", _) => // We succeeded!
       case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
     }
     // Now we check to see if the eclipse files exist.
@@ -28,7 +31,8 @@ class CanRunSbt13IdeaProject extends SbtProcessLauncherTest {
       val file = new File(dummy, name)
       assert(file.exists, "Failed to generate file: " + file.getAbsolutePath)
     }
-    exists(".idea")
+    exists(".classpath")
+    exists(".project")
   } finally {
     system.stop(child)
   }

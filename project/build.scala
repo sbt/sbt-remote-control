@@ -22,7 +22,7 @@ object TheBuild extends Build {
   )
 
   // These are the projects we want in the local repository we deploy.
-  lazy val sbt12ProbeProjects = Set(playShimPlugin, eclipseShimPlugin, ideaShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
+  lazy val sbt12ProbeProjects = Set(playShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13)
   lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
 
@@ -61,18 +61,6 @@ object TheBuild extends Build {
     SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
     dependsOnRemote(playSbtPlugin12)
-  )
-
-  lazy val eclipseShimPlugin = (
-    SbtShimPlugin("eclipse", sbt12Version)
-    dependsOn(sbtUiInterface)
-    dependsOnRemote(eclipseSbtPlugin12)
-  )
-
-  lazy val ideaShimPlugin = (
-    SbtShimPlugin("idea", sbt12Version)
-    dependsOn(sbtUiInterface)
-    dependsOnRemote(ideaSbtPlugin12)
   )
 
   lazy val defaultsShimPlugin = (
