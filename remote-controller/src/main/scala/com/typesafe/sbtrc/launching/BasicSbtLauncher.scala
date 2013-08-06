@@ -83,7 +83,7 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
     // TODO - handle spaces in strings and such...
     val sbtProps = Seq(
       // TODO - Remove this junk once we don't have to hack our classes into sbt's classloader.
-      "-Dsbt.boot.properties=" + info.propsFile.getAbsolutePath,
+      "-Dsbt.boot.properties=" + info.propsFile.toURI.toASCIIString,
       portArg)
     // TODO - Can we look up the launcher.jar via a class?
     val jar = Seq("-jar", sbtLauncherJar.getAbsolutePath)
