@@ -105,6 +105,11 @@ object DefaultsShim {
     (origState, makeResponseParams(protocol.TestResponse(outcome)))
   }
 
+  private def commandHandler(command: String): RequestHandler = { (origState, ui, params) =>
+    val shimedState = installShims(origState, ui)
+    runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
+  }
+
   /** This installs all of our shim hooks into the project. */
   def installShims(origState: State, ui: UIContext): State = {
     val s1 = addTestListener(origState, ui)
@@ -112,6 +117,11 @@ object DefaultsShim {
     s2
   }
 
+  // TODO - this whole mechanism needs work.  We should just have generic:
+  // * Return value of setting
+  // * Run a task
+  // * Run an input task
+  // * Run a command
   val findHandler: PartialFunction[String, RequestHandler] = {
     case TaskNames.name => nameHandler
     case TaskNames.discoveredMainClasses => discoveredMainClassesHandler
@@ -120,5 +130,6 @@ object DefaultsShim {
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
     case TaskNames.test => testHandler
+    case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }
 }

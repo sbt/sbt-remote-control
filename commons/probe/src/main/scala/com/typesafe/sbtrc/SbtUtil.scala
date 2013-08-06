@@ -16,8 +16,7 @@ object SbtUtil {
 
   def extractWithRef(state: State, context: Option[UIContext] = None): (Extracted, ProjectRef) = {
     val state2: State = context match {
-      case Some(ui) => 
-        reloadWithAppended(state, Seq(uiContext in Global := ui))
+      case Some(ui) => reloadWithUiContext(state, ui)
       case None => state
     }
     val extracted = Project.extract(state2)
@@ -44,13 +43,27 @@ object SbtUtil {
         f()
     }
   }
+  
+  def runCommand(command: String, state: State, context: Option[UIContext] = None): State = {
+    // TODO - We may need to adapt state so we can run a command against a particular project/ref.  Commands are
+    // attached to projects, so this gets odd.
+    def loadUi(ui: UIContext): State = reloadWithUiContext(state,ui)
+    val realState = context map loadUi getOrElse state
+    sbt.Command.process(command, realState)
+  }
 
+  /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
   def makeAppendSettings(settings: Seq[Setting[_]], inProject: ProjectRef, extracted: Extracted) = {
     // transforms This scopes in 'settings' to be the desired project
     val appendSettings = Load.transformSettings(Load.projectScope(inProject), inProject.build, extracted.rootProject, settings)
     appendSettings
   }
 
+  /** Reloads the project with the ui context attached to the current session as the latest change. */
+  def reloadWithUiContext(state: State, context: UIContext): State =
+    reloadWithAppended(state, Seq(uiContext in Global := context))
+
+  /** Reloads an sbt build with the given settings being appended to the current session. */
   def reloadWithAppended(state: State, appendSettings: Seq[sbt.Setting[_]]): State = {
     // reloads with appended settings.
     val session = Project.session(state)
