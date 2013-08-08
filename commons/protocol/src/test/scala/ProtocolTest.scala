@@ -14,9 +14,19 @@ class ProtocolTest {
 
   @Test
   def testGenericSpecific(): Unit = {
+    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val build = new java.net.URI("file:///test/project")
+    val scope = protocol.SbtScope(project=Some(
+        protocol.ProjectReference(build, "test")))
+    val scopedKey = protocol.ScopedKey(key, scope)
+    val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val specifics = Seq(
       protocol.RunResponse(success = true, task = protocol.TaskNames.run),
-      protocol.RunResponse(success = false, task = protocol.TaskNames.runMain))
+      protocol.RunResponse(success = false, task = protocol.TaskNames.runMain),
+      protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
+      protocol.SettingKeyRequest(keyFilter),
+      protocol.InputTaskKeyRequest(keyFilter),
+      protocol.TaskKeyRequest(keyFilter))
     for (s <- specifics) {
       val roundtrippedOption = s.toGeneric.toSpecific
       assertEquals(Some(s), roundtrippedOption)

@@ -150,6 +150,9 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.run => RunRequest(sendEvents = sendEvents, mainClass = None)
       case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
+      case "SettingKeyRequest" => Parametize.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
+      case "TaskKeyRequest" => Parametize.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
+      case "InputTaskKeyRequest" => Parametize.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
       case _ =>
         null
     })
@@ -166,6 +169,7 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
+      case "KeyList" => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case _ =>
         null
     })
@@ -209,6 +213,35 @@ case class RunRequest(sendEvents: Boolean, mainClass: Option[String]) extends Sp
 case class RunResponse(success: Boolean, task: String) extends SpecificResponse {
   override def toGeneric = GenericResponse(task, Map("success" -> success))
 }
+
+
+// Here begins our actual generic protocol for the new API.
+
+// Discovery API
+
+trait KeyRequest extends Request with SpecificRequest {
+  def name: String
+  def filter: KeyFilter
+  def sendEvents = false
+  override def toGeneric =
+    GenericRequest(sendEvents = sendEvents, name, Parametize(filter))    
+}
+case class SettingKeyRequest(filter: KeyFilter) extends KeyRequest {
+  override val name = "SettingKeyRequest"
+}
+case class TaskKeyRequest(filter: KeyFilter) extends KeyRequest {
+  override val name = "TaskKeyRequest"
+}
+case class InputTaskKeyRequest(filter: KeyFilter) extends KeyRequest {
+  override val name = "InputTaskKeyRequest"
+}
+
+
+case class KeyListResponse(keys: KeyList) extends Response with SpecificResponse {
+  override def toGeneric =
+    GenericResponse("KeyList", Parametize(keys))
+}
+
 
 sealed trait TestOutcome {
   final def success: Boolean = {
