@@ -18,7 +18,11 @@ class CanRunPlay22Sbt13Project extends SbtProcessLauncherTest {
   val dummy = utils.makeEmptySbtProject("runPlay22", "0.13.0-RC4")
   val plugins = new File(dummy, "project/plugins.sbt")
   IO.write(plugins,
-    """addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2-josh-3")""")
+    """resolvers += Resolver.url("typesafe-ivy-snapshots", new URL("http://private-repo.typesafe.com/typesafe/ivy-snapshots"))(Resolver.ivyStylePatterns)
+      
+resolvers += ("typesafe-mvn-snapshots" at "http://private-repo.typesafe.com/typesafe/snapshots")
+      
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2-2013-08-09-074a9c8-SNAPSHOT")""")
   val build = new File(dummy, "project/build.scala")
   IO.write(build,
     """
@@ -43,7 +47,9 @@ object ApplicationBuild extends Build {
            println(s"ZOMG SOCKETS R AT $addr")
          override def afterStopped(): Unit = println("ZOMG STOPPING")
        }
-      )
+      ),
+      resolvers += Resolver.url("typesafe-ivy-snapshots", new URL("http://private-repo.typesafe.com/typesafe/ivy-snapshots"))(Resolver.ivyStylePatterns),
+      resolvers += ("typesafe-mvn-snapshots" at "http://private-repo.typesafe.com/typesafe/snapshots")
       )
 }
 """)

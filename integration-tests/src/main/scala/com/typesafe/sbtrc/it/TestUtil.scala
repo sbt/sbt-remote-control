@@ -30,7 +30,7 @@ final class TestUtil(val scratchDir: File) {
 
   /** Creates a dummy project we can run sbt against. */
   def makeDummySbtProject(relativeDir: String, sbtVersion: String = properties.SbtRcProperties.SBT_VERSION): File = {
-    val dir = makeEmptySbtProject(relativeDir)
+    val dir = makeEmptySbtProject(relativeDir, sbtVersion)
 
     val build = new File(dir, "build.sbt")
     createFile(build, s"""
