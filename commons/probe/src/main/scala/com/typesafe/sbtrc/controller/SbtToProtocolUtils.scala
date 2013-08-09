@@ -23,35 +23,39 @@ object SbtToProtocolUtils {
     val configString: Option[String] = 
       scope.config.toOption.map(_.name)  // TODO - this is not right
     
-    val projectString: Option[protocol.ProjectReference] =
-      scope.project.toOption.map(referenceToProtocolProject) // TODO - better project name!
+    // We can only do this all at once, or not at all
+    
+    val (build, project) =
+      scopedReferenceToBuildAndProject(scope.project)
 
     val taskString: Option[protocol.AttributeKey] =
       scope.task.toOption.map(x => keyToProtocol(x))
       
     // TODO - Build.... (probably from project reference)...
     protocol.SbtScope(
+        build  = build,
         config = configString,
-        project = projectString,
+        project = project,
         task = taskString)
   }
   
+  
+  def scopedReferenceToBuildAndProject(axis: sbt.ScopeAxis[sbt.Reference]): (Option[java.net.URI], Option[protocol.ProjectReference]) = { 
+    import sbt._
+    axis.toOption map {
+      case x: ProjectRef =>
+        val build = x.build
+        Some(build) -> Some(protocol.ProjectReference(build, x.project))
+      case x: BuildRef =>
+        Some(x.build) -> None
+      case _ => throw new RuntimeException("was expected project/build reference, got: " + axis)
+    } getOrElse (None -> None)
+  }
   
   def scopedKeyToProtocol[T](key: sbt.ScopedKey[T]): protocol.ScopedKey =
     protocol.ScopedKey(
       key = keyToProtocol(key.key),
       scope = scopeToProtocol(key.scope)
     )
-  
- 
-    // TODO - This needs some work.
-  def referenceToProtocolProject(ref: sbt.Reference): protocol.ProjectReference = {
-    import sbt._
-    ref match {
-      case x: ProjectRef => 
-        protocol.ProjectReference(x.build, x.project)
-      case _ => throw new RuntimeException("was expected project refrence, got: " + ref)
-    }
-  }
     
 }

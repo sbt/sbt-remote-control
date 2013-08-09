@@ -86,7 +86,7 @@ object SbtDiscovery {
       filter.key.map { keyname =>
         val opt = key.scope.task.toOption
         opt.isDefined && opt.get.label == keyname
-      } getOrElse false
+      } getOrElse true
     // We should include if all fitlers pass (or are non-existent).
     configPasses && projectPasses && keyPasses
   }

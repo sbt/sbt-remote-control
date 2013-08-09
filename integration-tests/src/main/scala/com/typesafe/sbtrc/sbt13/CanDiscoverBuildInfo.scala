@@ -23,7 +23,7 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
   try {
     val request = SettingKeyRequest(KeyFilter.empty)
     Await.result(child ? request, timeout.duration) match {
-      case protocol.GenericResponse(request.name, KeyListExtract(keyList)) => // We succeeded!
+      case protocol.KeyListResponse(keyList) => // We succeeded!
         // TODO - Check the list
         keyList.keys.foreach(println)
         assert(keyList.keys.size > 0, "Key list must not be zero")

@@ -174,7 +174,10 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
-      case "KeyList" => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      // TODO - Is this correct?
+      case TaskNames.InputTaskKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      case TaskNames.TaskKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      case TaskNames.SettingKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case _ =>
         null
     })
