@@ -138,6 +138,11 @@ object TaskNames {
   val run = "run"
   val runMain = "run-main"
   val test = "test"
+    
+  // Generic requests.
+  val SettingKeyRequest = "SettingKeyRequest"
+  val TaskKeyRequest = "TaskKeyRequest"
+  val InputTaskKeyRequest = "InputTaskKeyRequest"
 }
 
 case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String, Any]) extends Request with GenericMessage {
@@ -150,9 +155,9 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.run => RunRequest(sendEvents = sendEvents, mainClass = None)
       case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
-      case "SettingKeyRequest" => Parametize.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
-      case "TaskKeyRequest" => Parametize.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
-      case "InputTaskKeyRequest" => Parametize.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
+      case TaskNames.SettingKeyRequest => Parametize.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
+      case TaskNames.TaskKeyRequest => Parametize.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
+      case TaskNames.InputTaskKeyRequest => Parametize.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
       case _ =>
         null
     })
@@ -227,13 +232,13 @@ trait KeyRequest extends Request with SpecificRequest {
     GenericRequest(sendEvents = sendEvents, name, Parametize(filter))    
 }
 case class SettingKeyRequest(filter: KeyFilter) extends KeyRequest {
-  override val name = "SettingKeyRequest"
+  override val name = TaskNames.SettingKeyRequest
 }
 case class TaskKeyRequest(filter: KeyFilter) extends KeyRequest {
-  override val name = "TaskKeyRequest"
+  override val name = TaskNames.TaskKeyRequest
 }
 case class InputTaskKeyRequest(filter: KeyFilter) extends KeyRequest {
-  override val name = "InputTaskKeyRequest"
+  override val name = TaskNames.InputTaskKeyRequest
 }
 
 

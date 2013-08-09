@@ -170,6 +170,7 @@ case class KeyFilter(project: Option[String],
                      config: Option[String],
                      key: Option[String])
 object KeyFilter {
+  val empty = KeyFilter(None, None, None)
   implicit object MyParamertizer extends Parametizeable[KeyFilter] {
     def apply(t: KeyFilter): Map[String, Any] = {
       val p = t.project.map(p => "project" -> p).toSeq

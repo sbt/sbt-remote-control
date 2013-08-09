@@ -117,6 +117,30 @@ object DefaultsShim {
     s2
   }
 
+  private val settingKeyHandler: RequestHandler = { (origState, ui, params) =>
+    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
+    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    val results =
+      KeyList(SbtDiscovery.settings(origState, filter))
+    (origState, makeResponseParams(KeyListResponse(results)))
+  }
+
+  private val taskKeyHandler: RequestHandler = { (origState, ui, params) =>
+    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
+    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    val results =
+      KeyList(SbtDiscovery.tasks(origState, filter))
+    (origState, makeResponseParams(KeyListResponse(results)))
+  }
+
+  private val inputTaskKeyHandler: RequestHandler = { (origState, ui, params) =>
+    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
+    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    val results =
+      KeyList(SbtDiscovery.inputTasks(origState, filter))
+    (origState, makeResponseParams(KeyListResponse(results)))
+  }
+
   // TODO - this whole mechanism needs work.  We should just have generic:
   // * Return value of setting
   // * Run a task
@@ -130,6 +154,9 @@ object DefaultsShim {
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
     case TaskNames.test => testHandler
+    case TaskNames.SettingKeyRequest => settingKeyHandler
+    case TaskNames.TaskKeyRequest => taskKeyHandler
+    case TaskNames.InputTaskKeyRequest => inputTaskKeyHandler
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }
 }
