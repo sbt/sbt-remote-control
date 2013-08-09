@@ -14,13 +14,19 @@ import akka.pattern.ask
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanDiscoverBuild extends SbtProcessLauncherTest {
-  val dummy = utils.makeDummySbtProject("runChild13-idea", "0.13.0-RC4")
+  val dummy = utils.makeDummySbtProject("runTestBuild", "0.13.0-RC4")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
+  object KeyListExtract {
+    def unapply(params: Map[String, Any]): Option[KeyList] =
+      Parametize.unapply[KeyList](params)
+  }
   try {
-    Await.result(child ? SettingKeyRequest(KeyFilter.empty), timeout.duration) match {
-      case KeyListResponse(keys) => // We succeeded!
+    val request = SettingKeyRequest(KeyFilter.empty)
+    Await.result(child ? request, timeout.duration) match {
+      case protocol.GenericResponse(request.name, KeyListExtract(keyList)) => // We succeeded!
         // TODO - Check the list
-        keys.keys.foreach(println)
+        keyList.keys.foreach(println)
+        assert(keyList.keys.size > 0, "Key list must not be zero")
       case whatever => throw new AssertionError("did not get KeyListResponse got " + whatever)
     }
   } finally {

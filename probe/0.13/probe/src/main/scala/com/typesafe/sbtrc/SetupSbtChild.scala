@@ -172,7 +172,7 @@ object SetupSbtChild extends (State => State) {
           val newState = handleRequest(serial, taskName, params, origState, handler)
           newState
         } getOrElse {
-          client.replyJson(req.serial, protocol.ErrorResponse("No handler for: " + taskName))
+          client.replyJson(req.serial, protocol.ErrorResponse("SBT13 - No handler for: " + taskName))
           origState
         }
       case _ => {

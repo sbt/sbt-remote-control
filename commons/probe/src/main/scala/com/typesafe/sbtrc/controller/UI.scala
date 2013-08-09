@@ -18,5 +18,8 @@ object ParamsHelper {
     Params("application/json", com.typesafe.sbtrc.protocol.Message.paramsToJsonString(map))
   }
 
+  def fromParametize[T](value: T)(implicit p: protocol.Parametizeable[T]): Params =
+    fromMap(p(value))
+  
   implicit def p2Helper(params: Params): ParamsHelper = new ParamsHelper(params)
 }

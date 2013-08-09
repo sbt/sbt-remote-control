@@ -13,6 +13,7 @@ import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
 import protocol.TaskNames
 import ParamsHelper.p2Helper
+import protocol.Parametizeable
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
 
@@ -28,6 +29,9 @@ object DefaultsShim {
   private[sbtrc] def makeResponseParams(specific: protocol.SpecificResponse): Params = {
     ParamsHelper.fromMap(specific.toGeneric.params)
   }
+
+  private[sbtrc] def makeResponse[T: Parametizeable](value: T) =
+    ParamsHelper.fromParametize(value)
 
   private val listenersKey = testListeners in Test
 
@@ -122,7 +126,7 @@ object DefaultsShim {
     val filter = Parametize.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.settings(origState, filter))
-    (origState, makeResponseParams(KeyListResponse(results)))
+    (origState, makeResponse(results))
   }
 
   private val taskKeyHandler: RequestHandler = { (origState, ui, params) =>
@@ -130,7 +134,7 @@ object DefaultsShim {
     val filter = Parametize.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.tasks(origState, filter))
-    (origState, makeResponseParams(KeyListResponse(results)))
+    (origState, makeResponse(results))
   }
 
   private val inputTaskKeyHandler: RequestHandler = { (origState, ui, params) =>
@@ -138,7 +142,7 @@ object DefaultsShim {
     val filter = Parametize.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.inputTasks(origState, filter))
-    (origState, makeResponseParams(KeyListResponse(results)))
+    (origState, makeResponse(results))
   }
 
   // TODO - this whole mechanism needs work.  We should just have generic:
