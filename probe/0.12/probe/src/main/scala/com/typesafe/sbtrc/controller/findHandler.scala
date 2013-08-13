@@ -16,13 +16,9 @@ object findHandler {
   // That way, you just pull in one "contextual notifier thingy" and you can update both a UI and a console log.
   // (however this doesn't address how we go from input string to task inputs, and task result to output string)
   def apply(name: String, state: State): Option[RequestHandler] = {
-    val finder = EclipseSupport.findEclipseHandler orElse
-      IdeaSupport.findIdeaHandler orElse {
-        if (isPlayProject(state))
-          PlaySupport.findHandler
-        else
-          DefaultsShim.findHandler
-      }
+    val finder =
+      if (isPlayProject(state)) PlaySupport.findHandler
+      else DefaultsShim.findHandler
 
     if (finder.isDefinedAt(name))
       Some(finder(name))

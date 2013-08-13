@@ -142,6 +142,12 @@ object DefaultsShim {
     (s3, makeResponseParams(protocol.TestResponse(outcome)))
   }
 
+  private def runCommandHandler(command: String): RequestHandler = { (origState, ui, params) =>
+    // TODO - Genericize the command handler.
+    val shimedState = addTestListener(origState, ui)
+    runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
+  }
+
   val findHandler: PartialFunction[String, RequestHandler] = {
     case TaskNames.name => nameHandler
     case TaskNames.discoveredMainClasses => discoveredMainClassesHandler
@@ -150,5 +156,7 @@ object DefaultsShim {
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
     case TaskNames.test => testHandler
+    case name @ ("eclipse" | "gen-idea") => runCommandHandler(name)
+
   }
 }

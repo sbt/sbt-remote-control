@@ -97,8 +97,8 @@ object ShimWriter {
 
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
     new ShimWriter("defaults", version, "0.12"),
-    new ShimWriter("eclipse", version, "0.12"),
-    new ShimWriter("idea", version, "0.12"),
+    new ShimWriter("eclipse", version, "0.12", isEmpty = true),
+    new ShimWriter("idea", version, "0.12", isEmpty = true),
     new ShimWriter("play", version, "0.12")
   )
   def sbt13Shims(version: String): Seq[ShimWriter] = Seq(
