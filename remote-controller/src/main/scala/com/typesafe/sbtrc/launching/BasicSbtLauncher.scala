@@ -61,7 +61,7 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
       case n if n startsWith "http." => true
       case n if n startsWith "https." => true
       case n if n startsWith "ftp." => true
-      case n if n startsWith "user.home" => true
+      case n if n startsWith "socksProxy" => true
       case n if n startsWith "sbt" => true
       case n if n startsWith "ivy" => true
       case _ => false
