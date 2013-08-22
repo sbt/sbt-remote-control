@@ -87,6 +87,13 @@ object DefaultsShim {
       task = protocol.TaskNames.run)))
   }
 
+  private val runAtmosHandler: RequestHandler = { (origState, ui, params) =>
+    val shimedState = installShims(origState, ui)
+    val s = runInputTask(run in (config("atmos")), shimedState, args = "", Some(ui))
+    (origState, makeResponseParams(protocol.RunResponse(success = true,
+      task = protocol.TaskNames.run)))
+  }
+
   private val runMainHandler: RequestHandler = { (origState, ui, params) =>
     import ParamsHelper._
     val shimedState = installShims(origState, ui)
@@ -129,6 +136,7 @@ object DefaultsShim {
     case TaskNames.compile => compileHandler
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
+    case TaskNames.runAtmos => runAtmosHandler
     case TaskNames.test => testHandler
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }

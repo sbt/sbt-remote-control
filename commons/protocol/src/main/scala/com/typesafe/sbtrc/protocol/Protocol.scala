@@ -137,6 +137,7 @@ object TaskNames {
   val compile = "compile"
   val run = "run"
   val runMain = "run-main"
+  val runAtmos = "atmos:run"
   val test = "test"
 }
 
