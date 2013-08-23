@@ -121,7 +121,8 @@ object DefaultsShim {
   def installShims(origState: State, ui: UIContext): State = {
     val s1 = addTestListener(origState, ui)
     val s2 = PlaySupport.installPlaySupport(s1, ui)
-    s2
+    val s3 = AtmosSupport.installAtmosSupport(s2, ui)
+    s3
   }
 
   // TODO - this whole mechanism needs work.  We should just have generic:
