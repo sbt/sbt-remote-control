@@ -13,8 +13,8 @@ import sbt.IO
 import java.util.concurrent.TimeoutException
 import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
-/** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13AtmosProject extends SbtProcessLauncherTest {
+abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: String, val taskParams: Map[String, Any]) extends SbtProcessLauncherTest {
+
   val dummy = utils.makeEmptySbtProject("runAtmos22", "0.13.0-RC5")
   val plugins = new File(dummy, "project/plugins.sbt")
   IO.write(plugins,
@@ -47,17 +47,21 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       var askedToStop = false
       context.setReceiveTimeout(70.seconds)
 
-      child ! GenericRequest(sendEvents = true, TaskNames.runAtmos, Map.empty)
+      val request = GenericRequest(sendEvents = true, taskName, taskParams)
+      child ! request
+      log.debug("Sent run request " + request)
 
       def receive: Receive = {
         // Here we capture the result of the run task.
         case x: RunResponse =>
+          log.debug("Received run response " + x)
           result.success(x)
           context stop self
 
         // Here we capture the output of play start. 
         // TODO - We should validate the port is the one we expect....
-        case GenericEvent("atmos:run", "atmosStarted", params) =>
+        case GenericEvent(name, "atmosStarted", params) if name == taskName =>
+          log.debug("Received atmos event for " + name + " params " + params)
           receivedSocketInfo = params.contains("uri")
         // we still have to wait for RunResponse
 
@@ -73,11 +77,11 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     }), "can-run-sbt-13-and-atmos")
 
     Await.result(result.future, timeout.duration) match {
-      case RunResponse(success, "atmos:run") =>
+      case RunResponse(success, name) if name == taskName =>
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive atmos URI")
       case whatever =>
-        throw new AssertionError("did not get RunResponse got " + whatever)
+        throw new AssertionError("did not get RunResponse for " + taskName + " got " + whatever)
     }
   } catch {
     case t: TimeoutException if (!receivedSocketInfo) =>
@@ -86,3 +90,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     system.stop(child)
   }
 }
+
+/** Ensures that we can make requests and receive responses from our children. */
+class CanRunSbt13AtmosProject extends CanRunAtmosProject("0.13.0-RC5", TaskNames.runAtmos, Map.empty)
+
+class CanRunMainSbt13AtmosProject extends CanRunAtmosProject("0.13.0-RC5", TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
+

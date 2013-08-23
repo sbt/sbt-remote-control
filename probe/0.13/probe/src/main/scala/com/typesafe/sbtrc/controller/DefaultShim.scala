@@ -91,16 +91,20 @@ object DefaultsShim {
 
   private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
 
-  private val runMainHandler: RequestHandler = { (origState, ui, params) =>
+  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     import ParamsHelper._
     val shimedState = installShims(origState, ui)
     val klass = params.toMap.get("mainClass")
       .map(_.asInstanceOf[String])
       .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(runMain in Compile, shimedState, args = klass, Some(ui))
+    val s = runInputTask(key, shimedState, args = klass, Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.runMain)))
+      task = taskName)))
   }
+
+  private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, protocol.TaskNames.runMain)
+
+  private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), protocol.TaskNames.runMainAtmos)
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
     val shimedState = installShims(origState, ui)
@@ -135,6 +139,7 @@ object DefaultsShim {
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
     case TaskNames.runAtmos => runAtmosHandler
+    case TaskNames.runMainAtmos => runMainAtmosHandler
     case TaskNames.test => testHandler
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }
