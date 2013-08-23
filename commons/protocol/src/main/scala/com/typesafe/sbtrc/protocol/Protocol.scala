@@ -166,6 +166,7 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
+      case TaskNames.runAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runAtmos)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
       case _ =>
         null

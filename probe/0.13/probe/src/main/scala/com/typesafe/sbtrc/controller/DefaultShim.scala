@@ -91,7 +91,7 @@ object DefaultsShim {
     val shimedState = installShims(origState, ui)
     val s = runInputTask(run in (config("atmos")), shimedState, args = "", Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.run)))
+      task = protocol.TaskNames.runAtmos)))
   }
 
   private val runMainHandler: RequestHandler = { (origState, ui, params) =>

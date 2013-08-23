@@ -34,7 +34,8 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     """
       object Main {
          def main(args: Array[String]): Unit = {
-           Thread.sleep(60*1000L)
+           // long enough for atmos to start up
+           Thread.sleep(10*1000L)
          }
       }
   """)
@@ -45,6 +46,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     val testActor = system.actorOf(Props(new Actor with ActorLogging {
       var askedToStop = false
       context.setReceiveTimeout(70.seconds)
+
+      child ! GenericRequest(sendEvents = true, TaskNames.runAtmos, Map.empty)
+
       def receive: Receive = {
         // Here we capture the result of the run task.
         case x: RunResponse =>
@@ -55,32 +59,29 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
         // TODO - We should validate the port is the one we expect....
         case GenericEvent("atmos:run", "atmosStarted", params) =>
           receivedSocketInfo = params.contains("uri")
-          // Now we can manually cancel
-          self ! ReceiveTimeout
+        // we still have to wait for RunResponse
 
-        // If we haven't received any events in a while, here's what we do.
         case ReceiveTimeout =>
-          result.failure(new RuntimeException("Failed to cancel task within timeout!."))
+          // If we haven't received any events in a while, here's what we do.
+          result.failure(new RuntimeException("Nothing has happened in a long time, giving up"))
           context stop self
-        case log: LogEvent if (log.entry.message.contains("DEBUGME")) =>
-          println(log)
+        case log: LogEvent =>
+        // ignore log event
         case e: Event =>
-        // Ignore all other events, but let them block our receive timeouts...
+          log.debug("Got an event from the run request: " + e)
       }
     }), "can-run-sbt-13-and-atmos")
 
-    val request =
-      GenericRequest(sendEvents = true, TaskNames.runAtmos, Map.empty)
-    child.tell(RunRequest(sendEvents = true, mainClass = None), testActor)
     Await.result(result.future, timeout.duration) match {
-      case RunResponse(success, "run") =>
+      case RunResponse(success, "atmos:run") =>
         if (!receivedSocketInfo)
-          throw new AssertionError("did not receive a play socket we can listen on!")
-      case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
+          throw new AssertionError("did not receive atmos URI")
+      case whatever =>
+        throw new AssertionError("did not get RunResponse got " + whatever)
     }
   } catch {
     case t: TimeoutException if (!receivedSocketInfo) =>
-      sys.error("Failed to start play server before timing out!")
+      sys.error("Failed to start Atmos before timing out!")
   } finally {
     system.stop(child)
   }

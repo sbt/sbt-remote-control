@@ -20,7 +20,6 @@ object AtmosSupport {
     val key = exampleSetting.key
     def eventMonitor(uri: URI): Unit = {
       // TODO - Formalize this as a case class?
-      println("DEBUGME: atmos uri = " + uri.toASCIIString)
       ui.sendEvent("atmosStarted", SimpleJsonMessage(JSONObject(Map("uri" -> uri.toASCIIString()))))
     }
     val listener: URI => Unit = eventMonitor _
@@ -33,14 +32,14 @@ object AtmosSupport {
       if setting.key.key.label == name || setting.key.key.rawLabel == name
     } yield setting).headOption
 
-  // Adds our hooks into the play build.
+  // Adds our hooks into the Atmos build.
   def installHooks(state: State, ui: UIContext): State = {
-    val extracted = Project.extract(state)
+    val (extracted, ref) = SbtUtil.extractWithRef(state)
     val settings = extracted.session.mergeSettings
     val runHookKey = findAtmosSetting("atmos-run-listeners", settings).getOrElse(
       sys.error("Unable to find play run hook!  Possibly incompatible play version."))
     val fixedHook = makeAtmosRunHook(runHookKey, ui)
-    val newSettings = Seq[Setting[_]](fixedHook)
+    val newSettings = SbtUtil.makeAppendSettings(Seq[Setting[_]](fixedHook), ref, extracted)
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 
@@ -52,7 +51,6 @@ object AtmosSupport {
 
   def installAtmosSupport(origState: State, ui: UIContext): State = {
     if (isAtmosProject(origState)) {
-      println("DEBUGME - Discovered atmos, installing shim.")
       installHooks(origState, ui)
     } else origState
   }
