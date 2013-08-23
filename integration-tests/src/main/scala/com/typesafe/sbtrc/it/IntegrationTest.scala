@@ -23,7 +23,7 @@ abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
   final def run(configuration: xsbti.AppConfiguration): xsbti.MainResult =
     try withContextClassloader {
       _config = configuration
-      _system = ActorSystem("ManualTest")
+      _system = ActorSystem("IntegrationTest")
       try _test()
       finally {
         system.shutdown()
