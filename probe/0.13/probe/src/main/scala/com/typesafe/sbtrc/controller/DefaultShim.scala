@@ -35,9 +35,9 @@ object DefaultsShim {
     val (extracted, ref) = extractWithRef(state)
     val ourListener = new UiTestListener(ui, extracted.get(listenersKey))
 
-    val settings = Seq(listenersKey <<= (listenersKey) map { listeners =>
+    val settings = makeAppendSettings(Seq(listenersKey <<= (listenersKey) map { listeners =>
       listeners :+ ourListener
-    })
+    }), ref, extracted)
 
     reloadWithAppended(state, settings)
   }
@@ -54,8 +54,8 @@ object DefaultsShim {
       .getOrElse(throw new RuntimeException("Our test listener wasn't installed!"))
 
     // put back the original listener task
-    val settings = Seq(
-      Def.setting(listenersKey, Def.value(ours.oldTask)))
+    val settings = makeAppendSettings(Seq(
+      Def.setting(listenersKey, Def.value(ours.oldTask))), ref, extracted)
 
     (reloadWithAppended(s1, settings), ours.overallOutcome)
   }
