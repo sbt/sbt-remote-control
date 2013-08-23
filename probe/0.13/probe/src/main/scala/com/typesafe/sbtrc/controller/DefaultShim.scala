@@ -80,19 +80,16 @@ object DefaultsShim {
     (s, makeResponseParams(protocol.CompileResponse(success = true)))
   }
 
-  private val runHandler: RequestHandler = { (origState, ui, params) =>
+  private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     val shimedState = installShims(origState, ui)
-    val s = runInputTask(run in Compile, shimedState, args = "", Some(ui))
+    val s = runInputTask(key, shimedState, args = "", Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.run)))
+      task = taskName)))
   }
 
-  private val runAtmosHandler: RequestHandler = { (origState, ui, params) =>
-    val shimedState = installShims(origState, ui)
-    val s = runInputTask(run in (config("atmos")), shimedState, args = "", Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.runAtmos)))
-  }
+  private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
+
+  private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
 
   private val runMainHandler: RequestHandler = { (origState, ui, params) =>
     import ParamsHelper._
