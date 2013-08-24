@@ -35,7 +35,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       object Main {
          def main(args: Array[String]): Unit = {
            // long enough for atmos to start up
-           Thread.sleep(10*1000L)
+           Thread.sleep(30*1000L)
          }
       }
   """)
@@ -45,7 +45,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     val result = concurrent.promise[Response]()
     val testActor = system.actorOf(Props(new Actor with ActorLogging {
       var askedToStop = false
-      context.setReceiveTimeout(70.seconds)
+      context.setReceiveTimeout(120.seconds)
 
       val request = GenericRequest(sendEvents = true, taskName, taskParams)
       child ! request
