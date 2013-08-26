@@ -137,6 +137,8 @@ object TaskNames {
   val compile = "compile"
   val run = "run"
   val runMain = "run-main"
+  val runAtmos = "atmos:run"
+  val runMainAtmos = "atmos:run-main"
   val test = "test"
 }
 
@@ -149,6 +151,8 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.compile => CompileRequest(sendEvents = sendEvents)
       case TaskNames.run => RunRequest(sendEvents = sendEvents, mainClass = None)
       case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
+      case TaskNames.runAtmos => RunRequest(sendEvents = sendEvents, mainClass = None)
+      case TaskNames.runMainAtmos => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
       case _ =>
         null
@@ -165,6 +169,8 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
+      case TaskNames.runAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runAtmos)
+      case TaskNames.runMainAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMainAtmos)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
       case _ =>
         null

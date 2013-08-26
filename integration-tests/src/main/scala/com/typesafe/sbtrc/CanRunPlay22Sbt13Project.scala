@@ -63,7 +63,7 @@ object ApplicationBuild extends Build {
     val result = concurrent.promise[Response]()
     val testActor = system.actorOf(Props(new Actor with ActorLogging {
       var askedToStop = false
-      context.setReceiveTimeout(30.seconds)
+      context.setReceiveTimeout(120.seconds)
       def receive: Receive = {
         // Here we capture the result of the run task.
         case x: RunResponse =>

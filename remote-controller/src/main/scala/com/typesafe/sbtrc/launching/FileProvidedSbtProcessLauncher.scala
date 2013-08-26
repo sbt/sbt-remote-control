@@ -33,7 +33,8 @@ class FileProvidedSbtProcessLauncher(
   }
   object sbt13Support extends SbtDefaultPropsfileLaunchInfo {
     val myFiles =
-      probeFiles filter (_.getName contains "0-13")
+      probeFiles.filter(_.getName contains "0-13") ++
+        probeFiles.filter(_.getName contains "sbt-rc-props")
     override val controllerClasspath: Seq[File] = myFiles filterNot (_.getAbsolutePath contains "ui-interface")
     override val extraJars: Seq[File] = myFiles filter (_.getAbsolutePath contains "ui-interface")
     // TODO - Get this version from properties!
