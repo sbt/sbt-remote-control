@@ -137,6 +137,8 @@ object TaskNames {
   val compile = "compile"
   val run = "run"
   val runMain = "run-main"
+  val runAtmos = "atmos:run"
+  val runMainAtmos = "atmos:run-main"
   val test = "test"
     
   // Generic requests.
@@ -154,6 +156,8 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.compile => CompileRequest(sendEvents = sendEvents)
       case TaskNames.run => RunRequest(sendEvents = sendEvents, mainClass = None)
       case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
+      case TaskNames.runAtmos => RunRequest(sendEvents = sendEvents, mainClass = None)
+      case TaskNames.runMainAtmos => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
       case TaskNames.SettingKeyRequest => Parametize.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
       case TaskNames.TaskKeyRequest => Parametize.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
@@ -167,12 +171,14 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
 case class GenericResponse(name: String, params: Map[String, Any]) extends Response with GenericMessage {
   override def toSpecific: Option[SpecificResponse] = {
     Option(name match {
-      case TaskNames.name => NameResponse(params("name").asInstanceOf[String])
+      case TaskNames.name => NameResponse(params("name").asInstanceOf[String], params.filterNot(_._1 == "name"))
       case TaskNames.discoveredMainClasses => DiscoveredMainClassesResponse(params("names").asInstanceOf[Seq[String]])
       case TaskNames.watchTransitiveSources => WatchTransitiveSourcesResponse(params("files").asInstanceOf[Seq[String]].map(new File(_)))
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
+      case TaskNames.runAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runAtmos)
+      case TaskNames.runMainAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMainAtmos)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
       // TODO - Is this correct?
       case TaskNames.InputTaskKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
@@ -189,8 +195,8 @@ case class NameRequest(sendEvents: Boolean) extends SpecificRequest {
     name = TaskNames.name,
     Map.empty)
 }
-case class NameResponse(name: String) extends SpecificResponse {
-  override def toGeneric = GenericResponse(TaskNames.name, Map("name" -> name))
+case class NameResponse(name: String, attributes: Map[String, Any] = Map.empty) extends SpecificResponse {
+  override def toGeneric = GenericResponse(TaskNames.name, Map("name" -> name) ++ attributes)
 }
 
 case class DiscoveredMainClassesRequest(sendEvents: Boolean) extends SpecificRequest {

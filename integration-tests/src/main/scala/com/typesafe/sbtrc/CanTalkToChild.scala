@@ -17,12 +17,12 @@ class CanTalkToChild extends SbtProcessLauncherTest {
 
   try {
     val name = Await.result(child ? NameRequest(sendEvents = false), timeout.duration) match {
-      case NameResponse(n) => n
+      case NameResponse(n, _) => n
     }
     assertEquals("talkToChild", name)
 
     val name2 = Await.result(child ? NameRequest(sendEvents = false), timeout.duration) match {
-      case NameResponse(n) => n
+      case NameResponse(n, _) => n
     }
     assertEquals("talkToChild", name2)
 

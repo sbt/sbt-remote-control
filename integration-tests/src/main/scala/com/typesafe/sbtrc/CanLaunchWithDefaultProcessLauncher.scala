@@ -16,7 +16,7 @@ class CanLaunchThroughSbtLauncher extends SbtProcessLauncherTest {
   try {
     implicit val timeout = Timeout(300.seconds)
     val name = Await.result(child ? protocol.NameRequest(sendEvents = false), timeout.duration) match {
-      case protocol.NameResponse(n) => {
+      case protocol.NameResponse(n, _) => {
         n
       }
       case protocol.ErrorResponse(error) =>

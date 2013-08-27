@@ -44,7 +44,6 @@ class UiTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener
       synchronized {
         overallOutcome = overallOutcome.combine(outcome)
       }
-
       sendEvent(ui, "result",
         protocol.TestEvent(detail.fullyQualifiedName,
           None, // No descriptions in new interface?

@@ -99,9 +99,26 @@ object DefaultsShim {
     (reloadWithAppended(s1, settings), ours.overallOutcome)
   }
 
+  /** This installs all of our shim hooks into the project. */
+  def installShims(origState: State, ui: UIContext): State = {
+    val s1 = addTestListener(origState, ui)
+    // TODO - Upgrade to shimable play support rather than custom plugin...
+    //val s2 = PlaySupport.installPlaySupport(s1, ui)
+    val s3 = AtmosSupport.installAtmosSupport(s1, ui)
+    s3
+  }
+
   private val nameHandler: RequestHandler = { (origState, ui, params) =>
     val result = extract(origState).get(name)
-    (origState, makeResponseParams(protocol.NameResponse(result)))
+    // TODO - These are all hacks for now until we have the generic API.
+    val hasPlay = controller.isPlayProject(origState)
+    val hasConsole = AtmosSupport.isAtmosProject(origState)
+    val hasAkka = AkkaSupport.isAkkaProject(origState)
+
+    (origState, makeResponseParams(protocol.NameResponse(result,
+      Map("hasPlay" -> hasPlay,
+        "hasAkka" -> hasAkka,
+        "hasConsole" -> hasConsole))))
   }
 
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
@@ -119,21 +136,31 @@ object DefaultsShim {
     (s, makeResponseParams(protocol.CompileResponse(success = true)))
   }
 
-  private val runHandler: RequestHandler = { (origState, ui, params) =>
-    val s = runInputTask(run in Compile, origState, args = "")
-    (s, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.run)))
+  private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
+    val shimedState = installShims(origState, ui)
+    val s = runInputTask(key, shimedState, args = "", Some(ui))
+    (origState, makeResponseParams(protocol.RunResponse(success = true,
+      task = taskName)))
   }
 
-  private val runMainHandler: RequestHandler = { (origState, ui, params) =>
+  private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
+
+  private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
+
+  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     import ParamsHelper._
+    val shimedState = installShims(origState, ui)
     val klass = params.toMap.get("mainClass")
       .map(_.asInstanceOf[String])
       .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(runMain in Compile, origState, args = klass)
-    (s, makeResponseParams(protocol.RunResponse(success = true,
-      task = protocol.TaskNames.runMain)))
+    val s = runInputTask(key, shimedState, args = klass, Some(ui))
+    (origState, makeResponseParams(protocol.RunResponse(success = true,
+      task = taskName)))
   }
+
+  private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, protocol.TaskNames.runMain)
+
+  private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), protocol.TaskNames.runMainAtmos)
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
     val s1 = addTestListener(origState, ui)
@@ -155,6 +182,8 @@ object DefaultsShim {
     case TaskNames.compile => compileHandler
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
+    case TaskNames.runAtmos => runAtmosHandler
+    case TaskNames.runMainAtmos => runMainAtmosHandler
     case TaskNames.test => testHandler
     case name @ ("eclipse" | "gen-idea") => runCommandHandler(name)
 

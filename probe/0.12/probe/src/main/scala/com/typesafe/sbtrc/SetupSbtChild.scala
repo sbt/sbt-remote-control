@@ -16,7 +16,6 @@ import scala.util.matching.Regex
 import com.typesafe.sbt.ui
 import scala.util.parsing.json._
 import com.typesafe.sbtrc.controller.PlaySupport
-import com.typesafe.sbtrc.controller.EclipseSupport
 import com.typesafe.sbtrc.controller.ParamsHelper._
 import scala.annotation.tailrec
 
