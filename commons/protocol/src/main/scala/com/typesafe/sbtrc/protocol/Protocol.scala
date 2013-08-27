@@ -163,7 +163,7 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
 case class GenericResponse(name: String, params: Map[String, Any]) extends Response with GenericMessage {
   override def toSpecific: Option[SpecificResponse] = {
     Option(name match {
-      case TaskNames.name => NameResponse(params("name").asInstanceOf[String])
+      case TaskNames.name => NameResponse(params("name").asInstanceOf[String], params.filterNot(_._1 == "name"))
       case TaskNames.discoveredMainClasses => DiscoveredMainClassesResponse(params("names").asInstanceOf[Seq[String]])
       case TaskNames.watchTransitiveSources => WatchTransitiveSourcesResponse(params("files").asInstanceOf[Seq[String]].map(new File(_)))
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
@@ -183,8 +183,8 @@ case class NameRequest(sendEvents: Boolean) extends SpecificRequest {
     name = TaskNames.name,
     Map.empty)
 }
-case class NameResponse(name: String) extends SpecificResponse {
-  override def toGeneric = GenericResponse(TaskNames.name, Map("name" -> name))
+case class NameResponse(name: String, attributes: Map[String, Any] = Map.empty) extends SpecificResponse {
+  override def toGeneric = GenericResponse(TaskNames.name, Map("name" -> name) ++ attributes)
 }
 
 case class DiscoveredMainClassesRequest(sendEvents: Boolean) extends SpecificRequest {

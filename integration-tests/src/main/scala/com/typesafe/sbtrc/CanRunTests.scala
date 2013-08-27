@@ -47,4 +47,4 @@ abstract class CanRunTests(val sbtVersion: String) extends SbtProcessLauncherTes
 
 class CanRunTestsSbt12 extends CanRunTests("0.12.4")
 
-class CanRunTestsSbt13 extends CanRunTests("0.13.0-RC5")
+class CanRunTestsSbt13 extends CanRunTests("0.13.0")

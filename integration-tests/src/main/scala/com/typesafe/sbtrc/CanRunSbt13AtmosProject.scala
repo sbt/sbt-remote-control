@@ -15,7 +15,7 @@ import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
 abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: String, val taskParams: Map[String, Any]) extends SbtProcessLauncherTest {
 
-  val dummy = utils.makeEmptySbtProject("runAtmos22", "0.13.0-RC5")
+  val dummy = utils.makeEmptySbtProject("runAtmos22", sbtVersionString)
   val plugins = new File(dummy, "project/plugins.sbt")
   IO.write(plugins,
     """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.2.3")""")
@@ -41,6 +41,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
   """)
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   @volatile var receivedSocketInfo = false
+  @volatile var receivedNameInfo = false
   try {
     val result = concurrent.promise[Response]()
     val testActor = system.actorOf(Props(new Actor with ActorLogging {
@@ -48,10 +49,19 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       context.setReceiveTimeout(120.seconds)
 
       val request = GenericRequest(sendEvents = true, taskName, taskParams)
+      // Let's issue two requests, one for name and one for other.
+      child ! NameRequest(sendEvents = true)
       child ! request
       log.debug("Sent run request " + request)
 
       def receive: Receive = {
+        // Here we capture the result of the Name task
+        case x: NameResponse =>
+          log.debug("Received name response " + x)
+          receivedNameInfo =
+            (x.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
+              !x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
+              x.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
         // Here we capture the result of the run task.
         case x: RunResponse =>
           log.debug("Received run response " + x)
@@ -80,6 +90,8 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       case RunResponse(success, name) if name == taskName =>
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive atmos URI")
+        if (!receivedNameInfo)
+          throw new AssertionError("Did not discover atmos/akka support via name request!")
       case whatever =>
         throw new AssertionError("did not get RunResponse for " + taskName + " got " + whatever)
     }
@@ -92,7 +104,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
 }
 
 /** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13AtmosProject extends CanRunAtmosProject("0.13.0-RC5", TaskNames.runAtmos, Map.empty)
+class CanRunSbt13AtmosProject extends CanRunAtmosProject("0.13.0", TaskNames.runAtmos, Map.empty)
 
-class CanRunMainSbt13AtmosProject extends CanRunAtmosProject("0.13.0-RC5", TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
+class CanRunSbt12AtmosProject extends CanRunAtmosProject("0.12.4", TaskNames.runAtmos, Map.empty)
+
+class CanRunMainSbt13AtmosProject extends CanRunAtmosProject("0.13.0", TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
 

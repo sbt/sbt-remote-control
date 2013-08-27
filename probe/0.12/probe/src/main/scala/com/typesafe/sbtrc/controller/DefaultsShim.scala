@@ -110,7 +110,15 @@ object DefaultsShim {
 
   private val nameHandler: RequestHandler = { (origState, ui, params) =>
     val result = extract(origState).get(name)
-    (origState, makeResponseParams(protocol.NameResponse(result)))
+    // TODO - These are all hacks for now until we have the generic API.
+    val hasPlay = controller.isPlayProject(origState)
+    val hasConsole = AtmosSupport.isAtmosProject(origState)
+    val hasAkka = AkkaSupport.isAkkaProject(origState)
+
+    (origState, makeResponseParams(protocol.NameResponse(result,
+      Map("hasPlay" -> hasPlay,
+        "hasAkka" -> hasAkka,
+        "hasConsole" -> hasConsole))))
   }
 
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>

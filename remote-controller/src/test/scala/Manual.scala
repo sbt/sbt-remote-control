@@ -21,7 +21,7 @@ object Main extends App {
       implicit val timeout = Timeout(60.seconds)
 
       val name = Await.result(child ? protocol.NameRequest(sendEvents = false), 60.seconds) match {
-        case protocol.NameResponse(n) => {
+        case protocol.NameResponse(n, _) => {
           n
         }
         case protocol.ErrorResponse(error) =>
