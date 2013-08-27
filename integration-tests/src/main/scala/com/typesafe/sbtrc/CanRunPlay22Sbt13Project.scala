@@ -15,8 +15,9 @@ import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanRunPlay22Sbt13Project extends SbtProcessLauncherTest {
-  val dummy = utils.makeEmptySbtProject("runPlay22", "0.13.0-RC4")
+  val dummy = utils.makeEmptySbtProject("runPlay22", "0.13.0")
   val plugins = new File(dummy, "project/plugins.sbt")
+  // TODO - Abstract out plugin version to test more than one play instance...
   IO.write(plugins,
     """resolvers += Resolver.url("typesafe-ivy-snapshots", new URL("http://private-repo.typesafe.com/typesafe/ivy-snapshots"))(Resolver.ivyStylePatterns)
       
@@ -59,12 +60,21 @@ object ApplicationBuild extends Build {
     """)
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   @volatile var receivedSocketInfo = false
+  @volatile var receivedNameInfo = false
   try {
     val result = concurrent.promise[Response]()
     val testActor = system.actorOf(Props(new Actor with ActorLogging {
       var askedToStop = false
       context.setReceiveTimeout(120.seconds)
+
+      child ! NameRequest(sendEvents = true)
+      child ! RunRequest(sendEvents = true, mainClass = None)
+
       def receive: Receive = {
+        case x: NameResponse =>
+          log.debug("Received name response " + x)
+          receivedNameInfo =
+            x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean]
         // Here we capture the result of the run task.
         case x: RunResponse =>
           result.success(x)
@@ -92,13 +102,13 @@ object ApplicationBuild extends Build {
         // Ignore all other events, but let them block our receive timeouts...
       }
     }), "can-run-sbt-13-and-play")
-
-    child.tell(RunRequest(sendEvents = true, mainClass = None), testActor)
     Await.result(result.future, timeout.duration) match {
       case RunResponse(success, "run") =>
         println("DEBUGME: RunResponse = " + success)
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive a play socket we can listen on!")
+        if (!receivedNameInfo)
+          throw new AssertionError("Did not discover atmos/akka support via name request!")
       case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
     }
   } catch {
