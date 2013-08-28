@@ -34,8 +34,8 @@ case class TaskFailure[T](message: String) extends TaskResult[T] {
 }
 
 object TaskResult {
-  implicit def MyParamertizer[T](implicit p: Parametizeable[BuildValue[T]]): Parametizeable[TaskResult[T]] =
-    new Parametizeable[TaskResult[T]] {
+  implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]): RawStructure[TaskResult[T]] =
+    new RawStructure[TaskResult[T]] {
       def apply(t: TaskResult[T]): Map[String,Any] = 
         t match {
           case TaskFailure(msg) => Map("success" -> false, "message" -> msg)
