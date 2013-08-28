@@ -19,7 +19,8 @@ class TestSbtToProtocolUtils {
         project = Some(protocol.ProjectReference(
           new java.net.URI("file:///home/"),
           "test-project"    
-        ))    
+        )),
+        build = Some(new java.net.URI("file:///home/"))
       )
     val expected = protocol.ScopedKey(expectedKey, expectedScope)
     val actual = SbtToProtocolUtils.scopedKeyToProtocol(nameInRef.scopedKey)

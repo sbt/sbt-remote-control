@@ -188,6 +188,7 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.InputTaskKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case TaskNames.TaskKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case TaskNames.SettingKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      case "KeyList" => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case _ =>
         null
     })
