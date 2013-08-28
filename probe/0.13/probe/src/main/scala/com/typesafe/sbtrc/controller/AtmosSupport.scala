@@ -54,4 +54,23 @@ object AtmosSupport {
       installHooks(origState, ui)
     } else origState
   }
+
+  // TODO - this should be by project, perhaps...
+  def installAtmosPlugin(state: State, usePlay: Boolean): State = {
+    val extracted = Project.extract(state)
+    val bd = extracted.get(sbt.Keys.baseDirectory in ThisBuild)
+    val atmosPlugin = new java.io.File(bd, "project/auto-atmos.sbt")
+    val version = com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION
+    // TODO - check to make sure this file does not exist.
+    IO.write(atmosPlugin, s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${version}")""")
+    // Now we need to configure the project to use atmos settings....
+    val atmosBuildFile = new java.io.File(bd, "auto-atmos.sbt")
+    if (usePlay) {
+      // THis doens't work yet.
+      //IO.write(atmosBuildFile, s"""atmosPlaySettings""")
+    } else {
+      IO.write(atmosBuildFile, s"""atmosSettings""")
+    }
+    state
+  }
 }

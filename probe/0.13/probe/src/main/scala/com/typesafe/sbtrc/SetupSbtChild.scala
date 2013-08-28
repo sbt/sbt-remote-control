@@ -41,7 +41,20 @@ object SetupSbtChild extends (State => State) {
         // Make sure the shims are installed we need for this build.
         val anyShimAdded = controller.installShims(loggedState, "0.13")
 
-        if (anyShimAdded) {
+        // Here is our hack to install the sbt-atmos plugin:
+        val atmosPluginInstalled =
+          if (!controller.AtmosSupport.isAtmosProject(s)) {
+            // here we check to see what we need:
+            val isPlay = controller.isPlayProject(s)
+            val needsConsole = isPlay || controller.AkkaSupport.isAkkaProject(s)
+            if (needsConsole) {
+              // TODO - Do this on a project-by-project basis...
+              controller.AtmosSupport.installAtmosPlugin(s, usePlay = isPlay)
+              true
+            } else false
+          } else false
+
+        if (anyShimAdded || atmosPluginInstalled) {
           client.sendJson(protocol.NeedRebootEvent)
           // close down in orderly fashion
           client.close()
