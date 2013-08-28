@@ -21,6 +21,39 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
       JsonStructure.unapply[KeyList](params)
   }
   try {
+    val nameResult = concurrent.promise[BuildValue[String]]
+    system.actorOf(akka.actor.Props(new akka.actor.Actor {
+      child ! SettingKeyRequest(KeyFilter.empty)
+      context.setReceiveTimeout(timeout.duration)
+      def receive: Receive = {
+        case protocol.KeyListResponse(keyList) => // We succeeded!
+          try {
+            val key = keyList.keys.find(_.key.name == "name").get
+            child ! SettingValueRequest(key)
+          } catch {
+            case t: Throwable =>
+              nameResult.failure(t)
+              throw t
+          }
+        case protocol.GenericResponse("SettingValueRequest", params) =>
+          nameResult.complete(
+            util.Try {
+              val result = JsonStructure.unapply[TaskResult[String]](params)
+              assert(result.isDefined, "Response was not understood: " + params)
+              val taskResult = result.get.asInstanceOf[TaskResult[String]]
+              assert(taskResult.isSuccess, "Response was not success! " + result.get)
+              taskResult.asInstanceOf[TaskSuccess[String]].value
+            })
+        case ReceiveTimeout =>
+          nameResult.failure(new AssertionError("Name request timed out."))
+      }
+    }))
+
+    Await.result(nameResult.future, timeout.duration).value match {
+      case Some(name) => assert(name == "runTestBuild", "Unable to determine name of project, found: " + name)
+      case None => throw new AssertionError("Unable to determine name of the project.")
+    }
+
     Await.result(child ? SettingKeyRequest(KeyFilter.empty), timeout.duration) match {
       case protocol.KeyListResponse(keyList) => // We succeeded!
         // TODO - Check the list more thoroughly

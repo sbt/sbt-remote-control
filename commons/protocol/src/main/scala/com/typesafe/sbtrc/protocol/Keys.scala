@@ -4,6 +4,7 @@ import com.typesafe.sbtrc.ipc
 import scala.util.parsing.json._
 import com.typesafe.sbtrc.ipc.JsonReader
 import java.net.URI
+import ScalaShims.ManifestFactory
 
 /** 
  *  Represents the type information we can serialize over a network
@@ -15,8 +16,37 @@ case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.emp
       if(typeArguments.isEmpty) ""
       else typeArguments.mkString("[", ",","]")
   )
+  
+  def toManifest(cl: ClassLoader = TypeInfo.getClass.getClassLoader): Option[Manifest[_]] = {
+    val args = typeArguments.map(_.toManifest(cl))
+    if(args.forall(_.isDefined)) {
+      val realArgs = args.map(_.get)
+      // Now we look at our class....
+      erasureClass match {
+        // TODO - Special casing classes...
+        case "Boolean" => Some(ManifestFactory.Boolean)
+        case "Unit" => Some(ManifestFactory.Unit)
+        case default =>
+          val ourClass = cl.loadClass(erasureClass)
+          val mf = 
+            if(realArgs.isEmpty) {
+              ManifestFactory.classType(ourClass)
+            } else {
+              ManifestFactory.classType(ourClass, realArgs.head, realArgs.tail:_*)
+            }
+          Some(mf.asInstanceOf[Manifest[_]])
+      }
+    } else None
+  }
 }
 object TypeInfo {
+  def fromManifest[T](mf: Manifest[T]): TypeInfo = {
+    TypeInfo(
+      mf.erasure.getName,
+      mf.typeArguments map (x => fromManifest(x))
+    )
+  }
+  
   implicit object MyStructure extends RawStructure[TypeInfo] {
     def apply(t: TypeInfo): Map[String, Any] = 
       Map(

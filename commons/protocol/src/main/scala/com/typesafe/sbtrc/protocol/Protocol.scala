@@ -145,6 +145,7 @@ object TaskNames {
   val SettingKeyRequest = "SettingKeyRequest"
   val TaskKeyRequest = "TaskKeyRequest"
   val InputTaskKeyRequest = "InputTaskKeyRequest"
+  val SettingValueRequest = "SettingValueRequest"
 }
 
 case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String, Any]) extends Request with GenericMessage {
@@ -164,8 +165,8 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.SettingKeyRequest => JsonStructure.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
       case TaskNames.TaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
       case TaskNames.InputTaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
-      case _ =>
-        null
+      case TaskNames.SettingValueRequest => JsonStructure.unapply[ScopedKey](params).map(SettingValueRequest.apply).getOrElse(null)
+      case _ => null
     })
   }
 }
@@ -254,6 +255,12 @@ case class TaskKeyRequest(filter: KeyFilter) extends KeyRequest {
 case class InputTaskKeyRequest(filter: KeyFilter) extends KeyRequest {
   override val name = TaskNames.InputTaskKeyRequest
 }
+case class SettingValueRequest(key: ScopedKey) extends SpecificRequest {
+  override val sendEvents = false
+  override def toGeneric =
+    GenericRequest(sendEvents = sendEvents, TaskNames.SettingValueRequest, JsonStructure(key))
+}
+
 
 
 case class KeyListResponse(keys: KeyList) extends Response with SpecificResponse {

@@ -1,8 +1,6 @@
 package com.typesafe.sbtrc
-package controller
+package protocol
 
-
-import protocol._
 
 /**
  *  Represents a return value from attempting to pull a setting/value from sbt.
@@ -16,9 +14,107 @@ sealed trait BuildValue[T] {
   /** Result of calling toString on the value. */
   def stringValue: String
 }
+/** Represents a value we can send over the wire. */
+case class SerializableBuildValue[T](
+  rawValue: T,
+  serializer: RawStructure[T],
+  manifest: TypeInfo
+) extends BuildValue[T] {
+  val value = Some(rawValue)
+  val stringValue = rawValue.toString
+}
+/** Represents a value we cannot send over the wire. */
+case class UnserializedValue[T](stringValue: String) extends BuildValue[T] {
+  def value = None
+}
+
+object Classes {
+   val StringClass = classOf[String]
+   val FileClass = classOf[java.io.File]
+   val BooleanClass = classOf[Boolean]
+   val SeqClass = classOf[Seq[_]]
+   
+   // TODO - Figure out how to handle attributed, and
+   // other sbt special classes....
+   
+   abstract class SubClass(cls: Class[_]) {
+     def unapply(ocls: Class[_]): Boolean =
+       cls.isAssignableFrom(ocls)
+   }
+   
+   object SeqSubClass extends SubClass(SeqClass)
+}
 
 // TODO - Figure out how to serialize arbitrary values using Parametizable 
+object BuildValue {
+  
+  // Here we need to reflectively look up the serialization of things...
+  def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] = 
+    defaultSerializers(mf) map { serializer =>
+      SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
+    } getOrElse UnserializedValue(o.toString)
 
+    
+  // TODO - This should be a registration system and not so hacky...
+  def defaultSerializers[T](mf: Manifest[T]): Option[RawStructure[T]] = {
+    (mf.erasure match {
+      case Classes.StringClass => Some(RawStructure.get[String])
+      case Classes.FileClass => Some(RawStructure.get[java.io.File])
+      case Classes.BooleanClass => Some(RawStructure.get[Boolean])
+      // TODO - polymorphism?
+      case Classes.SeqSubClass() =>
+        // Now we need to find the first type arguments structure:
+        for {
+          child <- defaultSerializers(mf.typeArguments(0))
+        } yield RawStructure.SeqStructure(child)
+      case _ =>
+        println("Error:  No way to serialize: " + mf)
+        None
+    }).asInstanceOf[Option[RawStructure[T]]]
+  }
+  
+  private def deserialize(value: Map[String,Any], mf: TypeInfo): Option[BuildValue[Any]] =
+    for {
+      realMf <- mf.toManifest()
+      serializer <- defaultSerializers(realMf)
+      realValue <- serializer.unapply(value)
+    } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[RawStructure[Any]], mf)
+  
+  // Hacky object so we don't instantiate classes just to satisfy typer.
+  // We're safe at runtime given we ignore the type args after
+  // erasure....
+  private object MyRawStructure extends protocol.RawStructure[BuildValue[Any]] {
+    def apply(t: BuildValue[Any]): Map[String, Any] =
+       t match {
+         case UnserializedValue(string) =>
+           Map("stringValue" -> string)
+         case SerializableBuildValue(value, serializer, mf) =>
+           Map("stringValue" -> value,
+               "manifest" -> JsonStructure(mf),
+               "value" -> serializer(value))
+       }
+     def unapply(map: Map[String, Any]): Option[BuildValue[Any]] = {
+       map.get("stringValue").flatMap { stringValue =>
+         // TODO - Check for additional deserializers...
+         val fullOpt: Option[BuildValue[Any]] = 
+           for {
+             rawValue <- map.get("value")
+             rawMf <- map.get("manifest")
+             mf <- JsonStructure.unapply[TypeInfo](rawMf.asInstanceOf[Map[String,Any]])
+             result <- deserialize(rawValue.asInstanceOf[Map[String,Any]], mf)
+           } yield result
+         fullOpt orElse Some(UnserializedValue(stringValue.toString))
+       }
+     }
+  }
+  implicit def MyStructure[T]: protocol.RawStructure[BuildValue[T]] = 
+    MyRawStructure.asInstanceOf[protocol.RawStructure[BuildValue[T]]]
+  
+  
+  // Default handlers....
+  
+  
+}
 
 
 
@@ -29,8 +125,16 @@ sealed trait TaskResult[T] {
 case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
   override def isSuccess = true
 }
+object TaskSuccess {
+  implicit def MyParamertizer[T] = 
+    TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskSuccess[T]]]
+}
 case class TaskFailure[T](message: String) extends TaskResult[T] {
   override def isSuccess = false
+}
+object TaskFailure {
+  implicit def MyParamertizer[T] = 
+    TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskFailure[T]]]
 }
 
 object TaskResult {

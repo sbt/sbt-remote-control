@@ -24,6 +24,7 @@ class ProtocolTest {
       protocol.RunResponse(success = true, task = protocol.TaskNames.run),
       protocol.RunResponse(success = false, task = protocol.TaskNames.runMain),
       protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
+      protocol.SettingValueRequest(scopedKey),
       protocol.SettingKeyRequest(keyFilter),
       protocol.InputTaskKeyRequest(keyFilter),
       protocol.TaskKeyRequest(keyFilter))

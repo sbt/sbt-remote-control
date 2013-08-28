@@ -26,6 +26,10 @@ object SbtUtil {
   def extract(state: State, context: Option[UIContext] = None): Extracted = {
     extractWithRef(state, context)._1
   }
+  
+  def getSettingValue[T](key: sbt.ScopedKey[T], state: State, context: Option[UIContext] = None): T = {
+    extract(state, context).get(sbt.SettingKey(key.key) in key.scope)
+  }
 
   def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
     val extracted = extract(state, context)

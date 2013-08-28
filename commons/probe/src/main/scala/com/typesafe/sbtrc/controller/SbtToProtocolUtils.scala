@@ -4,12 +4,8 @@ package com.typesafe.sbtrc
 object SbtToProtocolUtils {
   
   
-  def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo = {
-    protocol.TypeInfo(
-      mf.erasure.getName,
-      mf.typeArguments map (x => manifestToProtocol(x))
-    )
-  }
+  def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
+    protocol.TypeInfo.fromManifest(mf)
   
   def keyToProtocol[T](key: sbt.AttributeKey[T]): protocol.AttributeKey =
     protocol.AttributeKey(
@@ -57,5 +53,4 @@ object SbtToProtocolUtils {
       key = keyToProtocol(key.key),
       scope = scopeToProtocol(key.scope)
     )
-    
 }

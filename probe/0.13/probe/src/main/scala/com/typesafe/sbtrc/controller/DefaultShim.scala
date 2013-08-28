@@ -139,6 +139,24 @@ object DefaultsShim {
     s3
   }
 
+  private def extractValue[T](key: sbt.ScopedKey[T], state: State): protocol.TaskResult[T] =
+    try {
+      val raw = extract(state).get(SettingKey(key.key) in key.scope)
+      val value = protocol.BuildValue(raw)(key.key.manifest)
+      protocol.TaskSuccess(value)
+    } catch {
+      case e: Exception => protocol.TaskFailure(e.getMessage())
+    }
+
+  private val settingValueHandler: RequestHandler = { (origState, ui, params) =>
+    import protocol.{ ScopedKey => PScopedKey, TaskResult }
+    // TODO - Catch errors
+    val key = JsonStructure.unapply[PScopedKey](params.toMap).get
+    val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(key, origState)
+    val value = extractValue(sbtKey, origState)
+    (origState, Response(value))
+  }
+
   private val settingKeyHandler: RequestHandler = { (origState, ui, params) =>
     import protocol.{ KeyFilter, KeyListResponse, KeyList }
     val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
@@ -178,9 +196,13 @@ object DefaultsShim {
     case TaskNames.runAtmos => runAtmosHandler
     case TaskNames.runMainAtmos => runMainAtmosHandler
     case TaskNames.test => testHandler
+    // Generic API
     case TaskNames.SettingKeyRequest => settingKeyHandler
     case TaskNames.TaskKeyRequest => taskKeyHandler
     case TaskNames.InputTaskKeyRequest => inputTaskKeyHandler
+    case TaskNames.SettingValueRequest => settingValueHandler
+
+    // Old API
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }
 }
