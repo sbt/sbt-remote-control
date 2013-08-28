@@ -60,7 +60,7 @@ object TheBuild extends Build {
   lazy val playShimPlugin = (
     SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
-    dependsOnRemote(playSbtPlugin12)
+    dependsOnRemote(playSbtPlugin12.exclude("org.avaje.ebeanorm", "avaje-ebeanorm-agent"))
   )
 
   lazy val defaultsShimPlugin = (
