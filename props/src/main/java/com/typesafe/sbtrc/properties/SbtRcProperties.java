@@ -82,6 +82,6 @@ public final class SbtRcProperties {
 	}
 	
 	public static String SBT_ATMOS_DEFAULT_VERSION() {
-		return lookupOr("sbt.atmos.default.version", "128M");
+		return lookupOr("sbt.atmos.default.version", "0.2.3");
 	}
 }
