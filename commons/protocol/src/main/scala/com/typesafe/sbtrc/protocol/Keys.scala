@@ -17,11 +17,11 @@ case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.emp
   )
 }
 object TypeInfo {
-  implicit object MyParamertizer extends Parametizeable[TypeInfo] {
+  implicit object MyStructure extends RawStructure[TypeInfo] {
     def apply(t: TypeInfo): Map[String, Any] = 
       Map(
         "erasureClass" -> t.erasureClass,
-        "typeArguments" -> t.typeArguments.map(a => Parametize(a))
+        "typeArguments" -> t.typeArguments.map(a => JsonStructure(a))
       )
     def unapply(map: Map[String, Any]): Option[TypeInfo] =
       for {
@@ -29,7 +29,7 @@ object TypeInfo {
         rawArgs <- map.get("typeArguments")
         if rawArgs.isInstanceOf[Seq[_]]
         args = rawArgs.asInstanceOf[Seq[Map[String,Any]]] flatMap {
-          arg => Parametize.unapply[TypeInfo](arg)
+          arg => JsonStructure.unapply[TypeInfo](arg)
         }
       } yield TypeInfo(erasure.toString, args)
   }
@@ -43,18 +43,18 @@ case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey["+manifest+"](\""+name+"\")"
 }
 object AttributeKey {
-  implicit object MyParamertizer extends Parametizeable[AttributeKey] {
+  implicit object MyStructure extends RawStructure[AttributeKey] {
     def apply(t: AttributeKey): Map[String, Any] = 
       Map(
         "name" -> t.name,
-        "manifest" -> Parametize(t.manifest)
+        "manifest" -> JsonStructure(t.manifest)
       )
     def unapply(map: Map[String, Any]): Option[AttributeKey] =
       for {
         name <- map.get("name")
         rawmanifest <- map.get("manifest")
         if rawmanifest.isInstanceOf[Map[_,_]]
-        manifest <- Parametize.unapply[TypeInfo](rawmanifest.asInstanceOf[Map[String,Any]])
+        manifest <- JsonStructure.unapply[TypeInfo](rawmanifest.asInstanceOf[Map[String,Any]])
       } yield AttributeKey(name.toString, manifest)
   }
 }
@@ -65,7 +65,7 @@ object AttributeKey {
  */
 case class ProjectReference(build: URI, name: String)
 object ProjectReference {
-  implicit object MyParamertizer extends Parametizeable[ProjectReference] {
+  implicit object MyStructure extends RawStructure[ProjectReference] {
     def apply(t: ProjectReference): Map[String, Any] =
       Map(
         "build" -> t.build.toASCIIString,
@@ -99,22 +99,22 @@ case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  implicit object MyParamertizer extends Parametizeable[SbtScope] {
+  implicit object MyStructure extends RawStructure[SbtScope] {
     def apply(t: SbtScope): Map[String, Any] = {
       val b = t.build.map(b => "build" -> b.toASCIIString).toSeq
-      val p = t.project.map(p => "project" -> Parametize(p)).toSeq
+      val p = t.project.map(p => "project" -> JsonStructure(p)).toSeq
       val c = t.config.map(c => "config" -> c).toSeq
-      val tsk = t.task.map(t => "task" -> Parametize(t)).toSeq
+      val tsk = t.task.map(t => "task" -> JsonStructure(t)).toSeq
       (b ++ p ++ c ++ tsk).toMap
     } 
     def unapply(map: Map[String, Any]): Option[SbtScope] = {
       val build = map.get("build").map(x => new URI(x.toString))
       val project = map.get("project").flatMap { x =>
-          Parametize.unapply[ProjectReference](x.asInstanceOf[Map[String, Any]])
+          JsonStructure.unapply[ProjectReference](x.asInstanceOf[Map[String, Any]])
       }
       val config = map.get("config").map(_.toString)
       val task = map.get("task").flatMap { x =>
-          Parametize.unapply[AttributeKey](x.asInstanceOf[Map[String, Any]])
+          JsonStructure.unapply[AttributeKey](x.asInstanceOf[Map[String, Any]])
       }
       Some(SbtScope(build, project, config, task))
     }
@@ -127,30 +127,30 @@ case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  implicit object MyParamertizer extends Parametizeable[ScopedKey] {
+  implicit object MyStructure extends RawStructure[ScopedKey] {
     def apply(t: ScopedKey): Map[String, Any] =
       Map(
-        "key" -> Parametize(t.key),
-        "scope" -> Parametize(t.scope)
+        "key" -> JsonStructure(t.key),
+        "scope" -> JsonStructure(t.scope)
       )
     def unapply(map: Map[String, Any]): Option[ScopedKey] =
       for {
         rawKey <- map.get("key")
         if rawKey.isInstanceOf[Map[_,_]]
-        key <- Parametize.unapply[AttributeKey](rawKey.asInstanceOf[Map[String,Any]])
+        key <- JsonStructure.unapply[AttributeKey](rawKey.asInstanceOf[Map[String,Any]])
         rawScope <- map.get("scope")
         if rawScope.isInstanceOf[Map[_,_]]
-        scope<- Parametize.unapply[SbtScope](rawScope.asInstanceOf[Map[String,Any]])
+        scope<- JsonStructure.unapply[SbtScope](rawScope.asInstanceOf[Map[String,Any]])
       } yield ScopedKey(key, scope)
   }
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
-  implicit object MyParamertizer extends Parametizeable[KeyList] {
+  implicit object MyStructure extends RawStructure[KeyList] {
     def apply(t: KeyList): Map[String, Any] =
       Map(
-        "keys" -> t.keys.map(k => (Parametize(k)))
+        "keys" -> t.keys.map(k => (JsonStructure(k)))
       )
     def unapply(map: Map[String, Any]): Option[KeyList] =
       for {
@@ -159,7 +159,7 @@ object KeyList {
         keys =
           for {
             rawkey <- rawKeys.asInstanceOf[Seq[Map[String, Any]]]
-            key <- Parametize.unapply[ScopedKey](rawkey)
+            key <- JsonStructure.unapply[ScopedKey](rawkey)
           } yield key
       } yield KeyList(keys)
   }
@@ -171,7 +171,7 @@ case class KeyFilter(project: Option[String],
                      key: Option[String])
 object KeyFilter {
   val empty = KeyFilter(None, None, None)
-  implicit object MyParamertizer extends Parametizeable[KeyFilter] {
+  implicit object MyStructure extends RawStructure[KeyFilter] {
     def apply(t: KeyFilter): Map[String, Any] = {
       val p = t.project.map(p => "project" -> p).toSeq
       val c = t.config.map(c => "config" -> c).toSeq

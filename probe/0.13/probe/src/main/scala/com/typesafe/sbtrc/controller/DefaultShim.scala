@@ -13,7 +13,7 @@ import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
 import protocol.TaskNames
 import ParamsHelper.p2Helper
-import protocol.Parametizeable
+import protocol.{ JsonStructure, RawStructure }
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
 
@@ -30,8 +30,8 @@ object DefaultsShim {
     ParamsHelper.fromMap(specific.toGeneric.params)
   }
 
-  private[sbtrc] def makeResponse[T: Parametizeable](value: T) =
-    ParamsHelper.fromParametize(value)
+  private[sbtrc] def Response[T: RawStructure](value: T) =
+    ParamsHelper.toParams(value)
 
   private val listenersKey = testListeners in Test
 
@@ -140,27 +140,27 @@ object DefaultsShim {
   }
 
   private val settingKeyHandler: RequestHandler = { (origState, ui, params) =>
-    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
-    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    import protocol.{ KeyFilter, KeyListResponse, KeyList }
+    val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.settings(origState, filter))
-    (origState, makeResponse(results))
+    (origState, Response(results))
   }
 
   private val taskKeyHandler: RequestHandler = { (origState, ui, params) =>
-    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
-    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    import protocol.{ KeyFilter, KeyListResponse, KeyList }
+    val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.tasks(origState, filter))
-    (origState, makeResponse(results))
+    (origState, Response(results))
   }
 
   private val inputTaskKeyHandler: RequestHandler = { (origState, ui, params) =>
-    import protocol.{ Parametize, KeyFilter, KeyListResponse, KeyList }
-    val filter = Parametize.unapply[KeyFilter](params.toMap).get
+    import protocol.{ KeyFilter, KeyListResponse, KeyList }
+    val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
     val results =
       KeyList(SbtDiscovery.inputTasks(origState, filter))
-    (origState, makeResponse(results))
+    (origState, Response(results))
   }
 
   // TODO - this whole mechanism needs work.  We should just have generic:

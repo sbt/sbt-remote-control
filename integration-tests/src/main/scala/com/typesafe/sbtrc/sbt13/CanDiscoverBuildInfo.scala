@@ -18,7 +18,7 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   object KeyListExtract {
     def unapply(params: Map[String, Any]): Option[KeyList] =
-      Parametize.unapply[KeyList](params)
+      JsonStructure.unapply[KeyList](params)
   }
   try {
     Await.result(child ? SettingKeyRequest(KeyFilter.empty), timeout.duration) match {

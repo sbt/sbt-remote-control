@@ -159,9 +159,11 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.runAtmos => RunRequest(sendEvents = sendEvents, mainClass = None)
       case TaskNames.runMainAtmos => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
-      case TaskNames.SettingKeyRequest => Parametize.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
-      case TaskNames.TaskKeyRequest => Parametize.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
-      case TaskNames.InputTaskKeyRequest => Parametize.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
+      
+      // Generic API that we'd like to try to keep typesafe-ish.
+      case TaskNames.SettingKeyRequest => JsonStructure.unapply[KeyFilter](params).map(SettingKeyRequest.apply).getOrElse(null)
+      case TaskNames.TaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
+      case TaskNames.InputTaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
       case _ =>
         null
     })
@@ -180,10 +182,12 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.runAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runAtmos)
       case TaskNames.runMainAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMainAtmos)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
-      // TODO - Is this correct?
-      case TaskNames.InputTaskKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
-      case TaskNames.TaskKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
-      case TaskNames.SettingKeyRequest => Parametize.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+
+      
+      // Generic API that we'd like to keep typesafe, if we can...
+      case TaskNames.InputTaskKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      case TaskNames.TaskKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
+      case TaskNames.SettingKeyRequest => JsonStructure.unapply[KeyList](params).map(KeyListResponse.apply).getOrElse(null)
       case _ =>
         null
     })
@@ -238,7 +242,7 @@ trait KeyRequest extends Request with SpecificRequest {
   def filter: KeyFilter
   def sendEvents = false
   override def toGeneric =
-    GenericRequest(sendEvents = sendEvents, name, Parametize(filter))    
+    GenericRequest(sendEvents = sendEvents, name, JsonStructure(filter))    
 }
 case class SettingKeyRequest(filter: KeyFilter) extends KeyRequest {
   override val name = TaskNames.SettingKeyRequest
@@ -253,7 +257,7 @@ case class InputTaskKeyRequest(filter: KeyFilter) extends KeyRequest {
 
 case class KeyListResponse(keys: KeyList) extends Response with SpecificResponse {
   override def toGeneric =
-    GenericResponse("KeyList", Parametize(keys))
+    GenericResponse("KeyList", JsonStructure(keys))
 }
 
 
