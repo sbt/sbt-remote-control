@@ -39,7 +39,10 @@ object SetupSbtChild extends (State => State) {
       // tests or production.
       if (System.getProperty("sbtrc.no-shims", "false") != "true") {
         // Make sure the shims are installed we need for this build.
-        val anyShimAdded = controller.installShims(loggedState, "0.13")
+
+        // A hack to get atmos shims based on project information.
+        val atmosShims = controller.AtmosSupport.getAtmosShims(s)
+        val anyShimAdded = controller.installShims(loggedState, "0.13", atmosShims)
 
         if (anyShimAdded) {
           client.sendJson(protocol.NeedRebootEvent)

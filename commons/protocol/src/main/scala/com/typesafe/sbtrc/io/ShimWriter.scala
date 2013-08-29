@@ -34,8 +34,78 @@ object FileHasher {
   private val HEX_CHARS = "0123456789abcdef".toCharArray
 }
 
-// TODO - We want to re-use this across sbt versions...
-class ShimWriter(val name: String, version: String, sbtBinaryVersion: String = "0.12", isEmpty: Boolean = false) {
+/** abstract mechanism to write shim sbt files and update them. */
+trait ShimWriter {
+  def name: String
+  protected def contents: String
+  protected def relativeLocation: String = "project"
+    
+  protected def SHIM_FILE_NAME = "activator-" + name + "-shim.sbt"
+  private def makeTarget(basedir: File): File =
+    if(relativeLocation.isEmpty) new File(basedir, SHIM_FILE_NAME)
+    else new File(new File(basedir, relativeLocation), SHIM_FILE_NAME)
+  
+  protected lazy val contentsFile = {
+    val tmp = java.io.File.createTempFile(name, "sbt-shim")
+    IO.write(tmp, contents)
+    tmp.deleteOnExit()
+    tmp
+  }
+  
+  protected lazy val contentsSha = FileHasher.sha512(contentsFile)
+  
+  protected def isEmpty: Boolean = contents.isEmpty
+  
+  // update the shim file ONLY if it already exists. Returns true if it makes a change.
+  def updateIfExists(basedir: File): Boolean = {
+    val target = makeTarget(basedir)
+    if (target.exists && FileHasher.sha512(target) != contentsSha) {
+      // If we're moving to not requiring a shim, delete the dang file.
+      if(isEmpty) IO.delete(target)
+      else IO.copyFile(contentsFile, target)
+      true
+    } else {
+      false
+    }
+  }
+
+  // update the shim file EVEN IF it doesn't exist. Returns true if it makes a change.
+  def ensureExists(basedir: File): Boolean = {
+    val target = makeTarget(basedir)
+    // If the file does not exist, but we aren't writing to it, don't bother 
+    // creating an empty file.
+    def doesNotExistAndEmpty = isEmpty && !target.exists
+    // If the file exists *and* the contents match, this is true.
+    def existsAndShaMatches = target.exists && FileHasher.sha512(target) == contentsSha
+    
+    // Now do the work.
+    if(doesNotExistAndEmpty) false
+    else if(existsAndShaMatches) {
+      // We can safely delete the file if it's meant to be empty. 
+      if(isEmpty) IO.delete(target)
+      false
+    } else {
+      // Here we know there's some differential between what we have and what we want.
+      // write the file.
+      IO.copyFile(contentsFile, target)
+      true
+    }
+  }
+}
+/** This will write build.sbt files and keep them up-to-date. */
+case class GenericShimWriter(
+  name: String,
+  contents: String,
+  override val relativeLocation: String
+) extends ShimWriter
+
+/** This writes shims for activator plugin shims. */
+class ControlledPluginShimWriter(
+    val name: String, 
+    version: String, 
+    sbtBinaryVersion: String = "0.12", 
+    isEmpty: Boolean = false) 
+    extends ShimWriter {
 
   private val cleanedVersion = sbtBinaryVersion.replaceAll("\\W+", "-")
 
@@ -52,60 +122,23 @@ class ShimWriter(val name: String, version: String, sbtBinaryVersion: String = "
 // remote-controlled by a UI and then we would drop the shims.
 addSbtPlugin("com.typesafe.sbtrc" % "sbt-rc-""" + name + "-" + cleanedVersion + "\" % \"" + version + "\")\n"
 
-  private val sbtContents: String = addBootResovlersString + (if(isEmpty) "" else addSbtPluginString)
-
-  // TODO - We'd like to remove the activator name here, but we'd have to clean up the existing shims first...
-  private val SHIM_FILE_NAME = "activator-" + name + "-shim.sbt"
-
-  private lazy val pluginSbtFile = {
-    val tmp = java.io.File.createTempFile(name, "sbt-shim")
-    IO.write(tmp, sbtContents)
-    tmp.deleteOnExit()
-    tmp
-  }
-
-  private lazy val sbtFileSha = FileHasher.sha512(pluginSbtFile)
-
-  private def makeTarget(basedir: File): File =
-    new File(new File(basedir, "project"), SHIM_FILE_NAME)
-
-  // update the shim file ONLY if it already exists. Returns true if it makes a change.
-  def updateIfExists(basedir: File): Boolean = {
-    val target = makeTarget(basedir)
-    if (target.exists && FileHasher.sha512(target) != sbtFileSha) {
-      IO.copyFile(pluginSbtFile, target)
-      true
-    } else {
-      false
-    }
-  }
-
-  // update the shim file EVEN IF it doesn't exist. Returns true if it makes a change.
-  def ensureExists(basedir: File): Boolean = {
-    val target = makeTarget(basedir)
-    if (target.exists && FileHasher.sha512(target) == sbtFileSha) {
-      false
-    } else {
-      IO.copyFile(pluginSbtFile, target)
-      true
-    }
-  }
+  protected override val contents: String = addBootResovlersString + (if(isEmpty) "" else addSbtPluginString)
 }
 
 object ShimWriter {
   val alwaysIncludedShims = Set("eclipse", "idea", "defaults")
 
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
-    new ShimWriter("defaults", version, "0.12"),
-    new ShimWriter("eclipse", version, "0.12", isEmpty = true),
-    new ShimWriter("idea", version, "0.12", isEmpty = true),
-    new ShimWriter("play", version, "0.12")
+    new ControlledPluginShimWriter("defaults", version, "0.12"),
+    new ControlledPluginShimWriter("eclipse", version, "0.12", isEmpty = true),
+    new ControlledPluginShimWriter("idea", version, "0.12", isEmpty = true),
+    new ControlledPluginShimWriter("play", version, "0.12")
   )
   def sbt13Shims(version: String): Seq[ShimWriter] = Seq(
-    new ShimWriter("defaults", version, "0.13", isEmpty = true),
-    new ShimWriter("eclipse", version, "0.13", isEmpty = true),
-    new ShimWriter("idea", version, "0.13", isEmpty = true),
-    new ShimWriter("play", version, "0.13", isEmpty = true)
+    new ControlledPluginShimWriter("defaults", version, "0.13", isEmpty = true),
+    new ControlledPluginShimWriter("eclipse", version, "0.13", isEmpty = true),
+    new ControlledPluginShimWriter("idea", version, "0.13", isEmpty = true),
+    new ControlledPluginShimWriter("play", version, "0.13", isEmpty = true)
   )
 
   def knownShims(version: String, sbtVersion: String = "0.12"): Seq[ShimWriter] =
