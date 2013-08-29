@@ -55,22 +55,33 @@ object AtmosSupport {
     } else origState
   }
 
-  // TODO - this should be by project, perhaps...
-  def installAtmosPlugin(state: State, usePlay: Boolean): State = {
-    val extracted = Project.extract(state)
-    val bd = extracted.get(sbt.Keys.baseDirectory in ThisBuild)
-    val atmosPlugin = new java.io.File(bd, "project/auto-atmos.sbt")
-    val version = com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION
-    // TODO - check to make sure this file does not exist.
-    IO.write(atmosPlugin, s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${version}")""")
-    // Now we need to configure the project to use atmos settings....
-    val atmosBuildFile = new java.io.File(bd, "auto-atmos.sbt")
-    if (usePlay) {
-      // THis doens't work yet.
-      //IO.write(atmosBuildFile, s"""atmosPlaySettings""")
-    } else {
-      IO.write(atmosBuildFile, s"""atmosSettings""")
-    }
-    state
+  import io.{ ShimWriter, GenericShimWriter }
+  lazy val atmosPluginShim =
+    GenericShimWriter(
+      name = "sbt-atmos",
+      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
+      relativeLocation = "project")
+
+  lazy val atmosAkkaBuildShim =
+    GenericShimWriter(
+      name = "sbt-atmos-akka",
+      contents = """atmosSettings""",
+      relativeLocation = "")
+
+  lazy val atmosPlayBuildShim =
+    GenericShimWriter(
+      name = "sbt-atmos-akka",
+      contents = """atmosPlaySettings""",
+      relativeLocation = "")
+
+  def getAtmosShims(state: State): Seq[ShimWriter] = {
+    // TODO - Detect play/akka by project.
+    val isPlay = isPlayProject(state)
+    val isAkka = AkkaSupport.isAkkaProject(state)
+    // TODO - When we have the latest atmos plugin we can include the build shim
+    // TODO - We need a shim to turn off the atmosBuildShim if an akka project migrates to play...
+    if (isPlay) Seq(atmosPluginShim)
+    else if (isAkka) Seq(atmosPluginShim, atmosAkkaBuildShim)
+    else Nil
   }
 }
