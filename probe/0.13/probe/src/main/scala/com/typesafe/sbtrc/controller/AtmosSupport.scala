@@ -62,6 +62,12 @@ object AtmosSupport {
       contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
       relativeLocation = "project")
 
+  lazy val atmosPlayPluginShim =
+    GenericShimWriter(
+      name = "sbt-atmos",
+      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
+      relativeLocation = "project")
+
   lazy val atmosAkkaBuildShim =
     GenericShimWriter(
       name = "sbt-atmos-akka",
@@ -80,7 +86,7 @@ object AtmosSupport {
     val isAkka = AkkaSupport.isAkkaProject(state)
     // TODO - When we have the latest atmos plugin we can include the build shim
     // TODO - We need a shim to turn off the atmosBuildShim if an akka project migrates to play...
-    if (isPlay) Seq(atmosPluginShim)
+    if (isPlay) Seq(atmosPlayPluginShim, atmosPlayBuildShim)
     else if (isAkka) Seq(atmosPluginShim, atmosAkkaBuildShim)
     else Nil
   }

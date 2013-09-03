@@ -159,7 +159,10 @@ object TheBuild extends Build {
       // Additional dependencies required to run tests:
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2"
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
+      localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0-RC1",
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0-RC1", "0.13", "2.10"),
+      Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
   )
   
