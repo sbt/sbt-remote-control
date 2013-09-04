@@ -73,6 +73,15 @@ object SbtProcessLauncher {
 
       '"' + quoteLoop(s.headOption, if (s.isEmpty) "" else s.tail, 0) + '"'
     }
-    argv map quote
+
+    // don't quote the first item (the command itself) because ProcessBuilder
+    // will normalize the path to it, which will barf if it's quoted.
+    // It looks impossible to use a command with quotes in it,
+    // though spaces are OK since ProcessBuilder will slap quotes around the outside.
+    if (argv.length > 1) {
+      Seq(argv.head) ++ (argv.tail map quote)
+    } else {
+      argv
+    }
   }
 }

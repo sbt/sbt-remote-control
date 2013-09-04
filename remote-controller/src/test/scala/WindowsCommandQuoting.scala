@@ -15,7 +15,10 @@ class WindowsCommandQuoting {
       "\"" -> """"\""""",
       """\""" -> """"\\"""",
       """\\\""" -> """"\\\\\\"""")
-    def q(s: String): String = SbtProcessLauncher.windowsQuoteCommandLine(Seq(s)).head
+
+    // the first item in the sequence is special (doesn't get quoted)
+    // so we grab the second one for testing this
+    def q(s: String): String = SbtProcessLauncher.windowsQuoteCommandLine(Seq("command", s)).tail.head
 
     for (t <- tests) {
       assertEquals(t._2, q(t._1))
