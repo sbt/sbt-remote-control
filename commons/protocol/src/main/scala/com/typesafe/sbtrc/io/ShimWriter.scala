@@ -134,11 +134,27 @@ object ShimWriter {
     new ControlledPluginShimWriter("idea", version, "0.12", isEmpty = true),
     new ControlledPluginShimWriter("play", version, "0.12")
   )
+  // TODO - Configure this via property....
+  lazy val eclipsePluginShim =
+    GenericShimWriter(
+      name = "sbt-eclipse",
+      contents = """addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.3.0")""",
+      relativeLocation = "project")
+      
+  // TODO - Configure this via property...
+  lazy val ideaPluginShim =
+    GenericShimWriter(
+      name = "sbt-idea",
+      contents = """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.1")""",
+      relativeLocation = "project")
+      
   def sbt13Shims(version: String): Seq[ShimWriter] = Seq(
     new ControlledPluginShimWriter("defaults", version, "0.13", isEmpty = true),
     new ControlledPluginShimWriter("eclipse", version, "0.13", isEmpty = true),
     new ControlledPluginShimWriter("idea", version, "0.13", isEmpty = true),
-    new ControlledPluginShimWriter("play", version, "0.13", isEmpty = true)
+    new ControlledPluginShimWriter("play", version, "0.13", isEmpty = true),
+    eclipsePluginShim,
+    ideaPluginShim
   )
 
   def knownShims(version: String, sbtVersion: String = "0.12"): Seq[ShimWriter] =
