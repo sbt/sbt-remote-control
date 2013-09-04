@@ -121,6 +121,6 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
       jar ++
       sbtcommands
 
-    result
+    quoteCommandLine(result)
   }
 }
