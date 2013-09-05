@@ -57,6 +57,11 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
 
   def isPassThroughProperty(name: String): Boolean =
     name match {
+      // Ignore play stuff, or we break it.
+      case "http.port" => false
+      case "http.address" => false
+      case "https.port" => false
+      case "https.address" => false
       // TODO - What else should pass through?
       case n if n startsWith "http." => true
       case n if n startsWith "https." => true
