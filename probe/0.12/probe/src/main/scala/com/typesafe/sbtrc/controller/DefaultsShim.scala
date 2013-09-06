@@ -121,8 +121,13 @@ object DefaultsShim {
         "hasConsole" -> hasConsole))))
   }
 
+  private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
+    val (s, result) = extract(origState).runTask(mainClass in Compile, origState)
+    (s, makeResponseParams(protocol.MainClassResponse(name = result)))
+  }
+
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
+    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile, origState)
     (s, makeResponseParams(protocol.DiscoveredMainClassesResponse(names = result)))
   }
 
@@ -177,6 +182,7 @@ object DefaultsShim {
 
   val findHandler: PartialFunction[String, RequestHandler] = {
     case TaskNames.name => nameHandler
+    case TaskNames.mainClass => mainClassHandler
     case TaskNames.discoveredMainClasses => discoveredMainClassesHandler
     case TaskNames.watchTransitiveSources => watchTransitiveSourcesHandler
     case TaskNames.compile => compileHandler
