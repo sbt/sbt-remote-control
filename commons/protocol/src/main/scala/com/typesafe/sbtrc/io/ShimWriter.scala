@@ -128,13 +128,22 @@ addSbtPlugin("com.typesafe.sbtrc" % "sbt-rc-""" + name + "-" + cleanedVersion + 
 object ShimWriter {
   val alwaysIncludedShims = Set("eclipse", "idea", "defaults")
 
+  lazy val eclipsePlugin12Shim =
+    GenericShimWriter(
+      name = "sbt-eclipse",
+      contents = """addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""",
+      relativeLocation = "project")
+  
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
     new ControlledPluginShimWriter("defaults", version, "0.12"),
     new ControlledPluginShimWriter("eclipse", version, "0.12", isEmpty = true),
     new ControlledPluginShimWriter("idea", version, "0.12", isEmpty = true),
-    new ControlledPluginShimWriter("play", version, "0.12")
+    new ControlledPluginShimWriter("play", version, "0.12"),
+    eclipsePlugin12Shim,
+    ideaPluginShim
   )
   // TODO - Configure this via property....
+  
   lazy val eclipsePluginShim =
     GenericShimWriter(
       name = "sbt-eclipse",
