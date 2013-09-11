@@ -28,6 +28,7 @@ object PlaySupport {
       // Just hook after started...
       m.getName match {
         case "waitForCancel" =>
+          PoorManDebug.debug("Play interaction hook: Waiting for cancelation.")
           blockForCancel(ui)
         case "doWithoutEcho" =>
           // Just Read function and run it.
@@ -46,8 +47,7 @@ object PlaySupport {
   def hackyAssignSetting[T](key: SettingKey[T], value: AnyRef): Setting[T] =
     key <<= Def.setting { value.asInstanceOf[T] }
 
-  def makePlayInteractionSetting(setting: Setting[_], ui: UIContext): Setting[_] = {
-    val key = setting.key
+  def makePlayInteractionSetting(key: ScopedKey[_], ui: UIContext): Setting[_] = {
     val interactionClass = key.key.manifest.runtimeClass
     PoorManDebug.trace("Installing interaction hook for class: " + interactionClass)
     val proxy =
@@ -68,6 +68,7 @@ object PlaySupport {
       // Just hook after started...
       m.getName match {
         case "afterStarted" =>
+          PoorManDebug.debug("Play run hook: afterStarted called.")
           val socket = args(0).asInstanceOf[java.net.InetSocketAddress]
           val msg = SimpleJsonMessage(JSONObject(Map(
             "host" -> socket.getHostName,
@@ -89,8 +90,7 @@ object PlaySupport {
       (element.asInstanceOf[T] +: key.value)
     }
 
-  def makeDynamicProxyRunHookSetting(setting: Setting[_], ui: UIContext): Setting[_] = {
-    val key = setting.key
+  def makeDynamicProxyRunHookSetting(key: ScopedKey[_], ui: UIContext): Setting[_] = {
     val mf = key.key.manifest
     // Manfiest is a Task[Seq[PlayRunHook]], so we want the first type argument of
     // the first type argument....
@@ -110,24 +110,33 @@ object PlaySupport {
   //                                        Class[] { MyProxyInterface.class },
   //                                        new MyDynamicProxyClass(obj));
 
-  def findPlaySetting(name: String, settings: Seq[Setting[_]]): Option[Setting[_]] =
-    (for {
-      setting <- settings
-      if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
-    } yield setting).headOption
+  def findPlaySettingScopedKeys(name: String, settings: Seq[Setting[_]]): Seq[ScopedKey[_]] = {
+    // First find all the keys:
+    val keys =
+      (for {
+        setting <- settings
+        if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
+      } yield setting.key)
+    // TODO - does distinct work?
+    keys.distinct
+  }
 
   // Adds our hooks into the play build.
   def installHooks(state: State, ui: UIContext): State = {
     PoorManDebug.debug("Installing play hooks.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    val runHookKey = findPlaySetting("playRunHooks", settings).getOrElse(
-      sys.error("Unable to find play run hook!  Possibly incompatible play version."))
-    val fixedHook = makeDynamicProxyRunHookSetting(runHookKey, ui)
-    val interactionKey = findPlaySetting("playInteractionMode", settings).getOrElse(
-      sys.error("Unable to find play run hook!  Possibly incompatible play version."))
-    val fixedInteraction = makePlayInteractionSetting(interactionKey, ui)
-    val newSettings = Seq[Setting[_]](fixedHook, fixedInteraction)
+    val runHookKeys = findPlaySettingScopedKeys("playRunHooks", settings)
+    if (runHookKeys.isEmpty)
+      sys.error("Unable to find play run hook!  Possibly incompatible play version.")
+    // We can ignore the atmos specific ones:
+    val nonAtmosKeys = runHookKeys.filterNot(_.scope.config.fold(config => config.name == "atmos", ifGlobal = false, ifThis = false))
+    val fixedHooks = nonAtmosKeys map (setting => makeDynamicProxyRunHookSetting(setting, ui))
+    val interactionKeys = findPlaySettingScopedKeys("playInteractionMode", settings)
+    if (interactionKeys.isEmpty)
+      sys.error("Unable to find play itneraction hook!  Possibly incompatible play version.")
+    val fixedInteractions = interactionKeys map { setting => makePlayInteractionSetting(setting, ui) }
+    val newSettings: Seq[Setting[_]] = fixedHooks ++ fixedInteractions
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 

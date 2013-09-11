@@ -26,10 +26,24 @@ object SbtUtil {
   def extract(state: State, context: Option[UIContext] = None): Extracted = {
     extractWithRef(state, context)._1
   }
+  
+  private def debugSettings(seq: Seq[Setting[_]]): Unit = {
+    for {
+      (setting, idx) <- seq.zipWithIndex
+      key = setting.key.key
+      config = setting.key.scope.config.toOption.map(_.name).getOrElse("*")
+      project = setting.key.scope.project.toOption.map {
+        case ProjectRef(uri, project) => project
+        case x => x.toString
+      }.getOrElse("*")
+    } PoorManDebug.trace("  %03d. ".format(idx) + project + "/" + config + ":" + key)
+  }
 
   def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
     PoorManDebug.trace("Running input task: " + key)
     val extracted = extract(state, context)
+    PoorManDebug.trace("Additional raw settings:")
+    debugSettings(extracted.session.rawAppend)
     implicit val display = Project.showContextKey(state)
     val it = extracted.get(SettingKey(key.key) in key.scope)
     val keyValues = KeyValue(key, it) :: Nil
@@ -69,7 +83,8 @@ object SbtUtil {
 
   /** Reloads an sbt build with the given settings being appended to the current session. */
   def reloadWithAppended(state: State, appendSettings: Seq[sbt.Setting[_]]): State = {
-    PoorManDebug.trace("Appending " + appendSettings + " to state.")
+    PoorManDebug.trace("Appending settings to state:")
+    debugSettings(appendSettings)
     // reloads with appended settings.
     val session = Project.session(state)
     val structure = Project.structure(state)
