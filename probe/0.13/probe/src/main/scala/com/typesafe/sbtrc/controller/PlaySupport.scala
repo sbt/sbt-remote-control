@@ -17,6 +17,7 @@ object PlaySupport {
       case ui.NoUIPresent => ()
       case ui.Canceled => ()
       case ui.Request(name, handle, sendError) =>
+        // TODO - we should probably allow execution of things here...
         sendError("Request not supported during play run: " + name)
         blockForCancel(ctx)
     }
@@ -48,6 +49,7 @@ object PlaySupport {
   def makePlayInteractionSetting(setting: Setting[_], ui: UIContext): Setting[_] = {
     val key = setting.key
     val interactionClass = key.key.manifest.runtimeClass
+    PoorManDebug.trace("Installing interaction hook for class: " + interactionClass)
     val proxy =
       Proxy.newProxyInstance(
         interactionClass.getClassLoader,
@@ -93,6 +95,7 @@ object PlaySupport {
     // Manfiest is a Task[Seq[PlayRunHook]], so we want the first type argument of
     // the first type argument....
     val runHookClass = mf.typeArguments(0).typeArguments(0).runtimeClass
+    PoorManDebug.trace("Creating play run hook for class: " + runHookClass)
     val proxy =
       Proxy.newProxyInstance(
         runHookClass.getClassLoader,
@@ -110,11 +113,12 @@ object PlaySupport {
   def findPlaySetting(name: String, settings: Seq[Setting[_]]): Option[Setting[_]] =
     (for {
       setting <- settings
-      if setting.key.key.label == name
+      if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
     } yield setting).headOption
 
   // Adds our hooks into the play build.
   def installHooks(state: State, ui: UIContext): State = {
+    PoorManDebug.debug("Installing play hooks.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
     val runHookKey = findPlaySetting("playRunHooks", settings).getOrElse(
@@ -128,6 +132,7 @@ object PlaySupport {
   }
 
   def installPlaySupport(origState: State, ui: UIContext): State = {
+    PoorManDebug.trace("Checking if play hooks are needed.")
     if (isPlayProject(origState)) installHooks(origState, ui)
     else origState
   }
