@@ -156,12 +156,18 @@ object TheBuild extends Build {
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
-      // Additional dependencies required to run tests:
+      // Additional dependencies required to run tests (so we don't re-resolve them):
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0-RC1",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0-RC1", "0.13", "2.10"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.0-RC1", "0.13", "2.10"),
+      // TODO - does this exist?
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.0-RC1", "0.12", "2.9.2"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.1", "0.13", "2.10"),
+      localRepoArtifacts += "com.novocode" % "junit-interface" % "0.7" % "test",
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
   )
