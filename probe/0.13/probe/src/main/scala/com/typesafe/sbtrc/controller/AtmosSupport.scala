@@ -56,29 +56,12 @@ object AtmosSupport {
   }
 
   import io.{ ShimWriter, GenericShimWriter }
-  lazy val atmosPluginShim =
-    GenericShimWriter(
-      name = "sbt-atmos",
-      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
-      relativeLocation = "project")
-
-  lazy val atmosPlayPluginShim =
-    GenericShimWriter(
-      name = "sbt-atmos",
-      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
-      relativeLocation = "project")
-
-  lazy val atmosAkkaBuildShim =
-    GenericShimWriter(
-      name = "sbt-atmos-akka",
-      contents = """atmosSettings""",
-      relativeLocation = "")
-
-  lazy val atmosPlayBuildShim =
-    GenericShimWriter(
-      name = "sbt-atmos-akka",
-      contents = """atmosPlaySettings""",
-      relativeLocation = "")
+  import ShimWriter.{
+    atmosPlayPluginShim,
+    atmosPlayBuildShim,
+    atmosPluginShim,
+    atmosAkkaBuildShim
+  }
 
   def getAtmosShims(state: State): Seq[ShimWriter] = {
     // TODO - Detect play/akka by project.

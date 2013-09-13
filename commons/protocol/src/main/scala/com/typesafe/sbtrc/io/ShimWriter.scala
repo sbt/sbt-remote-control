@@ -134,6 +134,38 @@ object ShimWriter {
       contents = """addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""",
       relativeLocation = "project")
   
+  lazy val atmosAkkaBuildShim =
+    GenericShimWriter(
+      name = "sbt-atmos-akka",
+      contents = """atmosSettings""",
+      relativeLocation = "")
+
+  lazy val atmosPlayBuildShim =
+    GenericShimWriter(
+      name = "sbt-atmos-akka",
+      contents = """atmosPlaySettings""",
+      relativeLocation = "")      
+      
+  lazy val atmosPluginShim =
+    GenericShimWriter(
+      name = "sbt-atmos",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
+      relativeLocation = "project")
+
+  lazy val atmosPlayPluginShim =
+    GenericShimWriter(
+      name = "sbt-atmos",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
+      relativeLocation = "project")
+
+  def allAtmosShims = Seq(
+    atmosPlayPluginShim,
+    atmosPlayBuildShim,
+    atmosPluginShim,
+    atmosAkkaBuildShim)
+   
+  // Note - Right now, we aren't shiming atmos into sbt 0.12 projects.
+  // They have to already have atmos configured for support to be enabled.
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
     new ControlledPluginShimWriter("defaults", version, "0.12"),
     new ControlledPluginShimWriter("eclipse", version, "0.12", isEmpty = true),
@@ -164,7 +196,7 @@ object ShimWriter {
     new ControlledPluginShimWriter("play", version, "0.13", isEmpty = true),
     eclipsePluginShim,
     ideaPluginShim
-  )
+  ) ++ allAtmosShims
 
   def knownShims(version: String, sbtVersion: String = "0.12"): Seq[ShimWriter] =
     sbtVersion match {

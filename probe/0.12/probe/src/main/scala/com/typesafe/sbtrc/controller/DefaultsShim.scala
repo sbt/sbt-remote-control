@@ -122,12 +122,12 @@ object DefaultsShim {
   }
 
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(mainClass in Compile, origState)
+    val (s, result) = extract(origState).runTask(mainClass in Compile in run, origState)
     (s, makeResponseParams(protocol.MainClassResponse(name = result)))
   }
 
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile, origState)
+    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
     (s, makeResponseParams(protocol.DiscoveredMainClassesResponse(names = result)))
   }
 
