@@ -142,7 +142,7 @@ object ShimWriter {
 
   lazy val atmosPlayBuildShim =
     GenericShimWriter(
-      name = "sbt-atmos-akka",
+      name = "sbt-atmos-play",
       contents = """atmosPlaySettings""",
       relativeLocation = "")      
       
