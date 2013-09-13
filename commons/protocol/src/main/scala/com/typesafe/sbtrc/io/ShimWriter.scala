@@ -154,7 +154,7 @@ object ShimWriter {
 
   lazy val atmosPlayPluginShim =
     GenericShimWriter(
-      name = "sbt-atmos",
+      name = "sbt-atmos-play",
       contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
       relativeLocation = "project")
 
