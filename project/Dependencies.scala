@@ -28,7 +28,7 @@ object Dependencies {
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
   val sbtMainVersion = sbt13Version
-  val akkaVersion = "2.1.2"
+  val akkaVersion = "2.2.0"
 
 
   // Here we declare our dependencies normally
