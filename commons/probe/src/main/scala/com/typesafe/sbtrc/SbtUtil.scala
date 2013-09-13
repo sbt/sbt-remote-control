@@ -26,9 +26,24 @@ object SbtUtil {
   def extract(state: State, context: Option[UIContext] = None): Extracted = {
     extractWithRef(state, context)._1
   }
+  
+  private def debugSettings(seq: Seq[Setting[_]]): Unit = {
+    for {
+      (setting, idx) <- seq.zipWithIndex
+      key = setting.key.key
+      config = setting.key.scope.config.toOption.map(_.name).getOrElse("*")
+      project = setting.key.scope.project.toOption.map {
+        case ProjectRef(uri, project) => project
+        case x => x.toString
+      }.getOrElse("*")
+    } PoorManDebug.trace("  %03d. ".format(idx) + project + "/" + config + ":" + key)
+  }
 
   def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
+    PoorManDebug.trace("Running input task: " + key)
     val extracted = extract(state, context)
+    PoorManDebug.trace("Additional raw settings:")
+    debugSettings(extracted.session.rawAppend)
     implicit val display = Project.showContextKey(state)
     val it = extracted.get(SettingKey(key.key) in key.scope)
     val keyValues = KeyValue(key, it) :: Nil
@@ -54,17 +69,22 @@ object SbtUtil {
 
   /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
   def makeAppendSettings(settings: Seq[Setting[_]], inProject: ProjectRef, extracted: Extracted) = {
+    PoorManDebug.trace("Transforming " + settings + " to " + inProject)
     // transforms This scopes in 'settings' to be the desired project
     val appendSettings = Load.transformSettings(Load.projectScope(inProject), inProject.build, extracted.rootProject, settings)
     appendSettings
   }
 
   /** Reloads the project with the ui context attached to the current session as the latest change. */
-  def reloadWithUiContext(state: State, context: UIContext): State =
+  def reloadWithUiContext(state: State, context: UIContext): State = {
+    PoorManDebug.trace("Adding " + context + " to state.")
     reloadWithAppended(state, Seq(uiContext in Global := context))
+  }
 
   /** Reloads an sbt build with the given settings being appended to the current session. */
   def reloadWithAppended(state: State, appendSettings: Seq[sbt.Setting[_]]): State = {
+    PoorManDebug.trace("Appending settings to state:")
+    debugSettings(appendSettings)
     // reloads with appended settings.
     val session = Project.session(state)
     val structure = Project.structure(state)
