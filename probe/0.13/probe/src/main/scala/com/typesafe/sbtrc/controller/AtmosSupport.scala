@@ -62,7 +62,11 @@ object AtmosSupport {
     atmosPlayPluginShim,
     atmosPlayBuildShim,
     atmosPluginShim,
-    atmosAkkaBuildShim
+    atmosAkkaBuildShim,
+    atmosPluginDeleteShim,
+    atmosAkkaBuildDeleteShim,
+    atmosPlayPluginDeleteShim,
+    atmosPlayBuildDeleteShim
   }
 
   def getAtmosShims(state: State): Seq[ShimWriter] = {
@@ -73,10 +77,16 @@ object AtmosSupport {
     // TODO - We need a shim to turn off the atmosBuildShim if an akka project migrates to play...
     if (isPlay) {
       PoorManDebug.trace("Play+Atmos hooks are needed.")
-      Seq(atmosPlayPluginShim, atmosPlayBuildShim)
+      Seq(atmosPlayPluginShim, atmosPlayBuildShim,
+        // When installing Play support, make sure we delete Akka support,
+        // or things get wonky.
+        atmosAkkaBuildDeleteShim, atmosPluginDeleteShim)
     } else if (isAkka) {
       PoorManDebug.trace("Akka+Atmos hooks are needed.")
-      Seq(atmosPluginShim, atmosAkkaBuildShim)
+      // We have to also delete Play atmos support if migrating from
+      // play -> just akka.
+      Seq(atmosPluginShim, atmosAkkaBuildShim,
+        atmosPlayPluginDeleteShim, atmosPlayBuildDeleteShim)
     } else Nil
   }
 }

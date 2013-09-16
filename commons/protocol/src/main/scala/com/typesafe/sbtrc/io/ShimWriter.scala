@@ -37,14 +37,38 @@ object FileHasher {
 /** abstract mechanism to write shim sbt files and update them. */
 trait ShimWriter {
   def name: String
-  protected def contents: String
   protected def relativeLocation: String = "project"
-    
-  protected def SHIM_FILE_NAME = "activator-" + name + "-shim.sbt"
-  private def makeTarget(basedir: File): File =
+  private def SHIM_FILE_NAME = "activator-" + name + "-shim.sbt"
+  protected def makeTarget(basedir: File): File =
     if(relativeLocation.isEmpty) new File(basedir, SHIM_FILE_NAME)
     else new File(new File(basedir, relativeLocation), SHIM_FILE_NAME)
   
+  // update the shim file IF it already exists. Returns true if it makes a change.
+  def updateIfExists(basedir: File): Boolean
+  // update the shim file EVEN IF it doesn't exist. Returns true if it makes a change.
+  def ensureExists(basedir: File): Boolean
+}
+
+/** A shim writer that just ensures a given shim is deleted and no
+ *  longer used.
+ */
+case class DeleteShimIfExistsWriter(name: String, override val relativeLocation: String = "project")
+    extends ShimWriter {
+  def updateIfExists(basedir: File): Boolean =
+    ensureExists(basedir)
+  def ensureExists(basedir: File): Boolean = {
+    val file = makeTarget(basedir)
+    if(file.exists) {
+      IO.delete(file)
+      true
+    } else false
+  }
+}
+
+/** This writes to a shim file the contents specified. */
+trait ContentsShimWriter extends ShimWriter {
+  protected def contents: String
+    
   protected lazy val contentsFile = {
     val tmp = java.io.File.createTempFile(name, "sbt-shim")
     IO.write(tmp, contents)
@@ -57,7 +81,7 @@ trait ShimWriter {
   protected def isEmpty: Boolean = contents.isEmpty
   
   // update the shim file ONLY if it already exists. Returns true if it makes a change.
-  def updateIfExists(basedir: File): Boolean = {
+  override def updateIfExists(basedir: File): Boolean = {
     val target = makeTarget(basedir)
     if (target.exists && FileHasher.sha512(target) != contentsSha) {
       // If we're moving to not requiring a shim, delete the dang file.
@@ -69,8 +93,8 @@ trait ShimWriter {
     }
   }
 
-  // update the shim file EVEN IF it doesn't exist. Returns true if it makes a change.
-  def ensureExists(basedir: File): Boolean = {
+
+  override def ensureExists(basedir: File): Boolean = {
     val target = makeTarget(basedir)
     // If the file does not exist, but we aren't writing to it, don't bother 
     // creating an empty file.
@@ -92,12 +116,13 @@ trait ShimWriter {
     }
   }
 }
+
 /** This will write build.sbt files and keep them up-to-date. */
 case class GenericShimWriter(
   name: String,
   contents: String,
   override val relativeLocation: String
-) extends ShimWriter
+) extends ContentsShimWriter
 
 /** This writes shims for activator plugin shims. */
 class ControlledPluginShimWriter(
@@ -105,7 +130,7 @@ class ControlledPluginShimWriter(
     version: String, 
     sbtBinaryVersion: String = "0.12", 
     isEmpty: Boolean = false) 
-    extends ShimWriter {
+    extends ContentsShimWriter {
 
   private val cleanedVersion = sbtBinaryVersion.replaceAll("\\W+", "-")
 
@@ -132,31 +157,39 @@ object ShimWriter {
     GenericShimWriter(
       name = "sbt-eclipse",
       contents = """addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""",
-      relativeLocation = "project")
+      relativeLocation = "project")     
   
   lazy val atmosAkkaBuildShim =
     GenericShimWriter(
       name = "sbt-atmos-akka",
       contents = """atmosSettings""",
       relativeLocation = "")
+  lazy val atmosAkkaBuildDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-atmos-akka",relativeLocation="")
 
   lazy val atmosPlayBuildShim =
     GenericShimWriter(
       name = "sbt-atmos-play",
       contents = """atmosPlaySettings""",
-      relativeLocation = "")      
+      relativeLocation = "")
+  lazy val atmosPlayBuildDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-atmos-play",relativeLocation="") 
       
   lazy val atmosPluginShim =
     GenericShimWriter(
       name = "sbt-atmos",
       contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
       relativeLocation = "project")
+  lazy val atmosPluginDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-atmos")
 
   lazy val atmosPlayPluginShim =
     GenericShimWriter(
       name = "sbt-atmos-play",
       contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
       relativeLocation = "project")
+  lazy val atmosPlayPluginDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-atmos-play")      
 
   def allAtmosShims = Seq(
     atmosPlayPluginShim,
@@ -190,13 +223,13 @@ object ShimWriter {
       relativeLocation = "project")
       
   def sbt13Shims(version: String): Seq[ShimWriter] = Seq(
-    new ControlledPluginShimWriter("defaults", version, "0.13", isEmpty = true),
-    new ControlledPluginShimWriter("eclipse", version, "0.13", isEmpty = true),
-    new ControlledPluginShimWriter("idea", version, "0.13", isEmpty = true),
-    new ControlledPluginShimWriter("play", version, "0.13", isEmpty = true),
-    eclipsePluginShim,
-    ideaPluginShim
-  ) ++ allAtmosShims
+    new DeleteShimIfExistsWriter("defaults"),
+    new DeleteShimIfExistsWriter("eclipse"),
+    new DeleteShimIfExistsWriter("idea"),
+    new DeleteShimIfExistsWriter("play")
+  ) ++ allAtmosShims ++ sbt13ideShims
+  
+  def sbt13ideShims: Seq[ShimWriter] = Seq(eclipsePluginShim, ideaPluginShim)
 
   def knownShims(version: String, sbtVersion: String = "0.12"): Seq[ShimWriter] =
     sbtVersion match {
