@@ -58,29 +58,16 @@ object AtmosSupport {
   }
 
   import io.{ ShimWriter, GenericShimWriter }
-  lazy val atmosPluginShim =
-    GenericShimWriter(
-      name = "sbt-atmos",
-      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
-      relativeLocation = "project")
-
-  lazy val atmosPlayPluginShim =
-    GenericShimWriter(
-      name = "sbt-atmos",
-      contents = s"""addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % "${com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION}")""",
-      relativeLocation = "project")
-
-  lazy val atmosAkkaBuildShim =
-    GenericShimWriter(
-      name = "sbt-atmos-akka",
-      contents = """atmosSettings""",
-      relativeLocation = "")
-
-  lazy val atmosPlayBuildShim =
-    GenericShimWriter(
-      name = "sbt-atmos-akka",
-      contents = """atmosPlaySettings""",
-      relativeLocation = "")
+  import ShimWriter.{
+    atmosPlayPluginShim,
+    atmosPlayBuildShim,
+    atmosPluginShim,
+    atmosAkkaBuildShim,
+    atmosPluginDeleteShim,
+    atmosAkkaBuildDeleteShim,
+    atmosPlayPluginDeleteShim,
+    atmosPlayBuildDeleteShim
+  }
 
   def getAtmosShims(state: State): Seq[ShimWriter] = {
     // TODO - Detect play/akka by project.
@@ -90,10 +77,16 @@ object AtmosSupport {
     // TODO - We need a shim to turn off the atmosBuildShim if an akka project migrates to play...
     if (isPlay) {
       PoorManDebug.trace("Play+Atmos hooks are needed.")
-      Seq(atmosPlayPluginShim, atmosPlayBuildShim)
+      Seq(atmosPlayPluginShim, atmosPlayBuildShim,
+        // When installing Play support, make sure we delete Akka support,
+        // or things get wonky.
+        atmosAkkaBuildDeleteShim, atmosPluginDeleteShim)
     } else if (isAkka) {
       PoorManDebug.trace("Akka+Atmos hooks are needed.")
-      Seq(atmosPluginShim, atmosAkkaBuildShim)
+      // We have to also delete Play atmos support if migrating from
+      // play -> just akka.
+      Seq(atmosPluginShim, atmosAkkaBuildShim,
+        atmosPlayPluginDeleteShim, atmosPlayBuildDeleteShim)
     } else Nil
   }
 }

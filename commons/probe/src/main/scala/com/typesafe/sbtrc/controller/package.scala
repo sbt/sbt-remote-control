@@ -25,7 +25,12 @@ package object controller {
   def installShims(state: State, sbtVersion: String = "0.12", extraShims: Seq[ShimWriter] = Seq.empty): Boolean = {
     val allShims = 
       ShimWriter.knownShims(SbtRcProperties.APP_VERSION, sbtVersion) ++ extraShims
-    allShims.foldLeft(false) { (sofar, writer) =>
+    installRawShims(state, allShims)
+  }
+  // returns true if we need to reboot (any changes were made)
+  // TODO - These versions and passing are all out of whack.
+  def installRawShims(state: State, shims: Seq[ShimWriter] = Seq.empty): Boolean = {
+    shims.foldLeft(false) { (sofar, writer) =>
       // TODO - We need to customize which shim installer is used based on sbt version!
       val installer = new ShimInstaller(writer)
       val shouldInstall = shimFilters.get(writer.name).getOrElse { state: State => true }
@@ -34,5 +39,5 @@ package object controller {
       else
         sofar
     }
-  }
+  }  
 }
