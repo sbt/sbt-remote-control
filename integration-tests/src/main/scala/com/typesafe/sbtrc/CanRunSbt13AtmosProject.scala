@@ -19,7 +19,7 @@ abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: St
   val plugins = new File(dummy, "project/plugins.sbt")
   if (!(sbtVersionString startsWith "0.13")) {
     IO.write(plugins,
-      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.2.3")""")
+      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.3.0-RC4")""")
   }
   val build = new File(dummy, "build.sbt")
   IO.write(build,
