@@ -28,11 +28,13 @@ case class UnserializedValue[T](stringValue: String) extends BuildValue[T] {
   def value = None
 }
 
+/** Helper class lookups for serialization/deserialization. */
 object Classes {
    val StringClass = classOf[String]
    val FileClass = classOf[java.io.File]
    val BooleanClass = classOf[Boolean]
    val SeqClass = classOf[Seq[_]]
+   val AttributedClass = classOf[sbt.Attributed[_]]
    
    // TODO - Figure out how to handle attributed, and
    // other sbt special classes....
@@ -43,6 +45,7 @@ object Classes {
    }
    
    object SeqSubClass extends SubClass(SeqClass)
+   object AttributedSubClass extends SubClass(AttributedClass)
 }
 
 // TODO - Figure out how to serialize arbitrary values using Parametizable 
@@ -56,6 +59,13 @@ object BuildValue {
 
     
   // TODO - This should be a registration system and not so hacky...
+  /**
+   * This represents the generic way in which we can serialize sbt settings over the network.
+   * 
+   * This is the ONLY list we use when attempting to inspect unknown types.  If we don't
+   * have a mechanism here, we can't serialize (on either side) and we wind up with a
+   * None representing the semantic value, but the "toString" will still make it across.
+   */
   def defaultSerializers[T](mf: Manifest[T]): Option[RawStructure[T]] = {
     (mf.erasure match {
       case Classes.StringClass => Some(RawStructure.get[String])
@@ -67,6 +77,10 @@ object BuildValue {
         for {
           child <- defaultSerializers(mf.typeArguments(0))
         } yield RawStructure.SeqStructure(child)
+      case Classes.AttributedSubClass() =>
+        for {
+          child <- defaultSerializers(mf.typeArguments(0))
+        } yield RawStructure.AttributedStructure(child)
       case _ =>
         println("Error:  No way to serialize: " + mf)
         None
@@ -117,11 +131,14 @@ object BuildValue {
 }
 
 
-
+/** represents potential results coming back from an sbt SettingValueRequest, TaskValueRequest or
+ *  InputTaskValueRequest.
+ */
 sealed trait TaskResult[T] {
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
 }
+/** This represents that the task was run successfully. */
 case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
   override def isSuccess = true
 }
@@ -129,6 +146,7 @@ object TaskSuccess {
   implicit def MyParamertizer[T] = 
     TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskSuccess[T]]]
 }
+/** This represents that there was an error running a task, and returns the error message. */
 case class TaskFailure[T](message: String) extends TaskResult[T] {
   override def isSuccess = false
 }

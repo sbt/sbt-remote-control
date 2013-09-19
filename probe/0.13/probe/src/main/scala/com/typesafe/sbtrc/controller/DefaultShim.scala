@@ -165,6 +165,7 @@ object DefaultsShim {
     import protocol.{ ScopedKey => PScopedKey, TaskResult }
     // TODO - Catch errors
     val key = JsonStructure.unapply[PScopedKey](params.toMap).get
+    PoorManDebug.debug("Looking up setting: " + key)
     val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(key, origState)
     val value = extractValue(sbtKey, origState)
     (origState, Response(value))
@@ -173,14 +174,42 @@ object DefaultsShim {
   private val settingKeyHandler: RequestHandler = { (origState, ui, params) =>
     import protocol.{ KeyFilter, KeyListResponse, KeyList }
     val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
+    PoorManDebug.debug("Requesting setting keys: " + filter)
     val results =
       KeyList(SbtDiscovery.settings(origState, filter))
     (origState, Response(results))
   }
 
+  private def runTaskByKey0[T](key: sbt.ScopedKey[Task[T]], state: State): (State, protocol.TaskResult[T]) =
+    try {
+      val (state2, raw) = extract(state).runTask(sbt.TaskKey(key.key) in key.scope, state)
+      val mf: Manifest[Task[T]] = key.key.manifest
+      val rawManifest: Manifest[T] = mf.typeArguments(0).asInstanceOf[Manifest[T]]
+      val value = protocol.BuildValue(raw)(rawManifest)
+      state2 -> protocol.TaskSuccess(value)
+    } catch {
+      case e: Exception => state -> protocol.TaskFailure(e.getMessage())
+    }
+
+  // Hackery to get around type system fun.!
+  private def runTaskByKey(key: sbt.ScopedKey[_], state: State): (State, protocol.TaskResult[_]) =
+    runTaskByKey0(key.asInstanceOf[ScopedKey[Task[Any]]], state)
+
+  private val taskValueHandler: RequestHandler = { (origState, ui, params) =>
+    import protocol.{ ScopedKey => PScopedKey, TaskResult }
+    val key = JsonStructure.unapply[PScopedKey](params.toMap).get
+    PoorManDebug.debug("Running task: " + key)
+    val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(key, origState)
+    // TODO - Here we want to validate we have a task key using the manifest and issuing an error otherwise.
+    val taskSbtKey = sbtKey.asInstanceOf[sbt.ScopedKey[Task[_]]]
+    val (state, value) = runTaskByKey(taskSbtKey, installShims(origState, ui))
+    (origState, Response(value))
+  }
+
   private val taskKeyHandler: RequestHandler = { (origState, ui, params) =>
     import protocol.{ KeyFilter, KeyListResponse, KeyList }
     val filter = JsonStructure.unapply[KeyFilter](params.toMap).get
+    PoorManDebug.debug("Requesting task keys: " + filter)
     val results =
       KeyList(SbtDiscovery.tasks(origState, filter))
     (origState, Response(results))
@@ -215,6 +244,7 @@ object DefaultsShim {
     case TaskNames.TaskKeyRequest => taskKeyHandler
     case TaskNames.InputTaskKeyRequest => inputTaskKeyHandler
     case TaskNames.SettingValueRequest => settingValueHandler
+    case TaskNames.TaskValueRequest => taskValueHandler
 
     // Old API
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)

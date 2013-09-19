@@ -54,10 +54,11 @@ object SbtDiscovery {
     } yield key
   }
   
+  val TaskClass = classOf[sbt.Task[_]]
   // NOTE - This in an approximation...
   def isTaskKey[T](key: sbt.ScopedKey[T]): Boolean = {
     val mf = key.key.manifest
-    mf.erasure == classOf[sbt.Task[_]]
+    mf.erasure == TaskClass
   }
   def isInputKey[T](key: sbt.ScopedKey[T]): Boolean = {
     val mf = key.key.manifest

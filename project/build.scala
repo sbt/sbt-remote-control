@@ -134,7 +134,7 @@ object TheBuild extends Build {
     dependsOn(props)
     dependsOnRemote(akkaActor,
                     sbtLauncherInterface,
-                    sbtIo)
+                    sbtIo, sbtCollections)
     settings(configureSbtTest(Keys.test): _*)
     settings(configureSbtTest(Keys.testOnly): _*)
   )

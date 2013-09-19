@@ -47,6 +47,19 @@ object RawStructure {
           }
         }
     }
+  implicit def AttributedStructure[T](implicit value: RawStructure[T]) =
+    new RawStructure[sbt.Attributed[T]] {
+      def apply(t: sbt.Attributed[T]): Map[String, Any] =
+        Map("attributed" -> true,
+            "data" -> value.apply(t.data))
+     def unapply(map: Map[String, Any]): Option[sbt.Attributed[T]] =
+        if(map("attributed") == true && map.contains("data")) {
+          val data =
+            map("data").asInstanceOf[Map[String,Any]]
+          // TODO - Reify the attributes as well.
+          value.unapply(data).map(sbt.Attributed.blank)
+        } else None 
+    }
 }
 object JsonStructure {
   def apply[T](t: T)(implicit real: RawStructure[T]): Map[String, Any] =

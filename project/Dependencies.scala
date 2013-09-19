@@ -34,6 +34,7 @@ object Dependencies {
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
   val sbtIo                = sbtOrg % "io" % sbtMainVersion
+  val sbtCollections       = sbtOrg % "collections" % sbtMainVersion
   // We use an old version here, so we're compatible...
   val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion

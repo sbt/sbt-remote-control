@@ -14,13 +14,54 @@ import akka.pattern.ask
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanDiscoverBuild extends SbtProcessLauncherTest {
-  val dummy = utils.makeDummySbtProject("runTestBuild", "0.13.0-RC4")
+  val dummy = utils.makeDummySbtProject("runTestBuild", "0.13.0")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   object KeyListExtract {
     def unapply(params: Map[String, Any]): Option[KeyList] =
       JsonStructure.unapply[KeyList](params)
   }
   try {
+    /*
+    val classpathResult = concurrent.promise[BuildValue[Seq[sbt.Attributed[File]]]]
+    system.actorOf(akka.actor.Props(new akka.actor.Actor {
+      child ! TaskKeyRequest(KeyFilter.empty)
+      context.setReceiveTimeout(timeout.duration)
+      def receive: Receive = {
+        case protocol.KeyListResponse(keyList) => // We succeeded!
+          try {
+            val key = keyList.keys.find { k =>
+              k.scope.config.exists(_ == "compile") &&
+                (k.key.name == "fullClasspath") // TODO - Get Compile config.
+            }.get
+            child ! TaskValueRequest(key)
+          } catch {
+            case t: Throwable =>
+              classpathResult.failure(t)
+              throw t
+          }
+        case protocol.GenericResponse("TaskValueRequest", params) =>
+          classpathResult.complete(
+            util.Try {
+              val result = JsonStructure.unapply[TaskResult[Seq[sbt.Attributed[File]]]](params)
+              assert(result.isDefined, "Response was not understood: " + params)
+              val taskResult = result.get.asInstanceOf[TaskResult[String]]
+              assert(taskResult.isSuccess, "Response was not success! " + result.get)
+              taskResult.asInstanceOf[TaskSuccess[Seq[sbt.Attributed[File]]]].value
+            })
+        case ReceiveTimeout =>
+          classpathResult.failure(new AssertionError("Classpath request timed out."))
+      }
+    }))
+
+    Await.result(classpathResult.future, timeout.duration).value match {
+      case Some(classpath) =>
+        // TODO - Verify
+        System.err.println("Claspath = " + classpath)
+      case None => throw new AssertionError("Unable to determine Classpath of the project.")
+    }
+    * 
+    */
+
     val nameResult = concurrent.promise[BuildValue[String]]
     system.actorOf(akka.actor.Props(new akka.actor.Actor {
       child ! SettingKeyRequest(KeyFilter.empty)
