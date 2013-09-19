@@ -17,11 +17,16 @@ abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: St
 
   val dummy = utils.makeEmptySbtProject("runAtmos22", sbtVersionString)
   val plugins = new File(dummy, "project/plugins.sbt")
-  IO.write(plugins,
-    """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.2.3")""")
+  // TODO - Pull the atmos version from properties...
+  if (!(sbtVersionString startsWith "0.13")) {
+    IO.write(plugins,
+      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.3.0")""")
+  }
   val build = new File(dummy, "build.sbt")
   IO.write(build,
-    """atmosSettings
+    (if (sbtVersionString startsWith "0.13") ""
+    else "atmosSettings") +
+      """
       
 name := "test-app"
       

@@ -29,11 +29,12 @@ object AtmosSupport {
   def findAtmosSetting(name: String, settings: Seq[Setting[_]]): Option[Setting[_]] =
     (for {
       setting <- settings
-      if setting.key.key.label == name || setting.key.key.rawLabel == name
+      if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
     } yield setting).headOption
 
   // Adds our hooks into the Atmos build.
   def installHooks(state: State, ui: UIContext): State = {
+    PoorManDebug.debug("Installing atmos hooks.")
     val (extracted, ref) = SbtUtil.extractWithRef(state)
     val settings = extracted.session.mergeSettings
     val runHookKey = findAtmosSetting("atmos-run-listeners", settings).getOrElse(
@@ -44,6 +45,7 @@ object AtmosSupport {
   }
 
   def isAtmosProject(state: State): Boolean = {
+    PoorManDebug.trace("Checking if atmos hooks are needed.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
     findAtmosSetting("atmos-run-listeners", settings).isDefined
@@ -53,5 +55,38 @@ object AtmosSupport {
     if (isAtmosProject(origState)) {
       installHooks(origState, ui)
     } else origState
+  }
+
+  import io.{ ShimWriter, GenericShimWriter }
+  import ShimWriter.{
+    atmosPlayPluginShim,
+    atmosPlayBuildShim,
+    atmosPluginShim,
+    atmosAkkaBuildShim,
+    atmosPluginDeleteShim,
+    atmosAkkaBuildDeleteShim,
+    atmosPlayPluginDeleteShim,
+    atmosPlayBuildDeleteShim
+  }
+
+  def getAtmosShims(state: State): Seq[ShimWriter] = {
+    // TODO - Detect play/akka by project.
+    val isPlay = isPlayProject(state)
+    val isAkka = AkkaSupport.isAkkaProject(state)
+    // TODO - When we have the latest atmos plugin we can include the build shim
+    // TODO - We need a shim to turn off the atmosBuildShim if an akka project migrates to play...
+    if (isPlay) {
+      PoorManDebug.trace("Play+Atmos hooks are needed.")
+      Seq(atmosPlayPluginShim, atmosPlayBuildShim,
+        // When installing Play support, make sure we delete Akka support,
+        // or things get wonky.
+        atmosAkkaBuildDeleteShim, atmosPluginDeleteShim)
+    } else if (isAkka) {
+      PoorManDebug.trace("Akka+Atmos hooks are needed.")
+      // We have to also delete Play atmos support if migrating from
+      // play -> just akka.
+      Seq(atmosPluginShim, atmosAkkaBuildShim,
+        atmosPlayPluginDeleteShim, atmosPlayBuildDeleteShim)
+    } else Nil
   }
 }

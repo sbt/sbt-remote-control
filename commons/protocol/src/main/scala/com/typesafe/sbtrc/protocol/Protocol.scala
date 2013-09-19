@@ -132,6 +132,7 @@ case object CancelResponse extends Response
 
 object TaskNames {
   val name = "name"
+  val mainClass = "main-class"
   val discoveredMainClasses = "discovered-main-classes"
   val watchTransitiveSources = "watch-transitive-sources"
   val compile = "compile"
@@ -152,6 +153,7 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
   override def toSpecific: Option[SpecificRequest] = {
     Option(name match {
       case TaskNames.name => NameRequest(sendEvents = sendEvents)
+      case TaskNames.mainClass => MainClassRequest(sendEvents = sendEvents)
       case TaskNames.discoveredMainClasses => DiscoveredMainClassesRequest(sendEvents = sendEvents)
       case TaskNames.watchTransitiveSources => WatchTransitiveSourcesRequest(sendEvents = sendEvents)
       case TaskNames.compile => CompileRequest(sendEvents = sendEvents)
@@ -175,6 +177,7 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
   override def toSpecific: Option[SpecificResponse] = {
     Option(name match {
       case TaskNames.name => NameResponse(params("name").asInstanceOf[String], params.filterNot(_._1 == "name"))
+      case TaskNames.mainClass => MainClassResponse(name = params.get("name").map(_.asInstanceOf[String]))
       case TaskNames.discoveredMainClasses => DiscoveredMainClassesResponse(params("names").asInstanceOf[Seq[String]])
       case TaskNames.watchTransitiveSources => WatchTransitiveSourcesResponse(params("files").asInstanceOf[Seq[String]].map(new File(_)))
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
@@ -203,6 +206,13 @@ case class NameRequest(sendEvents: Boolean) extends SpecificRequest {
 }
 case class NameResponse(name: String, attributes: Map[String, Any] = Map.empty) extends SpecificResponse {
   override def toGeneric = GenericResponse(TaskNames.name, Map("name" -> name) ++ attributes)
+}
+
+case class MainClassRequest(sendEvents: Boolean) extends SpecificRequest {
+  override def toGeneric = GenericRequest(sendEvents = sendEvents, TaskNames.mainClass, Map.empty)
+}
+case class MainClassResponse(name: Option[String]) extends SpecificResponse {
+  override def toGeneric = GenericResponse(TaskNames.mainClass, name.map(n => Map("name" -> n)).getOrElse(Map.empty))
 }
 
 case class DiscoveredMainClassesRequest(sendEvents: Boolean) extends SpecificRequest {

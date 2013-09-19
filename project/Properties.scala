@@ -40,7 +40,8 @@ object Properties {
        |app.scala.version=%s
        |sbt.Xmx=512M
        |sbt.PermSize=128M
-       |""".stripMargin format (version, sbtVersion, sbtScalaVersion(sbtVersion), scalaVersion)
+       |sbt.atmos.default.version=%s
+       |""".stripMargin format (version, sbtVersion, sbtScalaVersion(sbtVersion), scalaVersion, Dependencies.sbtAtmosDefaultVersion)
   
   
   def sbtScalaVersion(sbtVersion: String): String =

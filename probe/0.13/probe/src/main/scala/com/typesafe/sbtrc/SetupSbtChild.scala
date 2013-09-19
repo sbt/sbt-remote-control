@@ -39,7 +39,13 @@ object SetupSbtChild extends (State => State) {
       // tests or production.
       if (System.getProperty("sbtrc.no-shims", "false") != "true") {
         // Make sure the shims are installed we need for this build.
-        val anyShimAdded = controller.installShims(loggedState, "0.13")
+
+        // Here, we're defining exactly the shims we want via atmos.
+        // TODO - We should remove atmosActorSettings if possible....
+        val atmosShims = controller.AtmosSupport.getAtmosShims(s)
+        val ideShims = io.ShimWriter.sbt13ideShims
+        val anyShimAdded =
+          controller.installRawShims(loggedState, atmosShims ++ ideShims)
 
         if (anyShimAdded) {
           client.sendJson(protocol.NeedRebootEvent)

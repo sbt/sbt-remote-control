@@ -36,6 +36,7 @@ object DefaultsShim {
   private val listenersKey = testListeners in Test
 
   private def addTestListener(state: State, ui: UIContext): State = {
+    PoorManDebug.trace("Adding test lisener to state.")
     val (extracted, ref) = extractWithRef(state)
     val ourListener = new UiTestListener(ui, extracted.get(listenersKey))
 
@@ -65,6 +66,7 @@ object DefaultsShim {
   }
 
   private val nameHandler: RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Extracting name and capabilities of this build.")
     val result = extract(origState).get(name)
 
     // TODO - These are all hacks for now until we have the generic API.
@@ -78,6 +80,12 @@ object DefaultsShim {
         "hasConsole" -> hasConsole))))
   }
 
+  private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Running `mainClass` task.")
+    val (s, result) = extract(origState).runTask(mainClass in Compile in run, origState)
+    (s, makeResponseParams(protocol.MainClassResponse(name = result)))
+  }
+
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
     val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
     (s, makeResponseParams(protocol.DiscoveredMainClassesResponse(names = result)))
@@ -89,11 +97,13 @@ object DefaultsShim {
   }
 
   private val compileHandler: RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Compiling the project.")
     val (s, result) = extract(origState).runTask(compile in Compile, origState)
     (s, makeResponseParams(protocol.CompileResponse(success = true)))
   }
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Invoking the run task in " + key.scope.config)
     val shimedState = installShims(origState, ui)
     val s = runInputTask(key, shimedState, args = "", Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
@@ -105,6 +115,7 @@ object DefaultsShim {
   private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
 
   private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Invoking the run-main task in " + key.scope.config)
     import ParamsHelper._
     val shimedState = installShims(origState, ui)
     val klass = params.toMap.get("mainClass")
@@ -120,6 +131,7 @@ object DefaultsShim {
   private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), protocol.TaskNames.runMainAtmos)
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Invoking the test task.")
     val shimedState = installShims(origState, ui)
     val (s2, result1) = extract(shimedState).runTask(test in Test, shimedState)
     val (s3, outcome) = removeTestListener(s2, ui)
@@ -127,6 +139,7 @@ object DefaultsShim {
   }
 
   private def commandHandler(command: String): RequestHandler = { (origState, ui, params) =>
+    PoorManDebug.debug("Invoking the comamnd [" + command + "]")
     val shimedState = installShims(origState, ui)
     runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
   }
@@ -188,6 +201,7 @@ object DefaultsShim {
   // * Run a command
   val findHandler: PartialFunction[String, RequestHandler] = {
     case TaskNames.name => nameHandler
+    case TaskNames.mainClass => mainClassHandler
     case TaskNames.discoveredMainClasses => discoveredMainClassesHandler
     case TaskNames.watchTransitiveSources => watchTransitiveSourcesHandler
     case TaskNames.compile => compileHandler

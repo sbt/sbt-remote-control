@@ -19,11 +19,7 @@ class CanRunPlay22Sbt13Project extends SbtProcessLauncherTest {
   val plugins = new File(dummy, "project/plugins.sbt")
   // TODO - Abstract out plugin version to test more than one play instance...
   IO.write(plugins,
-    """resolvers += Resolver.url("typesafe-ivy-snapshots", new URL("http://private-repo.typesafe.com/typesafe/ivy-snapshots"))(Resolver.ivyStylePatterns)
-      
-resolvers += ("typesafe-mvn-snapshots" at "http://private-repo.typesafe.com/typesafe/snapshots")
-      
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2-2013-08-09-074a9c8-SNAPSHOT")""")
+    """addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2.0")""")
   val build = new File(dummy, "project/build.scala")
   IO.write(build,
     """

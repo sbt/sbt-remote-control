@@ -80,4 +80,8 @@ public final class SbtRcProperties {
 	public static String SBT_PERMSIZE() {
 		return lookupOr("sbt.PermSize", "128M");
 	}
+	
+	public static String SBT_ATMOS_DEFAULT_VERSION() {
+		return getProperty("sbt.atmos.default.version");
+	}
 }
