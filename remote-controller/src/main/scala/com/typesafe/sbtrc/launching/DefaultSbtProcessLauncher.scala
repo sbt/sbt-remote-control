@@ -41,9 +41,7 @@ class DefaultSbtProcessLauncher(
    * Our published support for sbt 0.12.
    *  TODO - clean this code up.  We should autocreate app names and scala versions based on sbt version...
    */
-  object sbt012support extends SbtDefaultPropsfileLaunchInfo {
-    // TODO - better property name
-    override val sbtVersion = SBT_VERSION
+  case class Sbt012support(sbtVersion: String) extends SbtDefaultPropsfileLaunchInfo {
     // The Application for the controller jars.  We can use this to get the classpath.
     private object probeApp extends LookupApplicationId(
       name = "sbt-rc-probe-0-12",
@@ -62,12 +60,10 @@ class DefaultSbtProcessLauncher(
     override val optionalRepositories = optRepositories
   }
   /**
-   * Our published support for sbt 0.12.
+   * Our published support for sbt 0.13.
    *  TODO - clean this code up.  We should autocreate app names and scala versions based on sbt version...
    */
-  object sbt013support extends SbtDefaultPropsfileLaunchInfo {
-    // TODO - better property name
-    override val sbtVersion = "0.13.0-RC3"
+  case class Sbt013support(sbtVersion: String) extends SbtDefaultPropsfileLaunchInfo {
     // The Application for the controller jars.  We can use this to get the classpath.
     private object probeApp extends LookupApplicationId(
       name = "sbt-rc-probe-0-13",
@@ -85,10 +81,10 @@ class DefaultSbtProcessLauncher(
       launcher.app(uiPlugin, "2.10.2").mainClasspath
     override val optionalRepositories = optRepositories
   }
-  override def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo =
+  override def getLaunchInfo(version: String, fullVersion: String): SbtBasicProcessLaunchInfo =
     version match {
-      case "0.12" => sbt012support
-      case "0.13" => sbt013support
+      case "0.12" => Sbt012support(fullVersion)
+      case "0.13" => Sbt013support(fullVersion)
       case _ => sys.error(s"sbt version $version is not supported!")
     }
 }

@@ -21,31 +21,30 @@ class FileProvidedSbtProcessLauncher(
   optRepos: Seq[SbtPropertiesHelper.Repository] = Nil) extends BasicSbtProcessLauncher {
 
   // Support objects for the various sbts.
-  object sbt12Support extends SbtDefaultPropsfileLaunchInfo {
+  case class Sbt12Support(sbtVersion: String) extends SbtDefaultPropsfileLaunchInfo {
     val myFiles =
       probeFiles.filter(_.getName contains "0-12") ++
         probeFiles.filter(_.getName contains "sbt-rc-props")
     override val controllerClasspath: Seq[File] = myFiles filterNot (_.getName contains "ui-interface")
     override val extraJars: Seq[File] = myFiles filter (_.getName contains "ui-interface")
     // TODO - Get this version from properties!
-    override val sbtVersion = "0.12.4"
     override val optionalRepositories = optRepos
   }
-  object sbt13Support extends SbtDefaultPropsfileLaunchInfo {
+  case class Sbt13Support(sbtVersion: String) extends SbtDefaultPropsfileLaunchInfo {
     val myFiles =
       probeFiles.filter(_.getName contains "0-13") ++
         probeFiles.filter(_.getName contains "sbt-rc-props")
     override val controllerClasspath: Seq[File] = myFiles filterNot (_.getAbsolutePath contains "ui-interface")
     override val extraJars: Seq[File] = myFiles filter (_.getAbsolutePath contains "ui-interface")
     // TODO - Get this version from properties!
-    override val sbtVersion = "0.13.0-RC3"
     override val optionalRepositories = optRepos
   }
 
-  override def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo =
+  override def getLaunchInfo(version: String, fullVersion: String): SbtBasicProcessLaunchInfo =
     version match {
-      case "0.12" => sbt12Support
-      case "0.13" => sbt13Support
+      // TODO - We only support 0.12.4+
+      case "0.12" => Sbt12Support(fullVersion)
+      case "0.13" => Sbt13Support(fullVersion)
       case _ => sys.error("Unsupported sbt version: " + version)
     }
 
