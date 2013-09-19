@@ -15,8 +15,9 @@ class CanLaunchWithProvidedFiles extends SbtProcessLauncherTest {
   // Here we try to mimic a file-provided example, but we load jars through the launcher ahead of time.
   // Twisting our wheels around the axel, for fun.
   val sbtFileProvidedProcessLauncher: SbtProcessLauncher = {
-    val cp =
-      sbtProcessLauncher.sbt012support.extraJars ++ sbtProcessLauncher.sbt012support.controllerClasspath
+    // Some ugly hackery
+    val support = sbtProcessLauncher.getLaunchInfo("0.12", "0.12.4").asInstanceOf[SbtDefaultPropsfileLaunchInfo]
+    val cp = support.extraJars ++ support.controllerClasspath
     println("Sbt probe jars = " + cp.mkString(","))
     val jar = sbtProcessLauncher.sbtLauncherJar
     new FileProvidedSbtProcessLauncher(jar, cp, localRepositories)
