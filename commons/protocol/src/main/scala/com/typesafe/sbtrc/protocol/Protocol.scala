@@ -169,7 +169,7 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.TaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(TaskKeyRequest.apply).getOrElse(null)
       case TaskNames.InputTaskKeyRequest => JsonStructure.unapply[KeyFilter](params).map(InputTaskKeyRequest.apply).getOrElse(null)
       case TaskNames.SettingValueRequest => JsonStructure.unapply[ScopedKey](params).map(SettingValueRequest.apply).getOrElse(null)
-      case TaskNames.TaskValueRequest => JsonStructure.unapply[ScopedKey](params).map(TaskValueRequest.apply).getOrElse(null)
+      case TaskNames.TaskValueRequest => JsonStructure.unapply[ScopedKey](params).map(p => TaskValueRequest(p, sendEvents)).getOrElse(null)
       case _ => null
     })
   }
@@ -272,8 +272,7 @@ case class SettingValueRequest(key: ScopedKey) extends SpecificRequest {
   override def toGeneric =
     GenericRequest(sendEvents = sendEvents, TaskNames.SettingValueRequest, JsonStructure(key))
 }
-case class TaskValueRequest(key: ScopedKey) extends SpecificRequest {
-  override val sendEvents = false
+case class TaskValueRequest(key: ScopedKey, sendEvents: Boolean = false) extends SpecificRequest {
   override def toGeneric =
     GenericRequest(sendEvents = sendEvents, TaskNames.TaskValueRequest, JsonStructure(key))
 }

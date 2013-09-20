@@ -22,6 +22,8 @@ case class SerializableBuildValue[T](
 ) extends BuildValue[T] {
   val value = Some(rawValue)
   val stringValue = rawValue.toString
+  
+  override def toString = "Serialized(with=" + serializer + ", toString=" + stringValue +")"
 }
 /** Represents a value we cannot send over the wire. */
 case class UnserializedValue[T](stringValue: String) extends BuildValue[T] {
@@ -82,7 +84,7 @@ object BuildValue {
           child <- defaultSerializers(mf.typeArguments(0))
         } yield RawStructure.AttributedStructure(child)
       case _ =>
-        println("Error:  No way to serialize: " + mf)
+        System.err.println("DEBUGME - Error:  No way to serialize: " + mf)
         None
     }).asInstanceOf[Option[RawStructure[T]]]
   }
@@ -103,7 +105,7 @@ object BuildValue {
          case UnserializedValue(string) =>
            Map("stringValue" -> string)
          case SerializableBuildValue(value, serializer, mf) =>
-           Map("stringValue" -> value,
+           Map("stringValue" -> value.toString,
                "manifest" -> JsonStructure(mf),
                "value" -> serializer(value))
        }
@@ -143,7 +145,7 @@ case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
   override def isSuccess = true
 }
 object TaskSuccess {
-  implicit def MyParamertizer[T] = 
+  implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]) = 
     TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskSuccess[T]]]
 }
 /** This represents that there was an error running a task, and returns the error message. */
@@ -151,7 +153,7 @@ case class TaskFailure[T](message: String) extends TaskResult[T] {
   override def isSuccess = false
 }
 object TaskFailure {
-  implicit def MyParamertizer[T] = 
+  implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]) = 
     TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskFailure[T]]]
 }
 

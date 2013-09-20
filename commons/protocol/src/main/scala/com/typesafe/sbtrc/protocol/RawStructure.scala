@@ -27,6 +27,7 @@ object RawStructure {
       Map("value" -> t.toURI.toASCIIString())
     def unapply(map: Map[String, Any]): Option[java.io.File] =
       map.get("value").map(uri => new java.io.File(new java.net.URI(uri.toString)))
+    override def toString = "RawStructure[File]"
   }
   
   implicit object BooleanStructure extends RawStructure[Boolean] {
@@ -34,31 +35,34 @@ object RawStructure {
       Map("value" -> t)
     def unapply(map: Map[String, Any]): Option[Boolean] =
       map.get("value").map(t => t.asInstanceOf[Boolean])
+    override def toString = "RawStructure[Boolean]"
   }
   
-  implicit def SeqStructure[T](implicit values: RawStructure[T]) =
+  implicit def SeqStructure[T](implicit valueStructure: RawStructure[T]) =
     new RawStructure[Seq[T]] {
       def apply(t: Seq[T]): Map[String, Any] =
-        Map("values" -> t.map(values.apply))
+        Map("values" -> t.map(valueStructure.apply))
       def unapply(map: Map[String, Any]): Option[Seq[T]] =
         map.get("values").map { rawSeq =>
           rawSeq.asInstanceOf[Seq[Map[String,Any]]].flatMap { raw => 
-            values.unapply(raw).toSeq
+            valueStructure.unapply(raw).toSeq
           }
         }
+      override def toString = "RawStructure[Seq["+valueStructure+"]"
     }
-  implicit def AttributedStructure[T](implicit value: RawStructure[T]) =
+  implicit def AttributedStructure[T](implicit valueStructure: RawStructure[T]) =
     new RawStructure[sbt.Attributed[T]] {
-      def apply(t: sbt.Attributed[T]): Map[String, Any] =
+      override def apply(t: sbt.Attributed[T]): Map[String, Any] =
         Map("attributed" -> true,
-            "data" -> value.apply(t.data))
-     def unapply(map: Map[String, Any]): Option[sbt.Attributed[T]] =
+            "data" -> valueStructure.apply(t.data))
+      override def unapply(map: Map[String, Any]): Option[sbt.Attributed[T]] =
         if(map("attributed") == true && map.contains("data")) {
           val data =
             map("data").asInstanceOf[Map[String,Any]]
           // TODO - Reify the attributes as well.
-          value.unapply(data).map(sbt.Attributed.blank)
-        } else None 
+          valueStructure.unapply(data).map(sbt.Attributed.blank)
+        } else None
+      override def toString = "RawStructure[Attributed["+valueStructure+"]"
     }
 }
 object JsonStructure {

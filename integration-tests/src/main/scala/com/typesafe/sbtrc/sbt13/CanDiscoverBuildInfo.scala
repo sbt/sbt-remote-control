@@ -21,30 +21,38 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
       JsonStructure.unapply[KeyList](params)
   }
   try {
-    /*
     val classpathResult = concurrent.promise[BuildValue[Seq[sbt.Attributed[File]]]]
     system.actorOf(akka.actor.Props(new akka.actor.Actor {
       child ! TaskKeyRequest(KeyFilter.empty)
+      System.err.println("DEBUGME - Issuing TaskKey request.")
       context.setReceiveTimeout(timeout.duration)
       def receive: Receive = {
         case protocol.KeyListResponse(keyList) => // We succeeded!
+          System.err.println("DEBUGME - Found task keys - " + keyList.keys.size)
           try {
-            val key = keyList.keys.find { k =>
-              k.scope.config.exists(_ == "compile") &&
-                (k.key.name == "fullClasspath") // TODO - Get Compile config.
+            val key = keyList.keys.filter { k =>
+              (k.key.name == "fullClasspath") // TODO - Get Compile config.
+            }.find { k =>
+              System.err.println("DEBUGME - Checking scope of " + k + " for compile config")
+              k.scope.config == Some("compile") // TODO 
             }.get
-            child ! TaskValueRequest(key)
+            System.err.println("DEBUGME - Using key: " + key)
+            child ! TaskValueRequest(key, true)
           } catch {
             case t: Throwable =>
+              System.err.println("DEBUGME: Could not find desired key!")
               classpathResult.failure(t)
-              throw t
+              context stop self
           }
         case protocol.GenericResponse("TaskValueRequest", params) =>
+          System.err.println("DEBUGME - Got task value response: " + params)
           classpathResult.complete(
             util.Try {
               val result = JsonStructure.unapply[TaskResult[Seq[sbt.Attributed[File]]]](params)
+              System.err.println("DEBUGME - unparsed result = " + params)
               assert(result.isDefined, "Response was not understood: " + params)
-              val taskResult = result.get.asInstanceOf[TaskResult[String]]
+              val taskResult = result.get
+              System.err.println("DEBUGME - unparsed result = " + taskResult)
               assert(taskResult.isSuccess, "Response was not success! " + result.get)
               taskResult.asInstanceOf[TaskSuccess[Seq[sbt.Attributed[File]]]].value
             })
@@ -59,8 +67,6 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
         System.err.println("Claspath = " + classpath)
       case None => throw new AssertionError("Unable to determine Classpath of the project.")
     }
-    * 
-    */
 
     val nameResult = concurrent.promise[BuildValue[String]]
     system.actorOf(akka.actor.Props(new akka.actor.Actor {

@@ -152,9 +152,16 @@ object SetupSbtChild extends (State => State) {
       val context = new ProbedContext(serial, taskName)
       try {
         val (newState, replyParams) = handler(origState, context, params)
-        client.replyJson(serial, protocol.GenericResponse(name = taskName,
-          params = replyParams.toMap))
+        val msg = protocol.GenericResponse(name = taskName, params = replyParams.toMap)
+        System.err.println("DEBUGME - Sending client message: " + msg)
+        client.replyJson(serial, msg)
         newState
+      } catch {
+        case t: Throwable =>
+          // TODO - we need to handle errors in the request handlers and send appropriate responses...
+          System.err.println("DBEUGME - Error running task: " + taskName)
+          t.printStackTrace()
+          throw t
       } finally {
         // this sends any pending CancelResponse
         context.close()
