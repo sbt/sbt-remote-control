@@ -20,16 +20,16 @@ abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: St
   // TODO - Pull the atmos version from properties...
   if (!(sbtVersionString startsWith "0.13")) {
     IO.write(plugins,
-      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.3.0")""")
+      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.3.1")""")
   }
   val build = new File(dummy, "build.sbt")
   IO.write(build,
     (if (sbtVersionString startsWith "0.13") ""
     else "atmosSettings") +
       """
-      
+
 name := "test-app"
-      
+
 scalaVersion := "2.10.2"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
@@ -73,7 +73,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
           result.success(x)
           context stop self
 
-        // Here we capture the output of play start. 
+        // Here we capture the output of play start.
         // TODO - We should validate the port is the one we expect....
         case GenericEvent(name, "atmosStarted", params) if name == taskName =>
           log.debug("Received atmos event for " + name + " params " + params)
