@@ -23,7 +23,7 @@ object Dependencies {
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
   val sbt13Version = "0.13.0"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
-  val sbtAtmosDefaultVersion = "0.3.0"
+  val sbtAtmosDefaultVersion = "0.3.1"
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
@@ -37,11 +37,11 @@ object Dependencies {
   // We use an old version here, so we're compatible...
   val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
-  
+
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion
   val akkaTestkit          = "com.typesafe.akka" % "akka-testkit_2.10" % akkaVersion
-  
+
   val commonsIo            = "commons-io" % "commons-io" % "2.0.1"
 
   val mimeUtil             = "eu.medsea.mimeutil" % "mime-util" % "2.1.1"
@@ -81,7 +81,7 @@ object Dependencies {
     def dependsOnSource(dir: String): Project =
       p.settings(Dependencies.dependsOnSource(dir):_*)
   }
-  
+
   // compile classpath and classes directory, with provided/optional or scala dependencies
   // specifically for projects that need remote-probe dependencies
   val requiredClasspath = TaskKey[Classpath]("required-classpath")
@@ -90,7 +90,7 @@ object Dependencies {
     import xsbti.ArtifactInfo._
     import Project.Initialize
     val dependentProjectClassPaths: Seq[Initialize[Task[Seq[File]]]] =
-      (deps map { proj => 
+      (deps map { proj =>
         (classDirectory in Compile in proj) map { dir => Seq(dir) }
       })
     val ivyDeps: Initialize[Task[Seq[File]]] =  update map { report =>
