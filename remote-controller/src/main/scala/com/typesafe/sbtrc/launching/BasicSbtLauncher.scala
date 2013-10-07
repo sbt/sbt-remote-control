@@ -93,7 +93,7 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
   /** Returns the sbt verison + binary version we're about to fork. */
   def getSbtVersions(cwd: File): (String, String) =
     // TODO - Put this in sbt version util!
-    io.SbtVersionUtil.findProjectSbtVersion(cwd).getOrElse("0.12.4") ->
+    io.SbtVersionUtil.findSafeProjectSbtVersion(cwd).getOrElse("0.12.4") ->
       io.SbtVersionUtil.findProjectBinarySbtVersion(cwd).getOrElse("0.12")
 
   /**
