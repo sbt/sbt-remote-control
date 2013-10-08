@@ -26,6 +26,11 @@ object SbtPropertiesHelper {
     // TODO - Users should specify the *complete* definition....
     // This is just a hack for us right now...
     val optionalRepositoriesStrings = optionalRepositories map makeRepositoryString
+    val resourcesProperty = if (extraJars.nonEmpty)
+      "resources: " + (extraJars map (_.getCanonicalPath) mkString ",")
+    else
+      ""
+
     val writer = new java.io.BufferedWriter(new java.io.FileWriter(file))
     try {
       writer.write(s"""
@@ -39,7 +44,7 @@ object SbtPropertiesHelper {
   class: sbt.xMain
   components: xsbti,extra
   cross-versioned: false
-  resources: ${extraJars map (_.getCanonicalPath) mkString ","}
+  ${resourcesProperty}
 
 [repositories]
   local
