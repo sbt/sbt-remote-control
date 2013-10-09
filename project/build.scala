@@ -156,6 +156,7 @@ object TheBuild extends Build {
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
+      Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
@@ -163,7 +164,6 @@ object TheBuild extends Build {
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
-      // TODO - does this exist?
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.12", "2.9.2"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.1", "0.13", "2.10"),
