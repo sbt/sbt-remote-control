@@ -61,7 +61,7 @@ object Dependencies {
   }
   val playSbtPlugin12        =  makeSbtPlugin("play" % "sbt-plugin" % "2.1.1", sbt12Version)
   val eclipseSbtPlugin12     =  makeSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", sbt12Version)
-  val ideaSbtPlugin12        =  makeSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.3.0", sbt12Version)
+  val ideaSbtPlugin12        =  makeSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.2", sbt12Version)
 
 
   // Mini DSL
