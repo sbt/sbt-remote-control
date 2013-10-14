@@ -166,7 +166,7 @@ object TheBuild extends Build {
       // TODO - does this exist?
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.12", "2.9.2"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.1", "0.13", "2.10"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.2", "0.13", "2.10"),
       localRepoArtifacts += "com.novocode" % "junit-interface" % "0.7" % "test",
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )

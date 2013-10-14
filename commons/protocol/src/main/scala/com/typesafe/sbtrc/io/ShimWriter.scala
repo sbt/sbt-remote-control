@@ -219,7 +219,7 @@ object ShimWriter {
   lazy val ideaPluginShim =
     GenericShimWriter(
       name = "sbt-idea",
-      contents = """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.1")""",
+      contents = """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.2")""",
       relativeLocation = "project")
       
   def sbt13Shims(version: String): Seq[ShimWriter] = Seq(
