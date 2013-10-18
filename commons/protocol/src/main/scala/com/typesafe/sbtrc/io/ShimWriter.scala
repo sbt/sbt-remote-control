@@ -201,8 +201,8 @@ object ShimWriter {
   // They have to already have atmos configured for support to be enabled.
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
     new ControlledPluginShimWriter("defaults", version, "0.12"),
-    new ControlledPluginShimWriter("eclipse", version, "0.12", isEmpty = true),
-    new ControlledPluginShimWriter("idea", version, "0.12", isEmpty = true),
+    new DeleteShimIfExistsWriter("eclipse"),
+    new DeleteShimIfExistsWriter("idea"),
     new ControlledPluginShimWriter("play", version, "0.12"),
     eclipsePlugin12Shim,
     ideaPluginShim

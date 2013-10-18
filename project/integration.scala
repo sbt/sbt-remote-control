@@ -91,15 +91,21 @@ case class IntegrationContext(launchJar: File,
     IO delete cwd
     IO createDirectory cwd
     // Here, let's create a new logger that can store logs in a location of our choosing too...
-    setup(name, cwd) ! logger match {
+    restoringTerminal(setup(name, cwd) ! logger match {
       case 0 => 
         streams.log.info(" [IT] " + name + " result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
       case n => 
         streams.log.error(" [IT] " + name + " result: FAILURE")
         IntegrationTestResult(name, false, logFile)
-    }
+    })
   }
+
+  def restoringTerminal[A](f: =>A): A =
+     try f
+     finally {
+       // TODO - Figure out how we can restore our STTY settings to something sane after multiple jline versions beat each other over the head.	
+     }
   
   
   
@@ -114,7 +120,7 @@ case class IntegrationContext(launchJar: File,
     val boot = cwd / "boot"
     val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 
-        // TODO - Just pass this throguh...
+        // TODO - Just pass this through...
         "-Dsbt.probe.trace=true",
         "-Dakka.loglevel=DEBUG",
             "-Dakka.actor.debug.autoreceive=on",

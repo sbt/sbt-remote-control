@@ -17,8 +17,7 @@ object findHandler {
   // (however this doesn't address how we go from input string to task inputs, and task result to output string)
   def apply(name: String, state: State): Option[RequestHandler] = {
     val finder =
-      if (isPlayProject(state)) PlaySupport.findHandler
-      else DefaultsShim.findHandler
+      DefaultsShim.findHandler
 
     if (finder.isDefinedAt(name))
       Some(finder(name))
