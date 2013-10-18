@@ -103,7 +103,8 @@ object ApplicationBuild extends Build {
     }
   } catch {
     case t: TimeoutException if receivedSocketInfo =>
-    // Ignore.  It's ok to not be able to cancel.
+      // Ignore.  It's ok to not be able to cancel for now, since activator just kills the entire
+      // sbt instance when it needs to cancel things.
     case t: TimeoutException =>
       sys.error("Failed to start play server before timing out!")
   } finally {
