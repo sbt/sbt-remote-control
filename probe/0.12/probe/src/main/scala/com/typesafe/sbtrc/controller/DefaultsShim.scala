@@ -103,8 +103,8 @@ object DefaultsShim {
   def installShims(origState: State, ui: UIContext): State = {
     val s1 = addTestListener(origState, ui)
     // TODO - Upgrade to shimable play support rather than custom plugin...
-    //val s2 = PlaySupport.installPlaySupport(s1, ui)
-    val s3 = AtmosSupport.installAtmosSupport(s1, ui)
+    val s2 = PlaySupport.installPlaySupport(s1, ui)
+    val s3 = AtmosSupport.installAtmosSupport(s2, ui)
     s3
   }
 
@@ -144,8 +144,7 @@ object DefaultsShim {
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     val shimedState = installShims(origState, ui)
     val s = runInputTask(key, shimedState, args = "", Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = taskName)))
+    (origState, makeResponseParams(protocol.RunResponse(success = true, task = taskName)))
   }
 
   private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
@@ -176,7 +175,7 @@ object DefaultsShim {
 
   private def runCommandHandler(command: String): RequestHandler = { (origState, ui, params) =>
     // TODO - Genericize the command handler.
-    val shimedState = addTestListener(origState, ui)
+    val shimedState = installShims(origState, ui)
     runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
   }
 

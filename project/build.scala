@@ -56,7 +56,7 @@ object TheBuild extends Build {
     settings(noCrossVersioning:_*)
   )
 
-  // Plugin hims
+  // Plugin shims
   lazy val playShimPlugin = (
     SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
@@ -161,7 +161,9 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0",
+      localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
+      localRepoArtifacts += Dependencies.playSbtPlugin12,
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
       // TODO - does this exist?
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.12", "2.9.2"),

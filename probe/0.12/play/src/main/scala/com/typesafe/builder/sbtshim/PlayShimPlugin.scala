@@ -11,12 +11,10 @@ import play.core.SBTLink
 import com.typesafe.sbt.ui
 import com.typesafe.sbt.ui.{ Context => UIContext, SimpleJsonMessage }
 import scala.util.parsing.json.JSONObject
+import play.console.Colors
 
 object PlayShimKeys {
   val playShimInstalled = SettingKey[Boolean]("play-shim-installed")
-
-  val playShimRun = InputKey[Unit]("play-shim-run")
-
   val uiContext = com.typesafe.sbt.ui.SbtUiPlugin.uiContext
 }
 
@@ -25,18 +23,38 @@ object PlayShimPlugin extends Plugin {
 
   override val settings: Seq[Setting[_]] = Seq(
     playShimInstalled := true,
-    playShimRun <<= inputTask { (args: TaskKey[Seq[String]]) =>
-      (args, state, uiContext in Global) map run
+    run in Compile <<= inputTask { (args: TaskKey[Seq[String]]) =>
+      (args, state) map { (args, s) => runTask(s, args) }
     })
 
   @volatile var stopped = false
   private val consoleReader = new jline.ConsoleReader
-  def run(args: Seq[String], state: State, ctx: UIContext): Unit = {
+
+  def runTask(
+    state: State,
+    args: Seq[String],
+    runHooks: TaskKey[Seq[play.PlayRunHook]] = playRunHooks,
+    dependencyClasspath: TaskKey[Classpath] = playDependencyClasspath,
+    dependencyClassLoader: TaskKey[ClassLoaderCreator] = playDependencyClassLoader,
+    reloaderClasspath: TaskKey[Classpath] = playReloaderClasspath,
+    reloaderClassLoader: TaskKey[ClassLoaderCreator] = playReloaderClassLoader): Unit = {
 
     val extracted = Project.extract(state)
 
+    val (_, hooks) = extracted.runTask(runHooks, state)
+
+    val interaction = extracted.get(playInteractionMode)
+
+    val (_, createClassLoader) = extracted.runTask(dependencyClassLoader, state)
+    val (_, createReloader) = extracted.runTask(reloaderClassLoader, state)
+
     // Parse HTTP port argument
-    val port = extracted.get(playDefaultPort)
+    //val (properties, port) = filterArgs(args, defaultPort = extracted.get(playDefaultPort))
+    val port = extracted get playDefaultPort
+    // Set Java properties
+    //properties.foreach {
+    //  case (key, value) => System.setProperty(key, value)
+    //}
 
     println()
 
@@ -46,10 +64,10 @@ object PlayShimPlugin extends Plugin {
       state.log.warn("some of the dependencies were not recompiled properly, so classloader is not avaialable")
       throw commonLoaderEither.left.get
     }
-    val maybeNewState = Project.runTask(dependencyClasspath in Compile, state).get._2.toEither.right.map { dependencies =>
+    val maybeNewState = Project.runTask(dependencyClasspath, state).get._2.toEither.right.map { dependencies =>
 
       // All jar dependencies. They will not been reloaded and must be part of this top classloader
-      val classpath = dependencies.map(_.data.toURI.toURL).filter(_.toString.endsWith(".jar")).toArray
+      val classpath = Path.toURLs(dependencies.files)
 
       /**
        * Create a temporary classloader to run the application.
@@ -58,7 +76,7 @@ object PlayShimPlugin extends Plugin {
        * It also uses the same Scala classLoader as SBT allowing to share any
        * values coming from the Scala library between both.
        */
-      lazy val applicationLoader: ClassLoader = new java.net.URLClassLoader(classpath, commonLoader) {
+      lazy val delegatingLoader: ClassLoader = new ClassLoader(commonLoader) {
 
         val sharedClasses = Seq(
           classOf[play.core.SBTLink].getName,
@@ -70,11 +88,11 @@ object PlayShimPlugin extends Plugin {
           classOf[play.api.PlayException.ExceptionSource].getName,
           classOf[play.api.PlayException.ExceptionAttachment].getName)
 
-        override def loadClass(name: String): Class[_] = {
+        override def loadClass(name: String, resolve: Boolean): Class[_] = {
           if (sharedClasses.contains(name)) {
             sbtLoader.loadClass(name)
           } else {
-            super.loadClass(name)
+            super.loadClass(name, resolve)
           }
         }
 
@@ -102,12 +120,17 @@ object PlayShimPlugin extends Plugin {
         }
 
         override def toString = {
-          "SBT/Play shared ClassLoader, with: " + (getURLs.toSeq) + ", using parent: " + (getParent)
+          "SBT/Play shared ClassLoader, using parent: " + (getParent)
         }
 
       }
 
-      lazy val reloader = newReloader(state, playReload, applicationLoader)
+      lazy val applicationLoader = createClassLoader("PlayDependencyClassLoader", classpath, delegatingLoader)
+
+      lazy val reloader = newReloader(state, playReload, createReloader, reloaderClasspath, applicationLoader)
+
+      // Now we're about to start, let's call the hooks:
+      hooks.run(_.beforeStarted())
 
       val mainClass = applicationLoader.loadClass("play.core.server.NettyServer")
       val mainDev = mainClass.getMethod("mainDev", classOf[SBTLink], classOf[Int])
@@ -116,11 +139,10 @@ object PlayShimPlugin extends Plugin {
       val server = mainDev.invoke(null, reloader, port: java.lang.Integer).asInstanceOf[play.core.server.ServerWithStop]
 
       // Notify hooks
-      extracted.get(playOnStarted).foreach(_(server.mainAddress))
-      ctx.sendEvent("playServerStarted", SimpleJsonMessage(JSONObject(Map("port" -> port))))
+      hooks.run(_.afterStarted(server.mainAddress))
 
       println()
-      println("(Server started, use Activator to stop....")
+      println(Colors.green("(Server started, use Ctrl+D to stop and go back to the console...)"))
       println()
 
       val ContinuousState = AttributeKey[WatchState]("watch state", "Internal: tracks state for continuous execution.")
@@ -153,7 +175,7 @@ object PlayShimPlugin extends Plugin {
                 case ms if ms < 1000 => ms + "ms"
                 case s => (s / 1000) + "s"
               }
-              println("[" + "success" + "] Compiled in " + formatted)
+              println("[" + Colors.green("success") + "] Compiled in " + formatted)
             }
           }
 
@@ -163,7 +185,7 @@ object PlayShimPlugin extends Plugin {
           // Call back myself
           executeContinuously(watched, newState, reloader, Some(newWatchState))
         } else {
-          // Stop
+          // Stop 
           Some("Okay, i'm done")
         }
       }
@@ -180,27 +202,17 @@ object PlayShimPlugin extends Plugin {
       val newState = maybeContinuous match {
         case (true, w: sbt.Watched, ws) => {
           // ~ run mode
-          consoleReader.getTerminal.disableEcho()
-          executeContinuously(w, state, reloader)
-          consoleReader.getTerminal.enableEcho()
+          interaction doWithoutEcho {
+            executeContinuously(w, state, reloader)
+          }
 
           // Remove state two first commands added by sbt ~
           state.copy(remainingCommands = state.remainingCommands.drop(2)).remove(Watched.ContinuousState)
         }
         case _ => {
           // run mode
-          @tailrec
-          def blockForCancel(state: State): State = {
-            ctx.take() match {
-              case ui.NoUIPresent => state
-              case ui.Canceled => state
-              case ui.Request(name, handle, sendError) => {
-                sendError("Request not supported during play run: " + name)
-                blockForCancel(state)
-              }
-            }
-          }
-          blockForCancel(state)
+          interaction.waitForCancel()
+          state
         }
       }
 
@@ -208,10 +220,15 @@ object PlayShimPlugin extends Plugin {
       reloader.clean()
 
       // Notify hooks
-      extracted.get(playOnStopped).foreach(_())
+      hooks.run(_.afterStopped())
 
       newState
     }
+
+    // Remove Java properties
+    //properties.foreach {
+    //  case (key, _) => System.clearProperty(key)
+    //}
 
     println()
 
