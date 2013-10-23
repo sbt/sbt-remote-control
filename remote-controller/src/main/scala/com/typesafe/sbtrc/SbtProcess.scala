@@ -194,9 +194,10 @@ class SbtProcessSupervisorActor(workingDir: File, sbtLauncher: SbtProcessLaunche
 
   watch(underlying)
 
-  // restart only on NeedRebootException
+  // restart only on NeedRebootException. We disable autologging of failure since this is
+  // an "expected" failure.
   import akka.actor.SupervisorStrategy
-  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = Duration(60, TimeUnit.SECONDS)) {
+  override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = Duration(60, TimeUnit.SECONDS), loggingEnabled = false) {
     case e: NeedRebootException =>
       if (protocolStarted) {
         log.error("Should be impossible to get protocol.Started if SBT had to reboot")
