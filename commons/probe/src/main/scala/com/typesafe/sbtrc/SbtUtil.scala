@@ -91,8 +91,8 @@ object SbtUtil {
     debugSettings(appendSettings)
     // reloads with appended settings.
     val session = Project.session(state)
-    val structure = Project.structure(state)
-    implicit val display = Project.showContextKey(state)
+    //val structure = Project.structure(state)
+    //implicit val display = Project.showContextKey(state)
     // When we reload, make sure we keep all reapplied settings...
     //val newStructure = Load.reapply(session.mergeSettings ++ appendSettings, structure)
     val newSession = session.appendRaw(appendSettings)

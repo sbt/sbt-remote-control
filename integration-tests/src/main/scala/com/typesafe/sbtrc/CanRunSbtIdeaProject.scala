@@ -16,7 +16,7 @@ class CanRunSbtIdeaProject extends SbtProcessLauncherTest {
   val dummy = utils.makeDummySbtProject("runChild-idea", "0.12.4")
   val ideaPluginFile = new File(dummy, "project/idea.sbt")
   sbt.IO.write(ideaPluginFile,
-    """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.1")""")
+    """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.2")""")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
     Await.result(child ? GenericRequest(name = "gen-idea", sendEvents = false, params = Map.empty), timeout.duration) match {

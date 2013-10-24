@@ -57,7 +57,7 @@ object TheBuild extends Build {
     settings(noCrossVersioning:_*)
   )
 
-  // Plugin hims
+  // Plugin shims
   lazy val playShimPlugin = (
     SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
@@ -127,7 +127,7 @@ object TheBuild extends Build {
     SbtRemoteControlProject("remote-controller")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
-      Keys.publishArtifact in (Test, Keys.packageBin) := true 
+      Keys.publishArtifact in (Test, Keys.packageBin) := true
     )
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/protocol-shims-2.10")
@@ -159,20 +159,22 @@ object TheBuild extends Build {
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
+      Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0",
+      localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.0", "0.13", "2.10"),
-      // TODO - does this exist?
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.0", "0.12", "2.9.2"),
+      localRepoArtifacts += Dependencies.playSbtPlugin12,
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.12", "2.9.2"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.1", "0.13", "2.10"),
+      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.2", "0.13", "2.10"),
       localRepoArtifacts += "com.novocode" % "junit-interface" % "0.7" % "test",
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
   )
-  
+
 }

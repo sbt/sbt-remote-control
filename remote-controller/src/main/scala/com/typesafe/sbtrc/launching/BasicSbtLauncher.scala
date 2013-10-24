@@ -83,15 +83,18 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
    * Returns the versoin specific information
    *  launch sbt for the given project.
    *  @param version The sbt binary version to use
+   *  @param fulLVersion the complete sbt version
    */
-  def getLaunchInfo(version: String): SbtBasicProcessLaunchInfo
+  def getLaunchInfo(version: String, fullVersion: String): SbtBasicProcessLaunchInfo
 
   /** Returns an sbt launcher jar we can use to launch this process. */
   def sbtLauncherJar: File
 
-  /** Returns the sbt binary version we're about to fork. */
-  def getSbtBinaryVersion(cwd: File): String =
-    io.SbtVersionUtil.findProjectBinarySbtVersion(cwd).getOrElse("0.12")
+  /** Returns the sbt verison + binary version we're about to fork. */
+  def getSbtVersions(cwd: File): (String, String) =
+    // TODO - Put this in sbt version util!
+    io.SbtVersionUtil.findSafeProjectSbtVersion(cwd).getOrElse("0.12.4") ->
+      io.SbtVersionUtil.findProjectBinarySbtVersion(cwd).getOrElse("0.12")
 
   /**
    * Generates the arguments used by the sbt process launcher.
@@ -102,8 +105,8 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
     // we have no idea if computers will be able to handle this amount of
     // memory....
     val defaultJvmArgs = jvmArgs ++ passThroughJvmArgs
-    val sbtBinaryVersion = getSbtBinaryVersion(cwd)
-    val info = getLaunchInfo(sbtBinaryVersion)
+    val (sbtFullVersion, sbtBinaryVersion) = getSbtVersions(cwd)
+    val info = getLaunchInfo(sbtBinaryVersion, sbtFullVersion)
     // TODO - handle spaces in strings and such...
     val sbtProps = Seq(
       // TODO - Remove this junk once we don't have to hack our classes into sbt's classloader.
