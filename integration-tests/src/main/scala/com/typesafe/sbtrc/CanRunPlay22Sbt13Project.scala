@@ -78,7 +78,7 @@ object ApplicationBuild extends Build {
 
         // Here we capture the output of play start. 
         // TODO - We should validate the port is the one we expect....
-        case GenericEvent("run", "playServerStarted", params) =>
+        case GenericEvent("playServerStarted", params) =>
           receivedSocketInfo = true
           // Now we can manually cancel
           self ! ReceiveTimeout

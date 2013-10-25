@@ -19,8 +19,8 @@ class CanRunSbt13IdeaProject extends SbtProcessLauncherTest {
     """addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.2")""")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
-    Await.result(child ? GenericRequest(name = "gen-idea", sendEvents = false, params = Map.empty), timeout.duration) match {
-      case GenericResponse("gen-idea", _) => // We succeeded!
+    Await.result(child ? ExecuteCommandRequest("gen-idea", sendEvents = false), timeout.duration) match {
+      case ExecuteCommandResponse() => // We succeeded!
       case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
     }
     // Now we check to see if the eclipse files exist.

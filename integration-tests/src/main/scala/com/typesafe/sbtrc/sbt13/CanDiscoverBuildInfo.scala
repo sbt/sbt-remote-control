@@ -44,17 +44,13 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
               classpathResult.failure(t)
               context stop self
           }
-        case protocol.GenericResponse("TaskValueRequest", params) =>
-          System.err.println("DEBUGME - Got task value response: " + params)
+        case protocol.TaskValueResponse(result) =>
+          System.err.println("DEBUGME - Got task value response: " + result)
           classpathResult.complete(
             util.Try {
-              val result = JsonStructure.unapply[TaskResult[Seq[sbt.Attributed[File]]]](params)
-              System.err.println("DEBUGME - unparsed result = " + params)
-              assert(result.isDefined, "Response was not understood: " + params)
-              val taskResult = result.get
-              System.err.println("DEBUGME - unparsed result = " + taskResult)
-              assert(taskResult.isSuccess, "Response was not success! " + result.get)
-              taskResult.asInstanceOf[TaskSuccess[Seq[sbt.Attributed[File]]]].value
+              System.err.println("DEBUGME - unparsed result = " + result)
+              assert(result.isSuccess, "Response was not success! " + result)
+              result.asInstanceOf[TaskSuccess[Seq[sbt.Attributed[File]]]].value
             })
         case ReceiveTimeout =>
           classpathResult.failure(new AssertionError("Classpath request timed out."))
@@ -82,14 +78,11 @@ class CanDiscoverBuild extends SbtProcessLauncherTest {
               nameResult.failure(t)
               throw t
           }
-        case protocol.GenericResponse("SettingValueRequest", params) =>
+        case protocol.SettingValueResponse(value) =>
           nameResult.complete(
             util.Try {
-              val result = JsonStructure.unapply[TaskResult[String]](params)
-              assert(result.isDefined, "Response was not understood: " + params)
-              val taskResult = result.get.asInstanceOf[TaskResult[String]]
-              assert(taskResult.isSuccess, "Response was not success! " + result.get)
-              taskResult.asInstanceOf[TaskSuccess[String]].value
+              assert(value.isSuccess, "Response was not success! " + value)
+              value.asInstanceOf[TaskSuccess[String]].value
             })
         case ReceiveTimeout =>
           nameResult.failure(new AssertionError("Name request timed out."))
