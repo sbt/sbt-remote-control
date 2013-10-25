@@ -58,7 +58,7 @@ object SetupSbtChild extends (State => State) {
       }
 
       // now add our command
-      loggedState ++ Seq(listen)
+      disableSelectMain(loggedState) ++ Seq(listen)
     } catch {
       case e: NeedToRebootException =>
         throw e
@@ -89,6 +89,20 @@ object SetupSbtChild extends (State => State) {
     val (extracted, ref) = extractWithRef(state)
 
     val settings = makeAppendSettings(Seq(logManager := ContextIndifferentLogManager(logger)), ref, extracted)
+
+    reloadWithAppended(state, settings)
+  }
+
+  private def disableSelectMain(state: State): State = {
+    val (extracted, ref) = extractWithRef(state)
+
+    // this is supposed to get rid of asking on stdin for the main class,
+    // instead just picking the first one.
+    val pickFirstMainClass: Setting[_] = Keys.selectMainClass in Compile := {
+      (Keys.mainClass in Compile).value orElse (Keys.discoveredMainClasses in Compile).value.headOption
+    }
+
+    val settings = makeAppendSettings(Seq(pickFirstMainClass), ref, extracted)
 
     reloadWithAppended(state, settings)
   }
