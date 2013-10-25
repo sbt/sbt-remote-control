@@ -33,18 +33,20 @@ abstract class CanRunTests(val sbtVersion: String) extends SbtProcessLauncherTes
         RequestReceivedEvent,
         TestEvent("OneFailTest",
           None, TestFailed, Some("this is not true")),
-        TestEvent("OnePassOneFailTest", None, TestPassed, None),
         TestEvent("OnePassOneFailTest",
           None, TestFailed, Some("this is not true")),
+        TestEvent("OnePassOneFailTest",
+          None, TestPassed, None),
         TestEvent("OnePassTest", None, TestPassed, None),
         ErrorResponse("exception during sbt task: test: Incomplete: null")) =>
         if (!sbtVersion.startsWith("0.13"))
           throw new AssertionError("0.13-like results obtained for " + sbtVersion)
+
       case whatever => throw new AssertionError("got wrong results: " + whatever)
     }
   }
 }
 
-class CanRunTestsSbt12 extends CanRunTests("0.12.4")
+class CanRunTestsSbt12 extends CanRunTests(TestUtil.sbt12TestVersion)
 
-class CanRunTestsSbt13 extends CanRunTests("0.13.0")
+class CanRunTestsSbt13 extends CanRunTests(TestUtil.sbt13TestVersion)

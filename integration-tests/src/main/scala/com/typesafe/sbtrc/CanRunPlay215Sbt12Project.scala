@@ -15,7 +15,7 @@ import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanRunPlay215Sbt12Project extends SbtProcessLauncherTest {
-  val dummy = utils.makeEmptySbtProject("runPlay215", "0.12.4")
+  val dummy = utils.makeEmptySbtProject("runPlay215", TestUtil.sbt12TestVersion)
   val plugins = new File(dummy, "project/plugins.sbt")
   // TODO - Abstract out plugin version to test more than one play instance...
   IO.write(plugins,

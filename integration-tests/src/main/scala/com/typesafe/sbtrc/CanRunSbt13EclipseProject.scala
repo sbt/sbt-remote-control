@@ -13,7 +13,7 @@ import akka.pattern.ask
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanRunSbt13EclipseProject extends SbtProcessLauncherTest {
-  val dummy = utils.makeDummySbtProject("runChild13", "0.13.0")
+  val dummy = utils.makeDummySbtProject("runChild13", TestUtil.sbt13TestVersion)
   val eclipsePluginFile = new File(dummy, "project/eclipse.sbt")
   sbt.IO.write(eclipsePluginFile,
     """

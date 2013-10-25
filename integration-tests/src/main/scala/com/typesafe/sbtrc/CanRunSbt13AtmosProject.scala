@@ -109,9 +109,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
 }
 
 /** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13AtmosProject extends CanRunAtmosProject("0.13.0", TaskNames.runAtmos, Map.empty)
+class CanRunSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runAtmos, Map.empty)
 
-class CanRunSbt12AtmosProject extends CanRunAtmosProject("0.12.4", TaskNames.runAtmos, Map.empty)
+class CanRunSbt12AtmosProject extends CanRunAtmosProject(TestUtil.sbt12TestVersion, TaskNames.runAtmos, Map.empty)
 
-class CanRunMainSbt13AtmosProject extends CanRunAtmosProject("0.13.0", TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
+class CanRunMainSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
 
