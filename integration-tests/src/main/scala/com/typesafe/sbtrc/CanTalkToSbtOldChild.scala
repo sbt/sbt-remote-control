@@ -12,6 +12,7 @@ import akka.util.Timeout
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanTalkToSbtOldChild extends SbtProcessLauncherTest {
+  // Note, we want this to ALWAYS use 0.12.3 even when we bump our usual 0.12 version
   val dummy = utils.makeDummySbtProject("talkToChild", sbtVersion = "0.12.3")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
 
