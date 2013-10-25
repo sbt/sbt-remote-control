@@ -3,6 +3,7 @@ package com.typesafe.sbtrc
 import java.io.File
 
 final class TestUtil(val scratchDir: File) {
+  import TestUtil.defaultSbtTestVersion
 
   def createFile(name: java.io.File, content: String): Unit = {
     val writer = new java.io.FileWriter(name)
@@ -16,7 +17,7 @@ final class TestUtil(val scratchDir: File) {
     dir
   }
 
-  def makeEmptySbtProject(relativeDir: String, sbtVersion: String = properties.SbtRcProperties.SBT_VERSION): File = {
+  def makeEmptySbtProject(relativeDir: String, sbtVersion: String = defaultSbtTestVersion): File = {
     val dir = makeDummyEmptyDirectory(relativeDir)
 
     val project = new File(dir, "project")
@@ -29,7 +30,7 @@ final class TestUtil(val scratchDir: File) {
   }
 
   /** Creates a dummy project we can run sbt against. */
-  def makeDummySbtProject(relativeDir: String, sbtVersion: String = properties.SbtRcProperties.SBT_VERSION): File = {
+  def makeDummySbtProject(relativeDir: String, sbtVersion: String = defaultSbtTestVersion): File = {
     val dir = makeEmptySbtProject(relativeDir, sbtVersion)
 
     val build = new File(dir, "build.sbt")
@@ -79,7 +80,7 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithBrokenBuild(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+  def makeDummySbtProjectWithBrokenBuild(relativeDir: String, sbtVersion: String = defaultSbtTestVersion): File = {
     val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val build = new File(dir, "build.sbt")
@@ -88,7 +89,7 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithNoMain(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+  def makeDummySbtProjectWithNoMain(relativeDir: String, sbtVersion: String = defaultSbtTestVersion): File = {
     val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val main = new File(dir, "src/main/scala/hello.scala")
@@ -98,7 +99,7 @@ class OneFailTest {
     dir
   }
 
-  def makeDummySbtProjectWithMultipleMain(relativeDir: String, sbtVersion: String = "0.12.4"): File = {
+  def makeDummySbtProjectWithMultipleMain(relativeDir: String, sbtVersion: String = defaultSbtTestVersion): File = {
     val dir = makeDummySbtProject(relativeDir, sbtVersion)
 
     val main = new File(dir, "src/main/scala/hello.scala")
@@ -110,4 +111,14 @@ object Main3 extends App { println("Hello World 3") }
 
     dir
   }
+}
+
+object TestUtil {
+  private val sbtVersionUsedToCompileTests = properties.SbtRcProperties.SBT_VERSION
+  val sbt12TestVersion = "0.12.4"
+  val sbt13TestVersion = "0.13.0"
+  def defaultSbtTestVersion = sbt12TestVersion
+
+  if (!(sbtVersionUsedToCompileTests == sbt12TestVersion || sbtVersionUsedToCompileTests == sbt13TestVersion))
+    throw new RuntimeException("One of the versions we use to test should probably be the one we build with just to save downloads")
 }

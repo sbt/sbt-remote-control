@@ -15,7 +15,7 @@ import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
 /** Ensures that we can make requests and receive responses from our children. */
 class CanRunPlay22Sbt13Project extends SbtProcessLauncherTest {
-  val dummy = utils.makeEmptySbtProject("runPlay22", "0.13.0")
+  val dummy = utils.makeEmptySbtProject("runPlay22", TestUtil.sbt13TestVersion)
   val plugins = new File(dummy, "project/plugins.sbt")
   // TODO - Abstract out plugin version to test more than one play instance...
   IO.write(plugins,
@@ -110,8 +110,8 @@ object ApplicationBuild extends Build {
     }
   } catch {
     case t: TimeoutException if receivedSocketInfo =>
-      // Ignore.  It's ok to not be able to cancel for now, since activator just kills the entire
-      // sbt instance when it needs to cancel things.
+    // Ignore.  It's ok to not be able to cancel for now, since activator just kills the entire
+    // sbt instance when it needs to cancel things.
     case t: TimeoutException =>
       sys.error("Failed to start play server before timing out!")
   } finally {

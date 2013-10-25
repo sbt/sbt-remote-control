@@ -52,7 +52,7 @@ abstract class CanGetDefaultMain(val sbtVersion: String, val forceMain2: Boolean
   }
 }
 
-class CanGetDefaultMainSbt12 extends CanGetDefaultMain("0.12.4", forceMain2 = false)
-class CanGetDefaultMainSbt13 extends CanGetDefaultMain("0.13.0", forceMain2 = false)
-class CanGetForcedDefaultMainSbt12 extends CanGetDefaultMain("0.12.4", forceMain2 = true)
-class CanGetForcedDefaultMainSbt13 extends CanGetDefaultMain("0.13.0", forceMain2 = true)
+class CanGetDefaultMainSbt12 extends CanGetDefaultMain(TestUtil.sbt12TestVersion, forceMain2 = false)
+class CanGetDefaultMainSbt13 extends CanGetDefaultMain(TestUtil.sbt13TestVersion, forceMain2 = false)
+class CanGetForcedDefaultMainSbt12 extends CanGetDefaultMain(TestUtil.sbt12TestVersion, forceMain2 = true)
+class CanGetForcedDefaultMainSbt13 extends CanGetDefaultMain(TestUtil.sbt13TestVersion, forceMain2 = true)

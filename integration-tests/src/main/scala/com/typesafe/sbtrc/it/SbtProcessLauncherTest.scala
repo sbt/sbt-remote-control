@@ -99,7 +99,21 @@ trait SbtProcessLauncherTest extends IntegrationTest {
         // sort test events by the test name since they
         // otherwise arrive in undefined order
         case (a: protocol.TestEvent, b: protocol.TestEvent) =>
-          a.name.compareTo(b.name)
+          val r1 = a.name.compareTo(b.name)
+          if (r1 == 0) {
+            // if same name, sort by other fields
+            val r2 = a.outcome.toString.compareTo(b.outcome.toString)
+            if (r2 == 0) {
+              if (a.equals(b))
+                0
+              else
+                throw new AssertionError(s"TestEvent are different but don't know how to sort them ${a} ${b}")
+            } else {
+              r2
+            }
+          } else {
+            r1
+          }
         // leave it alone
         case (a, b) =>
           0
