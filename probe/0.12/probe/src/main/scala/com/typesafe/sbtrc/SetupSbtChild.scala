@@ -16,10 +16,9 @@ import scala.util.matching.Regex
 import com.typesafe.sbt.ui
 import scala.util.parsing.json._
 import com.typesafe.sbtrc.controller.PlaySupport
-import com.typesafe.sbtrc.controller.ParamsHelper._
 import scala.annotation.tailrec
-
 import SbtCustomHacks._
+import com.typesafe.sbtrc.ipc.JsonWriter
 
 object SetupSbtChild extends (State => State) {
 
@@ -101,9 +100,9 @@ object SetupSbtChild extends (State => State) {
           // we send CancelResponse when the context is closed (i.e. the task in fact exits)
         }
         ui.Canceled
-      case protocol.Envelope(serial, replyTo, protocol.GenericRequest(sendEvents, taskName, paramsMap)) =>
-        ui.Request(taskName, { (state, handler) =>
-          handleRequest(serial, taskName, controller.ParamsHelper.fromMap(paramsMap), state, handler)
+      case protocol.Envelope(serial, replyTo, request: protocol.Request) =>
+        ui.Request[protocol.Request, protocol.Response](request, { (state, handler) =>
+          handleRequest(serial, request, state, handler)
         }, { error =>
           client.replyJson(serial, protocol.ErrorResponse(error))
         })
@@ -117,8 +116,8 @@ object SetupSbtChild extends (State => State) {
     @volatile var cancelSerial = 0L
     override def isCanceled = cancelSerial != 0L
     override def updateProgress(progress: ui.Progress, status: Option[String]) = {} // TODO
-    override def sendEvent(id: String, event: ui.Params) = {
-      client.replyJson(serial, protocol.GenericEvent(task = taskName, id = id, params = event.toMap))
+    override def sendEvent(id: String, event: Map[String, Any]) = {
+      client.replyJson(serial, protocol.GenericEvent(id = id, params = event))
     }
     override def take(): ui.Status = {
       blockForStatus(this)
@@ -141,14 +140,14 @@ object SetupSbtChild extends (State => State) {
     port
   }
 
-  private def handleRequest(serial: Long, taskName: String, params: ui.Params, origState: State, handler: controller.RequestHandler): State = {
+  private def handleRequest(serial: Long, request: protocol.Request, origState: State, handler: controller.RequestHandler): State = {
     try {
       client.replyJson(serial, protocol.RequestReceivedEvent)
-      val context = new ProbedContext(serial, taskName)
+      val context = new ProbedContext(serial, request.simpleName)
       try {
-        val (newState, replyParams) = handler(origState, context, params)
-        client.replyJson(serial, protocol.GenericResponse(name = taskName,
-          params = replyParams.toMap))
+        val (newState, msg) = handler(origState, context, request)
+        import protocol.Envelope.MessageStructure
+        client.replyJson(serial, msg)(JsonWriter.jsonWriter(MessageStructure))
         newState
       } finally {
         // this sends any pending CancelResponse
@@ -157,7 +156,7 @@ object SetupSbtChild extends (State => State) {
     } catch {
       case e: Exception =>
         client.replyJson(serial,
-          protocol.ErrorResponse("exception during sbt task: " + taskName + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
+          protocol.ErrorResponse("exception during sbt task: " + request.simpleName + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
         origState
     }
   }
@@ -167,13 +166,12 @@ object SetupSbtChild extends (State => State) {
       case protocol.Envelope(serial, replyTo, protocol.CancelRequest) =>
         client.replyJson(serial, protocol.ErrorResponse("No active task to cancel"))
         origState
-      case protocol.Envelope(serial, replyTo, protocol.GenericRequest(sendEvents, taskName, paramsMap)) =>
-        controller.findHandler(taskName, origState) map { handler =>
-          val params = controller.ParamsHelper.fromMap(paramsMap)
-          val newState = handleRequest(serial, taskName, params, origState, handler)
+      case protocol.Envelope(serial, replyTo, request: protocol.Request) =>
+        controller.findHandler(request, origState) map { handler =>
+          val newState = handleRequest(serial, request, origState, handler)
           newState
         } getOrElse {
-          client.replyJson(req.serial, protocol.ErrorResponse("SBT 12 - No handler for: " + taskName))
+          client.replyJson(req.serial, protocol.ErrorResponse("SBT 12 - No handler for: " + request.simpleName))
           origState
         }
       case _ => {

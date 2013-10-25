@@ -1,7 +1,7 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.{ Context => UIContext, Params }
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import _root_.sbt._
 import sbt.Keys._
 import sbt.Defaults._
@@ -11,7 +11,6 @@ import SbtUtil.extractWithRef
 import SbtUtil.makeAppendSettings
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
-import protocol.TaskNames
 import sbt.ConfigKey.configurationToKey
 import sbt.Project.richInitializeTask
 import sbt.Scoped.inputScopedToKey
@@ -20,14 +19,9 @@ import sbt.Scoped.taskScopedToKey
 object DefaultsShim {
 
   import SbtUtil._
-  import protocol.TaskNames
 
-  private def sendEvent(ui: UIContext, id: String, paramsMap: Map[String, Any]): Unit = {
-    ui.sendEvent(id, ParamsHelper.fromMap(paramsMap))
-  }
-
-  private[sbtrc] def makeResponseParams(specific: protocol.SpecificResponse): Params = {
-    ParamsHelper.fromMap(specific.toGeneric.params)
+  private def sendEvent[T <: protocol.Event](ui: UIContext, id: String, event: T)(implicit struct: protocol.RawStructure[T]): Unit = {
+    ui.sendEvent(id, struct(event))
   }
 
   private class OurTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener]]) extends TestReportListener {
@@ -57,7 +51,7 @@ object DefaultsShim {
           protocol.TestEvent(detail.testName,
             Option(detail.description),
             outcome,
-            Option(detail.error).map(_.getMessage)).toGeneric.params)
+            Option(detail.error).map(_.getMessage)))
       }
     }
 
@@ -108,89 +102,88 @@ object DefaultsShim {
     s3
   }
 
-  private val nameHandler: RequestHandler = { (origState, ui, params) =>
+  private val nameHandler: RequestHandler = { (origState, ui, request) =>
     val result = extract(origState).get(name)
     // TODO - These are all hacks for now until we have the generic API.
     val hasPlay = controller.isPlayProject(origState)
     val hasConsole = AtmosSupport.isAtmosProject(origState)
     val hasAkka = AkkaSupport.isAkkaProject(origState)
 
-    (origState, makeResponseParams(protocol.NameResponse(result,
+    (origState, protocol.NameResponse(result,
       Map("hasPlay" -> hasPlay,
         "hasAkka" -> hasAkka,
-        "hasConsole" -> hasConsole))))
+        "hasConsole" -> hasConsole)))
   }
 
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
     val (s, result) = extract(origState).runTask(mainClass in Compile in run, origState)
-    (s, makeResponseParams(protocol.MainClassResponse(name = result)))
+    (s, protocol.MainClassResponse(name = result))
   }
 
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
     val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
-    (s, makeResponseParams(protocol.DiscoveredMainClassesResponse(names = result)))
+    (s, protocol.DiscoveredMainClassesResponse(names = result))
   }
 
   private val watchTransitiveSourcesHandler: RequestHandler = { (origState, ui, params) =>
     val (s, result) = extract(origState).runTask(watchTransitiveSources, origState)
-    (s, makeResponseParams(protocol.WatchTransitiveSourcesResponse(files = result)))
+    (s, protocol.WatchTransitiveSourcesResponse(files = result))
   }
 
   private val compileHandler: RequestHandler = { (origState, ui, params) =>
     val (s, result) = extract(origState).runTask(compile in Compile, origState)
-    (s, makeResponseParams(protocol.CompileResponse(success = true)))
+    (s, protocol.CompileResponse(success = true))
   }
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     val shimedState = installShims(origState, ui)
     val s = runInputTask(key, shimedState, args = "", Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true, task = taskName)))
+    (origState, protocol.RunResponse(success = true, task = taskName))
   }
 
-  private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
+  private val runHandler: RequestHandler = makeRunHandler(run in Compile, "run")
 
-  private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
+  private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), "atmos:run")
 
-  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
-    import ParamsHelper._
-    val shimedState = installShims(origState, ui)
-    val klass = params.toMap.get("mainClass")
-      .map(_.asInstanceOf[String])
-      .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(key, shimedState, args = klass, Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = taskName)))
+  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = {
+    case (origState, ui, protocol.RunRequest(_, Some(klass))) =>
+      val shimedState = installShims(origState, ui)
+      val s = runInputTask(key, shimedState, args = klass, Some(ui))
+      (origState, protocol.RunResponse(success = true,
+        task = taskName))
   }
 
-  private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, protocol.TaskNames.runMain)
+  private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, "run-main")
 
-  private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), protocol.TaskNames.runMainAtmos)
+  private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), "atmos:run-main")
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
     val s1 = addTestListener(origState, ui)
     val (s2, result1) = extract(s1).runTask(test in Test, s1)
     val (s3, outcome) = removeTestListener(s2, ui)
-    (s3, makeResponseParams(protocol.TestResponse(outcome)))
+    (s3, protocol.TestResponse(outcome))
   }
 
   private def runCommandHandler(command: String): RequestHandler = { (origState, ui, params) =>
     // TODO - Genericize the command handler.
     val shimedState = installShims(origState, ui)
-    runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
+    // TODO - Command response
+    // Params("application/json", "{}")
+    runCommand(command, shimedState, Some(ui)) -> null
   }
 
-  val findHandler: PartialFunction[String, RequestHandler] = {
-    case TaskNames.name => nameHandler
-    case TaskNames.mainClass => mainClassHandler
-    case TaskNames.discoveredMainClasses => discoveredMainClassesHandler
-    case TaskNames.watchTransitiveSources => watchTransitiveSourcesHandler
-    case TaskNames.compile => compileHandler
-    case TaskNames.run => runHandler
-    case TaskNames.runMain => runMainHandler
-    case TaskNames.runAtmos => runAtmosHandler
-    case TaskNames.runMainAtmos => runMainAtmosHandler
-    case TaskNames.test => testHandler
-    case name @ ("eclipse" | "gen-idea") => runCommandHandler(name)
+  val findHandler: PartialFunction[protocol.Request, RequestHandler] = {
+    case _: protocol.NameRequest => nameHandler
+    case _: protocol.MainClassRequest => mainClassHandler
+    case _: protocol.DiscoveredMainClassesRequest => discoveredMainClassesHandler
+    case _: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler
+    case _: protocol.CompileRequest => compileHandler
+    case protocol.RunRequest(_, None) => runHandler
+    case protocol.RunRequest(_, Some(_)) => runMainHandler
+    //case TaskNames.runAtmos => runAtmosHandler
+    //case TaskNames.runMainAtmos => runMainAtmosHandler
+    case _: protocol.TestRequest => testHandler
+    //case name @ ("eclipse" | "gen-idea") => runCommandHandler(name)
 
   }
 }

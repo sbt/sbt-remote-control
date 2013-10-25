@@ -86,7 +86,10 @@ class ServerActor(serverSocket: ServerSocket, childActor: ActorRef) extends Acto
       } else {
         val server = serverOption.getOrElse(throw new Exception("Impossible, in booted state before server accept?"))
         try {
-          val requestSerial = server.sendJson(req)
+          // TODO - CLeanup how serialization is done!
+          import protocol.Envelope.MessageStructure
+          import ipc.JsonWriter.jsonWriter
+          val requestSerial = server.sendJson(req)(jsonWriter(MessageStructure))
           val pair = (requestSerial -> Requestor(sender, req.sendEvents))
           pendingReplies += pair
           log.debug("  added to pending replies: {}", pair)
@@ -142,13 +145,7 @@ class ServerActor(serverSocket: ServerSocket, childActor: ActorRef) extends Acto
             while (true) {
               val wire = server.receive()
               log.debug("  server received from child: {}", wire)
-              val envelope = protocol.Envelope(wire) match {
-                // specific-ify the message for type-safety
-                case protocol.Envelope(serial, replyTo, generic: protocol.GenericMessage) =>
-                  generic.toSpecific.map(specific => protocol.Envelope(serial, replyTo, specific))
-                    .getOrElse(protocol.Envelope(serial, replyTo, generic))
-                case other => other
-              }
+              val envelope = protocol.Envelope(wire)
               selfRef ! envelope
             }
           } finally {

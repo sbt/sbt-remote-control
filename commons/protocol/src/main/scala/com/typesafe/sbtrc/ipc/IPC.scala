@@ -1,4 +1,5 @@
-package com.typesafe.sbtrc.ipc
+package com.typesafe.sbtrc
+package ipc
 
 import java.net.{ InetAddress, ServerSocket, Socket }
 import java.io.DataInputStream
@@ -32,14 +33,73 @@ object JsonWriter {
   def toJsonArray[T: JsonWriter](ts: Seq[T]): JSONArray = {
     JSONArray((ts map { t => implicitly[JsonWriter[T]].toJson(t) }).toList)
   }
+
+  implicit def jsonWriter[T](implicit s: protocol.RawStructure[T]): JsonWriter[T] =
+    new JsonWriter[T] {
+      def toJson(t: T): JSONType =
+        addJsonToParams(s(t))
+      private def addJsonToAny(value: Any): Any = value match {
+        // null is allowed in json
+        case null => null
+        // keep wrappers but ensure we wrap any nested items
+        case JSONObject(v) => addJsonToAny(v)
+        case JSONArray(v) => addJsonToAny(v)
+        // add wrappers if missing
+        case s: Seq[_] => JSONArray(s.map(addJsonToAny(_)).toList)
+        case m: Map[_, _] => JSONObject(m map {
+          case (key: String, value) =>
+            (key -> addJsonToAny(value))
+          case whatever =>
+            throw new RuntimeException("Invalid map entry in params " + whatever)
+        })
+        case s: String => s
+        case n: Number => n
+        case b: Boolean => b
+        case whatever => throw new RuntimeException("not allowed in params: " + whatever)
+      }
+
+      private def addJsonToParams(params: Any): JSONObject = {
+        addJsonToAny(params).asInstanceOf[JSONObject]
+      }
+    }
 }
 
 trait JsonReader[+T] {
   def fromJson(s: JSONType): T
 }
+object JsonReader {
+  implicit def fromRaw[T](implicit s: protocol.RawStructure[T]): JsonReader[T] =
+    new JsonReader[T] {
+      def fromJson(json: JSONType): T = {
+        val resultOpt = s.unapply(cleanJsonFromParams(json))
+        resultOpt.getOrElse(sys.error("Unable to deserialize json!"))
+      }
+      private def cleanJsonFromAny(value: Any): Any = value match {
+        // null is allowed in json
+        case null => null
+        // strip the scala JSON wrappers off, if present; this
+        // is basically due to not being sure when Scala's json stuff
+        // will use these.
+        case JSONObject(v) => cleanJsonFromAny(v)
+        case JSONArray(v) => cleanJsonFromAny(v)
+        // all sequences must be lists of sanitized values
+        case s: Seq[_] => s.map(cleanJsonFromAny(_)).toList
+        case m: Map[_, _] => m map {
+          case (key: String, value) =>
+            (key -> cleanJsonFromAny(value))
+          case whatever =>
+            throw new RuntimeException("Invalid map entry in params " + whatever)
+        }
+        case s: String => s
+        case n: Number => n
+        case b: Boolean => b
+        case whatever => throw new RuntimeException("not allowed in params: " + whatever)
+      }
 
-trait JsonRepresentation[T] extends JsonWriter[T] with JsonReader[T] {
-
+      private def cleanJsonFromParams(params: Any): Map[String, Any] = {
+        cleanJsonFromAny(params).asInstanceOf[Map[String, Any]]
+      }
+    }
 }
 
 // This is thread-safe in that it should send/receive each message atomically,

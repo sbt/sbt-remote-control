@@ -1,7 +1,7 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.{ Context => UIContext, Params }
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import _root_.sbt._
 import sbt.Keys._
 import sbt.Defaults._
@@ -12,8 +12,6 @@ import SbtUtil.extractWithRef
 import SbtUtil.makeAppendSettings
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
-import protocol.TaskNames
-import ParamsHelper.p2Helper
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
 
@@ -48,12 +46,15 @@ class UiTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener
         protocol.TestEvent(detail.fullyQualifiedName,
           None, // No descriptions in new interface?
           outcome,
-          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)).toGeneric.params)
+          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)))
     }
   }
 
-  private def sendEvent(ui: UIContext, id: String, paramsMap: Map[String, Any]): Unit = {
-    ui.sendEvent(id, ParamsHelper.fromMap(paramsMap))
+  private def sendEvent[T](ui: UIContext, id: String, msg: T)(implicit struct: protocol.RawStructure[T]): Unit = {
+    sendEventRaw(ui, id, struct(msg))
+  }
+  private def sendEventRaw(ui: UIContext, id: String, paramsMap: Map[String, Any]): Unit = {
+    ui.sendEvent(id, paramsMap)
   }
 
   override def endGroup(name: String, t: Throwable): Unit = {}

@@ -23,6 +23,14 @@ case class SerializableBuildValue[T](
   val value = Some(rawValue)
   val stringValue = rawValue.toString
   
+  // We need to redo equality to ignore the serializer here.
+  override def equals(o: Any): Boolean =
+    o match {
+      case x: SerializableBuildValue[_] => x.rawValue == rawValue
+      case _ => false
+    }
+  
+  
   override def toString = "Serialized(with=" + serializer + ", toString=" + stringValue +")"
 }
 /** Represents a value we cannot send over the wire. */
@@ -146,7 +154,7 @@ case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
 }
 object TaskSuccess {
   implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]) = 
-    TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskSuccess[T]]]
+    TaskResult.MyStructure[T].asInstanceOf[RawStructure[TaskSuccess[T]]]
 }
 /** This represents that there was an error running a task, and returns the error message. */
 case class TaskFailure[T](message: String) extends TaskResult[T] {
@@ -154,11 +162,11 @@ case class TaskFailure[T](message: String) extends TaskResult[T] {
 }
 object TaskFailure {
   implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]) = 
-    TaskResult.MyParamertizer[T].asInstanceOf[RawStructure[TaskFailure[T]]]
+    TaskResult.MyStructure[T].asInstanceOf[RawStructure[TaskFailure[T]]]
 }
 
 object TaskResult {
-  implicit def MyParamertizer[T](implicit p: RawStructure[BuildValue[T]]): RawStructure[TaskResult[T]] =
+  implicit def MyStructure[T](implicit p: RawStructure[BuildValue[T]]): RawStructure[TaskResult[T]] =
     new RawStructure[TaskResult[T]] {
       def apply(t: TaskResult[T]): Map[String,Any] = 
         t match {

@@ -8,7 +8,7 @@ import com.typesafe.sbtrc.properties.SbtRcProperties
 
 package object controller {
 
-  type RequestHandler = (State, Context, Params) => (State, Params)
+  type RequestHandler = (State, Context, protocol.Request) => (State, protocol.Response)
 
 
   // TODO - Specify project too...

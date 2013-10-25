@@ -22,12 +22,12 @@ class MockSbtProcessFactory extends SbtProcessFactory {
           case protocol.CompileRequest(_) =>
             sender ! protocol.CompileResponse(success = true)
           case protocol.RunRequest(_, mainClass) =>
-            sender ! protocol.RunResponse(success = true, mainClass.map(_ => protocol.TaskNames.runMain).getOrElse(protocol.TaskNames.run))
+            sender ! protocol.RunResponse(success = true, mainClass.map(_ => "run-main").getOrElse("run"))
           case protocol.TestRequest(_) =>
             sender ! protocol.TestResponse(outcome = protocol.TestPassed)
           case protocol.CancelRequest =>
             sender ! protocol.CancelResponse
-          case req: protocol.GenericRequest =>
+          case req =>
             sender ! protocol.ErrorResponse("GenericRequest not supported here yet")
         }
     }

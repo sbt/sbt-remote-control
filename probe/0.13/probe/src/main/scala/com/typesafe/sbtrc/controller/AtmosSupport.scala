@@ -1,10 +1,9 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.{ Context => UIContext, Params, SimpleJsonMessage }
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import com.typesafe.sbt.ui
 import java.lang.reflect.{ Method, Proxy }
-import com.typesafe.sbt.ui.SimpleJsonMessage
 import scala.util.parsing.json.JSONObject
 import sbt._
 
@@ -20,7 +19,7 @@ object AtmosSupport {
     val key = exampleSetting.key
     def eventMonitor(uri: URI): Unit = {
       // TODO - Formalize this as a case class?
-      ui.sendEvent("atmosStarted", SimpleJsonMessage(JSONObject(Map("uri" -> uri.toASCIIString()))))
+      ui.sendEvent("atmosStarted", Map("uri" -> uri.toASCIIString()))
     }
     val listener: URI => Unit = eventMonitor _
     hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, listener)

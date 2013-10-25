@@ -9,8 +9,7 @@ import collection.JavaConverters._
 import annotation.tailrec
 import play.core.SBTLink
 import com.typesafe.sbt.ui
-import com.typesafe.sbt.ui.{ Context => UIContext, SimpleJsonMessage }
-import scala.util.parsing.json.JSONObject
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import play.console.Colors
 
 object PlayShimKeys {

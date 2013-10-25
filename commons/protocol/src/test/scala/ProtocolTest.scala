@@ -7,13 +7,11 @@ import com.typesafe.sbtrc._
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import com.typesafe.sbtrc.protocol.SpecificMessage
-import com.typesafe.sbtrc.protocol.GenericMessage
 
 class ProtocolTest {
 
   @Test
-  def testGenericSpecific(): Unit = {
+  def testRawStructure(): Unit = {
     val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
     val build = new java.net.URI("file:///test/project")
     val scope = protocol.SbtScope(project=Some(
@@ -21,26 +19,55 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val specifics = Seq(
-      protocol.RunResponse(success = true, task = protocol.TaskNames.run),
-      protocol.RunResponse(success = false, task = protocol.TaskNames.runMain),
-      protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
-      protocol.SettingValueRequest(scopedKey),
+      // Events
+      protocol.NeedRebootEvent,
+      protocol.NowListeningEvent,
+      protocol.RequestReceivedEvent,
+      protocol.LogEvent(protocol.LogStdOut("Hello, world")),
+      protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
+      protocol.GenericEvent("playServerStarted", Map("port" -> 10)),
+      // Generic API
+      protocol.ErrorResponse("ZOMG"),
       protocol.SettingKeyRequest(keyFilter),
+      protocol.TaskKeyRequest(keyFilter),
       protocol.InputTaskKeyRequest(keyFilter),
-      protocol.TaskKeyRequest(keyFilter))
+      protocol.SettingValueRequest(scopedKey),
+      protocol.TaskValueRequest(scopedKey),
+      protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
+      protocol.KeyListResponse(protocol.KeyList(Nil)),
+      protocol.TaskValueResponse(protocol.TaskSuccess(protocol.BuildValue("Hey"))),
+      protocol.ExecuteCommandRequest("hello"),
+      protocol.ExecuteCommandResponse(),
+      protocol.SettingValueResponse(protocol.TaskFailure("O NOES")),
+      // High level API
+      protocol.NameRequest(true),
+      protocol.NameResponse("foo", Map("hi" -> true)),
+      protocol.MainClassRequest(false),
+      protocol.MainClassResponse(Some("josh")),
+      protocol.DiscoveredMainClassesRequest(true),
+      protocol.DiscoveredMainClassesResponse(Seq("jim", "john")),
+      protocol.WatchTransitiveSourcesRequest(true),
+      protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
+      protocol.CompileRequest(true),
+      protocol.CompileResponse(false),
+      protocol.RunResponse(success = true, task = "run"),
+      protocol.RunResponse(success = false, task = "run-main"),
+      protocol.TestRequest(true),
+      protocol.TestResponse(protocol.TestError)
+    )
     for (s <- specifics) {
-      val roundtrippedOption = s.toGeneric.toSpecific
-      assertEquals(Some(s), roundtrippedOption)
+      val struct = com.typesafe.sbtrc.protocol.Envelope.MessageStructure
+      val roundtrippedOption = struct unapply struct(s)
+      assertEquals("Failed to serialize: " + s, Some(s), roundtrippedOption)
     }
 
     // and through json
     for (s <- specifics) {
-      val roundtrippedOption =
-        protocol.Message.JsonRepresentationOfMessage.fromJson(protocol.Message.JsonRepresentationOfMessage.toJson(s.toGeneric)) match {
-          case m: GenericMessage => m.toSpecific
-          case whatever => throw new AssertionError("got wrong json parse result: " + whatever)
-        }
-      assertEquals(Some(s), roundtrippedOption)
+      val struct = com.typesafe.sbtrc.protocol.Envelope.MessageStructure
+      val writer = com.typesafe.sbtrc.ipc.JsonWriter.jsonWriter(struct)
+      val reader = com.typesafe.sbtrc.ipc.JsonReader.fromRaw(struct)
+      val roundtrippedOption = reader.fromJson(writer.toJson(s)) 
+      assertEquals(s, roundtrippedOption)
     }
   }
 
@@ -109,7 +136,7 @@ class ProtocolTest {
     testClientServer(
       { (client) =>
         protocol.Envelope(client.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.GenericRequest(_, protocol.TaskNames.name, _)) =>
+          case protocol.Envelope(serial, replyTo, protocol.NameRequest(true)) =>
             client.replyJson(serial, protocol.LogEvent(protocol.LogMessage("info", "a message")))
             client.replyJson(serial, protocol.NameResponse("foobar"))
           case protocol.Envelope(serial, replyTo, other) =>
@@ -125,7 +152,7 @@ class ProtocolTest {
         }
         assertEquals("a message", logMessage)
         val name = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, r: protocol.GenericResponse) => r.params("name").asInstanceOf[String]
+          case protocol.Envelope(serial, replyTo, protocol.NameResponse(name, _)) => name
           case protocol.Envelope(serial, replyTo, r) =>
             throw new AssertionError("unexpected response: " + r)
         }
@@ -138,7 +165,7 @@ class ProtocolTest {
     testClientServer(
       { (client) =>
         protocol.Envelope(client.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.GenericRequest(_, protocol.TaskNames.discoveredMainClasses, _)) =>
+          case protocol.Envelope(serial, replyTo, protocol.DiscoveredMainClassesRequest(_)) =>
             client.replyJson(serial, protocol.DiscoveredMainClassesResponse(Nil))
           case protocol.Envelope(serial, replyTo, other) =>
             client.replyJson(serial, protocol.ErrorResponse("did not understand request: " + other))
@@ -147,7 +174,7 @@ class ProtocolTest {
       { (server) =>
         server.sendJson(protocol.DiscoveredMainClassesRequest(sendEvents = true))
         val names = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, r: protocol.GenericResponse) => r.params("names").asInstanceOf[Seq[String]]
+          case protocol.Envelope(serial, replyTo, r: protocol.DiscoveredMainClassesResponse) => r.names
           case protocol.Envelope(serial, replyTo, r) =>
             throw new AssertionError("unexpected response: " + r)
         }

@@ -4,28 +4,9 @@ import scala.util.parsing.json.JSONObject
 import scala.util.parsing.json.Parser
 import sbt.State
 
-// API for gluing a UI to an sbt task, with generic invocation
-
-// contentType is as in the HTTP header, value as in HTTP body.
-// Typically application/json and a JSON string.
-case class Params(contentType: String, value: String)
-
-// TODO - Does this belong here?
-// Maybe we can make a simpler API that is usable
-// from SBT plugins and doesn't require exposing a full JSON api.
-/** Helper class to make sending JSON objects simpler. */
-case class SimpleJsonMessage(json: JSONObject)
-object SimpleJsonMessage {
-  def apply(json: String): Params =
-    Params("application/json", json)
-
-  implicit def toParams(msg: SimpleJsonMessage): Params =
-    Params("application/json", msg.json.toString)
-}
-
 sealed trait Status
 // if you get this, you MUST call either handle or sendError, but not both.
-case class Request(name: String, handle: (State, (State, Context, Params) => (State, Params)) => State, sendError: String => Unit) extends Status
+case class Request[RequestType, ResponseType](requst: RequestType, handle: (State, (State, Context,RequestType) => (State, ResponseType)) => State, sendError: String => Unit) extends Status
 // you get this if you block for a message and there's no UI to get them from
 case object NoUIPresent extends Status
 // cancellation was just requested for the current task
@@ -51,7 +32,7 @@ trait Context {
   // non-None there's a message displayed (e.g. "Compiling foo.scala")
   def updateProgress(progress: Progress, status: Option[String] = None): Unit
 
-  def sendEvent(id: String, event: Params): Unit
+  def sendEvent(id: String, event: Map[String,Any]): Unit
 
   // block for any messages during the task, if your task
   // can process messages.
@@ -67,7 +48,7 @@ object Context {
   val noop = new Context() {
     override def isCanceled = false
     override def updateProgress(progress: Progress, status: Option[String]) = {}
-    override def sendEvent(id: String, event: Params) = {}
+    override def sendEvent(id: String, event: Map[String,Any]) = {}
     override def take(): Status = NoUIPresent
     override def peek(): Option[Status] = None
     override def toString: String = "NoopUiContext"
