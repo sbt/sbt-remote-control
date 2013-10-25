@@ -53,7 +53,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       var askedToStop = false
       context.setReceiveTimeout(120.seconds)
 
-      val request = RunRequest(sendEvents = true, mainClass = None)
+      val request = RunRequest(sendEvents = true, mainClass = None, useAtmos = true)
       // TODO - Fix atmos...
       //GenericRequest(sendEvents = true, taskName, taskParams)
       // Let's issue two requests, one for name and one for other.

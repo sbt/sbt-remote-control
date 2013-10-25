@@ -146,7 +146,7 @@ object DefaultsShim {
   private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), "atmos:run")
 
   private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = {
-    case (origState, ui, protocol.RunRequest(_, Some(klass))) =>
+    case (origState, ui, protocol.RunRequest(_, Some(klass), _)) =>
       val shimedState = installShims(origState, ui)
       val s = runInputTask(key, shimedState, args = klass, Some(ui))
       (origState, protocol.RunResponse(success = true,
@@ -164,12 +164,12 @@ object DefaultsShim {
     (s3, protocol.TestResponse(outcome))
   }
 
-  private def runCommandHandler(command: String): RequestHandler = { (origState, ui, params) =>
+  private def runCommandHandler(command: String): RequestHandler = { (origState, ui, request) =>
     // TODO - Genericize the command handler.
     val shimedState = installShims(origState, ui)
     // TODO - Command response
     // Params("application/json", "{}")
-    runCommand(command, shimedState, Some(ui)) -> null
+    runCommand(command, shimedState, Some(ui)) -> protocol.ExecuteCommandResponse()
   }
 
   val findHandler: PartialFunction[protocol.Request, RequestHandler] = {
@@ -178,12 +178,12 @@ object DefaultsShim {
     case _: protocol.DiscoveredMainClassesRequest => discoveredMainClassesHandler
     case _: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler
     case _: protocol.CompileRequest => compileHandler
-    case protocol.RunRequest(_, None) => runHandler
-    case protocol.RunRequest(_, Some(_)) => runMainHandler
-    //case TaskNames.runAtmos => runAtmosHandler
-    //case TaskNames.runMainAtmos => runMainAtmosHandler
+    case protocol.RunRequest(_, None, false) => runHandler
+    case protocol.RunRequest(_, Some(_), false) => runMainHandler
+    case protocol.RunRequest(_, None, true) => runAtmosHandler
+    case protocol.RunRequest(_, Some(_), true) => runMainAtmosHandler
     case _: protocol.TestRequest => testHandler
-    //case name @ ("eclipse" | "gen-idea") => runCommandHandler(name)
+    case protocol.ExecuteCommandRequest(name, _) => runCommandHandler(name)
 
   }
 }

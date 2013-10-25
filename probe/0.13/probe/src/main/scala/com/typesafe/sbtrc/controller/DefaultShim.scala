@@ -220,11 +220,11 @@ object DefaultsShim {
     case _: protocol.DiscoveredMainClassesRequest => discoveredMainClassesHandler
     case _: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler
     case _: protocol.CompileRequest => compileHandler
-    case protocol.RunRequest(_, None) => runHandler
-    case protocol.RunRequest(_, Some(_)) => runMainHandler
+    case protocol.RunRequest(_, None, false) => runHandler
+    case protocol.RunRequest(_, Some(_), false) => runMainHandler
     // TODO - Fix Atmos run commands!
-    //case TaskNames.runAtmos => runAtmosHandler
-    //case TaskNames.runMainAtmos => runMainAtmosHandler
+    case protocol.RunRequest(_, None, true) => runAtmosHandler
+    case protocol.RunRequest(_, Some(_), true) => runMainAtmosHandler
     case _: protocol.TestRequest => testHandler
     // Generic API
     case _: protocol.SettingKeyRequest => settingKeyHandler

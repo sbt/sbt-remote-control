@@ -21,7 +21,7 @@ class MockSbtProcessFactory extends SbtProcessFactory {
             sender ! protocol.WatchTransitiveSourcesResponse(Nil)
           case protocol.CompileRequest(_) =>
             sender ! protocol.CompileResponse(success = true)
-          case protocol.RunRequest(_, mainClass) =>
+          case protocol.RunRequest(_, mainClass, _) =>
             sender ! protocol.RunResponse(success = true, mainClass.map(_ => "run-main").getOrElse("run"))
           case protocol.TestRequest(_) =>
             sender ! protocol.TestResponse(outcome = protocol.TestPassed)

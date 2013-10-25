@@ -179,7 +179,7 @@ case class CompileResponse(success: Boolean) extends Response
 /**
  * Requests for sbt to run a given main class on a project.
  */
-case class RunRequest(sendEvents: Boolean, mainClass: Option[String]) extends Request 
+case class RunRequest(sendEvents: Boolean, mainClass: Option[String], useAtmos: Boolean = false) extends Request 
 case class RunResponse(success: Boolean, task: String) extends Response 
 
 sealed trait TestOutcome {
