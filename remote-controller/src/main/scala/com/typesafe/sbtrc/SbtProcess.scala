@@ -35,7 +35,13 @@ class SbtProcessUnderlyingActor(supervisor: ActorRef, workingDir: File, sbtProce
   private var processTerminated = false
   private var needsToReboot = false
 
-  override val supervisorStrategy = SupervisorStrategy.stoppingStrategy
+  // this is just SupervisorStrategy.stoppingStrategy except it doesn't log the exception.
+  import akka.actor.SupervisorStrategy
+  override val supervisorStrategy = OneForOneStrategy(loggingEnabled = false) {
+    case e: Exception =>
+      log.info(s"Underlying SBT actor stopped with: ${e.getClass.getName}: ${e.getMessage}")
+      SupervisorStrategy.Stop
+  }
 
   // TODO the "textMode=true" here shouldn't be needed but scala 2.9.2 seems to not
   // realize that it has a default value? maybe some local quirk on my system?
