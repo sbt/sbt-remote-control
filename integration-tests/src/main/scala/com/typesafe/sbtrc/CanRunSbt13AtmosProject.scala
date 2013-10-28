@@ -86,6 +86,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
           // If we haven't received any events in a while, here's what we do.
           result.failure(new RuntimeException("Nothing has happened in a long time, giving up"))
           context stop self
+        case ErrorResponse(message) =>
+          result.failure(new RuntimeException(message))
+          context stop self
         case log: LogEvent =>
         // ignore log event
         case e: Event =>

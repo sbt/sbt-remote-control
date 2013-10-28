@@ -253,13 +253,15 @@ package object protocol {
   implicit object RunRequestStructure extends RawStructure[RunRequest] {
     def apply(msg: RunRequest): Map[String, Any] = {
       Map("request" -> "RunRequest",
+          "useAtmos" -> msg.useAtmos,
           "sendEvents" -> msg.sendEvents) ++
           msg.mainClass.map("mainClass" -> _)
     }
     def unapply(obj: Map[String,Any]): Option[RunRequest] = {
       obj.get("request").filter(_ == "RunRequest").map { _ =>
         RunRequest(obj("sendEvents").asInstanceOf[Boolean],
-            obj.get("mainClass").asInstanceOf[Option[String]])  
+            obj.get("mainClass").asInstanceOf[Option[String]],
+            obj("useAtmos").asInstanceOf[Boolean])  
       }
     }
   }

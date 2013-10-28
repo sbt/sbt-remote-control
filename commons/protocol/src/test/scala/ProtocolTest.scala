@@ -50,6 +50,8 @@ class ProtocolTest {
       protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
       protocol.CompileRequest(true),
       protocol.CompileResponse(false),
+      protocol.RunRequest(sendEvents = true, mainClass = Some("hi"), useAtmos = true),
+      protocol.RunRequest(sendEvents = false, mainClass = None, useAtmos = false),
       protocol.RunResponse(success = true, task = "run"),
       protocol.RunResponse(success = false, task = "run-main"),
       protocol.TestRequest(true),

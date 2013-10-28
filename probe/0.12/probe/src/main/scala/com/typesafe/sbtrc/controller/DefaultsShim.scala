@@ -15,6 +15,7 @@ import sbt.ConfigKey.configurationToKey
 import sbt.Project.richInitializeTask
 import sbt.Scoped.inputScopedToKey
 import sbt.Scoped.taskScopedToKey
+import com.typesafe.sbtrc.PoorManDebug
 
 object DefaultsShim {
 
@@ -137,6 +138,7 @@ object DefaultsShim {
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     val shimedState = installShims(origState, ui)
+    PoorManDebug.trace("Running task: " + key)
     val s = runInputTask(key, shimedState, args = "", Some(ui))
     (origState, protocol.RunResponse(success = true, task = taskName))
   }

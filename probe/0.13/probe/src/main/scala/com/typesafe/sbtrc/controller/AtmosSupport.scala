@@ -19,6 +19,7 @@ object AtmosSupport {
     val key = exampleSetting.key
     def eventMonitor(uri: URI): Unit = {
       // TODO - Formalize this as a case class?
+      PoorManDebug.trace("Sending atmos uri: " + uri.toASCIIString)
       ui.sendEvent("atmosStarted", Map("uri" -> uri.toASCIIString()))
     }
     val listener: URI => Unit = eventMonitor _
