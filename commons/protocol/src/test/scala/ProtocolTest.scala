@@ -41,7 +41,14 @@ class ProtocolTest {
       protocol.SettingValueResponse(protocol.TaskFailure("O NOES")),
       // High level API
       protocol.NameRequest(true),
-      protocol.NameResponse("foo", Map("hi" -> true)),
+      protocol.NameResponse(Seq(
+          protocol.ProjectInfo(
+            protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
+            "Johnny Test",
+            true,
+            Map("awesome" -> true)
+          )
+      )),
       protocol.MainClassRequest(false),
       protocol.MainClassResponse(Some("josh")),
       protocol.DiscoveredMainClassesRequest(true),
@@ -140,7 +147,14 @@ class ProtocolTest {
         protocol.Envelope(client.receive()) match {
           case protocol.Envelope(serial, replyTo, protocol.NameRequest(true)) =>
             client.replyJson(serial, protocol.LogEvent(protocol.LogMessage("info", "a message")))
-            client.replyJson(serial, protocol.NameResponse("foobar"))
+            client.replyJson(serial, protocol.NameResponse(Seq(
+          protocol.ProjectInfo(
+            protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
+            "foobar",
+            true,
+            Map("awesome" -> true)
+          )
+      )))
           case protocol.Envelope(serial, replyTo, other) =>
             client.replyJson(serial, protocol.ErrorResponse("did not understand request: " + other))
         }
@@ -154,7 +168,9 @@ class ProtocolTest {
         }
         assertEquals("a message", logMessage)
         val name = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.NameResponse(name, _)) => name
+          case protocol.Envelope(serial, replyTo, protocol.NameResponse(Seq(
+            protocol.ProjectInfo(_, name, _, _)    
+          ))) => name
           case protocol.Envelope(serial, replyTo, r) =>
             throw new AssertionError("unexpected response: " + r)
         }

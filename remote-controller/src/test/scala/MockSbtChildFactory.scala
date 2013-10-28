@@ -14,7 +14,11 @@ class MockSbtProcessFactory extends SbtProcessFactory {
           sender ! protocol.LogEvent(protocol.LogMessage(level = "info", message = "Hello!"))
         req match {
           case protocol.NameRequest(_) =>
-            sender ! protocol.NameResponse("foo")
+            sender ! protocol.NameResponse(Seq(protocol.ProjectInfo(
+              protocol.ProjectReference(new java.net.URI("file://test"), "test"),
+              "test",
+              true,
+              Map.empty)))
           case protocol.DiscoveredMainClassesRequest(_) =>
             sender ! protocol.DiscoveredMainClassesResponse(Nil)
           case protocol.WatchTransitiveSourcesRequest(_) =>

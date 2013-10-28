@@ -65,10 +65,11 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
         // Here we capture the result of the Name task
         case x: NameResponse =>
           log.debug("Received name response " + x)
+          val headProject = x.projects.head
           receivedNameInfo =
-            (x.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
-              !x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
-              x.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
+            (headProject.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
+              !headProject.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
+              headProject.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
         // Here we capture the result of the run task.
         case x: RunResponse =>
           log.debug("Received run response " + x)

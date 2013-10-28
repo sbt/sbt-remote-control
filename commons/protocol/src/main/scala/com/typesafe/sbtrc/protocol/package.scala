@@ -173,16 +173,35 @@ package object protocol {
   }
   
   implicit object nameRequestStructure extends RequestWithSendEventsStructure[NameRequest]("NameRequest", NameRequest.apply _)
-  implicit object nameResponseStructure extends RawStructure[NameResponse] {
-    override def apply(t: NameResponse): Map[String, Any] =
-        Map("response" -> "NameResponse", 
-            "name" -> t.name,
+  implicit object ProjectInfoStructure extends RawStructure[ProjectInfo] {
+    override def apply(t: ProjectInfo): Map[String, Any] =
+        Map("name" -> t.name,
+            "ref" -> ProjectReference.MyStructure(t.ref),
+            "default" -> t.default,
             "attributes" -> t.attributes)
+    override def unapply(map: Map[String, Any]): Option[ProjectInfo] =
+      // TODO - All of this optional?
+     ProjectReference.MyStructure.unapply(map("ref").asInstanceOf[Map[String,Any]]).map { ref => 
+       ProjectInfo(
+    	 ref,
+         map("name").asInstanceOf[String],
+         map("default").asInstanceOf[Boolean],
+         map("attributes").asInstanceOf[Map[String,Any]]
+       )
+     }
+  }
+  implicit object NameResponseStructure extends RawStructure[NameResponse] {
+    private val s = RawStructure.get[Seq[ProjectInfo]]
+    override def apply(t: NameResponse): Map[String, Any] =
+        Map("response" -> "NameResponse",
+            "projects" -> s(t.projects))
     override def unapply(map: Map[String, Any]): Option[NameResponse] =
+      // TODO - All of this optional?
      map.get("response").filter(_ == "NameResponse").map { _ => 
        NameResponse(
-         map("name").asInstanceOf[String],
-         map("attributes").asInstanceOf[Map[String,Any]]
+         s.unapply(map("projects").asInstanceOf[Map[String, Any]]).getOrElse {
+           sys.error("Unable to parse Project Infos: " + map)
+         }    
        )
      }
   }

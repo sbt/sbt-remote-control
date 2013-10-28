@@ -104,16 +104,23 @@ object DefaultsShim {
   }
 
   private val nameHandler: RequestHandler = { (origState, ui, request) =>
-    val result = extract(origState).get(name)
-    // TODO - These are all hacks for now until we have the generic API.
+    PoorManDebug.debug("Extracting name and capabilities of this build.")
+
+    // TODO - Do this for every major project
+    val extracted = extract(origState)
+    val ref = SbtToProtocolUtils.projectRefToProtocol(extracted.currentRef)
+    val name = extracted.get(sbt.Keys.name)
     val hasPlay = controller.isPlayProject(origState)
     val hasConsole = AtmosSupport.isAtmosProject(origState)
     val hasAkka = AkkaSupport.isAkkaProject(origState)
-
-    (origState, protocol.NameResponse(result,
+    val result = protocol.ProjectInfo(
+      ref,
+      name,
+      true,
       Map("hasPlay" -> hasPlay,
         "hasAkka" -> hasAkka,
-        "hasConsole" -> hasConsole)))
+        "hasConsole" -> hasConsole))
+    (origState, protocol.NameResponse(Seq(result)))
   }
 
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>

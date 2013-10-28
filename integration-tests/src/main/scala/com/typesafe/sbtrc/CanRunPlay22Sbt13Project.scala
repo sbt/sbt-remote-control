@@ -70,7 +70,7 @@ object ApplicationBuild extends Build {
         case x: NameResponse =>
           log.debug("Received name response " + x)
           receivedNameInfo =
-            x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean]
+            x.projects.head.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean]
         // Here we capture the result of the run task.
         case x: RunResponse =>
           result.success(x)

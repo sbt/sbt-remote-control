@@ -154,7 +154,10 @@ case class ExecuteCommandResponse() extends Response
 
 /** Requests project names and general information about the projects. */
 case class NameRequest(sendEvents: Boolean) extends Request
-case class NameResponse(name: String, attributes: Map[String, Any] = Map.empty) extends Response
+case class ProjectInfo(ref: ProjectReference, name: String, default: Boolean = false, attributes: Map[String, Any] = Map.empty)
+case class NameResponse(projects: Seq[ProjectInfo]) extends Response
+
+
 
 /** Requests the default main class for a project (requires a compile). */
 case class MainClassRequest(sendEvents: Boolean) extends Request

@@ -35,13 +35,16 @@ object SbtToProtocolUtils {
         task = taskString)
   }
   
+  def projectRefToProtocol(x: sbt.ProjectRef): protocol.ProjectReference = {
+    protocol.ProjectReference(x.build, x.project)
+  }
   
   def scopedReferenceToBuildAndProject(axis: sbt.ScopeAxis[sbt.Reference]): (Option[java.net.URI], Option[protocol.ProjectReference]) = { 
     import sbt._
     axis.toOption map {
       case x: ProjectRef =>
         val build = x.build
-        Some(build) -> Some(protocol.ProjectReference(build, x.project))
+        Some(build) -> Some(projectRefToProtocol(x))
       case x: BuildRef =>
         Some(x.build) -> None
       case _ => throw new RuntimeException("was expected project/build reference, got: " + axis)
