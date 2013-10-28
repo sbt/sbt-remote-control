@@ -94,7 +94,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     }), "can-run-sbt-13-and-atmos")
 
     Await.result(result.future, timeout.duration) match {
-      case RunResponse(success, name) if name == taskName =>
+      case RunResponse(success, name) =>
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive atmos URI")
         if (!receivedNameInfo)

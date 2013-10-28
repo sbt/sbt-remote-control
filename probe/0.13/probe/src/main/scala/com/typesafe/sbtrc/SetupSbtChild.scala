@@ -182,7 +182,7 @@ object SetupSbtChild extends (State => State) {
     } catch {
       case e: Exception =>
         client.replyJson(serial,
-          protocol.ErrorResponse("exception during sbt task: " + request.toString + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
+          protocol.ErrorResponse("exception during sbt task: " + request.simpleName + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
         origState
     }
   }
