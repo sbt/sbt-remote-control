@@ -50,9 +50,13 @@ class ProtocolTest {
           )
       )),
       protocol.MainClassRequest(false),
-      protocol.MainClassResponse(Some("josh")),
-      protocol.DiscoveredMainClassesRequest(true),
-      protocol.DiscoveredMainClassesResponse(Seq("jim", "john")),
+      protocol.MainClassResponse(Seq(
+        protocol.DiscoveredMainClasses(
+          protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
+          Seq("test.Main", "test.Main2"),
+          Some("test.Main")
+        )
+      )),
       protocol.WatchTransitiveSourcesRequest(true),
       protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
       protocol.CompileRequest(true),
@@ -183,16 +187,16 @@ class ProtocolTest {
     testClientServer(
       { (client) =>
         protocol.Envelope(client.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.DiscoveredMainClassesRequest(_)) =>
-            client.replyJson(serial, protocol.DiscoveredMainClassesResponse(Nil))
+          case protocol.Envelope(serial, replyTo, _:protocol.MainClassRequest) =>
+            client.replyJson(serial, protocol.MainClassResponse(Nil))
           case protocol.Envelope(serial, replyTo, other) =>
             client.replyJson(serial, protocol.ErrorResponse("did not understand request: " + other))
         }
       },
       { (server) =>
-        server.sendJson(protocol.DiscoveredMainClassesRequest(sendEvents = true))
+        server.sendJson(protocol.MainClassRequest(sendEvents = true))
         val names = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, r: protocol.DiscoveredMainClassesResponse) => r.names
+          case protocol.Envelope(serial, replyTo, r: protocol.MainClassResponse) => r.projects
           case protocol.Envelope(serial, replyTo, r) =>
             throw new AssertionError("unexpected response: " + r)
         }

@@ -158,14 +158,18 @@ case class ProjectInfo(ref: ProjectReference, name: String, default: Boolean = f
 case class NameResponse(projects: Seq[ProjectInfo]) extends Response
 
 
+sealed trait RequestOnProject extends Request {
+  def ref: Option[ProjectReference]
+}
+/** Requests the default main class, and known main class for a project (requires a compile). 
+ *  
+ *  @param ref - An optional project from which we should run detection.
+ *               If none is specified, then all are returned.
+ */
+case class MainClassRequest(sendEvents: Boolean, ref: Option[ProjectReference] = None) extends RequestOnProject
+case class MainClassResponse(projects: Seq[DiscoveredMainClasses]) extends Response
+case class DiscoveredMainClasses(project: ProjectReference, mainClasses: Seq[String], defaultMainClass: Option[String] = None)
 
-/** Requests the default main class for a project (requires a compile). */
-case class MainClassRequest(sendEvents: Boolean) extends Request
-case class MainClassResponse(name: Option[String]) extends Response
-
-/** returns the available main classes for a project. */
-case class DiscoveredMainClassesRequest(sendEvents: Boolean) extends Request 
-case class DiscoveredMainClassesResponse(names: Seq[String]) extends Response 
 
 /** Returns the source files that sbt would watch if given a 
  *  Triggered execution command. 

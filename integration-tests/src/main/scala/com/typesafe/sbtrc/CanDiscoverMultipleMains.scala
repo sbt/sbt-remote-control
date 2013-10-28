@@ -15,8 +15,10 @@ class CanDiscoverMultipleMains extends SbtProcessLauncherTest {
   val dummy = utils.makeDummySbtProjectWithMultipleMain("multiMainDiscover")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
-    Await.result(child ? DiscoveredMainClassesRequest(sendEvents = false), timeout.duration) match {
-      case DiscoveredMainClassesResponse(Seq("Main1", "Main2", "Main3")) =>
+    Await.result(child ? MainClassRequest(sendEvents = false), timeout.duration) match {
+      case MainClassResponse(Seq(
+        protocol.DiscoveredMainClasses(_, Seq("Main1", "Main2", "Main3"), _)
+        )) =>
       case whatever => throw new AssertionError("unexpected result sending DiscoveredMainClassesRequest to app with multi main method: " + whatever)
     }
   } finally {

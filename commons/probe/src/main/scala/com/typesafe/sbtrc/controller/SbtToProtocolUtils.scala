@@ -39,6 +39,10 @@ object SbtToProtocolUtils {
     protocol.ProjectReference(x.build, x.project)
   }
   
+  def projectRefFromProtocol(x: protocol.ProjectReference): sbt.ProjectRef = {
+    sbt.ProjectRef(x.build, x.name)
+  }
+  
   def scopedReferenceToBuildAndProject(axis: sbt.ScopeAxis[sbt.Reference]): (Option[java.net.URI], Option[protocol.ProjectReference]) = { 
     import sbt._
     axis.toOption map {

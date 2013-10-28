@@ -19,8 +19,6 @@ class MockSbtProcessFactory extends SbtProcessFactory {
               "test",
               true,
               Map.empty)))
-          case protocol.DiscoveredMainClassesRequest(_) =>
-            sender ! protocol.DiscoveredMainClassesResponse(Nil)
           case protocol.WatchTransitiveSourcesRequest(_) =>
             sender ! protocol.WatchTransitiveSourcesResponse(Nil)
           case protocol.CompileRequest(_) =>

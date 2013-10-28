@@ -55,8 +55,6 @@ object Envelope {
     val NameResponseMsg = RawStructure.get[NameResponse]
     val MainClassRequestMsg = RawStructure.get[MainClassRequest]
     val MainClassResponseMsg = RawStructure.get[MainClassResponse]
-    val DiscoveredMainClassesRequestMsg = RawStructure.get[DiscoveredMainClassesRequest]
-    val DiscoveredMainClassesResponseMsg = RawStructure.get[DiscoveredMainClassesResponse]
     val WatchTransitiveSourcesRequestMsg = RawStructure.get[WatchTransitiveSourcesRequest]
     val WatchTransitiveSourcesResponseMsg = RawStructure.get[WatchTransitiveSourcesResponse]
     val CompileRequestMsg = RawStructure.get[CompileRequest]
@@ -95,8 +93,6 @@ object Envelope {
       case x: NameResponse => NameResponseMsg(x)
       case x: MainClassRequest => MainClassRequestMsg(x)
       case x: MainClassResponse => MainClassResponseMsg(x)
-      case x: DiscoveredMainClassesRequest => DiscoveredMainClassesRequestMsg(x)
-      case x: DiscoveredMainClassesResponse => DiscoveredMainClassesResponseMsg(x)
       case x: WatchTransitiveSourcesRequest => WatchTransitiveSourcesRequestMsg(x)
       case x: WatchTransitiveSourcesResponse => WatchTransitiveSourcesResponseMsg(x)
       case x: CompileRequest => CompileRequestMsg(x)
@@ -132,8 +128,6 @@ object Envelope {
       NameResponseMsg.unapply(msg) orElse
       MainClassRequestMsg.unapply(msg) orElse
       MainClassResponseMsg.unapply(msg) orElse
-      DiscoveredMainClassesRequestMsg.unapply(msg) orElse
-      DiscoveredMainClassesResponseMsg.unapply(msg) orElse
       WatchTransitiveSourcesRequestMsg.unapply(msg) orElse
       WatchTransitiveSourcesResponseMsg.unapply(msg) orElse
       CompileRequestMsg.unapply(msg) orElse

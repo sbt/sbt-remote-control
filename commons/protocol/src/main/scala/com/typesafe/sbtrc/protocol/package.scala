@@ -206,31 +206,60 @@ package object protocol {
      }
   }
   
+  abstract class RequestWithSendEventsAndRefStructure[T <: RequestOnProject](name: String, creator: (Boolean, Option[ProjectReference]) => T) extends RawStructure[T] {
+    override def apply(t: T): Map[String, Any] = {
+        Map("request" -> name,
+            "sendEvents" -> t.sendEvents) ++
+            t.ref.map(x => "ref" -> ProjectReference.MyStructure(x))
+     }
+            
+    override def unapply(map: Map[String, Any]): Option[T] =
+      map.get("request").filter(_ == name).map { _ => 
+        creator(
+            map("sendEvents").asInstanceOf[Boolean],
+            map.get("ref").map { x =>
+              ProjectReference.MyStructure.unapply(x.asInstanceOf[Map[String,Any]]).getOrElse {
+                sys.error("Could not deserialize project reference.")
+              }
+            }    
+        )
+      }
+  }
+  
   implicit object mainClassRequestStructure extends 
-    RequestWithSendEventsStructure[MainClassRequest]("MainClassRequest", MainClassRequest.apply _)
+    RequestWithSendEventsAndRefStructure[MainClassRequest]("MainClassRequest", MainClassRequest.apply _)
+    
+  implicit object DiscoveredMainClassesStructure extends RawStructure[DiscoveredMainClasses] {
+    
+    def apply(msg: DiscoveredMainClasses): Map[String, Any] = {
+      Map("project" -> ProjectReference.MyStructure(msg.project),
+          "mainClasses" -> msg.mainClasses) ++
+          msg.defaultMainClass.map("default" -> _)
+    }
+    def unapply(obj: Map[String,Any]): Option[DiscoveredMainClasses] = {
+      for {
+        pObj <- obj get "project"
+        p <- ProjectReference.MyStructure.unapply(pObj.asInstanceOf[Map[String, Any]])
+        mcObj <- obj get "mainClasses"
+        mc = mcObj.asInstanceOf[Seq[String]]
+        d = (obj get "default").asInstanceOf[Option[String]]
+      } yield DiscoveredMainClasses(p, mc, d)
+    }
+  }
   implicit object mainClassResponseStructure extends RawStructure[MainClassResponse] {
     def apply(msg: MainClassResponse): Map[String, Any] = {
-      Map("response" -> "MainClassResponse") ++
-      msg.name.map("name" -> _)
+      Map("response" -> "MainClassResponse",
+          "projects" -> msg.projects.map(DiscoveredMainClassesStructure.apply))
     }
     def unapply(obj: Map[String,Any]): Option[MainClassResponse] = {
       obj.get("response").filter(_ == "MainClassResponse").map { _ =>
-        MainClassResponse(obj.get("name").asInstanceOf[Option[String]])  
-      }
-    }
-  }
-    
-    
-  implicit object DiscoveredMainClassesRequestStructure extends 
-    RequestWithSendEventsStructure[DiscoveredMainClassesRequest]("DiscoveredMainClassesRequest", DiscoveredMainClassesRequest.apply _)
-  implicit object DiscoveredMainClassesResponseStructure extends RawStructure[DiscoveredMainClassesResponse] {
-    def apply(msg: DiscoveredMainClassesResponse): Map[String, Any] = {
-      Map("response" -> "DiscoveredMainClassesResponse",
-          "names" -> msg.names)
-    }
-    def unapply(obj: Map[String,Any]): Option[DiscoveredMainClassesResponse] = {
-      obj.get("response").filter(_ == "DiscoveredMainClassesResponse").map { _ =>
-        DiscoveredMainClassesResponse(obj("names").asInstanceOf[Seq[String]])  
+        val projects = 
+          obj("projects").asInstanceOf[Seq[Map[String, Any]]].map { obj =>
+            DiscoveredMainClassesStructure.unapply(obj).getOrElse {
+              sys.error("Could not deserialize main class information.")
+            }
+          }
+        MainClassResponse(projects)
       }
     }
   }

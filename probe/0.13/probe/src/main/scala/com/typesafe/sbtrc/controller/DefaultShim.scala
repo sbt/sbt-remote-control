@@ -78,15 +78,22 @@ object DefaultsShim {
     (origState, protocol.NameResponse(results))
   }
 
-  private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
-    PoorManDebug.debug("Running `mainClass` task.")
-    val (s, result) = extract(origState).runTask(mainClass in Compile in run, origState)
-    (s, protocol.MainClassResponse(name = result))
-  }
+  private val mainClassHandler: RequestHandler = {
+    case (origState, ui, protocol.MainClassRequest(_, ref)) =>
+      PoorManDebug.debug("Running `mainClass` task.")
+      val extracted = extract(origState)
 
-  private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
-    (s, protocol.DiscoveredMainClassesResponse(names = result))
+      val refs = ref.map(r => Seq(SbtToProtocolUtils.projectRefFromProtocol(r))).getOrElse(extracted.structure.allProjectRefs)
+      val results =
+        for (ref <- refs) yield {
+          val (_, mc) = extracted.runTask(mainClass in Compile in run in ref, origState)
+          val (_, discoveredMc) = extracted.runTask(discoveredMainClasses in Compile in run in ref, origState)
+          protocol.DiscoveredMainClasses(
+            SbtToProtocolUtils.projectRefToProtocol(ref),
+            mainClasses = discoveredMc,
+            defaultMainClass = mc)
+        }
+      (origState, protocol.MainClassResponse(results))
   }
 
   private val watchTransitiveSourcesHandler: RequestHandler = { (origState, ui, params) =>
@@ -225,7 +232,6 @@ object DefaultsShim {
   val findHandler: PartialFunction[protocol.Request, RequestHandler] = {
     case _: protocol.NameRequest => nameHandler
     case _: protocol.MainClassRequest => mainClassHandler
-    case _: protocol.DiscoveredMainClassesRequest => discoveredMainClassesHandler
     case _: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler
     case _: protocol.CompileRequest => compileHandler
     case protocol.RunRequest(_, None, false) => runHandler
