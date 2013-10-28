@@ -26,10 +26,12 @@ object AtmosSupport {
     hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, listener)
   }
 
-  def findAtmosSetting(name: String, settings: Seq[Setting[_]]): Option[Setting[_]] =
+  def findAtmosSetting(name: String, settings: Seq[Setting[_]], ref: Option[ProjectRef] = None): Option[Setting[_]] =
     (for {
       setting <- settings
       if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
+      // TODO - make sure this works!
+      if (!ref.isDefined) || (setting.key.scope.project.toOption == ref)
     } yield setting).headOption
 
   // Adds our hooks into the Atmos build.
@@ -44,11 +46,11 @@ object AtmosSupport {
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 
-  def isAtmosProject(state: State): Boolean = {
+  def isAtmosProject(state: State, ref: Option[ProjectRef] = None): Boolean = {
     PoorManDebug.trace("Checking if atmos hooks are needed.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    findAtmosSetting("atmos-run-listeners", settings).isDefined
+    findAtmosSetting("atmos-run-listeners", settings, ref).isDefined
   }
 
   def installAtmosSupport(origState: State, ui: UIContext): State = {

@@ -10,15 +10,19 @@ package object controller {
 
   type RequestHandler = (State, Context, protocol.Request) => (State, protocol.Response)
 
-
-  // TODO - Specify project too...
-  def isPlayProject(state: State): Boolean = {
+  def isPlayProject(state: State, ref: Option[ProjectRef] = None): Boolean = {
     val extracted = Project.extract(state)
-    extracted.getOpt(SettingKey[Boolean]("play-plugin")).isDefined
+    ref match {
+      case Some(project) =>
+        extracted.getOpt(SettingKey[Boolean]("play-plugin") in project).isDefined
+      case _ =>
+        extracted.getOpt(SettingKey[Boolean]("play-plugin")).isDefined
+    }
   }
 
   // make adjustments to ShimWriter.knownShims based on State
-  private val shimFilters = Map[String, State => Boolean]("play" -> isPlayProject)
+  // TODO - better shim detectoin/filters.
+  private val shimFilters = Map[String, State => Boolean]("play" -> { s => isPlayProject(s,None)})
 
   // returns true if we need to reboot (any changes were made)
   // TODO - These versions and passing are all out of whack.

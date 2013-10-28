@@ -40,7 +40,6 @@ object DefaultsShim {
   private def removeTestListener(state: State, ui: UIContext): (State, protocol.TestOutcome) = {
     val ref = Project.extract(state).currentRef
     val extracted = Extracted(Project.structure(state), Project.session(state), ref)(SbtCustomHacks.showFullKey(state))
-
     val (s1, listeners) = extracted.runTask(listenersKey, state)
 
     val ours = listeners.collect({
@@ -60,19 +59,23 @@ object DefaultsShim {
 
     // TODO - Do this for every major project
     val extracted = extract(origState)
-    val ref = SbtToProtocolUtils.projectRefToProtocol(extracted.currentRef)
-    val name = extracted.get(sbt.Keys.name)
-    val hasPlay = controller.isPlayProject(origState)
-    val hasConsole = AtmosSupport.isAtmosProject(origState)
-    val hasAkka = AkkaSupport.isAkkaProject(origState)
-    val result = protocol.ProjectInfo(
-      ref,
-      name,
-      true,
-      Map("hasPlay" -> hasPlay,
-        "hasAkka" -> hasAkka,
-        "hasConsole" -> hasConsole))
-    (origState, protocol.NameResponse(Seq(result)))
+    val results =
+      for {
+        ref <- extracted.structure.allProjectRefs
+      } yield {
+        val name = extracted.get(sbt.Keys.name in ref)
+        val hasPlay = controller.isPlayProject(origState, Some(ref))
+        val hasConsole = AtmosSupport.isAtmosProject(origState, Some(ref))
+        val hasAkka = AkkaSupport.isAkkaProject(origState, Some(ref))
+        protocol.ProjectInfo(
+          SbtToProtocolUtils.projectRefToProtocol(ref),
+          name,
+          true,
+          Map("hasPlay" -> hasPlay,
+            "hasAkka" -> hasAkka,
+            "hasConsole" -> hasConsole))
+      }
+    (origState, protocol.NameResponse(results))
   }
 
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>

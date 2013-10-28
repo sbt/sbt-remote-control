@@ -11,7 +11,7 @@ import concurrent.Await
 import akka.util.Timeout
 
 /** Ensures that we can make requests and receive responses from our children. */
-abstract class AbstractCanTalkToChild(sbtVersion: String) extends SbtProcessLauncherTest {
+abstract class AbstractCanTalkToChild(val sbtVersion: String) extends SbtProcessLauncherTest {
   val dummy = utils.makeDummySbtProject("talkToChild", sbtVersion = sbtVersion)
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
 
