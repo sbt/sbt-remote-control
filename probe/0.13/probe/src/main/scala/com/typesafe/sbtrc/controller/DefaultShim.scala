@@ -101,10 +101,31 @@ object DefaultsShim {
     (s, protocol.WatchTransitiveSourcesResponse(files = result))
   }
 
-  private val compileHandler: RequestHandler = { (origState, ui, params) =>
-    PoorManDebug.debug("Compiling the project.")
-    val (s, result) = extract(origState).runTask(compile in Compile, origState)
-    (s, protocol.CompileResponse(success = true))
+  private val compileHandler: RequestHandler = {
+    case (origState, ui, protocol.CompileRequest(_, pref)) =>
+      PoorManDebug.debug("Compiling the project: " + pref)
+      // TODO - handle aggregation....
+      val extracted = extract(origState)
+      val refs = pref match {
+        case Some(r) => Seq(SbtToProtocolUtils.projectRefFromProtocol(r))
+        case _ => extracted.structure.allProjectRefs
+      }
+      // Fold over all the refs and run the compile task.
+      val (state, results) =
+        ((origState -> Vector.empty[protocol.CompileResult]) /: refs) {
+          case ((state, results), ref) =>
+            val key = compile in Compile in ref
+            val pref = SbtToProtocolUtils.projectRefToProtocol(ref)
+            try {
+              val (s, result) = extracted.runTask(key, state)
+              state -> (results :+ protocol.CompileResult(pref, true))
+            } catch {
+              case e: Exception =>
+                // TODO - just catch task exceptions
+                state -> (results :+ protocol.CompileResult(pref, false))
+            }
+        }
+      (state, protocol.CompileResponse(results))
   }
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
@@ -234,11 +255,11 @@ object DefaultsShim {
     case _: protocol.MainClassRequest => mainClassHandler
     case _: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler
     case _: protocol.CompileRequest => compileHandler
-    case protocol.RunRequest(_, None, false) => runHandler
-    case protocol.RunRequest(_, Some(_), false) => runMainHandler
+    case protocol.RunRequest(_, _, None, false) => runHandler
+    case protocol.RunRequest(_, _, Some(_), false) => runMainHandler
     // TODO - Fix Atmos run commands!
-    case protocol.RunRequest(_, None, true) => runAtmosHandler
-    case protocol.RunRequest(_, Some(_), true) => runMainAtmosHandler
+    case protocol.RunRequest(_, _, None, true) => runAtmosHandler
+    case protocol.RunRequest(_, _, Some(_), true) => runMainAtmosHandler
     case _: protocol.TestRequest => testHandler
     // Generic API
     case _: protocol.SettingKeyRequest => settingKeyHandler

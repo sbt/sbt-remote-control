@@ -285,15 +285,32 @@ package object protocol {
   }
     
   implicit object CompileRequestStructure extends 
-    RequestWithSendEventsStructure[CompileRequest]("CompileRequest", CompileRequest.apply _)    
+    RequestWithSendEventsAndRefStructure[CompileRequest]("CompileRequest", CompileRequest.apply _)
+  implicit object CompileResultStructure extends RawStructure[CompileResult] {
+    def apply(msg: CompileResult): Map[String, Any] = {
+      Map("ref" -> ProjectReference.MyStructure(msg.ref), 
+          "success" -> msg.success)
+    }
+    def unapply(obj: Map[String,Any]): Option[CompileResult] = {
+      for {
+        xObj <- obj get "ref"
+        ref <- ProjectReference.MyStructure.unapply(xObj.asInstanceOf[Map[String,Any]])
+        success <- obj get "success"
+      } yield CompileResult(ref, success.asInstanceOf[Boolean])
+    }
+  } 
   implicit object CompileResponseStructure extends RawStructure[CompileResponse] {
     def apply(msg: CompileResponse): Map[String, Any] = {
       Map("response" -> "CompileResponse",
-          "success" -> msg.success)
+          "results" -> msg.results.map(CompileResultStructure.apply))
     }
     def unapply(obj: Map[String,Any]): Option[CompileResponse] = {
       obj.get("response").filter(_ == "CompileResponse").map { _ =>
-        CompileResponse(obj("success").asInstanceOf[Boolean])  
+        val results = 
+          obj("results").asInstanceOf[Seq[Map[String, Any]]].map(x => CompileResultStructure.unapply(x).getOrElse {
+            sys.error("Could not deserialize compile result: " + x)
+          })
+        CompileResponse(results)
       }
     }
   }
@@ -303,11 +320,22 @@ package object protocol {
       Map("request" -> "RunRequest",
           "useAtmos" -> msg.useAtmos,
           "sendEvents" -> msg.sendEvents) ++
-          msg.mainClass.map("mainClass" -> _)
+          msg.mainClass.map("mainClass" -> _) ++
+          msg.ref.map { p =>
+            "ref" -> ProjectReference.MyStructure(p)
+          }
     }
     def unapply(obj: Map[String,Any]): Option[RunRequest] = {
       obj.get("request").filter(_ == "RunRequest").map { _ =>
+        
+        val ref =
+          for {
+            rObj <- obj get "ref"
+            r <- ProjectReference.MyStructure.unapply(rObj.asInstanceOf[Map[String,Any]])
+          } yield r
+        
         RunRequest(obj("sendEvents").asInstanceOf[Boolean],
+            ref,
             obj.get("mainClass").asInstanceOf[Option[String]],
             obj("useAtmos").asInstanceOf[Boolean])  
       }
@@ -329,7 +357,7 @@ package object protocol {
     }
   }
   implicit object TestRequestStructure extends 
-    RequestWithSendEventsStructure[TestRequest]("TestRequest", TestRequest.apply _)
+    RequestWithSendEventsAndRefStructure[TestRequest]("TestRequest", TestRequest.apply _)
   implicit object TestResponseStructure extends RawStructure[TestResponse] {
     def apply(msg: TestResponse): Map[String, Any] = {
       Map("response" -> "TestResponse",

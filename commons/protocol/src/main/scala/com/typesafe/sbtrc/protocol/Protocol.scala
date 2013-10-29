@@ -171,22 +171,28 @@ case class MainClassResponse(projects: Seq[DiscoveredMainClasses]) extends Respo
 case class DiscoveredMainClasses(project: ProjectReference, mainClasses: Seq[String], defaultMainClass: Option[String] = None)
 
 
-/** Returns the source files that sbt would watch if given a 
+/** Returns the source files that sbt would watch if given a ~ command.
+ *  This returns all files watched across all projects.
  *  Triggered execution command. 
  */
 case class WatchTransitiveSourcesRequest(sendEvents: Boolean) extends Request 
 case class WatchTransitiveSourcesResponse(files: Seq[File]) extends Response
 
 /**
- * Requests for sbt to compile the project.
+ * Requests for sbt to compile all projects, or a specific one.
  */
-case class CompileRequest(sendEvents: Boolean) extends Request 
-case class CompileResponse(success: Boolean) extends Response
+case class CompileRequest(sendEvents: Boolean, ref: Option[ProjectReference] = None) extends RequestOnProject 
+case class CompileResult(ref: ProjectReference, success: Boolean)
+case class CompileResponse(results: Seq[CompileResult]) extends Response
 
 /**
  * Requests for sbt to run a given main class on a project.
+ * If no project is specified, the default is used.
  */
-case class RunRequest(sendEvents: Boolean, mainClass: Option[String], useAtmos: Boolean = false) extends Request 
+case class RunRequest(sendEvents: Boolean, 
+                      ref: Option[ProjectReference] = None,
+                      mainClass: Option[String] = None, 
+                      useAtmos: Boolean = false) extends RequestOnProject 
 case class RunResponse(success: Boolean, task: String) extends Response 
 
 sealed trait TestOutcome {
@@ -229,9 +235,9 @@ case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
 /**
- * Requests for sbt to run the tests for a given project.
+ * Requests for sbt to run the tests for a given project or all projects.
  */
-case class TestRequest(sendEvents: Boolean) extends Request
+case class TestRequest(sendEvents: Boolean, ref: Option[ProjectReference] = None) extends RequestOnProject
 case class TestResponse(outcome: TestOutcome) extends Response {
   def success: Boolean = outcome.success
 }

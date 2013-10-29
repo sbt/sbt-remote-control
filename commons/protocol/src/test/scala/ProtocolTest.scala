@@ -59,9 +59,18 @@ class ProtocolTest {
       )),
       protocol.WatchTransitiveSourcesRequest(true),
       protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
-      protocol.CompileRequest(true),
-      protocol.CompileResponse(false),
-      protocol.RunRequest(sendEvents = true, mainClass = Some("hi"), useAtmos = true),
+      protocol.CompileRequest(true, ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test"))),
+      protocol.CompileResponse(Seq(
+         protocol.CompileResult(
+           protocol.ProjectReference(new java.net.URI("file://temp"), "test"),
+           success = false
+         )
+      )),
+      protocol.RunRequest(
+          sendEvents = true,
+          ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test")),
+          mainClass = Some("hi"), 
+          useAtmos = true),
       protocol.RunRequest(sendEvents = false, mainClass = None, useAtmos = false),
       protocol.RunResponse(success = true, task = "run"),
       protocol.RunResponse(success = false, task = "run-main"),
