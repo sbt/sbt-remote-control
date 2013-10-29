@@ -128,26 +128,35 @@ object DefaultsShim {
       (state, protocol.CompileResponse(results))
   }
 
-  private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
-    PoorManDebug.debug("Invoking the run task in " + key.scope.config)
-    val shimedState = installShims(origState, ui)
-    val s = runInputTask(key, shimedState, args = "", Some(ui))
-    (origState, protocol.RunResponse(success = true,
-      task = taskName))
+  private def makeRunHandler[T](key: sbt.InputKey[T], taskName: String): RequestHandler = {
+    case (origState, ui, protocol.RunRequest(_, ref, _, _)) =>
+      PoorManDebug.debug("Invoking the run task in " + key.scope.config)
+      val key2 = ref match {
+        case Some(r) => key in SbtToProtocolUtils.projectRefFromProtocol(r)
+        case _ => key
+      }
+      val shimedState = installShims(origState, ui)
+      val s = runInputTask(key2, shimedState, args = "", Some(ui))
+      (origState, protocol.RunResponse(success = true,
+        task = taskName))
   }
 
   private val runHandler: RequestHandler = makeRunHandler(run in Compile, "run")
 
   private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), "run:atmos")
 
-  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, request) =>
-    PoorManDebug.debug("Invoking the run-main task in " + key.scope.config)
-    // Note: For now this is safe. In the future, let's just not cast 30 bajillion times.
-    val runRequest = request.asInstanceOf[protocol.RunRequest]
-    val shimedState = installShims(origState, ui)
-    val klass = runRequest.mainClass.getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(key, shimedState, args = klass, Some(ui))
-    (origState, protocol.RunResponse(success = true, task = taskName))
+  private def makeRunMainHandler[T](key: sbt.InputKey[T], taskName: String): RequestHandler = {
+
+    case (origState, ui, protocol.RunRequest(_, ref, Some(klass), _)) =>
+      PoorManDebug.debug("Invoking the run-main task in " + key.scope.config)
+      val key2: sbt.InputKey[T] = ref match {
+        case Some(r) => key in SbtToProtocolUtils.projectRefFromProtocol(r)
+        case _ => key
+      }
+      // Note: For now this is safe. In the future, let's just not cast 30 bajillion times.
+      val shimedState = installShims(origState, ui)
+      val s = runInputTask(key2, shimedState, args = klass, Some(ui))
+      (origState, protocol.RunResponse(success = true, task = taskName))
   }
 
   private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, "run-main")

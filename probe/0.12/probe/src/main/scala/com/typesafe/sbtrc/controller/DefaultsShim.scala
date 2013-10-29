@@ -177,25 +177,35 @@ object DefaultsShim {
       (state, protocol.CompileResponse(results))
   }
 
-  private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
-    val shimedState = installShims(origState, ui)
-    PoorManDebug.trace("Running task: " + key)
-    val s = runInputTask(key, shimedState, args = "", Some(ui))
-    (origState, protocol.RunResponse(success = true, task = taskName))
+  private def makeRunHandler[T](key: sbt.InputKey[T], taskName: String): RequestHandler = {
+    case (origState, ui, protocol.RunRequest(_, ref, _, _)) =>
+      PoorManDebug.debug("Invoking the run task in " + key.scope.config)
+      val key2 = ref match {
+        case Some(r) => key in SbtToProtocolUtils.projectRefFromProtocol(r)
+        case _ => key
+      }
+      val shimedState = installShims(origState, ui)
+      val s = runInputTask(key2, shimedState, args = "", Some(ui))
+      (origState, protocol.RunResponse(success = true,
+        task = taskName))
   }
 
   private val runHandler: RequestHandler = makeRunHandler(run in Compile, "run")
 
   private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), "atmos:run")
 
-  private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = {
-    case (origState, ui, protocol.RunRequest(_, _, Some(klass), _)) =>
+  private def makeRunMainHandler[T](key: sbt.InputKey[T], taskName: String): RequestHandler = {
+    case (origState, ui, protocol.RunRequest(_, ref, Some(klass), _)) =>
+      PoorManDebug.debug("Invoking the run-main task in " + key.scope.config)
+      val key2: sbt.InputKey[T] = ref match {
+        case Some(r) => key in SbtToProtocolUtils.projectRefFromProtocol(r)
+        case _ => key
+      }
+      // Note: For now this is safe. In the future, let's just not cast 30 bajillion times.
       val shimedState = installShims(origState, ui)
-      val s = runInputTask(key, shimedState, args = klass, Some(ui))
-      (origState, protocol.RunResponse(success = true,
-        task = taskName))
+      val s = runInputTask(key2, shimedState, args = klass, Some(ui))
+      (origState, protocol.RunResponse(success = true, task = taskName))
   }
-
   private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, "run-main")
 
   private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), "atmos:run-main")
