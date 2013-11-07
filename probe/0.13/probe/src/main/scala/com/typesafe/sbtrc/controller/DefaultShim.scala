@@ -23,7 +23,7 @@ object DefaultsShim {
     ui.sendEvent(id, paramsMap)
   }
 
-  private val listenersKey = testListeners in Test
+  private val listenersKey = testListeners in Test in Global
 
   private def addTestListener(state: State, ui: UIContext): State = {
     PoorManDebug.trace("Adding test lisener to state.")
@@ -163,12 +163,20 @@ object DefaultsShim {
 
   private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), "atmos:run-main")
 
-  private val testHandler: RequestHandler = { (origState, ui, params) =>
-    PoorManDebug.debug("Invoking the test task.")
-    val shimedState = installShims(origState, ui)
-    val (s2, result1) = extract(shimedState).runTask(test in Test, shimedState)
-    val (s3, outcome) = removeTestListener(s2, ui)
-    (origState, protocol.TestResponse(outcome))
+  private val testHandler: RequestHandler = {
+    case (origState, ui, protocol.TestRequest(_, optProject)) =>
+      PoorManDebug.debug("Invoking the test task.")
+      val shimedState = installShims(origState, ui)
+      val extracted = extract(shimedState)
+      val key = optProject match {
+        case Some(ref) => test in Test in SbtToProtocolUtils.projectRefFromProtocol(ref)
+        // TODO - in this case, we may want to aggregate...
+        case _ => test in Test
+      }
+
+      val (s2, result1) = extract(shimedState).runTask(key, shimedState)
+      val (s3, outcome) = removeTestListener(s2, ui)
+      (origState, protocol.TestResponse(protocol.TestPassed))
   }
 
   private def commandHandler(command: String): RequestHandler = { (origState, ui, params) =>
