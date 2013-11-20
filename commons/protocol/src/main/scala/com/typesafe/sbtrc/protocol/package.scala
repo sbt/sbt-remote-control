@@ -409,6 +409,18 @@ package object protocol {
       }
     }
   }
+  implicit object StartedEventStructure extends RawStructure[Started.type] {
+    def apply(msg: Started.type) =
+      Map("event" -> "Started")
+    def unapply(obj: Map[String,Any]): Option[Started.type] = 
+      obj.get("event").filter(_ == "Started").map(_ => Started)
+  }
+  implicit object StoppedEventStructure extends RawStructure[Stopped.type] {
+    def apply(msg: Stopped.type) =
+      Map("event" -> "Stopped")
+    def unapply(obj: Map[String,Any]): Option[Stopped.type] = 
+      obj.get("event").filter(_ == "Stopped").map(_ => Stopped)
+  } 
   implicit object NeedRebootEventEventStructure extends RawStructure[NeedRebootEvent.type] {
     def apply(msg: NeedRebootEvent.type) =
       Map("event" -> "NeedRebootEvent")

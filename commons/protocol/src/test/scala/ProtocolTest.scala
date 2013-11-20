@@ -20,6 +20,8 @@ class ProtocolTest {
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val specifics = Seq(
       // Events
+      protocol.Started,
+      protocol.Stopped,
       protocol.NeedRebootEvent,
       protocol.NowListeningEvent,
       protocol.RequestReceivedEvent,

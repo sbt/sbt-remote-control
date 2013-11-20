@@ -48,6 +48,8 @@ object WireProtocol {
     
     
     val LogEventMsg = RawStructure.get[LogEvent]
+    val StartedEventMsg = RawStructure.get[Started.type]
+    val StoppedEventMsg = RawStructure.get[Stopped.type]
     val NeedRebootEventMsg = RawStructure.get[NeedRebootEvent.type]
     val NowListeningEventMsg = RawStructure.get[NowListeningEvent.type]
     val RequestReceivedEventMsg = RawStructure.get[RequestReceivedEvent.type]
@@ -84,6 +86,8 @@ object WireProtocol {
       case x: TestResponse => TestResponseMsg(x)
       
       case x: LogEvent => LogEventMsg(x)
+      case Started => StartedEventMsg(Started)
+      case Stopped => StoppedEventMsg(Stopped)
       case NeedRebootEvent => NeedRebootEventMsg(NeedRebootEvent)
       case NowListeningEvent => NowListeningEventMsg(NowListeningEvent)
       case RequestReceivedEvent => RequestReceivedEventMsg(RequestReceivedEvent)
@@ -119,6 +123,8 @@ object WireProtocol {
       TestResponseMsg.unapply(msg) orElse
       
       LogEventMsg.unapply(msg) orElse
+      StartedEventMsg.unapply(msg) orElse
+      StoppedEventMsg.unapply(msg) orElse
       NeedRebootEventMsg.unapply(msg) orElse
       NowListeningEventMsg.unapply(msg) orElse
       RequestReceivedEventMsg.unapply(msg) orElse
