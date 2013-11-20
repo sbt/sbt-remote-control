@@ -5,36 +5,17 @@ import scala.util.parsing.json._
 import com.typesafe.sbtrc.ipc.JsonReader
 import java.io.File
 
-
-case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
-
-/** This class is responsible for extracting from the wire protocol into
- *  the "class" protocol.  We define all our serializers in here.
+/**
+ * This object helps us serialize/deserialize messages into raw formats.
+ * 
+ * It contains all the logic about precedence and hard-coded knowledge of specific message types we can
+ * serialize/deserialize.
+ * 
+ * TODO - Should you be able to register more messages to serialize here?
+ * TODO - Should you register the BuildValue serializer/deserializers here?
  */
-object Envelope {
-  def apply(wire: ipc.WireEnvelope): Envelope = {
-    val message: Message = try {
-      val json = JSON.parseFull(wire.asString) match {
-        case Some(obj: Map[_, _]) => JSONObject(obj.asInstanceOf[Map[String, _]])
-        case whatever =>
-          throw new Exception("JSON parse failure on: " + wire.asString + " parsed: " + whatever)
-      }
-      // this can throw malformed json errors
-      val reader = JsonReader.fromRaw[Message](MessageStructure)
-      reader.fromJson(json)
-    } catch {
-      case e: Exception =>
-        //System.err.println("**** " + e.getMessage)
-        //System.err.println(e.getStackTraceString)
-        // probably a JSON parse failure
-        if (wire.replyTo != 0L)
-          ErrorResponse("exception parsing json: " + e.getClass.getSimpleName + ": " + e.getMessage)
-        else
-          MysteryMessage(try wire.asString catch { case e: Exception => wire })
-    }
-    new Envelope(wire.serial, wire.replyTo, message)
-  }
-  // Here' we implement protocol deserialization using the RawStructure
+object WireProtocol {
+   // Here' we implement protocol deserialization using the RawStructure
   // typeclass....
   implicit object MessageStructure extends RawStructure[Message] {
     val CancelRequestMsg = RawStructure.get[CancelRequest.type]
@@ -147,6 +128,43 @@ object Envelope {
       GenericEventMsg.unapply(msg)
       
     )
+  }  
+  
+  
+  def fromRaw(msg: Map[String, Any]): Option[Message] = 
+    MessageStructure.unapply(msg)
+  def toRaw(msg: Message): Map[String, Any] = 
+    MessageStructure(msg)
+}
+
+
+case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
+
+/** This class is responsible for extracting from the wire protocol into
+ *  the "class" protocol.  This may disappear at some point, as the duplication with ipc.Envelope may not be necessary.
+ */
+object Envelope {
+  def apply(wire: ipc.WireEnvelope): Envelope = {
+    val message: Message = try {
+      val json = JSON.parseFull(wire.asString) match {
+        case Some(obj: Map[_, _]) => JSONObject(obj.asInstanceOf[Map[String, _]])
+        case whatever =>
+          throw new Exception("JSON parse failure on: " + wire.asString + " parsed: " + whatever)
+      }
+      // this can throw malformed json errors
+      val reader = JsonReader.fromRaw[Message](WireProtocol.MessageStructure)
+      reader.fromJson(json)
+    } catch {
+      case e: Exception =>
+        //System.err.println("**** " + e.getMessage)
+        //System.err.println(e.getStackTraceString)
+        // probably a JSON parse failure
+        if (wire.replyTo != 0L)
+          ErrorResponse("exception parsing json: " + e.getClass.getSimpleName + ": " + e.getMessage)
+        else
+          MysteryMessage(try wire.asString catch { case e: Exception => wire })
+    }
+    new Envelope(wire.serial, wire.replyTo, message)
   }
   
 }
