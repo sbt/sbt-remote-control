@@ -165,9 +165,9 @@ object SetupSbtChild extends (State => State) {
       val context = new ProbedContext(serial, request.simpleName)
       try {
         val (newState, msg) = handler(origState, context, request)
-        // TODO - Serializer for Response isn't generic...
-        import protocol.Envelope.MessageStructure
-        client.replyJson(serial, msg)(JsonWriter.jsonWriter(MessageStructure))
+        // Our implicit serializer.
+        import protocol.WireProtocol.jsonWriter
+        client.replyJson(serial, msg)
         newState
       } catch {
         case t: Throwable =>

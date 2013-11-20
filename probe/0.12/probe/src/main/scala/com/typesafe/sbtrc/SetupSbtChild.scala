@@ -160,8 +160,8 @@ object SetupSbtChild extends (State => State) {
       val context = new ProbedContext(serial, request.simpleName)
       try {
         val (newState, msg) = handler(origState, context, request)
-        import protocol.Envelope.MessageStructure
-        client.replyJson(serial, msg)(JsonWriter.jsonWriter(MessageStructure))
+        import protocol.WireProtocol.jsonWriter
+        client.replyJson(serial, msg)
         newState
       } finally {
         // this sends any pending CancelResponse

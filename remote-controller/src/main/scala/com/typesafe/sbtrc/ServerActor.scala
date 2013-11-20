@@ -87,9 +87,8 @@ class ServerActor(serverSocket: ServerSocket, childActor: ActorRef) extends Acto
         val server = serverOption.getOrElse(throw new Exception("Impossible, in booted state before server accept?"))
         try {
           // TODO - CLeanup how serialization is done!
-          import protocol.Envelope.MessageStructure
-          import ipc.JsonWriter.jsonWriter
-          val requestSerial = server.sendJson(req)(jsonWriter(MessageStructure))
+          import protocol.WireProtocol.jsonWriter
+          val requestSerial = server.sendJson(req)
           val pair = (requestSerial -> Requestor(sender, req.sendEvents))
           pendingReplies += pair
           log.debug("  added to pending replies: {}", pair)

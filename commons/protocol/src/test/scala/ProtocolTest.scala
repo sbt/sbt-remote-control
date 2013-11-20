@@ -78,14 +78,14 @@ class ProtocolTest {
       protocol.TestResponse(protocol.TestError)
     )
     for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.Envelope.MessageStructure
+      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
       val roundtrippedOption = struct unapply struct(s)
       assertEquals("Failed to serialize: " + s, Some(s), roundtrippedOption)
     }
 
     // and through json
     for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.Envelope.MessageStructure
+      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
       val writer = com.typesafe.sbtrc.ipc.JsonWriter.jsonWriter(struct)
       val reader = com.typesafe.sbtrc.ipc.JsonReader.fromRaw(struct)
       val roundtrippedOption = reader.fromJson(writer.toJson(s)) 

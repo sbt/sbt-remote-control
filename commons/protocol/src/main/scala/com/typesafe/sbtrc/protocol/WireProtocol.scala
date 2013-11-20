@@ -129,6 +129,7 @@ object WireProtocol {
       
     )
   }  
+  implicit val jsonWriter = ipc.JsonWriter.jsonWriter(MessageStructure)
   
   
   def fromRaw(msg: Map[String, Any]): Option[Message] = 
