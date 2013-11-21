@@ -2,6 +2,7 @@ package com.typesafe.sbtrc
 package controller
 
 import com.typesafe.sbt.ui.{ Context => UIContext }
+import com.typesafe.sbt.ui.SbtUiPlugin.uiContext
 import com.typesafe.sbt.ui
 import java.lang.reflect.{ Method, Proxy }
 import scala.util.parsing.json.JSONObject
@@ -41,22 +42,24 @@ object PlaySupport {
       ().asInstanceOf[AnyRef]
     }
   }
+
   // This is an ugly reflective hack to use our interaction rather than
   // play's.  We're in an alternative classloader though.
-  def hackyAssignSetting[T](key: SettingKey[T], value: AnyRef): Setting[T] =
-    key <<= Def.setting { value.asInstanceOf[T] }
+  def hackyAssignSetting[T](key: SettingKey[T], value: Def.Initialize[AnyRef]): Setting[T] =
+    key := value.value.asInstanceOf[T]
 
-  def makePlayInteractionSetting(key: ScopedKey[_], ui: UIContext): Setting[_] = {
+  def makePlayInteractionSetting(key: ScopedKey[_]): Setting[_] = {
     val interactionClass = key.key.manifest.runtimeClass
     PoorManDebug.trace("Installing interaction hook for class: " + interactionClass)
-    val proxy =
-      Proxy.newProxyInstance(
-        interactionClass.getClassLoader,
-        Array(interactionClass),
-        new PlayInteractionHandler(ui))
     // This is an ugly reflective hack to use our interaction rather than
     // play's.  We're in an alternative classloader though.
-    hackyAssignSetting(SettingKey(key.key) in key.scope, proxy)
+    hackyAssignSetting(SettingKey(key.key) in key.scope,
+      Def.setting {
+        Proxy.newProxyInstance(
+          interactionClass.getClassLoader,
+          Array(interactionClass),
+          new PlayInteractionHandler((uiContext in Global).value))
+      })
   }
   /**
    * This class represents a dynamic proxy we use to avoid classpath hell when
@@ -84,24 +87,25 @@ object PlaySupport {
     // return something
   }
 
-  def hackyAddToTask[T](key: TaskKey[Seq[T]], element: Any): Setting[Task[Seq[T]]] =
+  def hackyAddToTask[T](key: TaskKey[Seq[T]], element: Def.Initialize[Any]): Setting[Task[Seq[T]]] =
     key := {
-      (element.asInstanceOf[T] +: key.value)
+      (element.value.asInstanceOf[T] +: key.value)
     }
 
-  def makeDynamicProxyRunHookSetting(key: ScopedKey[_], ui: UIContext): Setting[_] = {
+  def makeDynamicProxyRunHookSetting(key: ScopedKey[_]): Setting[_] = {
     val mf = key.key.manifest
     // Manfiest is a Task[Seq[PlayRunHook]], so we want the first type argument of
     // the first type argument....
     val runHookClass = mf.typeArguments(0).typeArguments(0).runtimeClass
     PoorManDebug.trace("Creating play run hook for class: " + runHookClass)
-    val proxy =
+    val proxyInit: Def.Initialize[Any] = Def.setting {
       Proxy.newProxyInstance(
         runHookClass.getClassLoader,
         Array(runHookClass),
-        new PlayRunHookHandler(ui))
+        new PlayRunHookHandler((uiContext in Global).value))
+    }
     // This is a very sketchy reflective hack.
-    hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, proxy)
+    hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, proxyInit)
   }
 
   // New proxy
@@ -121,7 +125,7 @@ object PlaySupport {
   }
 
   // Adds our hooks into the play build.
-  def installHooks(state: State, ui: UIContext): State = {
+  def installHooks(state: State): State = {
     PoorManDebug.debug("Installing play hooks.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
@@ -130,18 +134,18 @@ object PlaySupport {
       sys.error("Unable to find play run hook!  Possibly incompatible play version.")
     // We can ignore the atmos specific ones:
     val nonAtmosKeys = runHookKeys.filterNot(_.scope.config.fold(config => config.name == "atmos", ifGlobal = false, ifThis = false))
-    val fixedHooks = nonAtmosKeys map (setting => makeDynamicProxyRunHookSetting(setting, ui))
+    val fixedHooks = nonAtmosKeys map (setting => makeDynamicProxyRunHookSetting(setting))
     val interactionKeys = findPlaySettingScopedKeys("playInteractionMode", settings)
     if (interactionKeys.isEmpty)
       sys.error("Unable to find play itneraction hook!  Possibly incompatible play version.")
-    val fixedInteractions = interactionKeys map { setting => makePlayInteractionSetting(setting, ui) }
+    val fixedInteractions = interactionKeys map { setting => makePlayInteractionSetting(setting) }
     val newSettings: Seq[Setting[_]] = fixedHooks ++ fixedInteractions
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 
-  def installPlaySupport(origState: State, ui: UIContext): State = {
+  def installPlaySupport(origState: State): State = {
     PoorManDebug.trace("Checking if play hooks are needed.")
-    if (isPlayProject(origState)) installHooks(origState, ui)
+    if (isPlayProject(origState)) installHooks(origState)
     else origState
   }
 }
