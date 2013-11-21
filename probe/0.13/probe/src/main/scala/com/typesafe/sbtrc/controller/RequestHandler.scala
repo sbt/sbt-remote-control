@@ -151,9 +151,7 @@ object RequestHandler {
 
   /** This installs all of our shim hooks into the project. */
   def installShims(origState: State, ui: UIContext): State = {
-    val s2 = PlaySupport.installPlaySupport(origState, ui)
-    val s3 = AtmosSupport.installAtmosSupport(s2, ui)
-    s3
+    PlaySupport.installPlaySupport(origState, ui)
   }
 
   private def extractValue[T](key: sbt.ScopedKey[T], state: State): protocol.TaskResult[T] =

@@ -37,7 +37,8 @@ object SetupSbtChild extends AbstractServerCommand("0.13") {
 
   override protected def installGlobalShims(state: State): State = {
     val s1 = disableSelectMain(state)
-    addTestListener(s1)
+    val s2 = addTestListener(s1)
+    controller.AtmosSupport.installAtmosSupport(s2)
   }
 
   // TODO - We should probably move all this hackery/shim stuff in one location that's
