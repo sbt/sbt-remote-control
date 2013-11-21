@@ -14,6 +14,8 @@ import SbtCustomHacks._
 
 object SbtUtil {
 
+  // TODO - I think this is fundamentally broken.  Can't inject UIContext in this fashion.
+  // Basically, because the changed state is NOT returned, which has the new UI context.
   def extractWithRef(state: State, context: Option[UIContext] = None): (Extracted, ProjectRef) = {
     val state2: State = context match {
       case Some(ui) => reloadWithUiContext(state, ui)

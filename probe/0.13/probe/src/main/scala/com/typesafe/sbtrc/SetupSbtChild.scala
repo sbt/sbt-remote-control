@@ -28,18 +28,46 @@ object SetupSbtChild extends AbstractServerCommand("0.13") {
     controller.installRawShims(s, atmosShims ++ ideShims)
   }
 
-  override protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult = {
-    try {
-      // TODO - Clean this up for less indirection....
-      controller.findHandler(request, s) map { handler =>
-        val (newState, response) = handler(s, context, request)
-        RequestSuccess(response, newState)
-      } getOrElse RequestNotHandled
-    } catch {
-      case e: Exception => RequestFailure(e)
-    }
-  }
-  // TODO - Implement...
+  override protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult =
+    controller.RequestHandler.handleRequest(s, context, request)
+
+  // TODO - Is this correct?  maybe we should remove the previous UI context setting, or overwrite it.
   override protected def installRequestShims(serial: Long, context: ui.Context, state: State): State =
-    state
+    reloadWithUiContext(state, context)
+
+  override protected def installGlobalShims(state: State): State = {
+    val s1 = disableSelectMain(state)
+    addTestListener(s1)
+  }
+
+  // TODO - We should probably move all this hackery/shim stuff in one location that's
+  // not in the same class as the server command.
+
+  // Helper to turn off UI interaction for the main state.
+  private def disableSelectMain(state: State): State = {
+    val (extracted, ref) = extractWithRef(state)
+    // this is supposed to get rid of asking on stdin for the main class,
+    // instead just picking the first one.
+    val pickFirstMainClass: Setting[_] =
+      Keys.selectMainClass in Compile := {
+        (Keys.mainClass in Compile).value orElse (Keys.discoveredMainClasses in Compile).value.headOption
+      }
+    val settings = makeAppendSettings(Seq(pickFirstMainClass), ref, extracted)
+    reloadWithAppended(state, settings)
+  }
+
+  // Helpers to install test listening event reporters.
+  private val uiTestListener = sbt.taskKey[sbt.TestReportListener]("The ui-event-sending report listener")
+  private val testListenersKey = sbt.Keys.testListeners in Test in Global
+  private def addTestListener(state: State): State = {
+    PoorManDebug.trace("Adding test listener to state.")
+    val (extracted, ref) = extractWithRef(state)
+    val rawSettings = Seq(
+      uiTestListener in Global := {
+        new controller.UiTestListener((ui.SbtUiPlugin.uiContext in Global).value)
+      },
+      testListenersKey += (uiTestListener in Global).value)
+    val settings = makeAppendSettings(rawSettings, ref, extracted)
+    reloadWithAppended(state, settings)
+  }
 }

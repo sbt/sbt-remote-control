@@ -46,6 +46,9 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
    */
   protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult
   
+  /** Here we install all the shims which remain on state "forever". */
+  protected def installGlobalShims(state: State): State
+  
   import SbtUtil._
 
   private lazy val client = ipc.openClient(getPort())
@@ -74,7 +77,7 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
       }
 
       // now add our command
-      disableSelectMain(loggedState) ++ Seq(listen)
+      installGlobalShims(loggedState) ++ Seq(listen)
     } catch {
       case e: NeedToRebootException =>
         throw e
@@ -109,24 +112,6 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
     reloadWithAppended(state, settings)
   }
 
-  // TODO - Why is this here and not in the handlers?  We may need to make this
-  // abstract to support multiple sbt versions...
-  private def disableSelectMain(state: State): State = {
-    val (extracted, ref) = extractWithRef(state)
-
-    // this is supposed to get rid of asking on stdin for the main class,
-    // instead just picking the first one.
-
-    val pickFirstMainClass: Setting[_] = 
-      Keys.selectMainClass in Compile <<=
-        (Keys.mainClass in Compile, Keys.discoveredMainClasses in Compile) map {
-          (mc, discovered) =>
-            mc orElse discovered.headOption
-        }
-
-    val settings = makeAppendSettings(Seq(pickFirstMainClass), ref, extracted)
-    reloadWithAppended(state, settings)
-  }
 
   @tailrec
   private def blockForStatus(inContext: ProbedContext): ui.Status = {

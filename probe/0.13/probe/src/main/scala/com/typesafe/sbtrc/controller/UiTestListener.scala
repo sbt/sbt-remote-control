@@ -16,11 +16,9 @@ import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
 
 /** An sbt test listener that can feed back events over the UI Context. */
-class UiTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener]]) extends TestReportListener {
+class UiTestListener(val ui: UIContext) extends TestReportListener {
 
   override def startGroup(name: String): Unit = {}
-
-  var overallOutcome: protocol.TestOutcome = protocol.TestPassed
 
   override def testEvent(event: TestEvent): Unit = {
     // event.result is just all the detail results folded,
@@ -35,12 +33,6 @@ class UiTestListener(val ui: UIContext, val oldTask: Task[Seq[TestReportListener
         case TStatus.Ignored => protocol.TestSkipped
         // TODO - Handle this correctly...
         case TStatus.Pending => protocol.TestSkipped
-      }
-
-      // each test group is in its own thread so this has to be
-      // synchronized
-      synchronized {
-        overallOutcome = overallOutcome.combine(outcome)
       }
       sendEvent(ui, "result",
         protocol.TestEvent(detail.fullyQualifiedName,

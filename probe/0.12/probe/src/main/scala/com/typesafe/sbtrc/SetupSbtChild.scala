@@ -42,4 +42,25 @@ object SetupSbtChild extends AbstractServerCommand("0.12") {
   // TODO - Implement...
   override protected def installRequestShims(serial: Long, context: ui.Context, state: State): State =
     state
+
+  override protected def installGlobalShims(state: State): State = {
+    disableSelectMain(state)
+  }
+
+  private def disableSelectMain(state: State): State = {
+    val (extracted, ref) = extractWithRef(state)
+
+    // this is supposed to get rid of asking on stdin for the main class,
+    // instead just picking the first one.
+
+    val pickFirstMainClass: Setting[_] =
+      Keys.selectMainClass in Compile <<=
+        (Keys.mainClass in Compile, Keys.discoveredMainClasses in Compile) map {
+          (mc, discovered) =>
+            mc orElse discovered.headOption
+        }
+
+    val settings = makeAppendSettings(Seq(pickFirstMainClass), ref, extracted)
+    reloadWithAppended(state, settings)
+  }
 }
