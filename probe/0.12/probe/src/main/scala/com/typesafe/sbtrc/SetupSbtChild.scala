@@ -21,7 +21,6 @@ import SbtCustomHacks._
 import com.typesafe.sbtrc.ipc.JsonWriter
 
 object SetupSbtChild extends AbstractServerCommand("0.12") {
-
   import SbtUtil._
 
   override def installPluginShims(s: State): Boolean = {
@@ -39,9 +38,9 @@ object SetupSbtChild extends AbstractServerCommand("0.12") {
       case e: Exception => RequestFailure(e)
     }
   }
-  // TODO - Implement...
+  // TODO - Is this correct?  maybe we should remove the previous UI context setting, or overwrite it.
   override protected def installRequestShims(serial: Long, context: ui.Context, state: State): State =
-    state
+    reloadWithUiContext(state, context)
 
   override protected def installGlobalShims(state: State): State = {
     disableSelectMain(state)

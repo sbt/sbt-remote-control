@@ -19,10 +19,32 @@ object RequestHandler {
 
   import SbtUtil._
 
-  private def sendEvent(ui: UIContext, id: String, paramsMap: Map[String, Any]): Unit = {
-    ui.sendEvent(id, paramsMap)
-  }
-
+  /** This class knows how to handle requests for sbt 0.13.  */
+  def handleRequest(s: State, context: UIContext, request: protocol.Request): RequestResult =
+    try request match {
+      // High level API
+      case req: protocol.NameRequest => nameHandler(s, context, req)
+      case req: protocol.MainClassRequest => mainClassHandler(s, context, req)
+      case req: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler(s, context, req)
+      case req: protocol.CompileRequest => compileHandler(s, context, req)
+      // TODO - Just delegate to one handler that can extract itself appropriately
+      case req @ protocol.RunRequest(_, _, None, false) => runHandler(run in Compile, "run")(s, context, req)
+      case req @ protocol.RunRequest(_, _, None, true) => runHandler(run in (config("atmos")), "run:atmos")(s, context, req)
+      case req @ protocol.RunRequest(_, _, Some(_), false) => runMainHandler(runMain in Compile, "run-main")(s, context, req)
+      case req @ protocol.RunRequest(_, _, Some(_), true) => runMainHandler(runMain in config("atmos"), "atmos:run-main")(s, context, req)
+      case req: protocol.TestRequest => testHandler(s, context, req)
+      // Low-Level API
+      case req: protocol.SettingKeyRequest => settingKeyHandler(s, context, req)
+      case req: protocol.SettingValueRequest => settingValueHandler(s, context, req)
+      case req: protocol.TaskKeyRequest => taskKeyHandler(s, context, req)
+      case req: protocol.TaskValueRequest => taskValueHandler(s, context, req)
+      case req: protocol.InputTaskKeyRequest => inputTaskKeyHandler(s, context, req)
+      case req: protocol.ExecuteCommandRequest => commandHandler(s, context, req)
+      case _ => RequestNotHandled
+    } catch {
+      case e: Exception => RequestFailure(e)
+    }
+  
   private def nameHandler(origState: State, ui: UIContext, params: protocol.NameRequest): RequestResult = {
     PoorManDebug.debug("Extracting name and capabilities of this build.")
 
@@ -102,8 +124,7 @@ object RequestHandler {
       case Some(r) => key in SbtToProtocolUtils.projectRefFromProtocol(r)
       case _ => key
     }
-    val shimedState = installShims(origState, ui)
-    val s = runInputTask(key2, shimedState, args = "", Some(ui))
+    val s = runInputTask(key2, origState, args = "", Some(ui))
     RequestSuccess(protocol.RunResponse(success = true, task = taskName), origState)
   }
 
@@ -117,15 +138,13 @@ object RequestHandler {
       case _ => key
     }
     // Note: For now this is safe. In the future, let's just not cast 30 bajillion times.
-    val shimedState = installShims(origState, ui)
-    val s = runInputTask(key2, shimedState, args = klass, Some(ui))
+    val s = runInputTask(key2, origState, args = klass, Some(ui))
     RequestSuccess(protocol.RunResponse(success = true, task = taskName), origState)
   }
 
   private def testHandler(origState: State, ui: UIContext, req: protocol.TestRequest): RequestResult = {
     PoorManDebug.debug("Invoking the test task.")
-    val shimedState = installShims(origState, ui)
-    val extracted = extract(shimedState)
+    val extracted = extract(origState)
 
     // DEBUG ONLY
 
@@ -134,7 +153,7 @@ object RequestHandler {
       // TODO - in this case, we may want to aggregate...
       case _ => executeTests in Test
     }
-    val (s2, result) = extract(shimedState).runTask(key, shimedState)
+    val (s2, result) = extract(origState).runTask(key, origState)
     val outcome = result.overall match {
       case TestResult.Error => protocol.TestError
       case TestResult.Passed => protocol.TestPassed
@@ -145,13 +164,7 @@ object RequestHandler {
 
   private def commandHandler(origState: State, ui: UIContext, req: protocol.ExecuteCommandRequest): RequestResult = {
     PoorManDebug.debug("Invoking the comamnd [" + req.command + "]")
-    val shimedState = installShims(origState, ui)
-    RequestSuccess(protocol.ExecuteCommandResponse(), runCommand(req.command, shimedState, Some(ui)))
-  }
-
-  /** This installs all of our shim hooks into the project. */
-  def installShims(origState: State, ui: UIContext): State = {
-    origState
+    RequestSuccess(protocol.ExecuteCommandResponse(), runCommand(req.command, origState, Some(ui)))
   }
 
   private def extractValue[T](key: sbt.ScopedKey[T], state: State): protocol.TaskResult[T] =
@@ -202,7 +215,7 @@ object RequestHandler {
     // TODO - Here we want to validate we have a task key using the manifest and issuing an error otherwise.
     val taskSbtKey = sbtKey.asInstanceOf[sbt.ScopedKey[Task[_]]]
     import language.existentials
-    val (state, value) = runTaskByKey(taskSbtKey, installShims(origState, ui))
+    val (state, value) = runTaskByKey(taskSbtKey, origState)
     RequestSuccess(protocol.TaskValueResponse(value), origState)
   }
 
@@ -220,29 +233,4 @@ object RequestHandler {
       KeyList(SbtDiscovery.inputTasks(origState, req.filter))
     RequestSuccess(KeyListResponse(results), origState)
   }
-
-  def handleRequest(s: State, context: UIContext, request: protocol.Request): RequestResult =
-    try request match {
-      // High level API
-      case req: protocol.NameRequest => nameHandler(s, context, req)
-      case req: protocol.MainClassRequest => mainClassHandler(s, context, req)
-      case req: protocol.WatchTransitiveSourcesRequest => watchTransitiveSourcesHandler(s, context, req)
-      case req: protocol.CompileRequest => compileHandler(s, context, req)
-      // TODO - Just delegate to one handler that can extract itself appropriately
-      case req @ protocol.RunRequest(_, _, None, false) => runHandler(run in Compile, "run")(s, context, req)
-      case req @ protocol.RunRequest(_, _, None, true) => runHandler(run in (config("atmos")), "run:atmos")(s, context, req)
-      case req @ protocol.RunRequest(_, _, Some(_), false) => runMainHandler(runMain in Compile, "run-main")(s, context, req)
-      case req @ protocol.RunRequest(_, _, Some(_), true) => runMainHandler(runMain in config("atmos"), "atmos:run-main")(s, context, req)
-      case req: protocol.TestRequest => testHandler(s, context, req)
-      // Low-Level API
-      case req: protocol.SettingKeyRequest => settingKeyHandler(s, context, req)
-      case req: protocol.SettingValueRequest => settingValueHandler(s, context, req)
-      case req: protocol.TaskKeyRequest => taskKeyHandler(s, context, req)
-      case req: protocol.TaskValueRequest => taskValueHandler(s, context, req)
-      case req: protocol.InputTaskKeyRequest => inputTaskKeyHandler(s, context, req)
-      case req: protocol.ExecuteCommandRequest => commandHandler(s, context, req)
-      case _ => RequestNotHandled
-    } catch {
-      case e: Exception => RequestFailure(e)
-    }
 }
