@@ -6,17 +6,14 @@ import _root_.sbt._
 import sbt.Keys._
 import sbt.Defaults._
 import org.scalatools.testing._
-import sbt.testing.{ Status => TStatus }
+import org.scalatools.testing.{ Result => TResult }
 import SbtUtil.extract
 import SbtUtil.extractWithRef
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
 import protocol.{ JsonStructure, RawStructure }
 import com.typesafe.sbt.ui.{ Context => UIContext }
-import sbt.testing.{ Status => TStatus }
 
-
-// TODO - See how much of this we can share between sbt versions....
 object RequestHandler {
 
   import SbtUtil._
@@ -155,8 +152,8 @@ object RequestHandler {
       // TODO - in this case, we may want to aggregate...
       case _ => executeTests in Test
     }
-    val (s2, result) = extract(origState).runTask(key, origState)
-    val outcome = result.overall match {
+    val (s2, (result, _)) = extract(origState).runTask(key, origState)
+    val outcome = result match {
       case TestResult.Error => protocol.TestError
       case TestResult.Passed => protocol.TestPassed
       case TestResult.Failed => protocol.TestFailed
@@ -182,7 +179,7 @@ object RequestHandler {
     import protocol.{ ScopedKey => PScopedKey, TaskResult }
     // TODO - Catch errors
     PoorManDebug.debug("Looking up setting: " + req.key)
-    val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(req.key, origState)
+    val sbtKey: sbt.ScopedKey[_] = Sbt12ToProtocolUtils.protocolToScopedKey(req.key, origState)
     val value = extractValue(sbtKey, origState)
     RequestSuccess(protocol.SettingValueResponse(value), origState)
   }
@@ -213,10 +210,9 @@ object RequestHandler {
   private def taskValueHandler(origState: State, ui: UIContext, req: protocol.TaskValueRequest): RequestResult = {
     import protocol.{ ScopedKey => PScopedKey, TaskResult }
     PoorManDebug.debug("Running task: " + req.key)
-    val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(req.key, origState)
+    val sbtKey: sbt.ScopedKey[_] = Sbt12ToProtocolUtils.protocolToScopedKey(req.key, origState)
     // TODO - Here we want to validate we have a task key using the manifest and issuing an error otherwise.
     val taskSbtKey = sbtKey.asInstanceOf[sbt.ScopedKey[Task[_]]]
-    import language.existentials
     val (state, value) = runTaskByKey(taskSbtKey, origState)
     RequestSuccess(protocol.TaskValueResponse(value), origState)
   }
