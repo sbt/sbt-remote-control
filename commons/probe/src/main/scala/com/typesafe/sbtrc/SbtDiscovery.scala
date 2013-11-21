@@ -46,7 +46,6 @@ object SbtDiscovery {
     
     
   private def filteredkeys(state: State, filter: protocol.KeyFilter): Seq[sbt.ScopedKey[_]] = {
-    // TODO - Figure out filtering...
     for {
       setting <- structure(state).settings
       key = setting.key
