@@ -188,7 +188,11 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
     try {
       client.replyJson(serial, protocol.RequestReceivedEvent)
       val context = new ProbedContext(serial, request.simpleName)
-      try handleRequest(origState, context, request) match {
+      // TODO - Does this make sense here?  Maybe we should ensure
+      // that we can remove the shims with a loaner-pattern....
+      val newState = installRequestShims(serial, context, origState)
+      
+      try handleRequest(newState, context, request) match {
         case RequestNotHandled =>
           client.replyJson(serial, protocol.ErrorResponse("SBT " +sbtProbeVersion+" - No handler for: " + request.simpleName))
           origState

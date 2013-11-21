@@ -39,4 +39,7 @@ object SetupSbtChild extends AbstractServerCommand("0.12") {
       case e: Exception => RequestFailure(e)
     }
   }
+  // TODO - Implement...
+  override protected def installRequestShims(serial: Long, context: ui.Context, state: State): State =
+    state
 }
