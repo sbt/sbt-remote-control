@@ -32,6 +32,8 @@ trait Context {
   // non-None there's a message displayed (e.g. "Compiling foo.scala")
   def updateProgress(progress: Progress, status: Option[String] = None): Unit
 
+  // TODO - We should have a nicer method of this so we can
+  // send structured and unstructured events...
   def sendEvent(id: String, event: Map[String,Any]): Unit
 
   // block for any messages during the task, if your task
