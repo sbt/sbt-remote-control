@@ -15,9 +15,11 @@ object SbtToProtocolUtils {
     
     
   def scopeToProtocol(scope: sbt.Scope): protocol.SbtScope = {
-    // TODO - Figure this out
+    // TODO - Is it acceptable to use configs *just by the name* or do we need
+    // to actually look up the sbt instance itself.
+    // if any code is using referential equality, we may need to re-evaluate this.
     val configString: Option[String] = 
-      scope.config.toOption.map(_.name)  // TODO - this is not right
+      scope.config.toOption.map(_.name)  
     
     // We can only do this all at once, or not at all
     
