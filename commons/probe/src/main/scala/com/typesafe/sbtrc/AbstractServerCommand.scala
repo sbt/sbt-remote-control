@@ -19,6 +19,11 @@ import scala.annotation.tailrec
 import SbtCustomHacks._
 import com.typesafe.sbtrc.ipc.JsonWriter
 
+sealed trait RequestResult
+case class RequestSuccess(response: protocol.Response, state: State) extends RequestResult
+case object RequestNotHandled extends RequestResult
+case class RequestFailure(exception: Throwable) extends RequestResult
+
 abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => State) {
 
   /** Installs the shims and tells us if any were added. 
@@ -26,7 +31,20 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
    *  Shims are sbt plugins that must be resolved/reloaded in order for the
    *  build to work correctly.  
    */
-  protected def installShims(s: State): Boolean
+  protected def installPluginShims(s: State): Boolean
+  
+  /**
+   * Installs any per-request shims that we need on the state so we can
+   * fire back events.
+   */
+  protected def installRequestShims(serial: Long, context: ui.Context, state: State): State
+  
+  /**
+   * Attempts to handle a user request.
+   * 
+   * @return One of three states:   RequestSuccess, RequestNotHandled or RequestFailure.
+   */
+  protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult
   
   import SbtUtil._
 
@@ -45,7 +63,7 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
       // tests or production.
       if (System.getProperty("sbtrc.no-shims", "false") != "true") {
         // Make sure the shims are installed we need for this build.
-        if (installShims(loggedState)) {
+        if (installPluginShims(loggedState)) {
           client.sendJson(protocol.NeedRebootEvent)
           // close down in orderly fashion
           client.close()
@@ -124,11 +142,14 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
         }
         ui.Canceled
       case protocol.Envelope(serial, replyTo, request: protocol.Request) =>
-        ui.Request[protocol.Request, protocol.Response](request, { (state, handler) =>
-          handleRequest(serial, request, state, handler)
-        }, { error =>
-          client.replyJson(serial, protocol.ErrorResponse(error))
-        })
+        ui.Request[protocol.Request](
+          request = request, 
+          handler = { (state, handler) =>
+            handleRequestImpl(serial, request, state)
+          }, 
+          sendError = { error =>
+            client.replyJson(serial, protocol.ErrorResponse(error))
+          })
       case protocol.Envelope(serial, _, message) =>
         client.replyJson(serial, protocol.ErrorResponse("Message received while another request was active: " + message))
         blockForStatus(inContext)
@@ -162,31 +183,30 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
     val port = Integer.parseInt(portString)
     port
   }
-
-  private def handleRequest(serial: Long, request: protocol.Request, origState: State, handler: controller.RequestHandler): State = {
+  
+  private def handleRequestImpl(serial: Long, request: protocol.Request, origState: State): State = {
     try {
       client.replyJson(serial, protocol.RequestReceivedEvent)
       val context = new ProbedContext(serial, request.simpleName)
-      try {
-        val (newState, msg) = handler(origState, context, request)
-        // Our implicit serializer.
-        import protocol.WireProtocol.jsonWriter
-        client.replyJson(serial, msg)
-        newState
-      } catch {
-        case t: Throwable =>
-          // TODO - we need to handle errors in the request handlers and send appropriate responses...
-          System.err.println("DBEUGME - Error running request: " + request.simpleName)
-          t.printStackTrace()
-          throw t
+      try handleRequest(origState, context, request) match {
+        case RequestNotHandled =>
+          client.replyJson(serial, protocol.ErrorResponse("SBT " +sbtProbeVersion+" - No handler for: " + request.simpleName))
+          origState
+        case RequestFailure(err) =>
+          // Catch this in outer catch block.
+          // TODO - output via debugging...
+          throw err
+        case RequestSuccess(response, state) => 
+          // Send the response, then return.
+          import protocol.WireProtocol.jsonWriter
+          client.replyJson(serial, response)
+          state
       } finally {
-        // this sends any pending CancelResponse
         context.close()
       }
     } catch {
       case e: Exception =>
-        client.replyJson(serial,
-          protocol.ErrorResponse("exception during sbt task: " + request.simpleName + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
+        client.replyJson(serial, protocol.ErrorResponse("exception during sbt task: " + request.simpleName + ": " + e.getClass.getSimpleName + ": " + e.getMessage))
         origState
     }
   }
@@ -197,13 +217,7 @@ abstract class AbstractServerCommand(sbtProbeVersion: String) extends (State => 
         client.replyJson(serial, protocol.ErrorResponse("No active task to cancel"))
         origState
       case protocol.Envelope(serial, replyTo, request: protocol.Request) =>
-        controller.findHandler(request, origState) map { handler =>
-          val newState = handleRequest(serial, request, origState, handler)
-          newState
-        } getOrElse {
-          client.replyJson(req.serial, protocol.ErrorResponse("SBT " +sbtProbeVersion+" - No handler for: " + request.simpleName))
-          origState
-        }
+        handleRequestImpl(serial, request, origState)
       case _ => {
         client.replyJson(req.serial, protocol.ErrorResponse("Unknown request: " + req))
         origState

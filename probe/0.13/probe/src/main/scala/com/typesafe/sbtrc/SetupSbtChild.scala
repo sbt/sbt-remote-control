@@ -22,9 +22,24 @@ import com.typesafe.sbtrc.ipc.JsonWriter
 object SetupSbtChild extends AbstractServerCommand("0.13") {
   import SbtUtil._
 
-  protected def installShims(s: State): Boolean = {
+  override protected def installPluginShims(s: State): Boolean = {
     val atmosShims = controller.AtmosSupport.getAtmosShims(s)
     val ideShims = io.ShimWriter.sbt13ideShims
     controller.installRawShims(s, atmosShims ++ ideShims)
   }
+
+  override protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult = {
+    try {
+      // TODO - Clean this up for less indirection....
+      controller.findHandler(request, s) map { handler =>
+        val (newState, response) = handler(s, context, request)
+        RequestSuccess(response, newState)
+      } getOrElse RequestNotHandled
+    } catch {
+      case e: Exception => RequestFailure(e)
+    }
+  }
+  // TODO - Implement...
+  override protected def installRequestShims(serial: Long, context: ui.Context, state: State): State =
+    state
 }

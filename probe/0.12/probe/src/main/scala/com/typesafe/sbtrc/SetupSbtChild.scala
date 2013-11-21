@@ -24,7 +24,19 @@ object SetupSbtChild extends AbstractServerCommand("0.12") {
 
   import SbtUtil._
 
-  override def installShims(s: State): Boolean = {
+  override def installPluginShims(s: State): Boolean = {
     controller.installShims(s)
+  }
+
+  override protected def handleRequest(s: State, context: ui.Context, request: protocol.Request): RequestResult = {
+    try {
+      // TODO - Clean this up for less indirection....
+      controller.findHandler(request, s) map { handler =>
+        val (newState, response) = handler(s, context, request)
+        RequestSuccess(response, newState)
+      } getOrElse RequestNotHandled
+    } catch {
+      case e: Exception => RequestFailure(e)
+    }
   }
 }
