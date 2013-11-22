@@ -2,6 +2,7 @@ package com.typesafe.sbtrc
 package controller
 
 import com.typesafe.sbt.ui.{ Context => UIContext }
+import com.typesafe.sbt.ui.SbtUiPlugin.uiContext
 import com.typesafe.sbt.ui
 import java.lang.reflect.{ Method, Proxy }
 import scala.util.parsing.json.JSONObject
@@ -9,40 +10,41 @@ import sbt._
 
 object AtmosSupport {
 
-  // Hacker to add a value to a task sequence (somewhat ignoring runtime types).
-  def hackyAddToTask[T](key: TaskKey[Seq[T]], element: Any): Setting[Task[Seq[T]]] =
-    key := {
-      (element.asInstanceOf[T] +: key.value)
+  // Helpers to create a global listenr from the global ui context setting.
+  val uiAtmosListener = sbt.taskKey[URI => Unit]("An atmos listener which will fire events down the server channel.")
+  val uiAtmosListenerGlobalSetting: Setting[_] =
+    uiAtmosListener in Global := { uri =>
+      PoorManDebug.trace("Sending atmos uri: " + uri.toASCIIString)
+      (uiContext in Global).value.sendEvent("atmosStarted", Map("uri" -> uri.toASCIIString()))
     }
 
-  def makeAtmosRunHook(exampleSetting: Setting[_], ui: UIContext): Setting[_] = {
-    val key = exampleSetting.key
-    def eventMonitor(uri: URI): Unit = {
-      // TODO - Formalize this as a case class?
-      PoorManDebug.trace("Sending atmos uri: " + uri.toASCIIString)
-      ui.sendEvent("atmosStarted", Map("uri" -> uri.toASCIIString()))
-    }
-    val listener: URI => Unit = eventMonitor _
-    hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, listener)
+  def makeAtmosRunHooksImpl(keys: Seq[sbt.ScopedKey[_]]): Seq[Setting[_]] = {
+    keys.map { key =>
+      // Very hacky cast here...
+      val taskKey = TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[URI => Unit]]]])
+      taskKey in key.scope +=
+        (uiAtmosListener in Global).value
+    } ++ Seq(uiAtmosListenerGlobalSetting)
   }
 
-  def findAtmosSetting(name: String, settings: Seq[Setting[_]], ref: Option[ProjectRef] = None): Option[Setting[_]] =
+  def findAtmosKeys(name: String, settings: Seq[Setting[_]], ref: Option[ProjectRef] = None): Seq[ScopedKey[_]] =
     (for {
       setting <- settings
       if (setting.key.key.label == name) || (setting.key.key.rawLabel == name)
       // TODO - make sure this works!
       if (!ref.isDefined) || (setting.key.scope.project.toOption == ref)
-    } yield setting).headOption
+    } yield setting.key).distinct
 
   // Adds our hooks into the Atmos build.
-  def installHooks(state: State, ui: UIContext): State = {
+  def installHooks(state: State): State = {
     PoorManDebug.debug("Installing atmos hooks.")
     val (extracted, ref) = SbtUtil.extractWithRef(state)
     val settings = extracted.session.mergeSettings
-    val runHookKey = findAtmosSetting("atmos-run-listeners", settings).getOrElse(
-      sys.error("Unable to find play run hook!  Possibly incompatible play version."))
-    val fixedHook = makeAtmosRunHook(runHookKey, ui)
-    val newSettings = SbtUtil.makeAppendSettings(Seq[Setting[_]](fixedHook), ref, extracted)
+    val runHookKeys = findAtmosKeys("atmos-run-listeners", settings)
+    if (runHookKeys.isEmpty)
+      sys.error("Unable to find atmos run hook!  Possibly incompatible atmos version.")
+    val fixedHooks = makeAtmosRunHooksImpl(runHookKeys)
+    val newSettings = SbtUtil.makeAppendSettings(fixedHooks, ref, extracted)
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 
@@ -50,12 +52,12 @@ object AtmosSupport {
     PoorManDebug.trace("Checking if atmos hooks are needed.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    findAtmosSetting("atmos-run-listeners", settings, ref).isDefined
+    !findAtmosKeys("atmos-run-listeners", settings, ref).isEmpty
   }
 
-  def installAtmosSupport(origState: State, ui: UIContext): State = {
+  def installAtmosSupport(origState: State): State = {
     if (isAtmosProject(origState)) {
-      installHooks(origState, ui)
+      installHooks(origState)
     } else origState
   }
 

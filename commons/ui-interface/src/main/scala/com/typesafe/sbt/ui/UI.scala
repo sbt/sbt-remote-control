@@ -6,7 +6,7 @@ import sbt.State
 
 sealed trait Status
 // if you get this, you MUST call either handle or sendError, but not both.
-case class Request[RequestType, ResponseType](requst: RequestType, handle: (State, (State, Context,RequestType) => (State, ResponseType)) => State, sendError: String => Unit) extends Status
+case class Request[RequestType](request: RequestType, handler: (State, RequestType) => State, sendError: String => Unit) extends Status
 // you get this if you block for a message and there's no UI to get them from
 case object NoUIPresent extends Status
 // cancellation was just requested for the current task
@@ -32,6 +32,8 @@ trait Context {
   // non-None there's a message displayed (e.g. "Compiling foo.scala")
   def updateProgress(progress: Progress, status: Option[String] = None): Unit
 
+  // TODO - We should have a nicer method of this so we can
+  // send structured and unstructured events...
   def sendEvent(id: String, event: Map[String,Any]): Unit
 
   // block for any messages during the task, if your task
