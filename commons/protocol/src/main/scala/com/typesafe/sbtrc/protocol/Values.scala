@@ -30,6 +30,7 @@ case class SerializableBuildValue[T](
       case _ => false
     }
   
+  override def hashCode: Int = rawValue.hashCode
   
   override def toString = "Serialized(with=" + serializer + ", toString=" + stringValue +")"
 }
