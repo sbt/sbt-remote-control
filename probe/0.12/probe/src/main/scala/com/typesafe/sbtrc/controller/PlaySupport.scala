@@ -1,11 +1,9 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.{ Context => UIContext, Params, SimpleJsonMessage }
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import com.typesafe.sbt.ui
 import java.lang.reflect.{ Method, Proxy }
-import com.typesafe.sbt.ui.SimpleJsonMessage
-import scala.util.parsing.json.JSONObject
 import sbt._
 
 object PlaySupport {
@@ -70,9 +68,9 @@ object PlaySupport {
         case "afterStarted" =>
           PoorManDebug.debug("Play run hook: afterStarted called.")
           val socket = args(0).asInstanceOf[java.net.InetSocketAddress]
-          val msg = SimpleJsonMessage(JSONObject(Map(
+          val msg = Map(
             "host" -> socket.getHostName,
-            "port" -> socket.getPort)))
+            "port" -> socket.getPort)
           ui.sendEvent("playServerStarted", msg)
           null
         case "toString" =>

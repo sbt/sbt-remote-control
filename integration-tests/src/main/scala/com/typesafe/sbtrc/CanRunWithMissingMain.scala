@@ -16,7 +16,7 @@ class CanRunWithMissingMain extends SbtProcessLauncherTest {
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
     Await.result(child ? RunRequest(sendEvents = false, mainClass = None), timeout.duration) match {
-      case ErrorResponse(message) if message.contains("during sbt task: run: Incomplete") =>
+      case ErrorResponse(message) if message.contains("during sbt task: RunRequest: Incomplete: null") =>
       case whatever => throw new AssertionError("unexpected result sending RunRequest to app with no main method: " + whatever)
     }
   } finally {

@@ -47,6 +47,7 @@ object TheBuild extends Build {
   lazy val sbtControllerProbe = (
     SbtProbeProject("probe", sbt12Version)
     dependsOnSource("commons/protocol")
+    dependsOnSource("commons/protocol-shims-2.9")
     dependsOnSource("commons/probe")
     dependsOn(props, sbtUiInterface % "provided")
     dependsOnRemote(
@@ -60,7 +61,7 @@ object TheBuild extends Build {
   lazy val playShimPlugin = (
     SbtShimPlugin("play", sbt12Version)
     dependsOn(sbtUiInterface)
-    dependsOnRemote(playSbtPlugin12)
+    dependsOnRemote(playSbtPlugin12.exclude("org.avaje.ebeanorm", "avaje-ebeanorm-agent"))
   )
 
   lazy val defaultsShimPlugin = (
@@ -84,6 +85,7 @@ object TheBuild extends Build {
   lazy val sbtControllerProbe13 = (
     SbtProbeProject("probe", sbt13Version)
     dependsOnSource("commons/protocol")
+    dependsOnSource("commons/protocol-shims-2.10")
     dependsOnSource("commons/probe")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version):_*
@@ -128,10 +130,11 @@ object TheBuild extends Build {
       Keys.publishArtifact in (Test, Keys.packageBin) := true
     )
     dependsOnSource("commons/protocol")
+    dependsOnSource("commons/protocol-shims-2.10")
     dependsOn(props)
     dependsOnRemote(akkaActor,
                     sbtLauncherInterface,
-                    sbtIo)
+                    sbtIo, sbtCollections)
     settings(configureSbtTest(Keys.test): _*)
     settings(configureSbtTest(Keys.testOnly): _*)
   )

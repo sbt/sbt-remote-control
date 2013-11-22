@@ -2,7 +2,6 @@ package com.typesafe.sbtrc
 
 import com.typesafe.sbt.ui
 import SbtUtil._
-import com.typesafe.sbtrc.controller.ParamsHelper._
 
 private[sbtrc] class ProbedContext(
   val serial: Long,
@@ -13,8 +12,8 @@ private[sbtrc] class ProbedContext(
     @volatile var cancelSerial = 0L
     override def isCanceled = cancelSerial != 0L
     override def updateProgress(progress: ui.Progress, status: Option[String]) = {} // TODO
-    override def sendEvent(id: String, event: ui.Params) = {
-      client.replyJson(serial, protocol.GenericEvent(task = taskName, id = id, params = event.toMap))
+    override def sendEvent(id: String, event: Map[String, Any]) = {
+      client.replyJson(serial, protocol.GenericEvent(id = id, params = event))
     }
     override def take(): ui.Status = {
       blockForStatus(this)

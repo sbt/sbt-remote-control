@@ -22,8 +22,8 @@ resolvers += Resolver.url("typesafe-ivy-releases", new URL("http://private-repo.
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""")
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
   try {
-    Await.result(child ? GenericRequest(name = "eclipse", sendEvents = false, params = Map.empty), timeout.duration) match {
-      case GenericResponse("eclipse", _) => // We succeeded!
+    Await.result(child ? ExecuteCommandRequest("eclipse", sendEvents = false), timeout.duration) match {
+      case ExecuteCommandResponse() => // We succeeded!
       case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
     }
     // Now we check to see if the eclipse files exist.

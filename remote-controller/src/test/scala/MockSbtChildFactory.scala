@@ -14,20 +14,25 @@ class MockSbtProcessFactory extends SbtProcessFactory {
           sender ! protocol.LogEvent(protocol.LogMessage(level = "info", message = "Hello!"))
         req match {
           case protocol.NameRequest(_) =>
-            sender ! protocol.NameResponse("foo")
-          case protocol.DiscoveredMainClassesRequest(_) =>
-            sender ! protocol.DiscoveredMainClassesResponse(Nil)
+            sender ! protocol.NameResponse(Seq(protocol.ProjectInfo(
+              protocol.ProjectReference(new java.net.URI("file://test"), "test"),
+              "test",
+              true,
+              Map.empty)))
           case protocol.WatchTransitiveSourcesRequest(_) =>
             sender ! protocol.WatchTransitiveSourcesResponse(Nil)
-          case protocol.CompileRequest(_) =>
-            sender ! protocol.CompileResponse(success = true)
-          case protocol.RunRequest(_, mainClass) =>
-            sender ! protocol.RunResponse(success = true, mainClass.map(_ => protocol.TaskNames.runMain).getOrElse(protocol.TaskNames.run))
-          case protocol.TestRequest(_) =>
+          case protocol.CompileRequest(_, _) =>
+            sender ! protocol.CompileResponse(
+              Seq(protocol.CompileResult(
+                success = true,
+                ref = protocol.ProjectReference(new java.net.URI("file://test"), "test"))))
+          case protocol.RunRequest(_, _, mainClass, _) =>
+            sender ! protocol.RunResponse(success = true, mainClass.map(_ => "run-main").getOrElse("run"))
+          case protocol.TestRequest(_, _) =>
             sender ! protocol.TestResponse(outcome = protocol.TestPassed)
           case protocol.CancelRequest =>
             sender ! protocol.CancelResponse
-          case req: protocol.GenericRequest =>
+          case req =>
             sender ! protocol.ErrorResponse("GenericRequest not supported here yet")
         }
     }

@@ -27,6 +27,10 @@ object SbtUtil {
     extractWithRef(state, context)._1
   }
   
+  def getSettingValue[T](key: sbt.ScopedKey[T], state: State, context: Option[UIContext] = None): T = {
+    extract(state, context).get(sbt.SettingKey(key.key) in key.scope)
+  }
+
   private def debugSettings(seq: Seq[Setting[_]]): Unit = {
     for {
       (setting, idx) <- seq.zipWithIndex

@@ -1,4 +1,5 @@
-package com.typesafe.sbtrc.controller
+package com.typesafe.sbtrc
+package controller
 
 import sbt._
 
@@ -15,12 +16,12 @@ object findHandler {
   // implicit def withUi(t: TaskStream): { def ui: UIContext } = ...
   // That way, you just pull in one "contextual notifier thingy" and you can update both a UI and a console log.
   // (however this doesn't address how we go from input string to task inputs, and task result to output string)
-  def apply(name: String, state: State): Option[RequestHandler] = {
+  def apply(request: protocol.Request, state: State): Option[RequestHandler] = {
     val finder =
       DefaultsShim.findHandler
 
-    if (finder.isDefinedAt(name))
-      Some(finder(name))
+    if (finder.isDefinedAt(request))
+      Some(finder(request))
     else
       None
   }

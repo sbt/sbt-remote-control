@@ -26,7 +26,7 @@ abstract class CanRunTests(val sbtVersion: String) extends SbtProcessLauncherTes
           Some("this is not true"), TestFailed, Some("this is not true")),
         TestEvent("OnePassOneFailTest.testThatShouldPass", None, TestPassed, None),
         TestEvent("OnePassTest.testThatShouldPass", None, TestPassed, None),
-        ErrorResponse("exception during sbt task: test: Incomplete: null")) =>
+        ErrorResponse("exception during sbt task: TestRequest: Incomplete: null")) =>
         if (!sbtVersion.startsWith("0.12"))
           throw new AssertionError("0.12-like results obtained for " + sbtVersion)
       case Seq(Started,
@@ -38,7 +38,7 @@ abstract class CanRunTests(val sbtVersion: String) extends SbtProcessLauncherTes
         TestEvent("OnePassOneFailTest",
           None, TestPassed, None),
         TestEvent("OnePassTest", None, TestPassed, None),
-        ErrorResponse("exception during sbt task: test: Incomplete: null")) =>
+        ErrorResponse("exception during sbt task: TestRequest: Incomplete: null")) =>
         if (!sbtVersion.startsWith("0.13"))
           throw new AssertionError("0.13-like results obtained for " + sbtVersion)
 

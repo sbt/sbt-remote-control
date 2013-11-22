@@ -53,7 +53,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
       var askedToStop = false
       context.setReceiveTimeout(120.seconds)
 
-      val request = GenericRequest(sendEvents = true, taskName, taskParams)
+      val request = RunRequest(sendEvents = true, mainClass = None, useAtmos = true)
+      // TODO - Fix atmos...
+      //GenericRequest(sendEvents = true, taskName, taskParams)
       // Let's issue two requests, one for name and one for other.
       child ! NameRequest(sendEvents = true)
       child ! request
@@ -63,10 +65,11 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
         // Here we capture the result of the Name task
         case x: NameResponse =>
           log.debug("Received name response " + x)
+          val headProject = x.projects.head
           receivedNameInfo =
-            (x.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
-              !x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
-              x.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
+            (headProject.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
+              !headProject.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
+              headProject.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
         // Here we capture the result of the run task.
         case x: RunResponse =>
           log.debug("Received run response " + x)
@@ -75,14 +78,17 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
 
         // Here we capture the output of play start.
         // TODO - We should validate the port is the one we expect....
-        case GenericEvent(name, "atmosStarted", params) if name == taskName =>
-          log.debug("Received atmos event for " + name + " params " + params)
+        case GenericEvent("atmosStarted", params) =>
+          log.debug("Received atmos event params " + params)
           receivedSocketInfo = params.contains("uri")
         // we still have to wait for RunResponse
 
         case ReceiveTimeout =>
           // If we haven't received any events in a while, here's what we do.
           result.failure(new RuntimeException("Nothing has happened in a long time, giving up"))
+          context stop self
+        case ErrorResponse(message) =>
+          result.failure(new RuntimeException(message))
           context stop self
         case log: LogEvent =>
         // ignore log event
@@ -92,7 +98,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     }), "can-run-sbt-13-and-atmos")
 
     Await.result(result.future, timeout.duration) match {
-      case RunResponse(success, name) if name == taskName =>
+      case RunResponse(success, name) =>
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive atmos URI")
         if (!receivedNameInfo)
@@ -109,9 +115,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
 }
 
 /** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runAtmos, Map.empty)
+class CanRunSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, "atmos:run", Map.empty)
 
-class CanRunSbt12AtmosProject extends CanRunAtmosProject(TestUtil.sbt12TestVersion, TaskNames.runAtmos, Map.empty)
+class CanRunSbt12AtmosProject extends CanRunAtmosProject(TestUtil.sbt12TestVersion, "atmos:run", Map.empty)
 
-class CanRunMainSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
+class CanRunMainSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, "atmos:run-main", Map("mainClass" -> "Main"))
 

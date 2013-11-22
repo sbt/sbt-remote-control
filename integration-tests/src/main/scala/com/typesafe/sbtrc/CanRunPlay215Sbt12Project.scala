@@ -60,7 +60,7 @@ object ApplicationBuild extends Build {
         case x: NameResponse =>
           log.debug("Received name response " + x)
           receivedNameInfo =
-            x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean]
+            x.projects.head.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean]
           // Now issue the run request
           child ! RunRequest(sendEvents = true, mainClass = None)
         // Here we capture the result of the run task.
@@ -70,7 +70,7 @@ object ApplicationBuild extends Build {
 
         // Here we capture the output of play start. 
         // TODO - We should validate the port is the one we expect....
-        case GenericEvent("run", "playServerStarted", params) =>
+        case GenericEvent("playServerStarted", params) =>
           receivedSocketInfo = true
           // Now we can manually cancel
           self ! ReceiveTimeout

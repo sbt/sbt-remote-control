@@ -39,7 +39,9 @@ abstract class CanGetDefaultMain(val sbtVersion: String, val forceMain2: Boolean
   val a = system.actorOf(Props(new DieIfWeSeeMainSelector), name = "die-on-see-main-selector")
   try {
     Await.result(a ? "go", timeout.duration) match {
-      case MainClassResponse(Some(mainName)) =>
+      case MainClassResponse(Seq(
+        DiscoveredMainClasses(_, _, Some(mainName))
+        )) =>
         val expected = if (forceMain2) "Main2" else "Main1"
         if (mainName != expected)
           throw new AssertionError("got wrong main class: '" + mainName + "'")

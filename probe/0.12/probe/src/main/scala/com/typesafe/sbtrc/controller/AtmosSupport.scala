@@ -1,11 +1,9 @@
 package com.typesafe.sbtrc
 package controller
 
-import com.typesafe.sbt.ui.{ Context => UIContext, Params, SimpleJsonMessage }
+import com.typesafe.sbt.ui.{ Context => UIContext }
 import com.typesafe.sbt.ui
 import java.lang.reflect.{ Method, Proxy }
-import com.typesafe.sbt.ui.SimpleJsonMessage
-import scala.util.parsing.json.JSONObject
 import sbt._
 
 object AtmosSupport {
@@ -20,16 +18,18 @@ object AtmosSupport {
     val key = exampleSetting.key
     def eventMonitor(uri: URI): Unit = {
       // TODO - Formalize this as a case class?
-      ui.sendEvent("atmosStarted", SimpleJsonMessage(JSONObject(Map("uri" -> uri.toASCIIString()))))
+      ui.sendEvent("atmosStarted", Map("uri" -> uri.toASCIIString()))
     }
     val listener: URI => Unit = eventMonitor _
     hackyAddToTask(TaskKey(key.key.asInstanceOf[AttributeKey[Task[Seq[AnyRef]]]]) in key.scope, listener)
   }
 
-  def findAtmosSetting(name: String, settings: Seq[Setting[_]]): Option[Setting[_]] =
+  def findAtmosSetting(name: String, settings: Seq[Setting[_]], ref: Option[ProjectRef] = None): Option[Setting[_]] =
     (for {
       setting <- settings
-      if setting.key.key.label == name
+      if (setting.key.key.label == name)
+      // TODO - make sure this works!
+      if (!ref.isDefined) || (setting.key.scope.project.toOption == ref)
     } yield setting).headOption
 
   // Adds our hooks into the Atmos build.
@@ -43,10 +43,11 @@ object AtmosSupport {
     SbtUtil.reloadWithAppended(state, newSettings)
   }
 
-  def isAtmosProject(state: State): Boolean = {
+  def isAtmosProject(state: State, ref: Option[ProjectRef] = None): Boolean = {
+    PoorManDebug.trace("Checking if atmos hooks are needed.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    findAtmosSetting("atmos-run-listeners", settings).isDefined
+    findAtmosSetting("atmos-run-listeners", settings, ref).isDefined
   }
 
   def installAtmosSupport(origState: State, ui: UIContext): State = {
