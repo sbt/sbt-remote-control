@@ -58,7 +58,7 @@ object Classes {
    object AttributedSubClass extends SubClass(AttributedClass)
 }
 
-// TODO - Figure out how to serialize arbitrary values using Parametizable 
+// TODO - Clean up our serialziation of arbitrary values into RawStrcuture.... 
 object BuildValue {
   
   // Here we need to reflectively look up the serialization of things...

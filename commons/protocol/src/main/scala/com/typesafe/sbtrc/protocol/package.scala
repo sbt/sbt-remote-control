@@ -439,7 +439,7 @@ package object protocol {
     def unapply(obj: Map[String,Any]): Option[RequestReceivedEvent.type] = 
       obj.get("event").filter(_ == "RequestReceivedEvent").map(_ => RequestReceivedEvent)
   }
-  implicit object TestEventStrcuture extends RawStructure[TestEvent] {
+  implicit object TestEventStructure extends RawStructure[TestEvent] {
     def apply(msg: TestEvent) = (
       Map("event" -> "TestEvent",
           "name" -> msg.name,
