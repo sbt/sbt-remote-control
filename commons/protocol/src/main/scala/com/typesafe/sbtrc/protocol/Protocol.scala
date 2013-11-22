@@ -105,6 +105,12 @@ case class GenericEvent(id: String, params: Map[String, Any]) extends Event
 
 /**
  * Attempts to cancel the last request this client sent.
+ * 
+ * TODO - This is as evil as a TION.   This is inherently not thread-safe, prevents reordering of messages,
+ * and at a minimum should take the serial ID of the request it's trying to cancel.  We don't expose
+ * serials in the API yet, so that's impractical.
+ * 
+ * Hopefully the need for this disappears as we learn how to make sbt-remote-control multi-tennant.
  */
 case object CancelRequest extends Request {
   override def sendEvents = false
