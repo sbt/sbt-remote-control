@@ -195,10 +195,30 @@ object KeyList {
   }
 }
 
+
+case class MinimalBuildStructure(
+  builds: Seq[URI],
+  projects: Seq[ProjectReference],
+  // TODO - The set of keys may NOT correspond to the available set of keys you can actually
+  // call into as a user.  This is because of delegation in sbt.
+  // e.g.   if you write `<project>/version`, this may come from the Global or build scope, and so isn't
+  // actually defined but is still a valid key to inspect....
+  settingKeys: Seq[ScopedKey],
+  taskKeys: Seq[ScopedKey],
+  inputKeys: Seq[ScopedKey]
+)
+object MinimalBuildStructure {
+  // TODO - Serializer/Structure...
+}
+
 /** A filter for which keys to display. */
-case class KeyFilter(project: Option[String],
-                     config: Option[String],
-                     key: Option[String])
+case class KeyFilter(project: Option[String] = None,
+                     config: Option[String] = None,
+                     key: Option[String] = None) {
+  def withProject(name: String) = copy(project = Some(name))
+  def withConfig(name: String) = copy(config = Some(name))
+  def withKeyScope(name: String) = copy(key = Some(name))
+}
 object KeyFilter {
   val empty = KeyFilter(None, None, None)
   implicit object MyStructure extends RawStructure[KeyFilter] {

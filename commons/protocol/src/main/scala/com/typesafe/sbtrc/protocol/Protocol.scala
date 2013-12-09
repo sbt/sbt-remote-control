@@ -98,6 +98,10 @@ case class GenericEvent(id: String, params: Map[String, Any]) extends Event
 //    Low-Level API
 // -----------------------------------------
 
+
+// TODO - Change notification messages and listening request messages....
+
+
 /*
  * This represents a low-level "dirty" API that talks directly to sbt's 
  * abstractions.
