@@ -104,8 +104,9 @@ object ApplicationBuild extends Build {
             result.failure(new TimeoutException("Failed to cancel task within timeout!."))
             context stop self
           }
-        case _: Event =>
-        // Ignore all other events, but let them block our receive timeouts...
+        case whatever =>
+          // Ignore all other events, but let them block our receive timeouts...
+          log.info("******************* Received message: " + whatever)
       }
     }), "can-run-sbt-13-and-play")
     Await.result(result.future, timeout.duration) match {
