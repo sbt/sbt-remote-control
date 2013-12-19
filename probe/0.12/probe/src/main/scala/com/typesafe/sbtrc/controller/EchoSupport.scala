@@ -6,10 +6,10 @@ import sbt._
 object EchoSupport {
   val EchoTracePort = "echo-trace-port"
 
-  def makeTracePortSettings(key: sbt.ScopedKey[_], port: Int): Seq[Setting[_]] = {
-    val taskKey = TaskKey(key.key.asInstanceOf[AttributeKey[Task[Int]]])
-    Seq(taskKey in key.scope := port)
-  }
+  val echoTracePortKey = TaskKey[Int](EchoTracePort)
+
+  def makeTracePortSettings(key: sbt.ScopedKey[_], port: Int): Seq[Setting[_]] =
+    Seq(echoTracePortKey in key.scope := port)
 
   def findEchoKey(name: String, settings: Seq[Setting[_]]): Option[ScopedKey[_]] =
     (for {
