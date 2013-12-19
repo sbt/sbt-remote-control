@@ -469,4 +469,20 @@ package object protocol {
       }
    }
    }
+   
+   
+   
+   // Generic API
+   implicit object ExecutionRequestStructure extends RawStructure[ExecutionRequest] {
+    def apply(msg: ExecutionRequest) = (
+      Map("request" -> "ExecutionRequest",
+          "command" -> msg.command)
+    )
+    def unapply(obj: Map[String,Any]): Option[ExecutionRequest] = {
+      obj.get("request").filter(_ == "ExecutionRequest").map { _ =>
+        ExecutionRequest(obj("command").asInstanceOf[String])
+      }
+    }
+  }
+   
 }

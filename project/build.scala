@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt12ProbeProjects = Set(playShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
-  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13)
+  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13, sbtServer13)
   lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
 
   // TODO - This should be the default properties we re-use between the controller and the driver.
@@ -89,6 +89,19 @@ object TheBuild extends Build {
     dependsOnSource("commons/probe")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version):_*
+    )
+    dependsOn(props, sbtUiInterface13 % "provided")
+    settings(noCrossVersioning:_*)
+  )
+
+  lazy val sbtServer13 = (
+    SbtProbeProject("server", sbt13Version)
+    dependsOnSource("commons/protocol")
+    dependsOnSource("commons/protocol-shims-2.10")
+    dependsOnSource("commons/probe")
+    dependsOnSource("commons/server")
+    dependsOnRemote(
+      sbtControllerDeps(sbt13Version, provided=false):_*
     )
     dependsOn(props, sbtUiInterface13 % "provided")
     settings(noCrossVersioning:_*)

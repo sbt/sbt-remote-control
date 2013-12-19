@@ -44,6 +44,24 @@ sealed trait Response extends Message
 sealed trait Event extends Message
 
 
+// ------------------------------------------
+//              Requests (Reactive API)
+// ------------------------------------------
+
+case class ExecutionRequest(command: String) extends Request {
+  // TODO - Remove sendEvents
+  def sendEvents = false
+}
+
+
+
+
+
+
+
+
+
+
 // -----------------------------------------
 //                  Events
 // -----------------------------------------

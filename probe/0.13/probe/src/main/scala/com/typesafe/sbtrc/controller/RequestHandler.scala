@@ -15,7 +15,6 @@ import protocol.{ JsonStructure, RawStructure }
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
 
-
 // TODO - See how much of this we can share between sbt versions....
 object RequestHandler {
 
