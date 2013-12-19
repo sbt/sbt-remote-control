@@ -105,7 +105,7 @@ object ApplicationBuild extends Build {
         if (!receivedSocketInfo)
           throw new AssertionError("did not receive a play socket we can listen on!")
         if (!receivedNameInfo)
-          throw new AssertionError("Did not discover atmos/akka support via name request!")
+          throw new AssertionError("Did not discover echo/akka support via name request!")
       case whatever => throw new AssertionError("did not get RunResponse got " + whatever)
     }
   } catch {

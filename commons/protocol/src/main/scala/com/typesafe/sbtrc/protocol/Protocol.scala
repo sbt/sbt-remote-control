@@ -138,9 +138,17 @@ object TaskNames {
   val compile = "compile"
   val run = "run"
   val runMain = "run-main"
-  val runAtmos = "atmos:run"
-  val runMainAtmos = "atmos:run-main"
+  val runEcho = "echo:run"
+  val runMainEcho = "echo:run-main"
   val test = "test"
+}
+
+object TaskParams {
+  def mainClass(params: Map[String, Any]): Option[String] =
+    params.get("mainClass").map(_.asInstanceOf[String])
+
+  def tracePort(params: Map[String, Any]): Option[Int] =
+    params.get("tracePort").map(_.asInstanceOf[Double].toInt)
 }
 
 case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String, Any]) extends Request with GenericMessage {
@@ -152,9 +160,9 @@ case class GenericRequest(sendEvents: Boolean, name: String, params: Map[String,
       case TaskNames.watchTransitiveSources => WatchTransitiveSourcesRequest(sendEvents = sendEvents)
       case TaskNames.compile => CompileRequest(sendEvents = sendEvents)
       case TaskNames.run => RunRequest(sendEvents = sendEvents, mainClass = None)
-      case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
-      case TaskNames.runAtmos => RunRequest(sendEvents = sendEvents, mainClass = None)
-      case TaskNames.runMainAtmos => RunRequest(sendEvents = sendEvents, mainClass = params.get("mainClass").map(_.asInstanceOf[String]))
+      case TaskNames.runMain => RunRequest(sendEvents = sendEvents, mainClass = TaskParams.mainClass(params))
+      case TaskNames.runEcho => RunRequest(sendEvents = sendEvents, mainClass = None, tracePort = TaskParams.tracePort(params))
+      case TaskNames.runMainEcho => RunRequest(sendEvents = sendEvents, mainClass = TaskParams.mainClass(params), tracePort = TaskParams.tracePort(params))
       case TaskNames.test => TestRequest(sendEvents = sendEvents)
       case _ =>
         null
@@ -172,8 +180,8 @@ case class GenericResponse(name: String, params: Map[String, Any]) extends Respo
       case TaskNames.compile => CompileResponse(params("success").asInstanceOf[Boolean])
       case TaskNames.run => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.run)
       case TaskNames.runMain => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMain)
-      case TaskNames.runAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runAtmos)
-      case TaskNames.runMainAtmos => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMainAtmos)
+      case TaskNames.runEcho => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runEcho)
+      case TaskNames.runMainEcho => RunResponse(params("success").asInstanceOf[Boolean], TaskNames.runMainEcho)
       case TaskNames.test => TestResponse(outcome = TestOutcome(params("outcome").asInstanceOf[String]))
       case _ =>
         null
@@ -218,7 +226,7 @@ case class CompileResponse(success: Boolean) extends SpecificResponse {
   override def toGeneric = GenericResponse(TaskNames.compile, Map("success" -> success))
 }
 
-case class RunRequest(sendEvents: Boolean, mainClass: Option[String]) extends SpecificRequest {
+case class RunRequest(sendEvents: Boolean, mainClass: Option[String], tracePort: Option[Int] = None) extends SpecificRequest {
   override def toGeneric = GenericRequest(sendEvents = sendEvents, mainClass.map(_ => TaskNames.runMain).getOrElse(TaskNames.run),
     mainClass.map(mc => Map("mainClass" -> mc)).getOrElse(Map.empty))
 }

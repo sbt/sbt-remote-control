@@ -13,19 +13,19 @@ import sbt.IO
 import java.util.concurrent.TimeoutException
 import com.typesafe.sbtrc.protocol.RequestReceivedEvent
 
-abstract class CanRunAtmosProject(val sbtVersionString: String, val taskName: String, val taskParams: Map[String, Any]) extends SbtProcessLauncherTest {
+abstract class CanRunEchoProject(val sbtVersionString: String, val taskName: String, val taskParams: Map[String, Any]) extends SbtProcessLauncherTest {
 
-  val dummy = utils.makeEmptySbtProject("runAtmos22", sbtVersionString)
+  val dummy = utils.makeEmptySbtProject("runEcho22", sbtVersionString)
   val plugins = new File(dummy, "project/plugins.sbt")
-  // TODO - Pull the atmos version from properties...
+  // TODO - Pull the echo version from properties...
   if (!(sbtVersionString startsWith "0.13")) {
     IO.write(plugins,
-      """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % "0.3.1")""")
+      """addSbtPlugin("com.typesafe.sbt" % "sbt-echo" % "0.1.0")""")
   }
   val build = new File(dummy, "build.sbt")
   IO.write(build,
     (if (sbtVersionString startsWith "0.13") ""
-    else "atmosSettings") +
+    else "echoSettings") +
       """
 
 name := "test-app"
@@ -39,13 +39,11 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
     """
       object Main {
          def main(args: Array[String]): Unit = {
-           // long enough for atmos to start up
-           Thread.sleep(30*1000L)
+           akka.actor.ActorSystem("test").shutdown
          }
       }
   """)
   val child = SbtProcess(system, dummy, sbtProcessLauncher)
-  @volatile var receivedSocketInfo = false
   @volatile var receivedNameInfo = false
   try {
     val result = concurrent.promise[Response]()
@@ -66,19 +64,12 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
           receivedNameInfo =
             (x.attributes.getOrElse("hasAkka", false).asInstanceOf[Boolean] &&
               !x.attributes.getOrElse("hasPlay", false).asInstanceOf[Boolean] &&
-              x.attributes.getOrElse("hasConsole", false).asInstanceOf[Boolean])
+              x.attributes.getOrElse("hasEcho", false).asInstanceOf[Boolean])
         // Here we capture the result of the run task.
         case x: RunResponse =>
           log.debug("Received run response " + x)
           result.success(x)
           context stop self
-
-        // Here we capture the output of play start.
-        // TODO - We should validate the port is the one we expect....
-        case GenericEvent(name, "atmosStarted", params) if name == taskName =>
-          log.debug("Received atmos event for " + name + " params " + params)
-          receivedSocketInfo = params.contains("uri")
-        // we still have to wait for RunResponse
 
         case ReceiveTimeout =>
           // If we haven't received any events in a while, here's what we do.
@@ -89,29 +80,24 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "2.2.0"
         case e: Event =>
           log.debug("Got an event from the run request: " + e)
       }
-    }), "can-run-sbt-13-and-atmos")
+    }), "can-run-sbt-13-and-echo")
 
     Await.result(result.future, timeout.duration) match {
       case RunResponse(success, name) if name == taskName =>
-        if (!receivedSocketInfo)
-          throw new AssertionError("did not receive atmos URI")
         if (!receivedNameInfo)
-          throw new AssertionError("Did not discover atmos/akka support via name request!")
+          throw new AssertionError("Did not discover echo/akka support via name request!")
       case whatever =>
         throw new AssertionError("did not get RunResponse for " + taskName + " got " + whatever)
     }
-  } catch {
-    case t: TimeoutException if (!receivedSocketInfo) =>
-      sys.error("Failed to start Atmos before timing out!")
   } finally {
     system.stop(child)
   }
 }
 
 /** Ensures that we can make requests and receive responses from our children. */
-class CanRunSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runAtmos, Map.empty)
+class CanRunSbt13EchoProject extends CanRunEchoProject(TestUtil.sbt13TestVersion, TaskNames.runEcho, Map("tracePort" -> 32461))
 
-class CanRunSbt12AtmosProject extends CanRunAtmosProject(TestUtil.sbt12TestVersion, TaskNames.runAtmos, Map.empty)
+class CanRunSbt12EchoProject extends CanRunEchoProject(TestUtil.sbt12TestVersion, TaskNames.runEcho, Map("tracePort" -> 32462))
 
-class CanRunMainSbt13AtmosProject extends CanRunAtmosProject(TestUtil.sbt13TestVersion, TaskNames.runMainAtmos, Map("mainClass" -> "Main"))
+class CanRunMainSbt13EchoProject extends CanRunEchoProject(TestUtil.sbt13TestVersion, TaskNames.runMainEcho, Map("mainClass" -> "Main", "tracePort" -> 32463))
 

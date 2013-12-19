@@ -11,7 +11,7 @@ import SbtUtil.extract
 import SbtUtil.extractWithRef
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
-import protocol.TaskNames
+import protocol.{ TaskNames, TaskParams }
 import ParamsHelper.p2Helper
 import com.typesafe.sbt.ui.{ Context => UIContext }
 import sbt.testing.{ Status => TStatus }
@@ -67,13 +67,13 @@ object DefaultsShim {
 
     // TODO - These are all hacks for now until we have the generic API.
     val hasPlay = controller.isPlayProject(origState)
-    val hasConsole = AtmosSupport.isAtmosProject(origState)
+    val hasEcho = EchoSupport.isEchoProject(origState)
     val hasAkka = AkkaSupport.isAkkaProject(origState)
 
     (origState, makeResponseParams(protocol.NameResponse(result,
       Map("hasPlay" -> hasPlay,
         "hasAkka" -> hasAkka,
-        "hasConsole" -> hasConsole))))
+        "hasEcho" -> hasEcho))))
   }
 
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
@@ -100,7 +100,9 @@ object DefaultsShim {
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the run task in " + key.scope.config)
-    val shimedState = installShims(origState, ui)
+    import ParamsHelper._
+    val tracePort = TaskParams.tracePort(params.toMap)
+    val shimedState = installShims(origState, ui, tracePort)
     val s = runInputTask(key, shimedState, args = "", Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
       task = taskName)))
@@ -108,14 +110,14 @@ object DefaultsShim {
 
   private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
 
-  private val runAtmosHandler: RequestHandler = makeRunHandler(run in (config("atmos")), protocol.TaskNames.runAtmos)
+  private val runEchoHandler: RequestHandler = makeRunHandler(run in (config("echo")), protocol.TaskNames.runEcho)
 
   private def makeRunMainHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the run-main task in " + key.scope.config)
     import ParamsHelper._
-    val shimedState = installShims(origState, ui)
-    val klass = params.toMap.get("mainClass")
-      .map(_.asInstanceOf[String])
+    val tracePort = TaskParams.tracePort(params.toMap)
+    val shimedState = installShims(origState, ui, tracePort)
+    val klass = TaskParams.mainClass(params.toMap)
       .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
     val s = runInputTask(key, shimedState, args = klass, Some(ui))
     (origState, makeResponseParams(protocol.RunResponse(success = true,
@@ -124,11 +126,11 @@ object DefaultsShim {
 
   private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, protocol.TaskNames.runMain)
 
-  private val runMainAtmosHandler: RequestHandler = makeRunMainHandler(runMain in config("atmos"), protocol.TaskNames.runMainAtmos)
+  private val runMainEchoHandler: RequestHandler = makeRunMainHandler(runMain in config("echo"), protocol.TaskNames.runMainEcho)
 
   private val testHandler: RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the test task.")
-    val shimedState = installShims(origState, ui)
+    val shimedState = installShims(origState, ui, tracePort = None)
     val (s2, result1) = extract(shimedState).runTask(test in Test, shimedState)
     val (s3, outcome) = removeTestListener(s2, ui)
     (origState, makeResponseParams(protocol.TestResponse(outcome)))
@@ -136,15 +138,15 @@ object DefaultsShim {
 
   private def commandHandler(command: String): RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the comamnd [" + command + "]")
-    val shimedState = installShims(origState, ui)
+    val shimedState = installShims(origState, ui, tracePort = None)
     runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
   }
 
   /** This installs all of our shim hooks into the project. */
-  def installShims(origState: State, ui: UIContext): State = {
+  def installShims(origState: State, ui: UIContext, tracePort: Option[Int]): State = {
     val s1 = addTestListener(origState, ui)
     val s2 = PlaySupport.installPlaySupport(s1, ui)
-    val s3 = AtmosSupport.installAtmosSupport(s2, ui)
+    val s3 = EchoSupport.installEchoSupport(s2, tracePort)
     s3
   }
 
@@ -161,8 +163,8 @@ object DefaultsShim {
     case TaskNames.compile => compileHandler
     case TaskNames.run => runHandler
     case TaskNames.runMain => runMainHandler
-    case TaskNames.runAtmos => runAtmosHandler
-    case TaskNames.runMainAtmos => runMainAtmosHandler
+    case TaskNames.runEcho => runEchoHandler
+    case TaskNames.runMainEcho => runMainEchoHandler
     case TaskNames.test => testHandler
     case name @ ("eclipse" | "gen-idea") => commandHandler(name)
   }

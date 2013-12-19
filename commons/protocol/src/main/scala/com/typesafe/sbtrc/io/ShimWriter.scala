@@ -159,46 +159,46 @@ object ShimWriter {
       contents = """addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0")""",
       relativeLocation = "project")     
   
-  lazy val atmosAkkaBuildShim =
+  lazy val echoAkkaBuildShim =
     GenericShimWriter(
-      name = "sbt-atmos-akka",
-      contents = """atmosSettings""",
+      name = "sbt-echo-akka",
+      contents = """echoSettings""",
       relativeLocation = "")
-  lazy val atmosAkkaBuildDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-atmos-akka",relativeLocation="")
+  lazy val echoAkkaBuildDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo-akka",relativeLocation="")
 
-  lazy val atmosPlayBuildShim =
+  lazy val echoPlayBuildShim =
     GenericShimWriter(
-      name = "sbt-atmos-play",
-      contents = """atmosPlaySettings""",
+      name = "sbt-echo-play",
+      contents = """echoPlaySettings""",
       relativeLocation = "")
-  lazy val atmosPlayBuildDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-atmos-play",relativeLocation="") 
+  lazy val echoPlayBuildDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo-play",relativeLocation="") 
       
-  lazy val atmosPluginShim =
+  lazy val echoPluginShim =
     GenericShimWriter(
-      name = "sbt-atmos",
-      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
+      name = "sbt-echo",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_DEFAULT_VERSION + "\")",
       relativeLocation = "project")
-  lazy val atmosPluginDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-atmos")
+  lazy val echoPluginDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo")
 
-  lazy val atmosPlayPluginShim =
+  lazy val echoPlayPluginShim =
     GenericShimWriter(
-      name = "sbt-atmos-play",
-      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-atmos-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ATMOS_DEFAULT_VERSION + "\")",
+      name = "sbt-echo-play",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_DEFAULT_VERSION + "\")",
       relativeLocation = "project")
-  lazy val atmosPlayPluginDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-atmos-play")      
+  lazy val echoPlayPluginDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo-play")      
 
-  def allAtmosShims = Seq(
-    atmosPlayPluginShim,
-    atmosPlayBuildShim,
-    atmosPluginShim,
-    atmosAkkaBuildShim)
+  def allEchoShims = Seq(
+    echoPlayPluginShim,
+    echoPlayBuildShim,
+    echoPluginShim,
+    echoAkkaBuildShim)
    
-  // Note - Right now, we aren't shiming atmos into sbt 0.12 projects.
-  // They have to already have atmos configured for support to be enabled.
+  // Note - Right now, we aren't shiming echo into sbt 0.12 projects.
+  // They have to already have echo configured for support to be enabled.
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
     new ControlledPluginShimWriter("defaults", version, "0.12"),
     new DeleteShimIfExistsWriter("eclipse"),
@@ -227,7 +227,7 @@ object ShimWriter {
     new DeleteShimIfExistsWriter("eclipse"),
     new DeleteShimIfExistsWriter("idea"),
     new DeleteShimIfExistsWriter("play")
-  ) ++ allAtmosShims ++ sbt13ideShims
+  ) ++ allEchoShims ++ sbt13ideShims
   
   def sbt13ideShims: Seq[ShimWriter] = Seq(eclipsePluginShim, ideaPluginShim)
 
