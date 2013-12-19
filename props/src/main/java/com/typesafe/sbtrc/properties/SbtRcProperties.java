@@ -81,7 +81,7 @@ public final class SbtRcProperties {
 		return lookupOr("sbt.PermSize", "128M");
 	}
 	
-	public static String SBT_ATMOS_DEFAULT_VERSION() {
-		return getProperty("sbt.atmos.default.version");
+	public static String SBT_ECHO_DEFAULT_VERSION() {
+		return getProperty("sbt.echo.default.version");
 	}
 }

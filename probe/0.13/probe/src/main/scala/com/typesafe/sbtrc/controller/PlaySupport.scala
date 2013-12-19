@@ -129,9 +129,9 @@ object PlaySupport {
     val runHookKeys = findPlaySettingScopedKeys("playRunHooks", settings)
     if (runHookKeys.isEmpty)
       sys.error("Unable to find play run hook!  Possibly incompatible play version.")
-    // We can ignore the atmos specific ones:
-    val nonAtmosKeys = runHookKeys.filterNot(_.scope.config.fold(config => config.name == "atmos", ifGlobal = false, ifThis = false))
-    val fixedHooks = nonAtmosKeys map (setting => makeDynamicProxyRunHookSetting(setting, ui))
+    // We can ignore the echo specific ones:
+    val nonEchoKeys = runHookKeys.filterNot(_.scope.config.fold(config => config.name == "echo", ifGlobal = false, ifThis = false))
+    val fixedHooks = nonEchoKeys map (setting => makeDynamicProxyRunHookSetting(setting, ui))
     val interactionKeys = findPlaySettingScopedKeys("playInteractionMode", settings)
     if (interactionKeys.isEmpty)
       sys.error("Unable to find play itneraction hook!  Possibly incompatible play version.")
