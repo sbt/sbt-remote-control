@@ -4,6 +4,7 @@ import com.typesafe.sbtrc.protocol._
 import scala.util.control.NonFatal
 import com.typesafe.sbtrc.server._
 import com.typesafe.sbtrc.NeedToRebootException
+import com.typesafe.sbtrc.ipc.JsonWriter
 
 /**
  * A simple sbt server engine.
@@ -15,6 +16,17 @@ class Sbt13ServerEngine(private var state: State) extends AbstractSbtServerEngin
   val oldOut = System.out
   val oldErr = System.err
 
+  @volatile
+  private var currentEventClient: SbtClient = NullSbtClient
+  def sendEvent[T: JsonWriter](msg: T): Unit = {
+    oldErr.println("Sending event: " + msg + " to " + currentEventClient)
+    currentEventClient.send(msg)
+  }
+  // TODO - THis should be ok, because this is only called on the event handling thread...
+  private def addEventListener(client: SbtClient): Unit =
+    currentEventClient = currentEventClient zip client
+  // TODO - Remove event listeners or ignore ones that fail.
+
   // We want to delay doing this so that the URI is published and consumed before we
   // handle our first request and override these values.
   var hasInstalledSystemOutShims: Boolean = false
@@ -23,13 +35,12 @@ class Sbt13ServerEngine(private var state: State) extends AbstractSbtServerEngin
   def isRunning(): Boolean = running
 
   override def runRequest(request: ClientRequest): Unit = {
-    if(!hasInstalledSystemOutShims) {
+    if (!hasInstalledSystemOutShims) {
       shims.SystemShims.replaceOutput(logStdOut, logStdErr)
       hasInstalledSystemOutShims = true
     }
-    
-    
-    println("Request = " + request)
+
+    System.out.println("Request = " + request)
     val ClientRequest(client, serial, msg) = request
 
     // TODO - Generic return values.
@@ -48,21 +59,22 @@ class Sbt13ServerEngine(private var state: State) extends AbstractSbtServerEngin
   }
 
   def logStdOut(msg: String): Unit = {
-    // TODO - Fire this
-    LogEvent(LogStdOut(msg))
-    oldOut.println(LogEvent(LogStdOut(msg)))
-
+    // TODO - Should we be double writing these things?
+    sendEvent(LogEvent(LogStdOut(msg)))
   }
   def logStdErr(msg: String): Unit = {
-    // TODO - Fire this
-    LogEvent(LogStdErr(msg))
-    oldErr.println(msg)
+    // TODO - Should we be double writing these things?
+    sendEvent(LogEvent(LogStdErr(msg)))
   }
 
   def runRequestImpl(client: SbtClient, serial: Long, msg: Request): Unit = msg match {
     //case x: ListenToValueRequest =>
+    case ListenToEvents() =>
+      System.out.println("Registering listener: " + client)
+      addEventListener(client)
+    // TODO - return ACK
     case ExecutionRequest(command) =>
-      println("Handling request for: " + command)
+      System.out.println("Handling request for: " + command)
 
       val extract = Project.extract(state)
       println("Build name = " + extract.get(Keys.baseDirectory in ThisBuild))

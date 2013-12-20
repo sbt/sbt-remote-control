@@ -19,6 +19,8 @@ object WireProtocol {
   // typeclass....
   implicit object MessageStructure extends RawStructure[Message] {
     val ExecutionRequestMsg = RawStructure.get[ExecutionRequest]
+    val ListenToEventsMsg = RawStructure.get[ListenToEvents]
+    
     val CancelRequestMsg = RawStructure.get[CancelRequest.type]
     val CancelResponseMsg = RawStructure.get[CancelResponse.type]
     val SettingKeyRequestMsg = RawStructure.get[SettingKeyRequest]
@@ -59,6 +61,7 @@ object WireProtocol {
     val GenericEventMsg = RawStructure.get[GenericEvent]
     
     def apply(t: Message): Map[String, Any] = t match {
+      case x: ListenToEvents => ListenToEventsMsg(x)
       case x: ExecutionRequest => ExecutionRequestMsg(x)
       case CancelRequest => CancelRequestMsg(CancelRequest)
       case CancelResponse => CancelResponseMsg(CancelResponse)
@@ -98,6 +101,7 @@ object WireProtocol {
     }
     // TODO - Can we do this faster or less ugly?
     def unapply(msg: Map[String, Any]): Option[Message] = (
+      ListenToEventsMsg.unapply(msg) orElse
       ExecutionRequestMsg.unapply(msg) orElse
       ErrorResponseMsg.unapply(msg) orElse
       CancelRequestMsg.unapply(msg) orElse

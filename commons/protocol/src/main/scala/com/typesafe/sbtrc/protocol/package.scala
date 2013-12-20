@@ -484,5 +484,15 @@ package object protocol {
       }
     }
   }
+  implicit object ListenToEventsStructure extends RawStructure[ListenToEvents] {
+    def apply(msg: ListenToEvents) = 
+      Map("request" -> "ListenToEvents")
+    def unapply(obj: Map[String,Any]): Option[ListenToEvents] = {
+      obj.get("request").filter(_ == "ListenToEvents").map { _ =>
+        ListenToEvents()
+      }
+    }
+  }
+   
    
 }

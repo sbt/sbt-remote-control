@@ -19,6 +19,7 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val specifics = Seq(
+      protocol.ListenToEvents(),
       protocol.ExecutionRequest("test command string"),
       // Events
       protocol.Started,
