@@ -8,7 +8,6 @@ import scala.collection.mutable.ArrayBuffer
  *  handle incoming sbt requests, as long as all requests occur on the same thread.
  */
 trait SbtServerEngine {
-  
   /** Buffer a client request.  If there are other similar requests (e.g. task execution)
    *  the engine should try to join them into one request.
    */
