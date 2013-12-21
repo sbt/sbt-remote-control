@@ -14,13 +14,17 @@ import java.net.ServerSocket
 class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ClientRequest => Unit) {
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val thread = new Thread {
-    
     val clients = collection.mutable.ArrayBuffer.empty[SbtClientHandler]
     final override def run(): Unit = {
       while(running.get) {
         val nextConnection = new IpcServer(serverSocket)
         val id = java.util.UUID.randomUUID.toString
-        val client = new SbtClientHandler(id, nextConnection, msgHandler)
+        def onClose(): Unit = {
+          clients.remove(clients.indexWhere(_.id == id))
+          // TODO - we should notify the sbt engine here, rather than spewing
+          //        close logic everywhere.
+        }
+        val client = new SbtClientHandler(id, nextConnection, msgHandler, onClose)
         println("Client connected: " + id)
         clients.append(client)
       }

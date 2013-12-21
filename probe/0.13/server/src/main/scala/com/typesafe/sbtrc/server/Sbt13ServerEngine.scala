@@ -19,12 +19,14 @@ class Sbt13ServerEngine(private var state: State) extends AbstractSbtServerEngin
   @volatile
   private var currentEventClient: SbtClient = NullSbtClient
   def sendEvent[T: JsonWriter](msg: T): Unit = {
-    oldErr.println("Sending event: " + msg + " to " + currentEventClient)
     currentEventClient.send(msg)
   }
   // TODO - THis should be ok, because this is only called on the event handling thread...
   private def addEventListener(client: SbtClient): Unit =
     currentEventClient = currentEventClient zip client
+
+  private def removeEventListener(client: SbtClient): Unit =
+    currentEventClient = currentEventClient without client
   // TODO - Remove event listeners or ignore ones that fail.
 
   // We want to delay doing this so that the URI is published and consumed before we
@@ -68,7 +70,9 @@ class Sbt13ServerEngine(private var state: State) extends AbstractSbtServerEngin
   }
 
   def runRequestImpl(client: SbtClient, serial: Long, msg: Request): Unit = msg match {
-    //case x: ListenToValueRequest =>
+    case ClientClosedRequest(id) =>
+      // TODO - remove all listeners and state from this client, not just event listeners.
+      removeEventListener(client)
     case ListenToEvents() =>
       System.out.println("Registering listener: " + client)
       addEventListener(client)
