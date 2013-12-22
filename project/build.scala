@@ -93,7 +93,6 @@ object TheBuild extends Build {
     dependsOn(props, sbtUiInterface13 % "provided")
     settings(noCrossVersioning:_*)
   )
-
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
@@ -134,13 +133,53 @@ object TheBuild extends Build {
          Seq.empty)
     })
 
+  import Keys._
+  import Project.Initialize
+  def makeSbtLaunchProperties(filename: String, mainClass: String, project: Option[Project] = None, lockFile: Option[String] = None): Initialize[Task[Seq[File]]] =
+    (resourceManaged in Compile, project.map(r => projectID in r).getOrElse(projectID)) map { (target, id) =>
+        val file = target / filename
+        val contents = """|[scala]
+                    |  version: ${sbt.scala.version-auto}
+                    |[app]
+                    |  org: %s
+                    |  name: %s
+                    |  version: %s
+                    |  class: %s
+                    |  components: xsbti,extra
+                    |  cross-versioned: ${sbt.cross.versioned-false}
+                    |  resources: ${sbt.extraClasspath-}
+                    |
+                    |[repositories]
+                    |  local
+                    |  maven-central
+                    |
+                    |[boot]
+                    |  directory: ${sbt.boot.directory-${sbt.global.base-${user.home}/.sbt}/boot/}
+                    |
+                    |[ivy]
+                    |  ivy-home: ${sbt.ivy.home-${user.home}/.ivy2/}
+                    |  checksums: ${sbt.checksums-sha1,md5}
+                    |  override-build-repos: ${sbt.override.build.repos-false}
+                    |  repository-config: ${sbt.repository.config-${sbt.global.base-${user.home}/.sbt}/repositories}
+                    |
+                    |""".stripMargin.format(id.organization, id.name, id.revision, mainClass)
+       val fullContents = lockFile match {
+         case Some(file) => contents + """|[server]
+                                        |  lock: %s""".stripMargin.format(file)
+         case None => contents
+       }
+       IO.write(file, fullContents)
+       Seq(file)
+    }
 
   // This project is used to drive sbt processes, installing the controller.
-  lazy val sbtRemoteController = (
+  lazy val sbtRemoteController: Project = (
     SbtRemoteControlProject("remote-controller")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
-      Keys.publishArtifact in (Test, Keys.packageBin) := true
+      Keys.publishArtifact in (Test, Keys.packageBin) := true,
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver")),
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
     )
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/protocol-shims-2.10")

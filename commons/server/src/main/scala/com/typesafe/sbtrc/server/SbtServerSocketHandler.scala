@@ -15,17 +15,30 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ClientReque
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val thread = new Thread {
     val clients = collection.mutable.ArrayBuffer.empty[SbtClientHandler]
+    // TODO - Check how long we've been running without a client connected
+    // and shut down the server if it's been too long.
     final override def run(): Unit = {
       while(running.get) {
-        val nextConnection = new IpcServer(serverSocket)
-        val id = java.util.UUID.randomUUID.toString
-        def onClose(): Unit = {
-          clients.remove(clients.indexWhere(_.id == id))
-          // TODO - we should notify the sbt engine here, rather than spewing
-          //        close logic everywhere.
+        try {
+          val nextConnection = new IpcServer(serverSocket)
+          val id = java.util.UUID.randomUUID.toString
+          def onClose(): Unit = {
+            clients.remove(clients.indexWhere(_.id == id))
+            // TODO - we should notify the sbt engine here, rather than spewing
+            //        close logic everywhere.
+          }
+          val client = new SbtClientHandler(id, nextConnection, msgHandler, onClose)
+          clients.append(client)
+        } catch {
+          case e: java.io.EOFException =>
+            // For now we ignore these, as someone trying to discover if we're listening to ports
+            // will connect and close before we can read the handshake.
+            // We should formalize what constitutes a catastrophic failure, and make sure we
+            // down the server in that instance.
+          case e: Throwable =>
+            // On any other failure, we'll just down the server for now.
+            running.set(false)
         }
-        val client = new SbtClientHandler(id, nextConnection, msgHandler, onClose)
-        clients.append(client)
       }
       // Cleanup clients, waiting for them to notify their users.
       clients.foreach(_.shutdown())

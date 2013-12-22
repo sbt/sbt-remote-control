@@ -16,6 +16,10 @@ class Sbt13ServerEngine(buildState: State) extends AbstractSbtServerEngine {
   val oldOut = System.out
   val oldErr = System.err
 
+  val logFile = new File(".sbtserver.log")
+
+  val logStream = new java.io.PrintWriter(new java.io.BufferedOutputStream(new java.io.FileOutputStream(logFile)))
+
   // This should be the only mutable variable in the whole engine.
   // We expose this so that clients/things running on other threads can fire 
   // notifications to the latest listeners.
@@ -67,10 +71,14 @@ class Sbt13ServerEngine(buildState: State) extends AbstractSbtServerEngine {
   def logStdOut(msg: String): Unit = {
     // TODO - Should we be double writing these things?
     sendEvent(LogEvent(LogStdOut(msg)))
+    logStream.print(msg)
+    logStream.flush()
   }
   def logStdErr(msg: String): Unit = {
     // TODO - Should we be double writing these things?
     sendEvent(LogEvent(LogStdErr(msg)))
+    logStream.print(msg)
+    logStream.flush()
   }
 
   // TODO - Clean this up a bit so it's more obvious what happens.  This method is the
