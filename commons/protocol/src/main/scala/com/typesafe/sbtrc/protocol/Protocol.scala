@@ -62,7 +62,7 @@ case class ListenToEvents() extends Request {
 /** This is a local internal message fired when a client connection is detected
  * to be closed.
  */
-case class ClientClosedRequest(id: String) extends Request {
+case class ClientClosedRequest() extends Request {
   def sendEvents = false
 }
 

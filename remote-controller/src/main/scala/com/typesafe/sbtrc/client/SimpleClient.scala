@@ -6,16 +6,17 @@ import api._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Promise
+import java.net.SocketException
 
 /**
  * Very terrible implementation of the sbt client.
  *
  *
- * Not only is it blockin, we have mutability hell and locks everywhere.
+ * Not only is it blockin', we have mutability hell and lockin'.
  *
  * This is only to do proof of concept work and flesh out the server.
  */
-class SimpleSbtClient(client: ipc.Client) extends SbtClient {
+class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = ???
   def possibleAutocompletions(partialCommand: String): Future[Set[String]] = ???
@@ -58,17 +59,25 @@ class SimpleSbtClient(client: ipc.Client) extends SbtClient {
   private def sendEvent(e: Event): Unit =
     listeners foreach (_ send e)
 
+  // TODO - Error handling!
   object thread extends Thread {
     override def run(): Unit = {
       while (running) {
-        protocol.Envelope(client.receive()) match {
-          // TODO - Filter events, like build change events vs. normal events...
-          case protocol.Envelope(_, _, e: Event) => sendEvent(e)
-          // TODO - Deal with other responses...
-          case _ =>
+        try handleNextEvent()
+        catch {
+          case e: SocketException =>
+            running = false
         }
       }
+      closeHandler()
     }
+    def handleNextEvent(): Unit =
+      protocol.Envelope(client.receive()) match {
+        // TODO - Filter events, like build change events vs. normal events...
+        case protocol.Envelope(_, _, e: Event) => sendEvent(e)
+        // TODO - Deal with other responses...
+        case _ =>
+      }
   }
   thread.start()
 }

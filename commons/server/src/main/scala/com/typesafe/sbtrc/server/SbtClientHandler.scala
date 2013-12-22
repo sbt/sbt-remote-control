@@ -64,7 +64,7 @@ class SbtClientHandler (
       }
       // Here we send a client disconnected message to the main sbt
       // engine so it stops using this client.
-      msgHandler(ClientRequest(SbtClientHandler.this, 0L, protocol.ClientClosedRequest(id)))
+      msgHandler(ClientRequest(SbtClientHandler.this, 0L, protocol.ClientClosedRequest()))
       // Here we tell the server thread handler...
       closed()
     }
@@ -72,7 +72,6 @@ class SbtClientHandler (
       Envelope(ipc.receive()) match {
           case Envelope(serial, _, msg: Request) =>
             val request = ClientRequest(SbtClientHandler.this, serial, msg)
-            println("Received request: " + request)
             msgHandler(request)
           case Envelope(_,_,msg) =>
             sys.error("Unable to handle client request: " + msg)

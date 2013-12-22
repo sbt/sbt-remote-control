@@ -25,7 +25,6 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ClientReque
           //        close logic everywhere.
         }
         val client = new SbtClientHandler(id, nextConnection, msgHandler, onClose)
-        println("Client connected: " + id)
         clients.append(client)
       }
       // Cleanup clients, waiting for them to notify their users.
