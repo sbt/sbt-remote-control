@@ -484,6 +484,15 @@ package object protocol {
       }
     }
   }
+  implicit object ExecutionDoneStructure extends RawStructure[ExecutionDone] {
+    def apply(msg: ExecutionDone) =
+      Map("event" -> "ExecutionDone", "command" -> msg.command)
+    def unapply(obj: Map[String,Any]): Option[ExecutionDone] = {
+      obj.get("event").filter(_ == "ExecutionDone").map { _ =>
+        ExecutionDone(obj("command").toString)
+      }
+    }
+  }
   implicit object ListenToEventsStructure extends RawStructure[ListenToEvents] {
     def apply(msg: ListenToEvents) = 
       Map("request" -> "ListenToEvents")

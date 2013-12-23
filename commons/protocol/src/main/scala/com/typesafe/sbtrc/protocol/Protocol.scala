@@ -52,6 +52,7 @@ case class ExecutionRequest(command: String) extends Request {
   // TODO - Remove sendEvents
   def sendEvents = false
 }
+case class ExecutionDone(command: String) extends Event
 
 // Request for the server to send us all events that happen on the sbt server.
 case class ListenToEvents() extends Request {

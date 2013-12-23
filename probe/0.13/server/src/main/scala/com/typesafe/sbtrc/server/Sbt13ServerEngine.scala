@@ -93,8 +93,9 @@ class Sbt13ServerEngine(buildState: State) extends AbstractSbtServerEngine {
     // TODO - return ACK
     case ExecutionRequest(command) =>
       System.out.println("Handling request for: " + command)
-      val extract = Project.extract(state.buildState)
-      System.out.println("Build name = " + extract.get(Keys.baseDirectory in ThisBuild))
+      //val extract = Project.extract(state.buildState)
+      //System.out.println("Build name = " + extract.get(Keys.baseDirectory in ThisBuild))
+      state.eventListeners.send(ExecutionDone(command))
       state
     case _ => state
   }

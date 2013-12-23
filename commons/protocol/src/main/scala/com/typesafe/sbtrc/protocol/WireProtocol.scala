@@ -20,6 +20,7 @@ object WireProtocol {
   implicit object MessageStructure extends RawStructure[Message] {
     val ExecutionRequestMsg = RawStructure.get[ExecutionRequest]
     val ListenToEventsMsg = RawStructure.get[ListenToEvents]
+    val ExecutionDoneMsg = RawStructure.get[ExecutionDone]
     
     val CancelRequestMsg = RawStructure.get[CancelRequest.type]
     val CancelResponseMsg = RawStructure.get[CancelResponse.type]
@@ -61,6 +62,7 @@ object WireProtocol {
     val GenericEventMsg = RawStructure.get[GenericEvent]
     
     def apply(t: Message): Map[String, Any] = t match {
+      case x: ExecutionDone => ExecutionDoneMsg(x)
       case x: ListenToEvents => ListenToEventsMsg(x)
       case x: ExecutionRequest => ExecutionRequestMsg(x)
       case CancelRequest => CancelRequestMsg(CancelRequest)
@@ -101,6 +103,7 @@ object WireProtocol {
     }
     // TODO - Can we do this faster or less ugly?
     def unapply(msg: Map[String, Any]): Option[Message] = (
+      ExecutionDoneMsg.unapply(msg) orElse
       ListenToEventsMsg.unapply(msg) orElse
       ExecutionRequestMsg.unapply(msg) orElse
       ErrorResponseMsg.unapply(msg) orElse

@@ -13,9 +13,9 @@ sealed trait SbtClient {
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (JoinedSbtClient(clients), JoinedSbtClient(clients2)) => JoinedSbtClient(clients ++ clients2)
-    case (JoinedSbtClient(clients), other) => JoinedSbtClient(other :: clients)
-    case (other, JoinedSbtClient(clients2)) => JoinedSbtClient(other :: clients2)
-    case (other, other2) => JoinedSbtClient(other :: other2 :: Nil)
+    case (JoinedSbtClient(clients), other) => JoinedSbtClient(clients + other)
+    case (other, JoinedSbtClient(clients2)) => JoinedSbtClient(clients2 + other)
+    case (other, other2) => JoinedSbtClient(Set(other, other2))
   }
   def without(client: SbtClient): SbtClient = 
     this match {
@@ -29,7 +29,7 @@ object NullSbtClient extends SbtClient {
   def send[T: JsonWriter](msg: T): Unit = ()
   override def toString = "NullSbtClient"
 }
-case class JoinedSbtClient(clients: List[SbtClient]) extends SbtClient {
+case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   final def send[T: JsonWriter](msg: T): Unit = 
     clients foreach (_ send msg)
   override def toString = clients.mkString("Joined(",",",")")

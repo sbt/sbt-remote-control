@@ -22,11 +22,20 @@ class SimpleSbtTerminal extends xsbti.AppMain {
         case "exit" => System.exit(0)
         case null => run()
         case line =>
+          // Register for when the execution is done.
+          val executionDone = concurrent.promise[Unit]
+          val registration = client.handleEvents {
+            case protocol.ExecutionDone(`line`) => executionDone.success(())
+            case _ =>
+          }
           // TODO - We want to wait to schedule the next execution until after this
           // command is done...
           client.requestExecution(line)
-          // Read another line
-          schedule(this)
+          executionDone.future.onComplete { _ =>
+            registration.cancel()
+            schedule(this)
+          }
+
       }
 
     }
@@ -38,8 +47,12 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     connector onConnect { client =>
       import protocol._
       client handleEvents {
-        case LogEvent(LogStdOut(msg)) => System.out.print(msg)
-        case LogEvent(LogStdErr(msg)) => System.err.print(msg)
+        case LogEvent(LogStdOut(msg)) =>
+          System.out.print(msg)
+          System.out.flush()
+        case LogEvent(LogStdErr(msg)) =>
+          System.err.print(msg)
+          System.err.flush()
         case _ => ()
       }
       schedule(TakeNextCommand(client))

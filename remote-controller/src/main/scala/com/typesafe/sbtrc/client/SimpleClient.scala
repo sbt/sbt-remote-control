@@ -7,6 +7,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import java.net.SocketException
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Very terrible implementation of the sbt client.
@@ -17,6 +18,8 @@ import java.net.SocketException
  * This is only to do proof of concept work and flesh out the server.
  */
 class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
+
+  private val listeningToEvents = new AtomicBoolean(false)
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = ???
   def possibleAutocompletions(partialCommand: String): Future[Set[String]] = ???
@@ -36,7 +39,9 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
       def cancel(): Unit =
         removeEventListenerImpl(helper)
     }
-    client.sendJson(ListenToEvents())
+    if (listeningToEvents.compareAndSet(false, true)) {
+      client.sendJson(ListenToEvents())
+    }
     subscription
   }
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = ???
@@ -48,7 +53,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     thread.join()
   }
 
-  @volatile var running = true
+  @volatile var running = false
   @volatile var listeners: Set[EventListenerHelper] = Set.empty
   private def addEventListenerImpl(l: EventListenerHelper): Unit = synchronized {
     listeners += l
