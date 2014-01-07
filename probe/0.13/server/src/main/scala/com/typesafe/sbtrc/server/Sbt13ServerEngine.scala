@@ -9,7 +9,14 @@ import com.typesafe.sbtrc.ipc.JsonWriter
 /**
  * A simple sbt server engine.
  *
- *  TODO - Figure out how to handle reloading / project change detection...
+ *  TODO - We want this whole thing to create a simple engine of:
+ *
+ *  (ServerState, ClientRequest) => ServerState.
+ *
+ *  The core engine is
+ *  conceptually single threaded, so this is the abstraction layer between
+ *  the server implementation function, and the concurrency fun that is
+ *  mutli-client server land.
  */
 class Sbt13ServerEngine(buildState: State) extends AbstractSbtServerEngine {
   // For debugging only.
@@ -45,20 +52,15 @@ class Sbt13ServerEngine(buildState: State) extends AbstractSbtServerEngine {
       shims.SystemShims.replaceOutput(logStdOut, logStdErr)
       hasInstalledSystemOutShims = true
     }
-
-    System.out.println("Request = " + request)
-    val ClientRequest(client, serial, msg) = request
-
-    // TODO - Generic return values.
     try {
-      state = runRequestImpl(client, serial, msg, state)
+      state = SimpleServerEngine(state, request)
     } catch {
       case e: NeedToRebootException =>
         running = false
         // TODO - Send this exception to all clients and don't throw.
         throw e
       case NonFatal(e) =>
-        client.send(ErrorResponse("Failure to run " + msg + ": " + e.getMessage))
+        request.client.send(ErrorResponse("Failure to run " + request.msg + ": " + e.getMessage))
         e.printStackTrace(oldErr)
       // TODO - Figure out which messages cause us to stop running....
       // Or any other cleanup...

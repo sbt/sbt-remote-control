@@ -29,7 +29,9 @@ abstract class AbstractSbtServerLocator extends SbtServerLocator {
         s"@${propsFile.toURI.toURL.toString}")
       pb.directory(directory)
       val process = pb.start()
+      process.getOutputStream.close()
       val input = process.getInputStream
+      process.getErrorStream.close()
       readUntilSynch(new java.io.BufferedReader(new java.io.InputStreamReader(input))) match {
         case Some(uri) => uri
         case _ => sys.error("Failed to start server!")

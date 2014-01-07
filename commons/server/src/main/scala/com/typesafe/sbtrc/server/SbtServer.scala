@@ -10,7 +10,13 @@ import sbt.State
  * This class implements the core sbt engine.   We delegate all behavior down to a single
  * threaded sbt execution engine.
  */
-class SbtServer(engine: SbtServerEngine, socket: ServerSocket) {
+class SbtServer(engine: SbtServerEngine, socket: ServerSocket) extends xsbti.Server {
+  
+  override val uri: java.net.URI = {
+    val port = socket.getLocalPort
+    val addr = socket.getInetAddress.getHostAddress
+    new java.net.URI(s"http://${addr}:${port}")
+  }
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   // The queue where requests go before we fullfill them.
   private val queue = new java.util.concurrent.LinkedBlockingDeque[ClientRequest]
@@ -40,5 +46,10 @@ class SbtServer(engine: SbtServerEngine, socket: ServerSocket) {
   }
   // TODO - just start automatically?
   def start(): Unit = thread.start()
-  def join(): Unit = thread.join()
+  override def awaitTermination(): xsbti.MainResult = {
+    // Wait for the server to stop, then exit.
+    thread.join()
+    // TODO - We should allow the server to tell us to reboot.
+    Exit(0)
+  }
 }
