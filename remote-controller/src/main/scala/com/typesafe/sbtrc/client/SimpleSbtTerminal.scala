@@ -51,7 +51,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.out.print(msg)
           System.out.flush()
         // TODO - only configured log level...
-        case LogEvent(LogMessage(_, msg)) =>
+        case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
           System.out.print(msg)
           System.out.flush()
         case LogEvent(LogStdOut(msg)) =>

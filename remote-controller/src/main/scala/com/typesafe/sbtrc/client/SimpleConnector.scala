@@ -39,14 +39,14 @@ class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtCon
     handleNewSubscriber(listener)
     sub
   }
-  private def handleNewSubscriber(listener: Listener): Unit = synchronized {
+  private[this] def handleNewSubscriber(listener: Listener): Unit = synchronized {
     currentClient match {
       case Some(client) => listener emit client
       case None => connectToSbt()
     }
   }
 
-  private def connectToSbt(): Unit = synchronized {
+  private[this] def connectToSbt(): Unit = synchronized {
     System.err.println("Reconnecting to sbt...")
     val uri = locator.locate(directory)
     // TODO - We need  way to be notified of failures so we can reconnect here...

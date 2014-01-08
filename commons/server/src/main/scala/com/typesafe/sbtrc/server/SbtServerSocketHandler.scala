@@ -52,8 +52,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
           val client = new SbtClientHandler(id, server, msgHandler, onClose)
           clientLock.synchronized {
             clients.append(client)
-            System.out.println("Connected Clients:")
-            clients foreach System.out.println
+            log.log(s"Connected Clients: ${clients map (_.id) mkString ", "}")
           }
         } catch {
           case e: HandshakeException =>
@@ -63,13 +62,13 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
             // down the server in that instance.
             log.error(s"Handshake exception on socket: ${e.socket.getPort}", e)
           case _: InterruptedException | _: SocketTimeoutException =>
-            System.out.println("Checking to see if clients are empty...")
+            log.log("Checking to see if clients are empty...")
             // Here we need to check to see if we should shut ourselves down.
             if(clients.isEmpty) {
-              System.out.println("No clients connected after 3 min.  Shutting down.")
+              log.log("No clients connected after 3 min.  Shutting down.")
               running.set(false)
             } else {
-              System.out.println("We have a client, continuing serving connections.")
+              log.log("We have a client, continuing serving connections.")
             }
           case e: Throwable =>
             // On any other failure, we'll just down the server for now.

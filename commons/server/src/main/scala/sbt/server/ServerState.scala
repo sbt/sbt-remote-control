@@ -22,7 +22,6 @@ case class ServerState(
     // TODO - This should probably happen in the command
     // engine before running a command.
     EventLogger.updateClient(next)
-    System.out.println("Updated listeners: " + next)
     copy(eventListeners = next)
   }
 }

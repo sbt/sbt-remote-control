@@ -25,7 +25,6 @@ abstract class ServerEngine {
   
   final val InitializeServerState = "initialize-server-state"
   final def initializeServerStateCommand = Command.command(InitializeServerState) { state =>
-    System.out.println("DEBUGME: server state initialized.")
     ServerState.update(state, ServerState())
   }
   final val HandleNextServerRequest = "handle-next-server-request"
@@ -40,7 +39,6 @@ abstract class ServerEngine {
   }
   
   def handleRequest(client: SbtClient, request: Request, state: State): State = {
-    System.out.println("DEBUGME: Reading server requests!")
     val serverState = ServerState.extract(state) 
     request match {
       case ListenToEvents() => 
@@ -64,7 +62,6 @@ abstract class ServerEngine {
     import CommandStrings.{ BootCommand, DefaultsCommand, InitCommand }
 
    // TODO - can this be part of a command?
-    System.out.println("Installing loggers.")
     val globalLogging = initializeLoggers(new File(configuration.baseDirectory, ".sbtserver/master.log"))
     // TODO - This is copied from StandardMain so we can override globalLogging
     def initialState(configuration: xsbti.AppConfiguration, initialDefinitions: Seq[Command], preCommands: Seq[String]): State =
@@ -84,7 +81,6 @@ abstract class ServerEngine {
           preCommands = runEarly(InitCommand) :: runEarly(InitializeServerState) :: BootCommand  :: HandleNextServerRequest :: Nil)
 
     
-    System.out.println("DEBUGME: Starting sbt main loop!")
     // Now feed the state through an appropriate engine.   For now, we'll use the standard main...
     // TODO - We need to write our own command loop
     // that will inspect server state and issue appropriate commands.
