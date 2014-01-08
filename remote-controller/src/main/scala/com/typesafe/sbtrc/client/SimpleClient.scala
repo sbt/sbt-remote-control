@@ -65,7 +65,6 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     listeners -= l
   }
   private def sendEvent(e: Event): Unit = synchronized {
-    System.err.println("Sending to all listeners.")
     listeners foreach { l =>
       try l send e
       catch {
