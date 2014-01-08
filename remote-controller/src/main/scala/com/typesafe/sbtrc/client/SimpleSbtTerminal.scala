@@ -43,17 +43,19 @@ class SimpleSbtTerminal extends xsbti.AppMain {
 
   case class Exit(code: Int) extends xsbti.Exit
   override def run(configuration: AppConfiguration): xsbti.Exit = {
+    System.out.println("Connecting to sbt...")
     val connector = new SimpleConnector(configuration.baseDirectory, SimpleLocator)
     connector onConnect { client =>
       import protocol._
       client handleEvents {
+        case Started => schedule(TakeNextCommand(client))
         case LogEvent(LogSuccess(msg)) =>
           System.out.print(msg)
           System.out.flush()
-        // TODO - only configured log level...
-        case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
-          System.out.print(msg)
-          System.out.flush()
+        // TODO - Let's make sure INFO + stdout don't conflict....
+        //case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
+        //System.out.print(msg)
+        //System.out.flush()
         case LogEvent(LogStdOut(msg)) =>
           System.out.print(msg)
           System.out.flush()
@@ -62,7 +64,6 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.err.flush()
         case _ => ()
       }
-      schedule(TakeNextCommand(client))
     }
 
     // Now we need to run....

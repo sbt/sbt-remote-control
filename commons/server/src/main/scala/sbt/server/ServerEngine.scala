@@ -1,6 +1,7 @@
 package sbt
 package server
 
+import com.typesafe.sbtrc.protocol
 import com.typesafe.sbtrc.protocol._
 import BasicCommandStrings.runEarly
 import BasicCommands.early
@@ -21,13 +22,34 @@ abstract class ServerEngine {
    * or throws an exception if we're done.
    */
   def takeNextRequest: ServerRequest
+  /** This is used to grab all event listening requests in one blow when
+   *  we first start up, as most clients will send one immediately.
+   *  
+   *  This should clean the queue of all event listening requests if possible.
+   */
+  def takeAllEventListenerRequests: Seq[ServerRequest]
   
-  
-  final val InitializeServerState = "initialize-server-state"
+
+  // Set up the server with all the initial things we need to do.
+  final val InitializeServerState = "server-initialize-state"
   final def initializeServerStateCommand = Command.command(InitializeServerState) { state =>
-    ServerState.update(state, ServerState())
+    val eventListeners = takeAllEventListenerRequests collect {
+      case ServerRequest(client, ListenToEvents()) => client
+    }
+    val ss = (ServerState() /: eventListeners) { _ addEventListener _ }
+    System.out.println("Initial listeners = " + eventListeners)
+    ServerState.update(state, ss)
+    // TODO - Should we check to see if anyone is listening to build state yet?
   }
-  final val HandleNextServerRequest = "handle-next-server-request"
+  // A command which runs after sbt has loaded and we're ready to handle requests.
+  final val SendReadyForRequests = "server-send-ready-for-request"
+  final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
+    // Notify everyone we're ready to start...
+    val serverState = ServerState.extract(state)
+    serverState.eventListeners.send(protocol.Started)
+    state
+  }
+  final val HandleNextServerRequest = "server-handle-next-server-request"
   // TODO - Clean this guy up a bit
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
     // TODO - What todo with failure?  Maybe we just wait for the next request...
@@ -42,6 +64,9 @@ abstract class ServerEngine {
     val serverState = ServerState.extract(state) 
     request match {
       case ListenToEvents() => 
+        // Immediately tell new clients we're ready to receive commands if they're listening
+        // for events.
+        client.send(Started)
         ServerState.update(state, serverState.addEventListener(client))
         // TODO - update global logging?
         // TODO - Ack the server?
@@ -76,9 +101,15 @@ abstract class ServerEngine {
 	}
     val state: State =
       initialState(configuration, 
-          initialDefinitions = Seq(early, initializeServerStateCommand, handleNextRequestCommand) ++ BuiltinCommands.DefaultCommands,
+          initialDefinitions = Seq(
+              early, 
+              initializeServerStateCommand, 
+              handleNextRequestCommand,
+              sendReadyForRequests
+          ) ++ BuiltinCommands.DefaultCommands,
           // Note: We drop the default command in favor of just adding them to the state directly.
-          preCommands = runEarly(InitCommand) :: runEarly(InitializeServerState) :: BootCommand  :: HandleNextServerRequest :: Nil)
+          // TODO - Should we try to handle listener requests before booting?
+          preCommands = runEarly(InitCommand) :: runEarly(InitializeServerState) :: BootCommand  :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
 
     
     // Now feed the state through an appropriate engine.   For now, we'll use the standard main...

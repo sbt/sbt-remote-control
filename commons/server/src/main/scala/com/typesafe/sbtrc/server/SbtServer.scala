@@ -32,6 +32,20 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     queue.take
   }
   
+  override final def takeAllEventListenerRequests: Seq[ServerRequest] = {
+    import collection.JavaConverters._
+    val buf = new java.util.ArrayList[ServerRequest]
+    queue.drainTo(buf)
+    
+    val (listeners, other) =
+      buf.asScala.partition {
+        case ServerRequest(_, protocol.ListenToEvents()) => true
+      }
+    // TODO - make sure this is done correctly
+    other.reverse.foreach(queue.addFirst)
+    listeners
+  }
+  
   // TODO - Construct our engine, and then start handling events on some thread.
   private val thread = new Thread("sbt-server-main") {
     override def run(): Unit = {
