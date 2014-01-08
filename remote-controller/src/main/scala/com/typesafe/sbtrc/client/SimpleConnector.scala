@@ -47,11 +47,9 @@ class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtCon
   }
 
   private[this] def connectToSbt(): Unit = synchronized {
-    System.err.println("Reconnecting to sbt...")
     val uri = locator.locate(directory)
     // TODO - We need  way to be notified of failures so we can reconnect here...
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
-    System.err.println("Connecting from local port: " + socket.getLocalPort)
     val rawClient = new ipc.Client(socket)
     val sbtClient = new SimpleSbtClient(rawClient, () => onClose())
     currentClient = Some(sbtClient)
@@ -67,7 +65,6 @@ class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtCon
   }
   // A callback from the server handling thread.
   private def onClose(): Unit = synchronized {
-    System.err.println("Connection to sbt lost...")
     // TODO - This should only happen if we think the connection to the
     // sbt server is closed.
     if (reconnecting) connectToSbt()

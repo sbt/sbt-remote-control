@@ -16,7 +16,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   }
   val inStream = new java.io.BufferedReader(new java.io.InputStreamReader(System.in))
   case class TakeNextCommand(client: SbtClient) extends Runnable {
-    override final def run(): Unit = {
+    override final def run(): Unit = try {
       System.out.print("> ")
       inStream.readLine match {
         case "exit" => System.exit(0)
@@ -35,10 +35,15 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             registration.cancel()
             schedule(this)
           }
-
       }
-
+    } catch {
+      case e: Exception =>
+        // Here we want to ignore exceptions and make sure not to schedule more work.
+        // We should probably print the exception if it's *NOT* a connection related issue that
+        // will cause us to reconnect anyway....
+        e.printStackTrace()
     }
+
   }
 
   case class Exit(code: Int) extends xsbti.Exit
