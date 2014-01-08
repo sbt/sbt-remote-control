@@ -2,7 +2,10 @@ package com.typesafe.sbtrc
 package server
 
 import java.io._
-
+/**
+ * This is meant to be a rotating file log that can auto-squash its contents if they get too
+ * big.  Right now we just dump a ton of information for debugging purposes.
+ */
 class FileLogger(file: File) {
   // make sure we can write to the file.
   file.getParentFile.mkdirs()

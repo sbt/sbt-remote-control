@@ -30,7 +30,6 @@ class SbtClientHandler (
         catch {
           case e: Throwable =>
             // On any throwable, we'll shut down this connection as bad.
-            System.err.println(s"CLient $id had error: ${e.getMessage}")
             log.error(s"Client $id had error, shutting down", e)
             e.printStackTrace(System.err)
             running.set(false)

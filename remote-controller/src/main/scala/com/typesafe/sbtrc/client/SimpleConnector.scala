@@ -6,9 +6,9 @@ import java.io.File
 import scala.concurrent.ExecutionContext
 
 class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtConnector {
-  @volatile private var currentClient: Option[SbtClient] = None
+  private var currentClient: Option[SbtClient] = None
   private var listeners: List[Listener] = Nil
-  @volatile private var reconnecting: Boolean = true
+  private var reconnecting: Boolean = true
 
   // Helper to give listeners an identity and execute methods on the given
   // context.
