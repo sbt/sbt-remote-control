@@ -101,6 +101,8 @@ object JsonReader {
       }
     }
 }
+/** Thrown if we have issues performing a handshake between client + server. */
+class HandshakeException(msg: String, cause: Exception, val socket: Socket) extends Exception(msg, cause)
 
 // This is thread-safe in that it should send/receive each message atomically,
 // but multiple threads will have to be careful that they don't send messages
@@ -118,20 +120,22 @@ abstract class Peer(protected val socket: Socket) {
   // allowed replies to be sent out of order
   private val nextSerial = new AtomicInteger(1)
 
-  protected def handshake(toSend: String, toExpect: String): Unit = {
+  protected def handshake(toSend: String, toExpect: String): Unit = try {
     sendString(toSend)
 
     val m = receive()
     if (m.serial != 1L) {
       close()
-      throw new RuntimeException("Expected handshake serial 1")
+      throw new HandshakeException("Expected handshake serial 1", null, socket)
     }
 
     val s = m.asString
     if (s != toExpect) {
       close()
-      throw new RuntimeException("Expected greeting '" + toExpect + "' received '" + s + "'")
+      throw new HandshakeException("Expected greeting '" + toExpect + "' received '" + s + "'", null, socket)
     }
+  } catch {
+    case e: IOException => throw new HandshakeException("Unable to perform handshake", e, socket)
   }
 
   def isClosed = socket.isClosed()
@@ -195,7 +199,7 @@ abstract class Peer(protected val socket: Socket) {
   }
 }
 
-class Server(private val serverSocket: ServerSocket) extends Peer(serverSocket.accept()) {
+class Server(private val serverSocket: ServerSocket) extends MultiClientServer(serverSocket.accept()) {
 
   handshake(ServerGreeting, ClientGreeting)
 
@@ -205,6 +209,10 @@ class Server(private val serverSocket: ServerSocket) extends Peer(serverSocket.a
     super.close()
     ignoringIOException { serverSocket.close() }
   }
+}
+
+class MultiClientServer(socket: Socket) extends Peer(socket) {
+  handshake(ServerGreeting, ClientGreeting)
 }
 
 class Client(socket: Socket) extends Peer(socket) {

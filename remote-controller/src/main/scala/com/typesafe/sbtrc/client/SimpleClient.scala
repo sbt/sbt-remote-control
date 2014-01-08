@@ -8,6 +8,9 @@ import scala.concurrent.Future
 import scala.concurrent.Promise
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.util.control.NonFatal
+import java.io.IOException
+import java.io.EOFException
 
 /**
  * Very terrible implementation of the sbt client.
@@ -53,16 +56,23 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     thread.join()
   }
 
-  @volatile var running = false
-  @volatile var listeners: Set[EventListenerHelper] = Set.empty
+  @volatile var running = true
+  private var listeners: Set[EventListenerHelper] = Set.empty
   private def addEventListenerImpl(l: EventListenerHelper): Unit = synchronized {
     listeners += l
   }
   private def removeEventListenerImpl(l: EventListenerHelper): Unit = synchronized {
     listeners -= l
   }
-  private def sendEvent(e: Event): Unit =
-    listeners foreach (_ send e)
+  private def sendEvent(e: Event): Unit = synchronized {
+    System.err.println("Sending to all listeners.")
+    listeners foreach { l =>
+      try l send e
+      catch {
+        case NonFatal(_) => // Ignore non fatal exceptions while sending events.
+      }
+    }
+  }
 
   // TODO - Error handling!
   object thread extends Thread {
@@ -70,18 +80,26 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
       while (running) {
         try handleNextEvent()
         catch {
-          case e: SocketException =>
+          case e @ (_: SocketException | _: EOFException) =>
+            e.printStackTrace()
             running = false
+          case e: IOException =>
+            e.printStackTrace()
         }
       }
+      // Here we think sbt connection has closed.
+      client.close()
       closeHandler()
     }
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
         // TODO - Filter events, like build change events vs. normal events...
-        case protocol.Envelope(_, _, e: Event) => sendEvent(e)
+        case protocol.Envelope(_, _, e: Event) =>
+          sendEvent(e)
         // TODO - Deal with other responses...
-        case _ =>
+        case stuff =>
+        // TODO - Do something here.
+        //System.err.println("Received gunk from the server!: " + stuff)
       }
   }
   thread.start()

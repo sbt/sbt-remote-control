@@ -4,13 +4,15 @@ package server
 
 import java.net.ServerSocket
 import sbt.State
+import sbt.server.ServerEngine
+import sbt.server.ServerRequest
 
 
 /**
  * This class implements the core sbt engine.   We delegate all behavior down to a single
  * threaded sbt execution engine.
  */
-class SbtServer(engine: SbtServerEngine, socket: ServerSocket) extends xsbti.Server {
+class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) extends ServerEngine with xsbti.Server {
   
   override val uri: java.net.URI = {
     val port = socket.getLocalPort
@@ -19,27 +21,30 @@ class SbtServer(engine: SbtServerEngine, socket: ServerSocket) extends xsbti.Ser
   }
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   // The queue where requests go before we fullfill them.
-  private val queue = new java.util.concurrent.LinkedBlockingDeque[ClientRequest]
+  private val queue = new java.util.concurrent.LinkedBlockingDeque[ServerRequest]
   // External API to run queue.
-  def queueClientRequest(request: ClientRequest): Unit = queue.add(request)
+  def queueClientRequest(request: ServerRequest): Unit = queue.add(request)
   // Create the helper which will handle socket requests.
   private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest)
   
+  override final def takeNextRequest: ServerRequest = {
+    // TODO - Flush a bunch of events and merge/drop
+    queue.take
+  }
+  
   // TODO - Construct our engine, and then start handling events on some thread.
-  private val thread = new Thread {
+  private val thread = new Thread("sbt-server-main") {
     override def run(): Unit = {
+      val originOut = System.out
+      val originErr = System.err
       // TODO - Timeouts that lead to us shutting down the server.
-      while(engine.isRunning) {
-        // First we wait for a new message.  This will block the current thread
-        // until we have a message.
-        engine.bufferRequest(queue.take)
-        // Now we buffer any other messages we may find.
-        while(!queue.isEmpty) {
-          engine.bufferRequest(queue.take)
-        }
-        // Now that we're done, fullfill all the requests that were queued.
-        engine.runRequests()
+      try execute(configuration)
+      catch {
+        case e: Throwable =>
+          e.printStackTrace(originErr)
+          throw e
       }
+      originOut.println("Done executing sbt server engine.")
       socketHandler.stop()
       socketHandler.join()
     }

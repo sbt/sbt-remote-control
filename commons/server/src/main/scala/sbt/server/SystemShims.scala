@@ -1,6 +1,5 @@
-package com.typesafe.sbtrc
+package sbt
 package server
-package shims
 
 import java.nio.charset.Charset
 import java.io.PrintStream
@@ -9,7 +8,7 @@ import java.io.PrintStream
  * This class can be used to construct PrintStreams which are implemented
  * backed on a simple function.
  */
-private[shims] class LoggedOutputStream(logger: String => Unit, charset: Charset = Charset.defaultCharset) extends java.io.OutputStream {
+private[sbt] class LoggedOutputStream(logger: String => Unit, charset: Charset = Charset.defaultCharset) extends java.io.OutputStream {
   private val buf = new collection.mutable.ArrayBuffer[Byte] 
   override def write(b: Int): Unit = buf.append(b.toByte)
   override def flush(): Unit = {
@@ -32,5 +31,12 @@ object SystemShims {
     val newErr = LoggedPrintStream(stderr)
     System.setOut(newOut)
     System.setErr(newErr)
+  }
+  
+  def allOutputToFile(file: File): java.io.PrintWriter = {
+    // TODO - Figure out appropriate encoding...  Env variable?
+    val output = new java.io.FileWriter(file)
+    replaceOutput(output.write, output.write)
+    new java.io.PrintWriter(output)
   }
 }

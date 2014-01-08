@@ -47,6 +47,13 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     connector onConnect { client =>
       import protocol._
       client handleEvents {
+        case LogEvent(LogSuccess(msg)) =>
+          System.out.print(msg)
+          System.out.flush()
+        // TODO - only configured log level...
+        case LogEvent(LogMessage(_, msg)) =>
+          System.out.print(msg)
+          System.out.flush()
         case LogEvent(LogStdOut(msg)) =>
           System.out.print(msg)
           System.out.flush()
