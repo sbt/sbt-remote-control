@@ -20,6 +20,7 @@ object WireProtocol {
   implicit object MessageStructure extends RawStructure[Message] {
     val ExecutionRequestMsg = RawStructure.get[ExecutionRequest]
     val ListenToEventsMsg = RawStructure.get[ListenToEvents]
+    val ListenToBuildChangeMsg = RawStructure.get[ListenToBuildChange]
     val ExecutionDoneMsg = RawStructure.get[ExecutionDone]
     
     val CancelRequestMsg = RawStructure.get[CancelRequest.type]
@@ -64,6 +65,7 @@ object WireProtocol {
     def apply(t: Message): Map[String, Any] = t match {
       case x: ExecutionDone => ExecutionDoneMsg(x)
       case x: ListenToEvents => ListenToEventsMsg(x)
+      case x: ListenToBuildChange => ListenToBuildChangeMsg(x)
       case x: ExecutionRequest => ExecutionRequestMsg(x)
       case CancelRequest => CancelRequestMsg(CancelRequest)
       case CancelResponse => CancelResponseMsg(CancelResponse)
@@ -105,6 +107,7 @@ object WireProtocol {
     def unapply(msg: Map[String, Any]): Option[Message] = (
       ExecutionDoneMsg.unapply(msg) orElse
       ListenToEventsMsg.unapply(msg) orElse
+      ListenToBuildChangeMsg.unapply(msg) orElse
       ExecutionRequestMsg.unapply(msg) orElse
       ErrorResponseMsg.unapply(msg) orElse
       CancelRequestMsg.unapply(msg) orElse

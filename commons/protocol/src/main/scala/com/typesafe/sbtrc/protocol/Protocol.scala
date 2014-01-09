@@ -60,6 +60,11 @@ case class ListenToEvents() extends Request {
   def sendEvents = false
 }
 
+case class ListenToBuildChange() extends Request {
+  // TODO - Remove this notion.
+  def sendEvents = false
+}
+
 /** This is a local internal message fired when a client connection is detected
  * to be closed.
  */

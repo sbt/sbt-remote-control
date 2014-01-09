@@ -21,6 +21,7 @@ class ProtocolTest {
     val specifics = Seq(
       protocol.ExecutionDone("test result command"),
       protocol.ListenToEvents(),
+      protocol.ListenToBuildChange(),
       protocol.ExecutionRequest("test command string"),
       // Events
       protocol.Started,

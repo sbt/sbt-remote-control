@@ -23,8 +23,11 @@ import java.io.EOFException
 class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
   private val listeningToEvents = new AtomicBoolean(false)
+  private val listeningToBuild = new AtomicBoolean(false)
 
-  def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = ???
+  def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
+    buildEventManager.watch(listener)(ex)
+
   def possibleAutocompletions(partialCommand: String): Future[Set[String]] = ???
   def lookupScopedKey(name: String): Future[Option[ScopedKey]] = ???
 
@@ -35,18 +38,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     result.success(())
     result.future
   }
-  def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription = {
-    val helper = new EventListenerHelper(listener, ex)
-    addEventListenerImpl(helper)
-    object subscription extends Subscription {
-      def cancel(): Unit =
-        removeEventListenerImpl(helper)
-    }
-    if (listeningToEvents.compareAndSet(false, true)) {
-      client.sendJson(ListenToEvents())
-    }
-    subscription
-  }
+  def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
+    eventManager.watch(listener)(ex)
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = ???
   def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription = ???
 
@@ -57,20 +50,11 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   }
 
   @volatile var running = true
-  private var listeners: Set[EventListenerHelper] = Set.empty
-  private def addEventListenerImpl(l: EventListenerHelper): Unit = synchronized {
-    listeners += l
+  private object eventManager extends ListenerManager[protocol.Event, EventListener, ListenToEvents](ListenToEvents(), client) {
+    override def wrapListener(l: EventListener, ex: ExecutionContext) = new EventListenerHelper(l, ex)
   }
-  private def removeEventListenerImpl(l: EventListenerHelper): Unit = synchronized {
-    listeners -= l
-  }
-  private def sendEvent(e: Event): Unit = synchronized {
-    listeners foreach { l =>
-      try l send e
-      catch {
-        case NonFatal(_) => // Ignore non fatal exceptions while sending events.
-      }
-    }
+  private object buildEventManager extends ListenerManager[MinimalBuildStructure, BuildStructureListener, ListenToBuildChange](ListenToBuildChange(), client) {
+    override def wrapListener(l: BuildStructureListener, ex: ExecutionContext) = new BuildListenerHelper(l, ex)
   }
 
   // TODO - Error handling!
@@ -94,7 +78,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
       protocol.Envelope(client.receive()) match {
         // TODO - Filter events, like build change events vs. normal events...
         case protocol.Envelope(_, _, e: Event) =>
-          sendEvent(e)
+          eventManager.sendEvent(e)
         // TODO - Deal with other responses...
         case stuff =>
         // TODO - Do something here.
@@ -104,10 +88,51 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   thread.start()
 }
 
-/** A wrapped event listener that ensures events are fired on the desired exeuction context. */
-private[client] class EventListenerHelper(listener: EventListener, ex: ExecutionContext) {
-  val id = java.util.UUID.randomUUID
-  def send(e: Event): Unit = {
+/** Abstracted mechanism of sending events. */
+trait ListenerType[Event] {
+  def send(e: Event): Unit
+}
+/** Helper to manage registering events and telling the server we want them. */
+private abstract class ListenerManager[Event, Listener, RequestMsg <: Request](requestEventsMsg: RequestMsg, client: ipc.Peer)(implicit jsonFormat: ipc.JsonWriter[RequestMsg]) {
+
+  def wrapListener(l: Listener, ex: ExecutionContext): ListenerType[Event]
+
+  private val listeningToEvents = new AtomicBoolean(false)
+  private var listeners: Set[ListenerType[Event]] = Set.empty
+
+  def watch(listener: Listener)(implicit ex: ExecutionContext): Subscription = {
+    val helper = wrapListener(listener, ex)
+    addEventListener(helper)
+    object subscription extends Subscription {
+      def cancel(): Unit =
+        removeEventListener(helper)
+    }
+    if (listeningToEvents.compareAndSet(false, true)) {
+      client.sendJson(requestEventsMsg)
+    }
+    subscription
+  }
+
+  private def addEventListener(l: ListenerType[Event]): Unit = synchronized {
+    listeners += l
+  }
+  private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
+    listeners -= l
+  }
+  def sendEvent(e: Event): Unit = synchronized {
+    listeners foreach { l =>
+      try l send e
+      catch {
+        case NonFatal(_) => // Ignore non fatal exceptions while sending events.
+      }
+    }
+  }
+}
+
+/** A wrapped event listener that ensures events are fired on the desired execution context. */
+private[client] class EventListenerHelper(listener: EventListener, ex: ExecutionContext) extends ListenerType[Event] {
+  private val id = java.util.UUID.randomUUID
+  override def send(e: Event): Unit = {
     // TODO - do we need to prepare the context?
     ex.prepare.execute(new Runnable() {
       def run(): Unit = {
@@ -121,4 +146,21 @@ private[client] class EventListenerHelper(listener: EventListener, ex: Execution
     case _ => false
   }
 
+}
+/** A wrapped build event listener that ensures events are fired on the desired execution context. */
+private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: ExecutionContext) extends ListenerType[MinimalBuildStructure] {
+  private val id = java.util.UUID.randomUUID
+  override def send(e: MinimalBuildStructure): Unit = {
+    // TODO - do we need to prepare the context?
+    ex.prepare.execute(new Runnable() {
+      def run(): Unit = {
+        listener(e)
+      }
+    })
+  }
+  override def hashCode = id.hashCode
+  override def equals(o: Any): Boolean = o match {
+    case x: BuildListenerHelper => x.id == id
+    case _ => false
+  }
 }

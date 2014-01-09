@@ -502,6 +502,15 @@ package object protocol {
       }
     }
   }
+  implicit object ListenToBuildChangeStructure extends RawStructure[ListenToBuildChange] {
+    def apply(msg: ListenToBuildChange) = 
+      Map("request" -> "ListenToBuildChange")
+    def unapply(obj: Map[String,Any]): Option[ListenToBuildChange] = {
+      obj.get("request").filter(_ == "ListenToBuildChange").map { _ =>
+        ListenToBuildChange()
+      }
+    }
+  }
    
    
 }
