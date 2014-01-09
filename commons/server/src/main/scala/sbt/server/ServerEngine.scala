@@ -53,7 +53,6 @@ abstract class ServerEngine {
     
     // here we want to register our error handler that handles command failure.
     state.copy(onFailure = Some(PostCommandErrorHandler))
-    state
   }
   final val HandleNextServerRequest = "server-handle-next-server-request"
   // TODO - Clean this guy up a bit
