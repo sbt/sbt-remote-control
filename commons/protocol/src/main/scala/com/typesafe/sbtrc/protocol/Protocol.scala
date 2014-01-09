@@ -126,6 +126,8 @@ case class MysteryMessage(something: Any) extends Event
 case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String]) extends Event
 /** A generic mechanism to send events. */
 case class GenericEvent(id: String, params: Map[String, Any]) extends Event
+/** The build has been changed in some fashion. */
+case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 
 
 // -----------------------------------------

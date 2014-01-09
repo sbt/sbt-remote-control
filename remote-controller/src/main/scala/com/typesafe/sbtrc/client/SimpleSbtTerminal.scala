@@ -69,6 +69,10 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.err.flush()
         case _ => ()
       }
+      client watchBuild { build =>
+        System.out.println("BUILD CHANGED: ")
+        build.projects.foreach(System.out.println)
+      }
     }
 
     // Now we need to run....

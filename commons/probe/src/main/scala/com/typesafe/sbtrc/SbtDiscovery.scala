@@ -5,6 +5,24 @@ import SbtToProtocolUtils._
 
 // This is a helper class that lets us run discovery methods on sbt.
 object SbtDiscovery {
+    
+  def buildStructure(state: State): protocol.MinimalBuildStructure = {
+    val extracted = sbt.Project.extract(state)
+    val projects = extracted.structure.allProjectRefs map projectRefToProtocol
+    val builds = projects.map(_.build).distinct
+    val emptyFilter = protocol.KeyFilter()
+    // TODO - More efficient mechanism
+    val ss = settings(state, emptyFilter)
+    val ts = tasks(state, emptyFilter)
+    val its = inputTasks(state, emptyFilter)
+    protocol.MinimalBuildStructure(
+      builds = builds,
+      projects = projects,
+      settingKeys = ss,
+      taskKeys = ts,
+      inputKeys = its
+    )
+  }
   
   // have to leave the type inferencer here.
   def structure(state: State) =

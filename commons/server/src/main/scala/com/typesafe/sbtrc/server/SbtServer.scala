@@ -40,6 +40,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     val (listeners, other) =
       buf.asScala.partition {
         case ServerRequest(_, protocol.ListenToEvents()) => true
+        case _ => false
       }
     // TODO - make sure this is done correctly
     other.reverse.foreach(queue.addFirst)

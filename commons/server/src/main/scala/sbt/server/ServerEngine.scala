@@ -96,6 +96,11 @@ abstract class ServerEngine {
         ServerState.update(state, serverState.addEventListener(client))
         // TODO - update global logging?
         // TODO - Ack the server?
+      case ListenToBuildChange() =>
+        // We should immediately send the structure...
+        sendBuildStructure(state, client)
+        // And add the client to get further notifications.
+        ServerState.update(state, serverState.addBuildListener(client))
       case ClientClosedRequest() =>
         val serverState = ServerState.extract(state)
         ServerState.update(state, serverState.disconnect(client))
@@ -103,6 +108,11 @@ abstract class ServerEngine {
         // TODO - Figure out how to run this and ack appropriately...
         command :: ServerState.update(state, serverState.withLastCommand(command))
     }   
+  }
+  
+  def sendBuildStructure(state: State, listener: SbtClient): Unit = {
+    val structure = com.typesafe.sbtrc.SbtDiscovery.buildStructure(state)
+    listener.send(BuildStructureChanged(structure))
   }
   
   /** This will load/launch the sbt execution engine. */

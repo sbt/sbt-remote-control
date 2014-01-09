@@ -26,6 +26,10 @@ case class ServerState(
     EventLogger.updateClient(next)
     copy(eventListeners = next)
   }
+  def addBuildListener(l: SbtClient): ServerState = {
+    val next = buildListeners zip l
+    copy(buildListeners = next)
+  }
   def withLastCommand(cmd: String): ServerState = {
     copy(lastCommand = Some(cmd))
   }

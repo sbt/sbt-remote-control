@@ -3,7 +3,6 @@ package com.typesafe.sbtrc
 /** Helpers to map from sbt types into serializable json types. */
 object SbtToProtocolUtils {
   
-  
   def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
     protocol.TypeInfo.fromManifest(mf)
   
