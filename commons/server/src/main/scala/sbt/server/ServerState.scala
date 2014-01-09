@@ -8,7 +8,9 @@ package server
 case class ServerState(
   eventListeners: SbtClient = NullSbtClient,
   buildListeners: SbtClient = NullSbtClient,
-  keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty) {
+  keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
+  
+  lastCommand: Option[String] = None) {
 
   /** Remove a client from any registered listeners. */
   def disconnect(client: SbtClient): ServerState =
@@ -24,6 +26,10 @@ case class ServerState(
     EventLogger.updateClient(next)
     copy(eventListeners = next)
   }
+  def withLastCommand(cmd: String): ServerState = {
+    copy(lastCommand = Some(cmd))
+  }
+  def clearLastCommand: ServerState = copy(lastCommand = None)
 }
 
 object ServerState {

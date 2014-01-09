@@ -13,6 +13,7 @@ import sbt.Command
 import sbt.MainLoop
 import sbt.StandardMain
 import sbt.State
+
 case class ServerRequest(client: SbtClient, request: Request)
 
 /** An abstract implementation of the sbt server engine that can be used by clients. */
@@ -40,6 +41,8 @@ abstract class ServerEngine {
     System.out.println("Initial listeners = " + eventListeners)
     ServerState.update(state, ss)
     // TODO - Should we check to see if anyone is listening to build state yet?
+    
+    // Here we want to register our error handler that handles build load failure.
   }
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -47,6 +50,9 @@ abstract class ServerEngine {
     // Notify everyone we're ready to start...
     val serverState = ServerState.extract(state)
     serverState.eventListeners.send(protocol.Started)
+    
+    // here we want to register our error handler that handles command failure.
+    state.copy(onFailure = Some(PostCommandErrorHandler))
     state
   }
   final val HandleNextServerRequest = "server-handle-next-server-request"
@@ -57,7 +63,27 @@ abstract class ServerEngine {
     val next = handleRequest(client, request, state)
     // make sure we always read another server request after this one
     // TODO - CHeck to see if we're done...
-    next.copy(remainingCommands = next.remainingCommands :+ HandleNextServerRequest)
+    next.copy(remainingCommands = next.remainingCommands :+ PostCommandCleanup :+ HandleNextServerRequest)
+  }
+  
+  
+  final val PostCommandCleanup = "server-post-command-cleanup"
+  final def postCommandCleanupCommand = Command.command(PostCommandCleanup)(postCommandCleanup)
+  // TODO - Maybe this should be its own command...
+  // TODO - Maybe this should be called cleanupLastCommand?
+  def postCommandCleanup(state: State): State = {
+    val serverState = ServerState.extract(state)
+    serverState.lastCommand match {
+      case Some(command) => serverState.eventListeners.send(ExecutionDone(command))
+      case None => ()
+    }
+    ServerState.update(state, serverState.clearLastCommand)
+  }
+  
+  final def PostCommandErrorHandler = "server-post-command-error-handler"
+  final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
+    // TODO - Should we send some kind of error notification to the server?
+    PostCommandCleanup :: HandleNextServerRequest :: state
   }
   
   def handleRequest(client: SbtClient, request: Request, state: State): State = {
@@ -75,7 +101,7 @@ abstract class ServerEngine {
         ServerState.update(state, serverState.disconnect(client))
       case ExecutionRequest(command) =>
         // TODO - Figure out how to run this and ack appropriately...
-        command :: state
+        command :: ServerState.update(state, serverState.withLastCommand(command))
     }   
   }
   
@@ -100,12 +126,15 @@ abstract class ServerEngine {
 		s.initializeClassLoaderCache
 	}
     val state: State =
-      initialState(configuration, 
+      // TODO - We need the sbt version to create the fake configuratoin.
+      initialState(FakeAppConfiguration(configuration), 
           initialDefinitions = Seq(
               early, 
               initializeServerStateCommand, 
               handleNextRequestCommand,
-              sendReadyForRequests
+              sendReadyForRequests,
+              postCommandCleanupCommand,
+              postCommandErrorHandler
           ) ++ BuiltinCommands.DefaultCommands,
           // Note: We drop the default command in favor of just adding them to the state directly.
           // TODO - Should we try to handle listener requests before booting?
@@ -144,4 +173,32 @@ abstract class ServerEngine {
   }
   
 
+}
+
+// TODO - move into its own file.
+// TODO - make this less hacky
+import xsbti._
+case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.1") extends AppConfiguration {
+	final val arguments: Array[String] = Array.empty
+	final def baseDirectory: File = original.baseDirectory
+	private def origAp = original.provider
+	object provider extends xsbti.AppProvider {
+	  override def scalaProvider = origAp.scalaProvider
+	  object id extends ApplicationID {
+	    override val groupID = "org.scala-sbt"
+	    override val name = "sbt"
+	    override val version = sbtVersion
+	    override val mainClass = "sbt.xMain"
+	    override val mainComponents = origAp.id.mainComponents
+	    override val crossVersioned = origAp.id.crossVersioned
+	    override val crossVersionedValue = origAp.id.crossVersionedValue
+	    override val classpathExtra = origAp.id.classpathExtra
+	  }
+	  override def loader: ClassLoader = origAp.loader 
+	  override def mainClass: Class[T] forSome { type T <: AppMain } = origAp.mainClass
+	  override def entryPoint: Class[_] = origAp.entryPoint
+	  override def newMain: AppMain = origAp.newMain
+	  override def mainClasspath: Array[File] = origAp.mainClasspath
+      override def components: ComponentProvider = origAp.components
+	}
 }
