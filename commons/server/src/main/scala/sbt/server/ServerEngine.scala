@@ -44,6 +44,7 @@ abstract class ServerEngine {
     
     // Here we want to register our error handler that handles build load failure.
   }
+  
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
@@ -52,7 +53,7 @@ abstract class ServerEngine {
     serverState.eventListeners.send(protocol.Started)
     
     // here we want to register our error handler that handles command failure.
-    state.copy(onFailure = Some(PostCommandErrorHandler))
+    installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
   }
   final val HandleNextServerRequest = "server-handle-next-server-request"
   // TODO - Clean this guy up a bit
@@ -171,6 +172,11 @@ abstract class ServerEngine {
     globalLogging
   }
   
+  
+  // Here we install our basic build hooks we use to fire events.
+  def installBuildHooks(state: State): State = {
+      TestShims.install(state)
+  }
 
 }
 
