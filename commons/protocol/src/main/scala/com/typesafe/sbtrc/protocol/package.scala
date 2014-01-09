@@ -517,7 +517,7 @@ package object protocol {
     def apply(msg: BuildStructureChanged) = 
       Map("event" -> "BuildStructureChanged", "build" -> InternalStruct(msg.structure))
     def unapply(obj: Map[String,Any]): Option[BuildStructureChanged] = {
-      obj.get("request").filter(_ == "BuildStructureChanged").flatMap { _ =>
+      obj.get("event").filter(_ == "BuildStructureChanged").flatMap { _ =>
         InternalStruct.unapply(obj("build").asInstanceOf[Map[String,Any]]).map(BuildStructureChanged.apply)
       }
     }

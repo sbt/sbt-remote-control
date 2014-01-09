@@ -18,7 +18,15 @@ class ProtocolTest {
         protocol.ProjectReference(build, "test")))
     val scopedKey = protocol.ScopedKey(key, scope)
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
+    val buildStructure = protocol.MinimalBuildStructure(
+      builds = Seq(build),
+      projects = Seq(scope.project.get),
+      settingKeys = Seq(scopedKey),
+      taskKeys = Seq(scopedKey),
+      inputKeys = Seq(scopedKey)
+    )
     val specifics = Seq(
+      protocol.BuildStructureChanged(buildStructure),
       protocol.ExecutionDone("test result command"),
       protocol.ListenToEvents(),
       protocol.ListenToBuildChange(),
