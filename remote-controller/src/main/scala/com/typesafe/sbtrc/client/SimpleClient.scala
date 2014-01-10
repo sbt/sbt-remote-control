@@ -77,6 +77,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
         // TODO - Filter events, like build change events vs. normal events...
+        case protocol.Envelope(_, _, e: BuildStructureChanged) =>
+          buildEventManager.sendEvent(e.structure)
         case protocol.Envelope(_, _, e: Event) =>
           eventManager.sendEvent(e)
         // TODO - Deal with other responses...
