@@ -523,5 +523,14 @@ package object protocol {
     }
   }
    
-   
+  implicit object ListenToValueStructure extends RawStructure[ListenToValue] {
+    val InternalStruct = ScopedKey.MyStructure
+    def apply(msg: ListenToValue) = 
+      Map("request" -> "ListenToValue", "key" -> InternalStruct(msg.key))
+    def unapply(obj: Map[String,Any]): Option[ListenToValue] = {
+      obj.get("request").filter(_ == "ListenToValue").flatMap { _ =>
+        InternalStruct.unapply(obj("key").asInstanceOf[Map[String,Any]]).map(ListenToValue.apply)
+      }
+    }
+  }
 }

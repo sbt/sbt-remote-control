@@ -65,6 +65,16 @@ case class ListenToBuildChange() extends Request {
   def sendEvents = false
 }
 
+case class ListenToValue(key: ScopedKey) extends Request {
+  // TODO - Remove.
+  def sendEvents = false
+}
+
+case class ValueChange[T](key: ScopedKey, value: TaskResult[T]) extends Request {
+  // TODO - Remove.
+  def sendEvents = false
+}
+
 /** This is a local internal message fired when a client connection is detected
  * to be closed.
  */

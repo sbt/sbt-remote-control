@@ -55,7 +55,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
       client handleEvents {
         case NowListeningEvent => schedule(TakeNextCommand(client))
         case LogEvent(LogSuccess(msg)) =>
-          System.out.print(msg)
+          System.out.println()
+          System.out.println(msg)
           System.out.flush()
         // TODO - Let's make sure INFO + stdout don't conflict....
         //case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
@@ -68,10 +69,6 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.err.print(msg)
           System.err.flush()
         case _ => ()
-      }
-      client watchBuild { build =>
-        System.out.println("BUILD CHANGED: ")
-        build.projects.foreach(System.out.println)
       }
     }
 

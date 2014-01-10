@@ -22,9 +22,6 @@ import java.io.EOFException
  */
 class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
-  private val listeningToEvents = new AtomicBoolean(false)
-  private val listeningToBuild = new AtomicBoolean(false)
-
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
@@ -40,8 +37,10 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = ???
-  def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription = ???
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+    valueEventManager[T](key.key).watch(listener)(ex)
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+    valueEventManager[T](key.key).watch(listener)(ex)
 
   // TODO - Implement
   def close(): Unit = {
@@ -55,6 +54,14 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   }
   private object buildEventManager extends ListenerManager[MinimalBuildStructure, BuildStructureListener, ListenToBuildChange](ListenToBuildChange(), client) {
     override def wrapListener(l: BuildStructureListener, ex: ExecutionContext) = new BuildListenerHelper(l, ex)
+  }
+  private object valueEventManager {
+    private var valueListeners = collection.mutable.Map.empty[ScopedKey, ValueChangeManager[_]]
+
+    def apply[T](key: ScopedKey): ValueChangeManager[T] = synchronized {
+      // Yes, we cheat types here...
+      valueListeners.getOrElseUpdate(key, new ValueChangeManager[Any](key, client)).asInstanceOf[ValueChangeManager[T]]
+    }
   }
 
   // TODO - Error handling!
@@ -76,7 +83,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     }
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
-        // TODO - Filter events, like build change events vs. normal events...
+        case protocol.Envelope(_, _, e: ValueChange[_]) =>
+          valueEventManager(e.key).sendEvent(e)
         case protocol.Envelope(_, _, e: BuildStructureChanged) =>
           buildEventManager.sendEvent(e.structure)
         case protocol.Envelope(_, _, e: Event) =>
@@ -165,4 +173,29 @@ private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: 
     case x: BuildListenerHelper => x.id == id
     case _ => false
   }
+}
+
+/** A wrapped build event listener that ensures events are fired on the desired execution context. */
+private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChange[T]] {
+  private val id = java.util.UUID.randomUUID
+  override def send(e: ValueChange[T]): Unit = {
+    // TODO - do we need to prepare the context?
+    ex.prepare.execute(new Runnable() {
+      def run(): Unit = {
+        listener(e.key, e.value)
+      }
+    })
+  }
+  override def hashCode = id.hashCode
+  override def equals(o: Any): Boolean = o match {
+    case x: ValueChangeListenerHelper[_] => x.id == id
+    case _ => false
+  }
+}
+/** Helper to track value changes. */
+private final class ValueChangeManager[T](key: ScopedKey, peer: ipc.Peer)
+  extends ListenerManager[ValueChange[T], ValueListener[T], ListenToValue](ListenToValue(key), peer) {
+
+  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChange[T]] =
+    new ValueChangeListenerHelper(l, ex)
 }
