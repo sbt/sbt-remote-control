@@ -45,5 +45,8 @@ case class KeyValueClientListener[T](
   /** Disconnect a client from this listener. */
   def disconnect(c: SbtClient): KeyValueClientListener[T] =
     copy(client = client without c)
+    
+  def add(c: SbtClient): KeyValueClientListener[T] =
+    copy(client = client zip c)
 }
 

@@ -34,6 +34,14 @@ case class ServerState(
     copy(lastCommand = Some(cmd))
   }
   def clearLastCommand: ServerState = copy(lastCommand = None)
+  
+  def addKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
+    // TODO - Speed this up.
+    val handler = 
+      keyListeners.find(_.key == key).getOrElse(KeyValueClientListener(key, NullSbtClient))
+    val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client) 
+    copy(keyListeners = newListeners)
+  }
 }
 
 object ServerState {

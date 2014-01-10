@@ -107,6 +107,12 @@ abstract class ServerEngine {
       case ExecutionRequest(command) =>
         // TODO - Figure out how to run this and ack appropriately...
         command :: ServerState.update(state, serverState.withLastCommand(command))
+      case ListenToValue(key) =>
+        // TODO - We also need to get the value to send to the client...
+        //  This only registers the listener, but doesn't actually 
+        import com.typesafe.sbtrc.Sbt13ToProtocolUtils
+        val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(key, state)
+        ServerState.update(state, serverState.addKeyListener(client, sbtKey))
     }   
   }
   
