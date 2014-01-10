@@ -50,7 +50,7 @@ abstract class ServerEngine {
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
     // Notify everyone we're ready to start...
     val serverState = ServerState.extract(state)
-    serverState.eventListeners.send(protocol.Started)
+    serverState.eventListeners.send(NowListeningEvent)
     
     // here we want to register our error handler that handles command failure.
     installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
@@ -92,7 +92,7 @@ abstract class ServerEngine {
       case ListenToEvents() => 
         // Immediately tell new clients we're ready to receive commands if they're listening
         // for events.
-        client.send(Started)
+        client.send(NowListeningEvent)
         ServerState.update(state, serverState.addEventListener(client))
         // TODO - update global logging?
         // TODO - Ack the server?

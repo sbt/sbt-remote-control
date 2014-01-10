@@ -53,7 +53,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     connector onConnect { client =>
       import protocol._
       client handleEvents {
-        case Started => schedule(TakeNextCommand(client))
+        case NowListeningEvent => schedule(TakeNextCommand(client))
         case LogEvent(LogSuccess(msg)) =>
           System.out.print(msg)
           System.out.flush()
