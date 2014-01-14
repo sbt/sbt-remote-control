@@ -191,7 +191,15 @@ abstract class ServerEngine {
   
   // Here we install our basic build hooks we use to fire events.
   def installBuildHooks(state: State): State = {
-      TestShims.install(state)
+    val rawSettings: Seq[Setting[_]] = 
+      TestShims.makeShims(state) ++
+      CompileReporter.makeShims(state) ++
+      ServerExecuteProgress.getShims(state)
+    import com.typesafe.sbtrc.SbtUtil
+    val extracted = Project.extract(state)
+    val settings = 
+      SbtUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)
+    SbtUtil.reloadWithAppended(state, settings)
   }
 
 }
@@ -199,7 +207,7 @@ abstract class ServerEngine {
 // TODO - move into its own file.
 // TODO - make this less hacky
 import xsbti._
-case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.1") extends AppConfiguration {
+case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.2-M1") extends AppConfiguration {
 	final val arguments: Array[String] = Array.empty
 	final def baseDirectory: File = original.baseDirectory
 	private def origAp = original.provider

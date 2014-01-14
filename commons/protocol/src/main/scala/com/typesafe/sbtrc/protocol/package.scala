@@ -533,4 +533,58 @@ package object protocol {
       }
     }
   }
+  
+  implicit object CompilationFailureStructure extends RawStructure[CompilationFailure] {
+    val PositionStruct = RawStructure.get[xsbti.Position]
+    def apply(cf: CompilationFailure): Map[String,Any] = {
+      Map(
+        "event" -> "CompilationFailure",
+        "project" -> ProjectReference.MyStructure(cf.project),
+        "position" -> PositionStruct(cf.position),
+        "severity" -> cf.severity.name,
+        "message" -> cf.msg
+      )
+    }
+    override def unapply(m: Map[String,Any]): Option[CompilationFailure] = 
+      m.get("event").filter(_ == "CompilationFailure").map { _ =>
+        // TODO - good error messages?
+        val project = ProjectReference.MyStructure.unapply(m("project").asInstanceOf[Map[String,Any]]).get
+        val position = PositionStruct.unapply(m("position").asInstanceOf[Map[String,Any]]).get
+        val severity = xsbti.Severity.valueOf(m("severity").toString)
+        val message = m("message").toString
+        CompilationFailure(project, position, severity, message)
+      }
+     // xsbti.Severity.valueOf(msg)
+  }
+  
+  implicit object TaskStartedStructure extends RawStructure[TaskStarted] {
+    def apply(msg: TaskStarted): Map[String,Any] =
+      Map(
+        "event" -> "TaskStarted",
+        "key" -> ScopedKey.MyStructure(msg.key)
+      )
+    def unapply(in: Map[String, Any]): Option[TaskStarted] =
+      for {
+        name <- in.get("event")
+        if name == "TaskStarted"
+        key <- ScopedKey.MyStructure.unapply(in("key").asInstanceOf[Map[String,Any]])
+      } yield TaskStarted(key)
+    
+  }
+  implicit object TaskStoppedStructure extends RawStructure[TaskFinished] {
+    def apply(msg: TaskFinished): Map[String,Any] =
+      Map(
+        "event" -> "TaskFinished",
+        "key" -> ScopedKey.MyStructure(msg.key),
+        "success" -> msg.success
+      )
+    def unapply(in: Map[String, Any]): Option[TaskFinished] =
+      for {
+        name <- in.get("event")
+        if name == "TaskFinished"
+        key <- ScopedKey.MyStructure.unapply(in("key").asInstanceOf[Map[String,Any]])
+        success = in("success").asInstanceOf[Boolean]
+      } yield TaskFinished(key, success)
+    
+  }
 }

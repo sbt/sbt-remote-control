@@ -26,6 +26,8 @@ class ProtocolTest {
       inputKeys = Seq(scopedKey)
     )
     val specifics = Seq(
+      protocol.TaskStarted(scopedKey),
+      protocol.TaskFinished(scopedKey, true),
       protocol.BuildStructureChanged(buildStructure),
       protocol.ExecutionDone("test result command"),
       protocol.ListenToEvents(),

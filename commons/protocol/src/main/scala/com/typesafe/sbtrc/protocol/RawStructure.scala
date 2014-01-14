@@ -86,6 +86,67 @@ object RawStructure {
         } else None
       override def toString = "RawStructure[Attributed["+valueStructure+"]"
     }
+  
+  
+  implicit object PositionStructure extends RawStructure[xsbti.Position] {
+    override def apply(in: xsbti.Position): Map[String, Any] = {
+      def defineIf[T](value: xsbti.Maybe[T], name: String): Seq[(String, T)] =
+        if(value.isDefined) Seq(name -> value.get) else Nil
+      val line = defineIf(in.line, "line")
+      val offset = defineIf(in.offset, "offset")
+      val pointer = defineIf(in.pointer, "pointer")
+      val pointerSpace = defineIf(in.pointerSpace, "pointerSpace")
+      val sourcePath = defineIf(in.sourcePath, "sourcePath")
+      val sourceFile = defineIf(in.sourceFile, "sourceFile") map {
+        case (name, file) => name -> FileStructure(file)
+      }
+      Map("lineContent" -> in.lineContent) ++ 
+        line ++ 
+        offset ++ 
+        pointer ++ 
+        pointerSpace ++
+        sourcePath ++
+        sourceFile
+    }
+    private def convert[T](o: Option[T]): xsbti.Maybe[T] = 
+      o match {
+        case Some(value) => xsbti.Maybe.just(value)
+        case None => xsbti.Maybe.nothing()
+      }
+    private class PositionDeserialized(
+      override val lineContent: String,
+      l: Option[Int],
+      o: Option[Int],
+      p: Option[Int],
+      ps: Option[String],
+      sp: Option[String],
+      sf: Option[java.io.File]
+    ) extends xsbti.Position {
+      override def line = convert(l.map(Integer.valueOf))
+      override def offset = convert(o.map(Integer.valueOf))
+      override def pointer = convert(p.map(Integer.valueOf))
+      override def pointerSpace = convert(ps)
+      override def sourcePath = convert(sp)
+      override def sourceFile = convert(sf)
+    }
+    override def unapply(in: Map[String, Any]): Option[xsbti.Position] = {
+      in get "lineContent" match {
+        case Some(lineContent) => 
+          val line = in get "line" map (_.toString.toInt)
+          val offset = in get "offset" map (_.toString.toInt)
+          val pointer = in get "pointer" map (_.toString.toInt)
+          val pointerSpace = in get "pointerSpace" map (_.toString)
+          val sourcePath = in get "sourcePath" map (_.toString)
+          val sourceFile = 
+            for {
+              fObj <- in get "sourceFile"
+              file <- FileStructure.unapply(fObj.asInstanceOf[Map[String,Any]])
+            } yield file
+          Some(new PositionDeserialized(lineContent.toString, line, offset, pointer, pointerSpace, sourcePath, sourceFile))
+        case None => None
+      }
+    }
+  }
 }
 object JsonStructure {
   def apply[T](t: T)(implicit real: RawStructure[T]): Map[String, Any] =

@@ -14,13 +14,8 @@ object TestShims {
       },
       sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value
     )
-  def install(state: State): State = {
-    val extracted = Project.extract(state)
-    
-    val settings = 
-      SbtUtil.makeAppendSettings(testShimSettings, extracted.currentRef, extracted)
-    SbtUtil.reloadWithAppended(state, settings)
-  }
+  def makeShims(state: State): Seq[Setting[_]] = 
+    testShimSettings
 }
 
 import com.typesafe.sbtrc.protocol

@@ -297,3 +297,15 @@ case class TestRequest(sendEvents: Boolean, ref: Option[ProjectReference] = None
 case class TestResponse(outcome: TestOutcome) extends Response {
   def success: Boolean = outcome.success
 }
+
+/** A compilation issue from the compiler. */
+case class CompilationFailure(
+    project: ProjectReference,
+    position: xsbti.Position,
+    severity: xsbti.Severity,
+    msg: String
+) extends Event
+
+case class TaskStarted(key: ScopedKey) extends Event
+// TODO - Send result? no...
+case class TaskFinished(key: ScopedKey, success: Boolean) extends Event

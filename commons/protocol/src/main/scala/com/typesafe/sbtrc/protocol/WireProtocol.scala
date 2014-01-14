@@ -18,12 +18,15 @@ object WireProtocol {
    // Here' we implement protocol deserialization using the RawStructure
   // typeclass....
   implicit object MessageStructure extends RawStructure[Message] {
+    val TaskStartedMsg = RawStructure.get[TaskStarted]
+    val TaskFinishedMsg = RawStructure.get[TaskFinished]
     val ListenToValueMsg = RawStructure.get[ListenToValue]
     val ExecutionRequestMsg = RawStructure.get[ExecutionRequest]
     val ListenToEventsMsg = RawStructure.get[ListenToEvents]
     val ListenToBuildChangeMsg = RawStructure.get[ListenToBuildChange]
     val ExecutionDoneMsg = RawStructure.get[ExecutionDone]
     val BuildStructureChangedMsg = RawStructure.get[BuildStructureChanged]
+    val CompilationFailureMsg = RawStructure.get[CompilationFailure]
     
     val CancelRequestMsg = RawStructure.get[CancelRequest.type]
     val CancelResponseMsg = RawStructure.get[CancelResponse.type]
@@ -65,12 +68,15 @@ object WireProtocol {
     val GenericEventMsg = RawStructure.get[GenericEvent]
     
     def apply(t: Message): Map[String, Any] = t match {
+      case x: TaskStarted => TaskStartedMsg(x)
+      case x: TaskFinished => TaskFinishedMsg(x)
       case x: ListenToValue =>ListenToValueMsg(x)
       case x: BuildStructureChanged => BuildStructureChangedMsg(x)
       case x: ExecutionDone => ExecutionDoneMsg(x)
       case x: ListenToEvents => ListenToEventsMsg(x)
       case x: ListenToBuildChange => ListenToBuildChangeMsg(x)
       case x: ExecutionRequest => ExecutionRequestMsg(x)
+      case x: CompilationFailure => CompilationFailureMsg(x)
       case CancelRequest => CancelRequestMsg(CancelRequest)
       case CancelResponse => CancelResponseMsg(CancelResponse)
       case x: SettingKeyRequest => SettingKeyRequestMsg(x)
@@ -109,6 +115,9 @@ object WireProtocol {
     }
     // TODO - Can we do this faster or less ugly?
     def unapply(msg: Map[String, Any]): Option[Message] = (
+      TaskStartedMsg.unapply(msg) orElse
+      TaskFinishedMsg.unapply(msg) orElse
+      CompilationFailureMsg.unapply(msg) orElse
       ListenToValueMsg.unapply(msg) orElse
       BuildStructureChangedMsg.unapply(msg) orElse
       ExecutionDoneMsg.unapply(msg) orElse

@@ -21,7 +21,7 @@ object Dependencies {
   // Reference versions
   val sbt12Version = "0.12.4"
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
-  val sbt13Version = "0.13.2-M1"
+  val sbt13Version = "0.13.2-MSERVER-1"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
@@ -37,6 +37,7 @@ object Dependencies {
   val sbtCollections       = sbtOrg % "collections" % sbtMainVersion
   // We use an old version here, so we're compatible...
   val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
+  val sbtCompilerInterface = "org.scala-sbt" % "interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
 
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
