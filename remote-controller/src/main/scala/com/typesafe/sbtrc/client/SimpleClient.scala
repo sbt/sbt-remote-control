@@ -65,7 +65,6 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
         case None =>
           val mgr =
             new ValueChangeManager[Any](key, client).asInstanceOf[ValueChangeManager[T]]
-          System.err.println("Adding event manager for key: " + key)
           valueListeners.put(key, mgr)
           mgr
       }
@@ -92,7 +91,6 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
         case protocol.Envelope(_, _, e: ValueChange[_]) =>
-          System.err.println("Value Change Event: " + e)
           valueEventManager(e.key).sendEvent(e)
         case protocol.Envelope(_, _, e: BuildStructureChanged) =>
           buildEventManager.sendEvent(e.structure)

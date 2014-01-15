@@ -225,6 +225,18 @@ object MinimalBuildStructure {
   }
 }
 
+case class MinimalProjectStructure(
+  project: ProjectReference,
+  configurations: Seq[MinimalProjectConfigStructure]
+)
+case class MinimalProjectConfigStructure(
+  config: String,
+  settingKeys: Seq[AttributeKey],
+  taskKeys: Seq[AttributeKey],
+  inputKeys: Seq[AttributeKey]
+)
+
+
 /** A filter for which keys to display. */
 case class KeyFilter(project: Option[String] = None,
                      config: Option[String] = None,

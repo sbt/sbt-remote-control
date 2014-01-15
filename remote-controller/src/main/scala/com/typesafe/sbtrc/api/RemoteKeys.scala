@@ -16,12 +16,12 @@ import sbt.Attributed
 object RemoteKeys {
   private def attributeKey[T](name: String)(implicit mf: Manifest[T]): ScopedKey =
     ScopedKey(
-      AttributeKey(name, TypeInfo.fromManifest(implicitly[Manifest[Seq[Attributed[File]]]])),
+      AttributeKey(name, TypeInfo.fromManifest(mf)),
       SbtScope())
   def settingKey[T](name: String)(implicit mf: Manifest[T]): api.SettingKey[T] =
     SettingKey[T](attributeKey(name))
   def taskKey[T](name: String)(implicit mf: Manifest[T]): api.TaskKey[T] =
-    TaskKey[T](attributeKey(name))
+    TaskKey[T](attributeKey[sbt.Task[T]](name))
 
   val name = settingKey[String]("name")
   val fullClasspath = taskKey[Seq[Attributed[File]]]("fullClasspath")
