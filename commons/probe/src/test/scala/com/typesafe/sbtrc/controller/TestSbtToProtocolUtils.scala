@@ -43,10 +43,10 @@ class TestSbtToProtocolUtils {
   def testScopedInputKeyMapping(): Unit = {
     val sbtRunInCompile = sbt.Keys.run in sbt.Compile
     val unit = protocol.TypeInfo("void")
-    val inputTaskType = protocol.TypeInfo("sbt.InputTask", Seq(unit))
+    //val inputTaskType = protocol.TypeInfo("sbt.InputTask", Seq(unit))
     
     val runInputKey = 
-      protocol.AttributeKey("run", inputTaskType)
+      protocol.AttributeKey("run", unit)
     val scope = protocol.SbtScope(config = Some("compile"))
     val expected = protocol.ScopedKey(runInputKey, scope)
     
@@ -57,12 +57,13 @@ class TestSbtToProtocolUtils {
   
   @Test
   def testScopedTaskKeyMapping(): Unit = {
+    // Here we ensure the Task[_] part is stripped from the key in the remote API since we cannot (nor should)
+    // serialize tasks.
     val sbtSourcesInCompile = sbt.Keys.sources in sbt.Compile
     val file = protocol.TypeInfo("java.io.File")
     val seqFile = protocol.TypeInfo("scala.collection.Seq", Seq(file))
-    val taskSeqFile = protocol.TypeInfo("sbt.Task", Seq(seqFile))
     val sourcesTaskKey = 
-      protocol.AttributeKey("sources", taskSeqFile)
+      protocol.AttributeKey("sources", seqFile)
     val scope = protocol.SbtScope(config = Some("compile"))
     val expected = protocol.ScopedKey(sourcesTaskKey, scope)
     

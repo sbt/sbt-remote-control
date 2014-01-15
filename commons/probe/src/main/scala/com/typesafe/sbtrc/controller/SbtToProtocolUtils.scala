@@ -12,10 +12,14 @@ object SbtToProtocolUtils {
       manifestToProtocol(removeUnusedTypesFromManifest(key.manifest))
     )
     
+  // Cheaty hackery to remove types that won't exist in clients from key manifests in the server API.    
+  private val TaskClass = classOf[sbt.Task[_]]
+  private val InputTaskClass = classOf[sbt.InputTask[_]]
   private def removeUnusedTypesFromManifest[T](mf: Manifest[T]): Manifest[_] = {
-    // Cheaty hackery to remove types that won't exist in clients from key manifests in the server API.
-    if(mf.erasure == classOf[sbt.Task[_]]) mf.typeArguments(0)
-    else mf
+    mf.erasure match {
+      case TaskClass | InputTaskClass => mf.typeArguments(0)
+      case _ => mf
+    }
   }
     
     
