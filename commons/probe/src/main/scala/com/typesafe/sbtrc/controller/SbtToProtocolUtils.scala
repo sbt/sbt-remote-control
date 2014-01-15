@@ -9,8 +9,14 @@ object SbtToProtocolUtils {
   def keyToProtocol[T](key: sbt.AttributeKey[T]): protocol.AttributeKey =
     protocol.AttributeKey(
       key.label,
-      manifestToProtocol(key.manifest)
+      manifestToProtocol(removeUnusedTypesFromManifest(key.manifest))
     )
+    
+  private def removeUnusedTypesFromManifest[T](mf: Manifest[T]): Manifest[_] = {
+    // Cheaty hackery to remove types that won't exist in clients from key manifests in the server API.
+    if(mf.erasure == classOf[sbt.Task[_]]) mf.typeArguments(0)
+    else mf
+  }
     
     
   def scopeToProtocol(scope: sbt.Scope): protocol.SbtScope = {

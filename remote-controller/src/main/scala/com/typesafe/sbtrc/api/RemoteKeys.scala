@@ -21,7 +21,7 @@ object RemoteKeys {
   def settingKey[T](name: String)(implicit mf: Manifest[T]): api.SettingKey[T] =
     SettingKey[T](attributeKey(name))
   def taskKey[T](name: String)(implicit mf: Manifest[T]): api.TaskKey[T] =
-    TaskKey[T](attributeKey[sbt.Task[T]](name))
+    TaskKey[T](attributeKey[T](name))
 
   val name = settingKey[String]("name")
   val fullClasspath = taskKey[Seq[Attributed[File]]]("fullClasspath")
