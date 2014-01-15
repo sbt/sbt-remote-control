@@ -1,8 +1,17 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol.{TaskStarted, TaskFinished}
+import com.typesafe.sbtrc.protocol.{
+  TaskStarted, 
+  TaskFinished, 
+  ValueChange, 
+  TaskResult,
+  TaskFailure,
+  TaskSuccess,
+  BuildValue
+}
 import com.typesafe.sbtrc.SbtToProtocolUtils
+import com.typesafe.sbtrc.protocol.TaskResult
 class ServerExecuteProgress(state: ServerState) extends ExecuteProgress[Task] {
     type S = ServerState
     def initial: S = state
@@ -37,13 +46,32 @@ class ServerExecuteProgress(state: ServerState) extends ExecuteProgress[Task] {
 	   task.info.get(Keys.taskDefinitionKey) match {
         case Some(key) =>
           // Send basic notification
-          state.eventListeners.send(TaskFinished(SbtToProtocolUtils.scopedKeyToProtocol(key), result.toEither.isRight))
+          val protocolKey = SbtToProtocolUtils.scopedKeyToProtocol(key)
+          state.eventListeners.send(TaskFinished(protocolKey, result.toEither.isRight))
           // TODO - Send value to value listeners...
-          
+          for {
+            kl <- state.keyListeners
+            if kl.key == key
+            // TODO - Check value against some "last value cache"
+            mf = getManifestOfTask[T](key.key.manifest)
+          } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
         case None => // Ignore tasks without keys.
       }
-	  
 	  state
+	}
+	
+	// Very very dirty hack...
+	private def getManifestOfTask[T](mf: Manifest[_]): Manifest[T] = {
+	  if(mf.erasure == classOf[Task[_]]) {
+	    mf.typeArguments(0).asInstanceOf[Manifest[T]]
+	  } else mf.asInstanceOf[Manifest[T]]
+	}
+	
+	private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T] = {
+	  result match {
+	    case Value(v) => TaskSuccess(BuildValue(v)(mf))
+	    case Inc(err) => TaskFailure(err.getMessage)
+	  }
 	}
 
 	/** All tasks have completed with the final `results` provided. */

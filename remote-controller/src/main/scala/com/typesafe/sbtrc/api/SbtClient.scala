@@ -21,7 +21,8 @@ trait SbtClient extends Closeable {
    */
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription
 
-  // TODO - A mechanism to dynamically load key-dependencies, which are too expensive to compute up front. 
+  // TODO - A mechanism to dynamically load key-dependencies, which are too expensive to compute up front.
+  // Possibly via watching a project and pulling configuration off of it.
 
   /**
    * Gives us the autocompletions possible for a given command string.

@@ -10,17 +10,9 @@ object SbtDiscovery {
     val extracted = sbt.Project.extract(state)
     val projects = extracted.structure.allProjectRefs map projectRefToProtocol
     val builds = projects.map(_.build).distinct
-    val emptyFilter = protocol.KeyFilter()
-    // TODO - More efficient mechanism
-    val ss = settings(state, emptyFilter)
-    val ts = tasks(state, emptyFilter)
-    val its = inputTasks(state, emptyFilter)
     protocol.MinimalBuildStructure(
       builds = builds,
-      projects = projects,
-      settingKeys = ss,
-      taskKeys = ts,
-      inputKeys = its
+      projects = projects
     )
   }
   

@@ -18,6 +18,7 @@ object WireProtocol {
    // Here' we implement protocol deserialization using the RawStructure
   // typeclass....
   implicit object MessageStructure extends RawStructure[Message] {
+    val ValueChangeMsg = RawStructure.get[ValueChange[Any]]
     val TaskStartedMsg = RawStructure.get[TaskStarted]
     val TaskFinishedMsg = RawStructure.get[TaskFinished]
     val ListenToValueMsg = RawStructure.get[ListenToValue]
@@ -68,6 +69,7 @@ object WireProtocol {
     val GenericEventMsg = RawStructure.get[GenericEvent]
     
     def apply(t: Message): Map[String, Any] = t match {
+      case x: ValueChange[_] => ValueChangeMsg(x.asInstanceOf[ValueChange[Any]])
       case x: TaskStarted => TaskStartedMsg(x)
       case x: TaskFinished => TaskFinishedMsg(x)
       case x: ListenToValue =>ListenToValueMsg(x)
@@ -115,6 +117,7 @@ object WireProtocol {
     }
     // TODO - Can we do this faster or less ugly?
     def unapply(msg: Map[String, Any]): Option[Message] = (
+      ValueChangeMsg.unapply(msg) orElse
       TaskStartedMsg.unapply(msg) orElse
       TaskFinishedMsg.unapply(msg) orElse
       CompilationFailureMsg.unapply(msg) orElse

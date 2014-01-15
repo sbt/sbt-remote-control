@@ -70,6 +70,14 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.err.flush()
         case _ => ()
       }
+      client watchBuild { build =>
+        val project = build.projects.head
+        val key = api.RemoteKeys.fullClasspath in project in api.RemoteConfigurations.Compile
+        client.watch(key) { (key, classpath) =>
+          System.out.println("New classpath = " + classpath)
+          System.out.flush()
+        }
+      }
     }
 
     // Now we need to run....

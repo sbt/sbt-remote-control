@@ -198,14 +198,9 @@ object KeyList {
 
 case class MinimalBuildStructure(
   builds: Seq[URI],
-  projects: Seq[ProjectReference],
-  // TODO - The set of keys may NOT correspond to the available set of keys you can actually
-  // call into as a user.  This is because of delegation in sbt.
-  // e.g.   if you write `<project>/version`, this may come from the Global or build scope, and so isn't
-  // actually defined but is still a valid key to inspect....
-  settingKeys: Seq[ScopedKey],
-  taskKeys: Seq[ScopedKey],
-  inputKeys: Seq[ScopedKey]
+  projects: Seq[ProjectReference]
+  // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
+  // "unwind" on the client side into ScopedKeys.
 )
 object MinimalBuildStructure {
   // TODO - Serializer/Structure...
@@ -216,25 +211,16 @@ object MinimalBuildStructure {
     def apply(s: MinimalBuildStructure): Map[String, Any] = {
       Map(
         "builds" -> s.builds.map(_.toASCIIString),
-        "projects" -> s.projects.map(ProjectStruct.apply),
-        "settingKeys" -> s.settingKeys.map(ScopedKeyStruct.apply),
-        "taskKeys" -> s.taskKeys.map(ScopedKeyStruct.apply),
-        "inputKeys" -> s.inputKeys.map(ScopedKeyStruct.apply)
+        "projects" -> s.projects.map(ProjectStruct.apply)
       )
     }
     def unapply(map: Map[String, Any]): Option[MinimalBuildStructure] = {
       val builds = map.get("builds").map(_.asInstanceOf[Seq[String]].map(new java.net.URI(_)))
       val projects = map.get("projects").map(_.asInstanceOf[Seq[Map[String,Any]]].map(ProjectStruct.unapply).flatten)
-      val settingKeys = map.get("settingKeys").map(_.asInstanceOf[Seq[Map[String,Any]]].map(ScopedKeyStruct.unapply).flatten)
-      val taskKeys = map.get("taskKeys").map(_.asInstanceOf[Seq[Map[String,Any]]].map(ScopedKeyStruct.unapply).flatten)
-      val inputKeys = map.get("inputKeys").map(_.asInstanceOf[Seq[Map[String,Any]]].map(ScopedKeyStruct.unapply).flatten)
       for {
         b <- builds
         p <- projects
-        s <- settingKeys
-        t <- taskKeys
-        i <- inputKeys
-      } yield MinimalBuildStructure(b,p,s,t,i)
+      } yield MinimalBuildStructure(b,p)
     }
   }
 }

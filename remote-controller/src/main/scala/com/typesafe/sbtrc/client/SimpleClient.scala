@@ -60,7 +60,15 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
 
     def apply[T](key: ScopedKey): ValueChangeManager[T] = synchronized {
       // Yes, we cheat types here...
-      valueListeners.getOrElseUpdate(key, new ValueChangeManager[Any](key, client)).asInstanceOf[ValueChangeManager[T]]
+      valueListeners.get(key) match {
+        case Some(mgr) => mgr.asInstanceOf[ValueChangeManager[T]]
+        case None =>
+          val mgr =
+            new ValueChangeManager[Any](key, client).asInstanceOf[ValueChangeManager[T]]
+          System.err.println("Adding event manager for key: " + key)
+          valueListeners.put(key, mgr)
+          mgr
+      }
     }
   }
 
@@ -84,6 +92,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
         case protocol.Envelope(_, _, e: ValueChange[_]) =>
+          System.err.println("Value Change Event: " + e)
           valueEventManager(e.key).sendEvent(e)
         case protocol.Envelope(_, _, e: BuildStructureChanged) =>
           buildEventManager.sendEvent(e.structure)

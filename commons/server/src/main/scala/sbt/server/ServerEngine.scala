@@ -111,8 +111,13 @@ abstract class ServerEngine {
         // TODO - We also need to get the value to send to the client...
         //  This only registers the listener, but doesn't actually 
         import com.typesafe.sbtrc.Sbt13ToProtocolUtils
-        val sbtKey: sbt.ScopedKey[_] = Sbt13ToProtocolUtils.protocolToScopedKey(key, state)
-        ServerState.update(state, serverState.addKeyListener(client, sbtKey))
+        Sbt13ToProtocolUtils.protocolToScopedKey(key, state) match {
+          case Some(key) =>
+            ServerState.update(state, serverState.addKeyListener(client, key))
+          case None =>  // Issue a no such key error
+            client.send(ErrorResponse(s"Unable to find key: $key"))
+            state
+        }
     }   
   }
   

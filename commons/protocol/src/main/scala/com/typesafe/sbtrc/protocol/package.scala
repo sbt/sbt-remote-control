@@ -117,6 +117,7 @@ package object protocol {
       }
     }
   }
+  
   implicit object KeyListResponseStructure extends RawStructure[KeyListResponse] {
     override def apply(t: KeyListResponse): Map[String, Any] = {
       Map("response" -> "KeyListResponse",
@@ -585,6 +586,23 @@ package object protocol {
         key <- ScopedKey.MyStructure.unapply(in("key").asInstanceOf[Map[String,Any]])
         success = in("success").asInstanceOf[Boolean]
       } yield TaskFinished(key, success)
-    
+  }
+  
+  implicit def ValueChangeStructure[T] = new RawStructure[ValueChange[T]] {
+    val nested = TaskResult.MyStructure[T]
+    def apply(vc: ValueChange[T]): Map[String, Any] = {
+      Map(
+        "event" -> "ValueChange",
+        "key" -> ScopedKey.MyStructure(vc.key),
+        "value" -> nested(vc.value)
+      )
+    }
+    def unapply(in: Map[String,Any]): Option[ValueChange[T]] = 
+      for {
+        name <- in.get("event")
+        if name == "ValueChange"
+        key <- ScopedKey.MyStructure.unapply(in("key").asInstanceOf[Map[String,Any]])
+        value <- nested.unapply(in("value").asInstanceOf[Map[String,Any]])
+      } yield ValueChange(key, value)
   }
 }
