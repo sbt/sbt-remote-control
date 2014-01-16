@@ -22,54 +22,15 @@ object TheBuild extends Build {
   )
 
   // These are the projects we want in the local repository we deploy.
-  lazy val sbt12ProbeProjects = Set(playShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
-  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
+  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
+  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt13ProbeProjects
 
   // TODO - This should be the default properties we re-use between the controller and the driver.
   lazy val props = (
     PropsProject("props")
-    settings(Properties.makePropertyClassSetting(Dependencies.sbt12Version, Dependencies.scalaVersion):_*)
+    settings(Properties.makePropertyClassSetting(Dependencies.sbt13Version, Dependencies.scalaVersion):_*)
   )
 
-
-  // ================= 0.12 shims ==========================
-
-  // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
-  lazy val sbtUiInterface = (
-      SbtShimPlugin("ui-interface", sbt12Version)
-      settings(noCrossVersioning:_*)
-      dependsOnSource("commons/ui-interface")
-      dependsOnRemote(sbtControllerDeps(sbt12Version):_*)
-  )
-
-  // This is the embedded controller for sbt projects.
-  lazy val sbtControllerProbe = (
-    SbtProbeProject("probe", sbt12Version)
-    dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.9")
-    dependsOnSource("commons/probe")
-    dependsOn(props, sbtUiInterface % "provided")
-    dependsOnRemote(
-      sbtControllerDeps(sbt12Version):_*
-    )
-    settings(requiredJars(props, sbtUiInterface))
-    settings(noCrossVersioning:_*)
-  )
-
-  // Plugin shims
-  lazy val playShimPlugin = (
-    SbtShimPlugin("play", sbt12Version)
-    dependsOn(sbtUiInterface)
-    dependsOnRemote(playSbtPlugin12.exclude("org.avaje.ebeanorm", "avaje-ebeanorm-agent"))
-  )
-
-  lazy val defaultsShimPlugin = (
-    SbtShimPlugin("defaults", sbt12Version)
-    // TODO - can we just depend on all the other plugins so we only have one shim?
-  )
-
-  // ================= END 0.12 shims ==========================
 
 
   // ================= 0.13 shims ==========================
@@ -79,19 +40,6 @@ object TheBuild extends Build {
       SbtShimPlugin("ui-interface", sbt13Version)
       settings(noCrossVersioning:_*)
       dependsOnSource("commons/ui-interface")
-  )
-
-  // This is the embedded controller for sbt projects.
-  lazy val sbtControllerProbe13 = (
-    SbtProbeProject("probe", sbt13Version)
-    dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.10")
-    dependsOnSource("commons/probe")
-    dependsOnRemote(
-      sbtControllerDeps(sbt13Version):_*
-    )
-    dependsOn(props, sbtUiInterface13 % "provided")
-    settings(noCrossVersioning:_*)
   )
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
@@ -108,30 +56,6 @@ object TheBuild extends Build {
 
   // ================= Remote Controler main project ==========================
 
-
-  val verboseSbtTests = Option(sys.props("sbtrc.verbose.tests")).map(_ == "true").getOrElse(false)
-
-  def configureSbtTest(testKey: Scoped) = Seq(
-    // set up embedded sbt for tests, we fork so we can set
-    // system properties.
-    Keys.fork in testKey := true,
-    Keys.javaOptions in testKey <<= (
-      SbtSupport.sbtLaunchJar,
-      Keys.javaOptions in testKey,
-      requiredClasspath in sbtControllerProbe,
-      Keys.compile in Compile in sbtControllerProbe) map {
-      (launcher, oldOptions, controllerCp, _) =>
-        oldOptions ++ Seq("-Dsbtrc.no-shims=true",
-                          "-Dsbtrc.launch.jar=" + launcher.getAbsoluteFile.getAbsolutePath,
-                          "-Dsbtrc.controller.classpath=" + Path.makeString(controllerCp.files)) ++
-      (if (verboseSbtTests)
-        Seq("-Dakka.loglevel=DEBUG",
-            "-Dakka.actor.debug.autoreceive=on",
-            "-Dakka.actor.debug.receive=on",
-            "-Dakka.actor.debug.lifecycle=on")
-       else
-         Seq.empty)
-    })
 
   import Keys._
   import Project.Initialize
@@ -190,8 +114,6 @@ object TheBuild extends Build {
                     sbtLauncherInterface,
                     sbtCompilerInterface,
                     sbtIo, sbtCollections)
-    settings(configureSbtTest(Keys.test): _*)
-    settings(configureSbtTest(Keys.testOnly): _*)
   )
 
   // Set up a repository that has all our dependencies.

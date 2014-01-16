@@ -117,7 +117,7 @@ object TestUtil {
   private val sbtVersionUsedToCompileTests = properties.SbtRcProperties.SBT_VERSION
   val sbt12TestVersion = "0.12.4"
   val sbt13TestVersion = "0.13.0"
-  def defaultSbtTestVersion = sbt12TestVersion
+  def defaultSbtTestVersion = sbt13TestVersion
 
   if (!(sbtVersionUsedToCompileTests == sbt12TestVersion || sbtVersionUsedToCompileTests == sbt13TestVersion))
     throw new RuntimeException("One of the versions we use to test should probably be the one we build with just to save downloads")
