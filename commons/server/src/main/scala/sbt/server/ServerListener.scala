@@ -1,7 +1,7 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.ipc.JsonWriter
+import play.api.libs.json.Format
 
 /** An interface we can use to send messages to an sbt client. 
  * 
@@ -9,7 +9,7 @@ import com.typesafe.sbtrc.ipc.JsonWriter
  */
 sealed trait SbtClient {
   /** Sends a message out to an sbt client.  This should be a safe call (doens't throw on bad client.) */
-  def send[T: JsonWriter](msg: T): Unit
+  def send[T: Format](msg: T): Unit
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (JoinedSbtClient(clients), JoinedSbtClient(clients2)) => JoinedSbtClient(clients ++ clients2)
@@ -27,12 +27,12 @@ sealed trait SbtClient {
     }
 }
 object NullSbtClient extends SbtClient {
-  def send[T: JsonWriter](msg: T): Unit = ()
+  def send[T: Format](msg: T): Unit = ()
   override def toString = "NullSbtClient"
 }
 case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   // TODO - ignore individual failures?
-  final def send[T: JsonWriter](msg: T): Unit = 
+  final def send[T: Format](msg: T): Unit = 
     clients foreach (_ send msg)
   override def toString = clients.mkString("Joined(",",",")")
 }

@@ -2,6 +2,8 @@ package sbt
 package server
 
 import com.typesafe.sbtrc.SbtUtil
+import play.api.libs.json.Format
+
 object TestShims {
   
   val serverTestListener = taskKey[TestReportListener]("Global test listener for the sbt server.")
@@ -46,7 +48,7 @@ class ServerTestListener(val client: SbtClient) extends TestReportListener {
     }
   }
 
-  private def sendEvent[T](msg: T)(implicit struct: protocol.RawStructure[T]): Unit = {
+  private def sendEvent[T: Format](msg: T): Unit = {
     client.send(msg)
   }
 

@@ -1,8 +1,9 @@
 package com.typesafe.sbtrc
 package server
 
-import ipc.{MultiClientServer=>IpcServer, JsonWriter}
+import ipc.{MultiClientServer=>IpcServer}
 import com.typesafe.sbtrc.protocol.{Envelope, Request}
+import play.api.libs.json.Format
 import sbt.server.ServerRequest
 
 
@@ -67,7 +68,7 @@ class SbtClientHandler (
   clientThread.start()
   
   // ipc is synchronized, so this is ok.
-  def send[T: JsonWriter](msg: T): Unit = {
+  def send[T: Format](msg: T): Unit = {
     // For now we start ignoring the routing...
     log.log(s"Sending msg to client $id: $msg")
     if(isAlive) ipc.replyJson(0L, msg)

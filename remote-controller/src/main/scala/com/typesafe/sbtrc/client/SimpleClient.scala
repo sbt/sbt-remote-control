@@ -110,7 +110,7 @@ trait ListenerType[Event] {
   def send(e: Event): Unit
 }
 /** Helper to manage registering events and telling the server we want them. */
-private abstract class ListenerManager[Event, Listener, RequestMsg <: Request](requestEventsMsg: RequestMsg, client: ipc.Peer)(implicit jsonFormat: ipc.JsonWriter[RequestMsg]) {
+private abstract class ListenerManager[Event, Listener, RequestMsg <: Request](requestEventsMsg: RequestMsg, client: ipc.Peer)(implicit format: play.api.libs.json.Format[RequestMsg]) {
 
   def wrapListener(l: Listener, ex: ExecutionContext): ListenerType[Event]
 

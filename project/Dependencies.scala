@@ -3,16 +3,21 @@ import Keys._
 
 object Dependencies {
 
+  def crossSbtVersion(sbtVersion: String): String =
+    if(sbtVersion startsWith "0.13") "0.13"
+    else if(sbtVersion startsWith "0.12") "0.12"
+    else sys.error("Unsupported sbt version: " + sbtVersion)
   // Helpers for sbt plugins
   def getScalaVersionForSbtVersion(sbt: String) =
-    CrossVersion.binarySbtVersion(sbt) match {
+    crossSbtVersion(sbt) match {
       case "0.12" => "2.9.2"
       case "0.13" => "2.10.2"
+      case _ => "2.10.2"
       case _ => sys.error("Unsupported sbt version: " + sbt)
     }
 
   def makeSbtPlugin(m: ModuleID, sbtVersion: String): ModuleID = {
-    val sbt: String = CrossVersion.binarySbtVersion(sbtVersion)
+    val sbt: String = crossSbtVersion(sbtVersion)
     val fullScala: String = getScalaVersionForSbtVersion(sbtVersion)
     val scala: String = CrossVersion.binaryScalaVersion(fullScala)
     Defaults.sbtPluginExtra(m, sbt, scala)
@@ -42,6 +47,7 @@ object Dependencies {
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
 
   val playJson             = ("com.typesafe.play" % "play-json_2.10" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
+  val brokenJoda           = "org.joda" % "joda-convert" % "1.2" % "provided"
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion
   val akkaTestkit          = "com.typesafe.akka" % "akka-testkit_2.10" % akkaVersion

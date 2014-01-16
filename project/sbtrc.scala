@@ -75,7 +75,7 @@ object SbtRcBuild {
   )
 
   def SbtProbeProject(name: String, sbtVersion: String): Project = {
-    val sbtBinaryVersion = CrossVersion.binarySbtVersion(sbtVersion)
+    val sbtBinaryVersion = Dependencies.crossSbtVersion(sbtVersion)
     val scrubNameForId =
       sbtBinaryVersion.replaceAll("""[\W+\-]""", "-")
     (

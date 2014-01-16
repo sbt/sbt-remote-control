@@ -12,6 +12,7 @@ import com.typesafe.sbtrc.protocol.{
 }
 import com.typesafe.sbtrc.SbtToProtocolUtils
 import com.typesafe.sbtrc.protocol.TaskResult
+
 class ServerExecuteProgress(state: ServerState) extends ExecuteProgress[Task] {
     type S = ServerState
     def initial: S = state

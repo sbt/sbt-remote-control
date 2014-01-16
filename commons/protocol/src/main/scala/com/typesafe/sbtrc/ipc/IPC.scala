@@ -9,9 +9,9 @@ import java.io.BufferedOutputStream
 import java.io.IOException
 import java.nio.charset.Charset
 import java.io.InputStream
-import scala.util.parsing.json._
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicInteger
+import play.api.libs.json._
 
 trait Envelope[T] {
   def serial: Long
@@ -23,83 +23,6 @@ case class WireEnvelope(length: Int, override val serial: Long, override val rep
   def asString: String = {
     new String(content, utf8)
   }
-}
-
-trait JsonWriter[-T] {
-  def toJson(t: T): JSONType
-}
-
-object JsonWriter {
-  def toJsonArray[T: JsonWriter](ts: Seq[T]): JSONArray = {
-    JSONArray((ts map { t => implicitly[JsonWriter[T]].toJson(t) }).toList)
-  }
-
-  implicit def jsonWriter[T](implicit s: protocol.RawStructure[T]): JsonWriter[T] =
-    new JsonWriter[T] {
-      def toJson(t: T): JSONType =
-        addJsonToParams(s(t))
-      private def addJsonToAny(value: Any): Any = value match {
-        // null is allowed in json
-        case null => null
-        // keep wrappers but ensure we wrap any nested items
-        case JSONObject(v) => addJsonToAny(v)
-        case JSONArray(v) => addJsonToAny(v)
-        // add wrappers if missing
-        case s: Seq[_] => JSONArray(s.map(addJsonToAny(_)).toList)
-        case m: Map[_, _] => JSONObject(m map {
-          case (key: String, value) =>
-            (key -> addJsonToAny(value))
-          case whatever =>
-            throw new RuntimeException("Invalid map entry in params " + whatever)
-        })
-        case s: String => s
-        case n: Number => n
-        case b: Boolean => b
-        case whatever => throw new RuntimeException("not allowed in params: " + whatever)
-      }
-
-      private def addJsonToParams(params: Any): JSONObject = {
-        addJsonToAny(params).asInstanceOf[JSONObject]
-      }
-    }
-}
-
-trait JsonReader[+T] {
-  def fromJson(s: JSONType): T
-}
-object JsonReader {
-  implicit def fromRaw[T](implicit s: protocol.RawStructure[T]): JsonReader[T] =
-    new JsonReader[T] {
-      def fromJson(json: JSONType): T = {
-        val resultOpt = s.unapply(cleanJsonFromParams(json))
-        resultOpt.getOrElse(sys.error("Unable to deserialize json!"))
-      }
-      private def cleanJsonFromAny(value: Any): Any = value match {
-        // null is allowed in json
-        case null => null
-        // strip the scala JSON wrappers off, if present; this
-        // is basically due to not being sure when Scala's json stuff
-        // will use these.
-        case JSONObject(v) => cleanJsonFromAny(v)
-        case JSONArray(v) => cleanJsonFromAny(v)
-        // all sequences must be lists of sanitized values
-        case s: Seq[_] => s.map(cleanJsonFromAny(_)).toList
-        case m: Map[_, _] => m map {
-          case (key: String, value) =>
-            (key -> cleanJsonFromAny(value))
-          case whatever =>
-            throw new RuntimeException("Invalid map entry in params " + whatever)
-        }
-        case s: String => s
-        case n: Number => n
-        case b: Boolean => b
-        case whatever => throw new RuntimeException("not allowed in params: " + whatever)
-      }
-
-      private def cleanJsonFromParams(params: Any): Map[String, Any] = {
-        cleanJsonFromAny(params).asInstanceOf[Map[String, Any]]
-      }
-    }
 }
 /** Thrown if we have issues performing a handshake between client + server. */
 class HandshakeException(msg: String, cause: Exception, val socket: Socket) extends Exception(msg, cause)
@@ -181,12 +104,18 @@ abstract class Peer(protected val socket: Socket) {
     reply(replyTo, message.getBytes(utf8))
   }
 
-  def sendJson[T: JsonWriter](message: T): Long = {
-    sendString(implicitly[JsonWriter[T]].toJson(message).toString)
+  def sendJson[T: Format](message: T): Long = {
+    val json = message match {
+      // TODO - This is our hack to add the event identifications.
+      case m: protocol.Message => protocol.WireProtocol.toRaw(m)
+      case _ => // TODO - Is raw message ok?
+              Json.toJson(message)
+    }
+    sendString(json.toString)
   }
 
-  def replyJson[T: JsonWriter](replyTo: Long, message: T): Long = {
-    replyString(replyTo, implicitly[JsonWriter[T]].toJson(message).toString)
+  def replyJson[T: Format](replyTo: Long, message: T): Long = {
+    sendJson(message)
   }
 
   def close(): Unit = {

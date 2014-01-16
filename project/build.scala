@@ -53,7 +53,7 @@ object TheBuild extends Build {
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
-    dependsOnRemote(playJson)
+    dependsOnRemote(playJson, brokenJoda)
     settings(noCrossVersioning:_*)
   )
 
@@ -113,8 +113,8 @@ object TheBuild extends Build {
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/protocol-shims-2.10")
     dependsOn(props)
-    dependsOnRemote(akkaActor,
-                    sbtLauncherInterface,
+    dependsOnRemote(playJson, brokenJoda)
+    dependsOnRemote(sbtLauncherInterface,
                     sbtCompilerInterface,
                     sbtIo, sbtCollections)
   )

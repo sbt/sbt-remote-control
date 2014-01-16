@@ -1,10 +1,9 @@
 package com.typesafe.sbtrc.protocol
 
-import com.typesafe.sbtrc.ipc
 import scala.util.parsing.json._
-import com.typesafe.sbtrc.ipc.JsonReader
 import java.net.URI
 import ScalaShims.ManifestFactory
+import play.api.libs.json._
 
 /** 
  *  Represents the type information we can serialize over a network
@@ -47,22 +46,7 @@ object TypeInfo {
     )
   }
   
-  implicit object MyStructure extends RawStructure[TypeInfo] {
-    def apply(t: TypeInfo): Map[String, Any] = 
-      Map(
-        "erasureClass" -> t.erasureClass,
-        "typeArguments" -> t.typeArguments.map(a => JsonStructure(a))
-      )
-    def unapply(map: Map[String, Any]): Option[TypeInfo] =
-      for {
-        erasure <- map.get("erasureClass")
-        rawArgs <- map.get("typeArguments")
-        if rawArgs.isInstanceOf[Seq[_]]
-        args = rawArgs.asInstanceOf[Seq[Map[String,Any]]] flatMap {
-          arg => JsonStructure.unapply[TypeInfo](arg)
-        }
-      } yield TypeInfo(erasure.toString, args)
-  }
+  implicit val format = Json.format[TypeInfo]
 }
 
 
@@ -73,20 +57,7 @@ case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey["+manifest+"](\""+name+"\")"
 }
 object AttributeKey {
-  implicit object MyStructure extends RawStructure[AttributeKey] {
-    def apply(t: AttributeKey): Map[String, Any] = 
-      Map(
-        "name" -> t.name,
-        "manifest" -> JsonStructure(t.manifest)
-      )
-    def unapply(map: Map[String, Any]): Option[AttributeKey] =
-      for {
-        name <- map.get("name")
-        rawmanifest <- map.get("manifest")
-        if rawmanifest.isInstanceOf[Map[_,_]]
-        manifest <- JsonStructure.unapply[TypeInfo](rawmanifest.asInstanceOf[Map[String,Any]])
-      } yield AttributeKey(name.toString, manifest)
-  }
+  implicit val format = Json.format[AttributeKey]
 }
 
 /**
@@ -95,18 +66,7 @@ object AttributeKey {
  */
 case class ProjectReference(build: URI, name: String)
 object ProjectReference {
-  implicit object MyStructure extends RawStructure[ProjectReference] {
-    def apply(t: ProjectReference): Map[String, Any] =
-      Map(
-        "build" -> t.build.toASCIIString,
-        "name" -> t.name
-      )
-    def unapply(map: Map[String, Any]): Option[ProjectReference] =
-      for {
-        build <- map.get("build")
-        name <- map.get("name")
-      } yield ProjectReference(new URI(build.toString), name.toString)
-  }
+  implicit val format = Json.format[ProjectReference]
 }
 /**
  * Represents the scope a particular key can have in sbt.
@@ -129,26 +89,7 @@ case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  implicit object MyStructure extends RawStructure[SbtScope] {
-    def apply(t: SbtScope): Map[String, Any] = {
-      val b = t.build.map(b => "build" -> b.toASCIIString).toSeq
-      val p = t.project.map(p => "project" -> JsonStructure(p)).toSeq
-      val c = t.config.map(c => "config" -> c).toSeq
-      val tsk = t.task.map(t => "task" -> JsonStructure(t)).toSeq
-      (b ++ p ++ c ++ tsk).toMap
-    } 
-    def unapply(map: Map[String, Any]): Option[SbtScope] = {
-      val build = map.get("build").map(x => new URI(x.toString))
-      val project = map.get("project").flatMap { x =>
-          JsonStructure.unapply[ProjectReference](x.asInstanceOf[Map[String, Any]])
-      }
-      val config = map.get("config").map(_.toString)
-      val task = map.get("task").flatMap { x =>
-          JsonStructure.unapply[AttributeKey](x.asInstanceOf[Map[String, Any]])
-      }
-      Some(SbtScope(build, project, config, task))
-    }
-  }
+  implicit val format = Json.format[SbtScope]
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -157,42 +98,12 @@ case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  implicit object MyStructure extends RawStructure[ScopedKey] {
-    def apply(t: ScopedKey): Map[String, Any] =
-      Map(
-        "key" -> JsonStructure(t.key),
-        "scope" -> JsonStructure(t.scope)
-      )
-    def unapply(map: Map[String, Any]): Option[ScopedKey] =
-      for {
-        rawKey <- map.get("key")
-        if rawKey.isInstanceOf[Map[_,_]]
-        key <- JsonStructure.unapply[AttributeKey](rawKey.asInstanceOf[Map[String,Any]])
-        rawScope <- map.get("scope")
-        if rawScope.isInstanceOf[Map[_,_]]
-        scope<- JsonStructure.unapply[SbtScope](rawScope.asInstanceOf[Map[String,Any]])
-      } yield ScopedKey(key, scope)
-  }
+  implicit val format = Json.format[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
-  implicit object MyStructure extends RawStructure[KeyList] {
-    def apply(t: KeyList): Map[String, Any] =
-      Map(
-        "keys" -> t.keys.map(k => (JsonStructure(k)))
-      )
-    def unapply(map: Map[String, Any]): Option[KeyList] =
-      for {
-        rawKeys <- map.get("keys")
-        if rawKeys.isInstanceOf[Seq[_]]
-        keys =
-          for {
-            rawkey <- rawKeys.asInstanceOf[Seq[Map[String, Any]]]
-            key <- JsonStructure.unapply[ScopedKey](rawkey)
-          } yield key
-      } yield KeyList(keys)
-  }
+  implicit val format = Json.format[KeyList]
 }
 
 
@@ -204,25 +115,7 @@ case class MinimalBuildStructure(
 )
 object MinimalBuildStructure {
   // TODO - Serializer/Structure...
-  implicit object MyStructure extends RawStructure[MinimalBuildStructure] {
-    val ProjectStruct = RawStructure.get[ProjectReference]
-    val ScopedKeyStruct = RawStructure.get[ScopedKey]
-    
-    def apply(s: MinimalBuildStructure): Map[String, Any] = {
-      Map(
-        "builds" -> s.builds.map(_.toASCIIString),
-        "projects" -> s.projects.map(ProjectStruct.apply)
-      )
-    }
-    def unapply(map: Map[String, Any]): Option[MinimalBuildStructure] = {
-      val builds = map.get("builds").map(_.asInstanceOf[Seq[String]].map(new java.net.URI(_)))
-      val projects = map.get("projects").map(_.asInstanceOf[Seq[Map[String,Any]]].map(ProjectStruct.unapply).flatten)
-      for {
-        b <- builds
-        p <- projects
-      } yield MinimalBuildStructure(b,p)
-    }
-  }
+  implicit val format = Json.format[MinimalBuildStructure]
 }
 
 
@@ -236,19 +129,6 @@ case class KeyFilter(project: Option[String] = None,
 }
 object KeyFilter {
   val empty = KeyFilter(None, None, None)
-  implicit object MyStructure extends RawStructure[KeyFilter] {
-    def apply(t: KeyFilter): Map[String, Any] = {
-      val p = t.project.map(p => "project" -> p).toSeq
-      val c = t.config.map(c => "config" -> c).toSeq
-      val k = t.key.map(t => "key" -> t).toSeq
-      (p ++ c ++ k).toMap
-    } 
-    def unapply(map: Map[String, Any]): Option[KeyFilter] = {
-      val project = map.get("project").map(_.toString)
-      val config = map.get("config").map(_.toString)
-      val key = map.get("key").map(_.toString)
-      Some(KeyFilter(project, config, key))
-    }
-  }
+  implicit val format = Json.format[KeyFilter]
 }           
                      

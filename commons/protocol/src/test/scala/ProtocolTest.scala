@@ -23,86 +23,33 @@ class ProtocolTest {
       projects = Seq(scope.project.get)
     )
     val specifics = Seq(
-      protocol.TaskStarted(scopedKey),
-      protocol.TaskFinished(scopedKey, true),
-      protocol.BuildStructureChanged(buildStructure),
-      protocol.ExecutionDone("test result command"),
+      // Requests
       protocol.ListenToEvents(),
       protocol.ListenToBuildChange(),
       protocol.ExecutionRequest("test command string"),
+      protocol.ListenToValue(scopedKey),
+      // Responses
+      protocol.ErrorResponse("ZOMG"),
       // Events
-      protocol.Started,
-      protocol.Stopped,
+      // TODO - CompilationFailure
+      protocol.TaskStarted(scopedKey),
+      protocol.TaskFinished(scopedKey, true),
       protocol.NeedRebootEvent,
       protocol.NowListeningEvent,
-      protocol.RequestReceivedEvent,
+      protocol.TaskStarted(scopedKey),
+      protocol.TaskFinished(scopedKey, true),
+      protocol.BuildStructureChanged(buildStructure),
+      protocol.ValueChange(scopedKey, protocol.TaskFailure("O NOES")),
+      protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
       protocol.LogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
-      protocol.GenericEvent("playServerStarted", Map("port" -> 10)),
-      // Generic API
-      protocol.ErrorResponse("ZOMG"),
-      protocol.SettingKeyRequest(keyFilter),
-      protocol.TaskKeyRequest(keyFilter),
-      protocol.InputTaskKeyRequest(keyFilter),
-      protocol.SettingValueRequest(scopedKey),
-      protocol.TaskValueRequest(scopedKey),
-      protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
-      protocol.KeyListResponse(protocol.KeyList(Nil)),
-      protocol.TaskValueResponse(protocol.TaskSuccess(protocol.BuildValue("Hey"))),
-      protocol.ExecuteCommandRequest("hello"),
-      protocol.ExecuteCommandResponse(),
-      protocol.SettingValueResponse(protocol.TaskFailure("O NOES")),
-      // High level API
-      protocol.NameRequest(true),
-      protocol.NameResponse(Seq(
-          protocol.ProjectInfo(
-            protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
-            "Johnny Test",
-            true,
-            Map("awesome" -> true)
-          )
-      )),
-      protocol.MainClassRequest(false),
-      protocol.MainClassResponse(Seq(
-        protocol.DiscoveredMainClasses(
-          protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
-          Seq("test.Main", "test.Main2"),
-          Some("test.Main")
-        )
-      )),
-      protocol.WatchTransitiveSourcesRequest(true),
-      protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
-      protocol.CompileRequest(true, ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test"))),
-      protocol.CompileResponse(Seq(
-         protocol.CompileResult(
-           protocol.ProjectReference(new java.net.URI("file://temp"), "test"),
-           success = false
-         )
-      )),
-      protocol.RunRequest(
-          sendEvents = true,
-          ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test")),
-          mainClass = Some("hi"), 
-          useAtmos = true),
-      protocol.RunRequest(sendEvents = false, mainClass = None, useAtmos = false),
-      protocol.RunResponse(success = true, task = "run"),
-      protocol.RunResponse(success = false, task = "run-main"),
-      protocol.TestRequest(true),
-      protocol.TestResponse(protocol.TestError)
+      protocol.ExecutionDone("test result command")
+      // TODO - protocol.GenericEvent("playServerStarted", Map("port" -> 10))
     )
     for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
-      val roundtrippedOption = struct unapply struct(s)
-      assertEquals("Failed to serialize: " + s, Some(s), roundtrippedOption)
-    }
-
-    // and through json
-    for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
-      val writer = com.typesafe.sbtrc.ipc.JsonWriter.jsonWriter(struct)
-      val reader = com.typesafe.sbtrc.ipc.JsonReader.fromRaw(struct)
-      val roundtrippedOption = reader.fromJson(writer.toJson(s)) 
-      assertEquals(s, roundtrippedOption)
+      import com.typesafe.sbtrc.protocol.WireProtocol.{fromRaw,toRaw}
+      val roundtrippedOption = fromRaw(toRaw(s))
+      assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
   }
 
