@@ -29,6 +29,7 @@ object Dependencies {
   val scalaVersion = "2.10.1"
   val sbtMainVersion = sbt13Version
   val akkaVersion = "2.2.0"
+  val playVersion = "2.2.1"
 
 
   // Here we declare our dependencies normally
@@ -40,6 +41,7 @@ object Dependencies {
   val sbtCompilerInterface = "org.scala-sbt" % "interface" % sbtMainVersion
   val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
 
+  val playJson             = ("com.typesafe.play" % "play-json_2.10" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion
   val akkaTestkit          = "com.typesafe.akka" % "akka-testkit_2.10" % akkaVersion

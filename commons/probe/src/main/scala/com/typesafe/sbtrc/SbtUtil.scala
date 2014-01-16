@@ -8,29 +8,21 @@ import Scope.GlobalScope
 import sbt.Aggregation.KeyValue
 import sbt.complete.DefaultParsers
 import sbt.Load.BuildStructure
-import com.typesafe.sbt.ui.{ Context => UIContext }
-import com.typesafe.sbt.ui.SbtUiPlugin.uiContext
 import SbtCustomHacks._
 
 object SbtUtil {
 
-  // TODO - I think this is fundamentally broken.  Can't inject UIContext in this fashion.
-  // Basically, because the changed state is NOT returned, which has the new UI context.
-  def extractWithRef(state: State, context: Option[UIContext] = None): (Extracted, ProjectRef) = {
-    val state2: State = context match {
-      case Some(ui) => reloadWithUiContext(state, ui)
-      case None => state
-    }
-    val extracted = Project.extract(state2)
-    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state2)), extracted.currentRef)
+  def extractWithRef(state: State): (Extracted, ProjectRef) = {
+    val extracted = Project.extract(state)
+    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state)), extracted.currentRef)
   }
 
-  def extract(state: State, context: Option[UIContext] = None): Extracted = {
-    extractWithRef(state, context)._1
+  def extract(state: State): Extracted = {
+    extractWithRef(state)._1
   }
   
-  def getSettingValue[T](key: sbt.ScopedKey[T], state: State, context: Option[UIContext] = None): T = {
-    extract(state, context).get(sbt.SettingKey(key.key) in key.scope)
+  def getSettingValue[T](key: sbt.ScopedKey[T], state: State): T = {
+    extract(state).get(sbt.SettingKey(key.key) in key.scope)
   }
 
   private def debugSettings(seq: Seq[Setting[_]]): Unit = {
@@ -45,9 +37,9 @@ object SbtUtil {
     } PoorManDebug.trace("  %03d. ".format(idx) + project + "/" + config + ":" + key)
   }
 
-  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
+  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String): State = {
     PoorManDebug.trace("Running input task: " + key)
-    val extracted = extract(state, context)
+    val extracted = extract(state)
     PoorManDebug.trace("Additional raw settings:")
     debugSettings(extracted.session.rawAppend)
     implicit val display = Project.showContextKey(state)
@@ -65,12 +57,8 @@ object SbtUtil {
     }
   }
   
-  def runCommand(command: String, state: State, context: Option[UIContext] = None): State = {
-    // TODO - We may need to adapt state so we can run a command against a particular project/ref.  Commands are
-    // attached to projects, so this gets odd.
-    def loadUi(ui: UIContext): State = reloadWithUiContext(state,ui)
-    val realState = context map loadUi getOrElse state
-    sbt.Command.process(command, realState)
+  def runCommand(command: String, state: State): State = {
+    sbt.Command.process(command, state)
   }
 
   /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
@@ -79,12 +67,6 @@ object SbtUtil {
     // transforms This scopes in 'settings' to be the desired project
     val appendSettings = Load.transformSettings(Load.projectScope(inProject), inProject.build, extracted.rootProject, settings)
     appendSettings
-  }
-
-  /** Reloads the project with the ui context attached to the current session as the latest change. */
-  def reloadWithUiContext(state: State, context: UIContext): State = {
-    PoorManDebug.trace("Adding " + context + " to state.")
-    reloadWithAppended(state, Seq(uiContext in Global := context))
   }
 
   /** Reloads an sbt build with the given settings being appended to the current session. */

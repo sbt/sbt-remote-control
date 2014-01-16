@@ -33,24 +33,27 @@ object TheBuild extends Build {
 
 
 
-  // ================= 0.13 shims ==========================
+  // ================= 0.13 projects ==========================
 
-  // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
+  // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
       settings(noCrossVersioning:_*)
       dependsOnSource("commons/ui-interface")
+      dependsOnRemote(playJson)
   )
+  // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/protocol-shims-2.10")
     dependsOnSource("commons/probe")
     dependsOnSource("commons/server")
+    dependsOnSource("commons/ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
-    dependsOn(props, sbtUiInterface13 % "provided")
+    dependsOnRemote(playJson)
     settings(noCrossVersioning:_*)
   )
 
