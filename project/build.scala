@@ -94,7 +94,7 @@ object TheBuild extends Build {
 
   // This project is used to drive sbt processes, installing the controller.
   lazy val sbtRemoteController: Project = (
-    SbtRemoteControlProject("remote-controller")
+    SbtRemoteControlProject("client")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
       Keys.publishArtifact in (Test, Keys.packageBin) := true,

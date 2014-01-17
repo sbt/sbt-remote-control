@@ -11,8 +11,8 @@ object Dependencies {
   def getScalaVersionForSbtVersion(sbt: String) =
     crossSbtVersion(sbt) match {
       case "0.12" => "2.9.2"
-      case "0.13" => "2.10.2"
-      case _ => "2.10.2"
+      case "0.13" => "2.10.3"
+      case _ => "2.10.3"
       case _ => sys.error("Unsupported sbt version: " + sbt)
     }
 
@@ -31,7 +31,7 @@ object Dependencies {
   val sbtAtmosDefaultVersion = "0.3.1"
 
   // Here are the versions used for the core project
-  val scalaVersion = "2.10.1"
+  val scalaVersion = "2.10.3"
   val sbtMainVersion = sbt13Version
   val akkaVersion = "2.2.0"
   val playVersion = "2.2.1"

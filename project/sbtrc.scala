@@ -70,7 +70,7 @@ object SbtRcBuild {
     )
 
   def SbtRemoteControlProject(name: String): Project = (
-    Project("sbt-rc-" + name, file(name))
+    Project(name, file(name))
     settings(sbtrcDefaults:_*)
   )
 
