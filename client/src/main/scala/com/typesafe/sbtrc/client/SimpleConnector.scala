@@ -1,7 +1,7 @@
 package com.typesafe.sbtrc
 package client
 
-import com.typesafe.sbtrc.api._
+import sbt.client._
 import java.io.File
 import scala.concurrent.ExecutionContext
 

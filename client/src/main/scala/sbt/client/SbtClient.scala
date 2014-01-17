@@ -1,5 +1,5 @@
-package com.typesafe.sbtrc
-package api
+package sbt
+package client
 
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }

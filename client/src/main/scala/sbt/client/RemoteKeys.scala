@@ -1,8 +1,8 @@
-package com.typesafe.sbtrc
-package api
+package sbt
+package client
 
 import java.net.URI
-import protocol.{
+import com.typesafe.sbtrc.protocol.{
   AttributeKey,
   TypeInfo,
   ScopedKey, // Warning here is wrong.  We're pulling in the object.
@@ -18,10 +18,10 @@ object RemoteKeys {
     ScopedKey(
       AttributeKey(name, TypeInfo.fromManifest(mf)),
       SbtScope())
-  def settingKey[T](name: String)(implicit mf: Manifest[T]): api.SettingKey[T] =
-    SettingKey[T](attributeKey(name))
-  def taskKey[T](name: String)(implicit mf: Manifest[T]): api.TaskKey[T] =
-    TaskKey[T](attributeKey[T](name))
+  def settingKey[T](name: String)(implicit mf: Manifest[T]): sbt.client.SettingKey[T] =
+    sbt.client.SettingKey[T](attributeKey(name))
+  def taskKey[T](name: String)(implicit mf: Manifest[T]): sbt.client.TaskKey[T] =
+    sbt.client.TaskKey[T](attributeKey[T](name))
 
   val name = settingKey[String]("name")
   val fullClasspath = taskKey[Seq[Attributed[File]]]("fullClasspath")

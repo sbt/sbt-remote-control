@@ -5,6 +5,7 @@ import java.io.File
 import java.net.{ URI, URL }
 import xsbti.AppConfiguration
 import scala.util.control.NonFatal
+import sbt.client._
 
 /**
  * This class is responsible for determining where the sbt server is located.

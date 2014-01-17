@@ -1,4 +1,4 @@
-package com.typesafe.sbtrc.api
+package sbt.client
 
 import java.net.URI
 

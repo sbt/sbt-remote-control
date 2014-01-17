@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController) ++ sbt13ProbeProjects
+  lazy val publishedProjects: Seq[Project] = Seq(client) ++ sbt13ProbeProjects
 
 
 
@@ -92,7 +92,7 @@ object TheBuild extends Build {
     }
 
   // This project is used to drive sbt processes, installing the controller.
-  lazy val sbtRemoteController: Project = (
+  lazy val client: Project = (
     SbtRemoteControlProject("client")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
@@ -113,7 +113,7 @@ object TheBuild extends Build {
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
     dependsOnRemote(sbtLauncherInterface, sbtIo)
-    dependsOn(sbtRemoteController)
+    dependsOn(client)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {}

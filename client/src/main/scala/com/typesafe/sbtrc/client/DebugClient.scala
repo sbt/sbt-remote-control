@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package client
 
 import java.net._
-import api._
+import sbt.client._
 
 object DebugClient {
   def apply(port: Int): SbtClient = {

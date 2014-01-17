@@ -3,7 +3,11 @@ package client
 
 import xsbti.{ AppMain, AppConfiguration }
 import scala.concurrent.ExecutionContext
-import com.typesafe.sbtrc.api.SbtClient
+import sbt.client.{
+  SbtClient,
+  RemoteKeys,
+  RemoteConfigurations
+}
 
 class SimpleSbtTerminal extends xsbti.AppMain {
   private var queue = new java.util.concurrent.LinkedBlockingDeque[Runnable]
@@ -72,7 +76,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
       }
       client watchBuild { build =>
         val project = build.projects.head
-        val key = api.RemoteKeys.fullClasspath in project in api.RemoteConfigurations.Compile
+        val key = RemoteKeys.fullClasspath in project in RemoteConfigurations.Compile
         client.watch(key) { (key, classpath) =>
           System.out.println("New classpath = " + classpath)
           System.out.flush()
