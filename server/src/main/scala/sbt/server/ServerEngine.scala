@@ -1,8 +1,7 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol
-import com.typesafe.sbtrc.protocol._
+import sbt.protocol._
 import BasicCommandStrings.runEarly
 import BasicCommands.early
 import BuiltinCommands.defaults
@@ -171,7 +170,6 @@ abstract class ServerEngine {
     serverLogFile.getParentFile.mkdirs()
     val output = new java.io.PrintWriter(new java.io.FileWriter(serverLogFile))
     EventLogger.updatePeer({ msg => output.println(msg); output.flush })
-    import com.typesafe.sbtrc.protocol._
     def handleStdOut(line: String): Unit = EventLogger.send(LogStdOut(line))
     def handleStdErr(line: String): Unit = EventLogger.send(LogStdErr(line))
     SystemShims.replaceOutput(handleStdOut, handleStdErr)

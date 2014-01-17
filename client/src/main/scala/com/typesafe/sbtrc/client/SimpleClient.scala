@@ -1,7 +1,8 @@
 package com.typesafe.sbtrc
 package client
 
-import protocol._
+import sbt.protocol
+import sbt.protocol._
 import sbt.client._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future

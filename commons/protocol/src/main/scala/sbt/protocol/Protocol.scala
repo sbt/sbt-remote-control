@@ -1,7 +1,4 @@
-package com.typesafe.sbtrc.protocol
-
-import com.typesafe.sbtrc.ipc
-import java.io.File
+package sbt.protocol
 
 // Note:  All the serialization mechanisms for this protocol is in the
 // package.scala file.

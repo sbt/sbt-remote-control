@@ -107,7 +107,7 @@ abstract class Peer(protected val socket: Socket) {
   def sendJson[T: Format](message: T): Long = {
     val json = message match {
       // TODO - This is our hack to add the event identifications.
-      case m: protocol.Message => protocol.WireProtocol.toRaw(m)
+      case m: sbt.protocol.Message => sbt.protocol.WireProtocol.toRaw(m)
       case _ => // TODO - Is raw message ok?
               Json.toJson(message)
     }

@@ -1,7 +1,6 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol
 import SbtToProtocolUtils._
 
 // This is a helper class that lets us run discovery methods on sbt.

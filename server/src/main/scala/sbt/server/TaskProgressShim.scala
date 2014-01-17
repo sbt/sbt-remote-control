@@ -1,7 +1,7 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol.{
+import protocol.{
   TaskStarted,
   TaskFinished,
   ValueChange,
@@ -10,7 +10,6 @@ import com.typesafe.sbtrc.protocol.{
   TaskSuccess,
   BuildValue
 }
-import com.typesafe.sbtrc.protocol.TaskResult
 
 private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteProgress[Task] {
   type S = ServerState

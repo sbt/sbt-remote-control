@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import com.typesafe.sbtrc.protocol.{ Envelope, Request }
+import sbt.protocol.{ Envelope, Request }
 import play.api.libs.json.Format
 import sbt.server.ServerRequest
 
@@ -37,7 +37,7 @@ class SbtClientHandler(
       }
       log.log(s"Stopping client.")
       // Send the stopped message to this client
-      try send(protocol.Stopped)
+      try send(sbt.protocol.Stopped)
       catch {
         case e: Exception =>
           // We ignore any exception trying to stop things.
@@ -47,7 +47,7 @@ class SbtClientHandler(
       ipc.close()
       // Here we send a client disconnected message to the main sbt
       // engine so it stops using this client.
-      msgHandler(ServerRequest(SbtClientHandler.this, protocol.ClientClosedRequest()))
+      msgHandler(ServerRequest(SbtClientHandler.this, sbt.protocol.ClientClosedRequest()))
       // Here we tell the server thread handler...
       closed()
     }

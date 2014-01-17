@@ -8,6 +8,7 @@ import sbt.client.{
   RemoteKeys,
   RemoteConfigurations
 }
+import sbt.protocol
 
 class SimpleSbtTerminal extends xsbti.AppMain {
   private var queue = new java.util.concurrent.LinkedBlockingDeque[Runnable]

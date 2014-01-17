@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import com.typesafe.sbtrc.protocol.{ Envelope, Request }
+import sbt.protocol.{ Envelope, Request }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.server.ServerRequest

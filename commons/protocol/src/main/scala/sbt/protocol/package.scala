@@ -1,4 +1,4 @@
-package com.typesafe.sbtrc
+package sbt
 
 import play.api.libs.json._
 

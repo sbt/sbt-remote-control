@@ -5,6 +5,7 @@ import java.net.ServerSocket
 import sbt.State
 import sbt.server.ServerEngine
 import sbt.server.ServerRequest
+import sbt.protocol
 
 /**
  * This class implements the core sbt engine.   We delegate all behavior down to a single

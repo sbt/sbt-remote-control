@@ -1,4 +1,4 @@
-package com.typesafe.sbtrc.protocol
+package sbt.protocol
 
 import scala.util.parsing.json._
 import java.net.URI

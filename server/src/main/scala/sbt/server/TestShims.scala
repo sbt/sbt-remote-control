@@ -18,7 +18,6 @@ object TestShims {
     testShimSettings
 }
 
-import com.typesafe.sbtrc.protocol
 import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
 class ServerTestListener(val client: SbtClient) extends TestReportListener {

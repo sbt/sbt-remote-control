@@ -1,8 +1,6 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol
-
 /** Helpers to map from sbt types into serializable json types. */
 private[server] object SbtToProtocolUtils {
 

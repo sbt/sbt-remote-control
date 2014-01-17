@@ -1,7 +1,6 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.protocol
 import scala.util.matching.Regex
 import java.io.Writer
 import java.io.PrintWriter

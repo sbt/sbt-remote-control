@@ -1,5 +1,4 @@
-package com.typesafe.sbtrc
-package protocol
+package sbt.protocol
 
 object ScalaShims {
   val ManifestFactory = scala.reflect.ManifestFactory

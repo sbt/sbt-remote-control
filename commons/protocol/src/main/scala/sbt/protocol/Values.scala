@@ -1,5 +1,4 @@
-package com.typesafe.sbtrc
-package protocol
+package sbt.protocol
 
 import play.api.libs.json._
 /**

@@ -2,7 +2,7 @@ package sbt
 package client
 
 import java.net.URI
-import com.typesafe.sbtrc.protocol.{
+import protocol.{
   AttributeKey,
   TypeInfo,
   ScopedKey, // Warning here is wrong.  We're pulling in the object.

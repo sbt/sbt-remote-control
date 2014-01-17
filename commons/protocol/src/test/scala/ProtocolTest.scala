@@ -4,9 +4,11 @@
 import org.junit.Assert._
 import org.junit._
 import com.typesafe.sbtrc._
+import sbt.protocol
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+
 
 class ProtocolTest {
 
@@ -47,7 +49,7 @@ class ProtocolTest {
       // TODO - protocol.GenericEvent("playServerStarted", Map("port" -> 10))
     )
     for (s <- specifics) {
-      import com.typesafe.sbtrc.protocol.WireProtocol.{fromRaw,toRaw}
+      import protocol.WireProtocol.{fromRaw,toRaw}
       val roundtrippedOption = fromRaw(toRaw(s))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }

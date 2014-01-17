@@ -2,7 +2,7 @@ package sbt.server
 
 import org.junit.Assert._
 import org.junit._
-import com.typesafe.sbtrc.protocol
+import sbt.protocol
 import sbt.ConfigKey.configurationToKey
 import sbt.Scoped.inputScopedToKey
 import sbt.Scoped.taskScopedToKey
