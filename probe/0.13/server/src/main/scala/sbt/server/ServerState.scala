@@ -9,7 +9,7 @@ case class ServerState(
   eventListeners: SbtClient = NullSbtClient,
   buildListeners: SbtClient = NullSbtClient,
   keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
-  
+
   lastCommand: Option[String] = None) {
 
   /** Remove a client from any registered listeners. */
@@ -18,7 +18,7 @@ case class ServerState(
       eventListeners = eventListeners without client,
       buildListeners = buildListeners without client,
       keyListeners = keyListeners map (_ disconnect client))
-      
+
   def addEventListener(l: SbtClient): ServerState = {
     val next = eventListeners zip l
     // TODO - This should probably happen in the command
@@ -34,19 +34,19 @@ case class ServerState(
     copy(lastCommand = Some(cmd))
   }
   def clearLastCommand: ServerState = copy(lastCommand = None)
-  
+
   def addKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
     // TODO - Speed this up.
-    val handler = 
+    val handler =
       keyListeners.find(_.key == key).getOrElse(KeyValueClientListener(key, NullSbtClient))
-    val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client) 
+    val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client)
     copy(keyListeners = newListeners)
   }
 }
 
 object ServerState {
   val serverState = AttributeKey[ServerState]("Sbt's server state")
-  
+
   def extract(state: State): ServerState = Project.getOrError(state, serverState, "Could not find sbt's server state.")
   def update(state: State, serverState: ServerState): State = state.put(ServerState.serverState, serverState)
 }

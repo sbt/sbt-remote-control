@@ -1,19 +1,17 @@
 package com.typesafe.sbtrc
 package server
 
-
 import java.net.ServerSocket
 import sbt.State
 import sbt.server.ServerEngine
 import sbt.server.ServerRequest
-
 
 /**
  * This class implements the core sbt engine.   We delegate all behavior down to a single
  * threaded sbt execution engine.
  */
 class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) extends ServerEngine with xsbti.Server {
-  
+
   override val uri: java.net.URI = {
     val port = socket.getLocalPort
     val addr = socket.getInetAddress.getHostAddress
@@ -26,17 +24,17 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   def queueClientRequest(request: ServerRequest): Unit = queue.add(request)
   // Create the helper which will handle socket requests.
   private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest)
-  
+
   override final def takeNextRequest: ServerRequest = {
     // TODO - Flush a bunch of events and merge/drop
     queue.take
   }
-  
+
   override final def takeAllEventListenerRequests: Seq[ServerRequest] = {
     import collection.JavaConverters._
     val buf = new java.util.ArrayList[ServerRequest]
     queue.drainTo(buf)
-    
+
     val (listeners, other) =
       buf.asScala.partition {
         case ServerRequest(_, protocol.ListenToEvents()) => true
@@ -46,7 +44,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     other.reverse.foreach(queue.addFirst)
     listeners
   }
-  
+
   // TODO - Construct our engine, and then start handling events on some thread.
   private val thread = new Thread("sbt-server-main") {
     override def run(): Unit = {

@@ -46,7 +46,6 @@ object TheBuild extends Build {
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/server")
     dependsOnSource("commons/ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*

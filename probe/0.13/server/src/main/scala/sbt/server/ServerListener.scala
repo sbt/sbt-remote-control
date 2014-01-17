@@ -3,8 +3,9 @@ package server
 
 import play.api.libs.json.Format
 
-/** An interface we can use to send messages to an sbt client. 
- * 
+/**
+ * An interface we can use to send messages to an sbt client.
+ *
  * TODO - better name!
  */
 sealed trait SbtClient {
@@ -18,7 +19,7 @@ sealed trait SbtClient {
     case (other, other2) => JoinedSbtClient(Set(other, other2))
   }
   // Removes a particular client from this potential aggregate client.
-  def without(client: SbtClient): SbtClient = 
+  def without(client: SbtClient): SbtClient =
     this match {
       case `client` | NullSbtClient => NullSbtClient
       case JoinedSbtClient(clients) if clients.contains(client) =>
@@ -32,9 +33,9 @@ object NullSbtClient extends SbtClient {
 }
 case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   // TODO - ignore individual failures?
-  final def send[T: Format](msg: T): Unit = 
+  final def send[T: Format](msg: T): Unit =
     clients foreach (_ send msg)
-  override def toString = clients.mkString("Joined(",",",")")
+  override def toString = clients.mkString("Joined(", ",", ")")
 }
 // This is what concrete implementations implement.
 abstract class AbstractSbtClient extends SbtClient
@@ -45,7 +46,7 @@ case class KeyValueClientListener[T](
   /** Disconnect a client from this listener. */
   def disconnect(c: SbtClient): KeyValueClientListener[T] =
     copy(client = client without c)
-    
+
   def add(c: SbtClient): KeyValueClientListener[T] =
     copy(client = client zip c)
 }

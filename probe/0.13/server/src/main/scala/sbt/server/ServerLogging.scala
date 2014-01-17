@@ -10,12 +10,12 @@ import java.io.PrintWriter
 private[sbt] object EventLogger extends Logger {
   @volatile
   private var client: SbtClient = NullSbtClient
-  @volatile 
+  @volatile
   private var peer: Option[String => Unit] = None
 
   def updateClient(next: SbtClient): Unit = client = next
   def updatePeer(f: String => Unit): Unit = peer = Some(f)
-  
+
   def send(entry: protocol.LogEntry): Unit = {
     client.send(protocol.LogEvent(entry))
     peer match {

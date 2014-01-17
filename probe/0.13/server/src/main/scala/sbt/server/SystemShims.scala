@@ -9,7 +9,7 @@ import java.io.PrintStream
  * backed on a simple function.
  */
 private[sbt] class LoggedOutputStream(logger: String => Unit, charset: Charset = Charset.defaultCharset) extends java.io.OutputStream {
-  private val buf = new collection.mutable.ArrayBuffer[Byte] 
+  private val buf = new collection.mutable.ArrayBuffer[Byte]
   override def write(b: Int): Unit = buf.append(b.toByte)
   override def flush(): Unit = {
     val array = buf.toArray
@@ -32,7 +32,7 @@ object SystemShims {
     System.setOut(newOut)
     System.setErr(newErr)
   }
-  
+
   def allOutputToFile(file: File): java.io.PrintWriter = {
     // TODO - Figure out appropriate encoding...  Env variable?
     val output = new java.io.FileWriter(file)

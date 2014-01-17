@@ -1,8 +1,8 @@
 package com.typesafe.sbtrc
 package server
 
-import ipc.{MultiClientServer=>IpcServer}
-import com.typesafe.sbtrc.protocol.{Envelope, Request}
+import ipc.{ MultiClientServer => IpcServer }
+import com.typesafe.sbtrc.protocol.{ Envelope, Request }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.server.ServerRequest
@@ -10,31 +10,31 @@ import com.typesafe.sbtrc.ipc.HandshakeException
 
 /**
  * A class that will spawn up a thread to handle client connection requests.
- * 
+ *
  * TODO - We should use netty for this rather than spawning so many threads.
  */
 class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerRequest => Unit) {
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
-  private val TIMEOUT_TO_DEATH: Int = 3*60*1000
+  private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000
   // TODO - This should be configurable.
   private val log = new FileLogger(new java.io.File(".sbtserver/connections/master.log"))
-  
+
   @volatile
   private var count = 0L
   def nextCount = {
     count += 1
     count
   }
-  private val clientLock = new AnyRef{}
+  private val clientLock = new AnyRef {}
   private val clients = collection.mutable.ArrayBuffer.empty[SbtClientHandler]
-  
+
   private val thread = new Thread("sbt-server-socket-handler") {
     // TODO - Check how long we've been running without a client connected
     // and shut down the server if it's been too long.
     final override def run(): Unit = {
       // TODO - Is this the right place to do this?
       serverSocket.setSoTimeout(TIMEOUT_TO_DEATH)
-      while(running.get) {
+      while (running.get) {
         try {
           log.log(s"Taking next connection to: ${serverSocket.getLocalPort}")
           val socket = serverSocket.accept()
@@ -64,7 +64,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
           case _: InterruptedException | _: SocketTimeoutException =>
             log.log("Checking to see if clients are empty...")
             // Here we need to check to see if we should shut ourselves down.
-            if(clients.isEmpty) {
+            if (clients.isEmpty) {
               log.log("No clients connected after 3 min.  Shutting down.")
               running.set(false)
             } else {
@@ -87,10 +87,10 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
     }
   }
   thread.start()
-  
+
   // Tells the server to stop running.
   def stop(): Unit = running.set(false)
-  
+
   // Blocks the server until we've been told to shutdown by someone.
   def join(): Unit = thread.join()
 }

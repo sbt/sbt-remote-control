@@ -1,12 +1,11 @@
 package com.typesafe.sbtrc
 
-
 import org.junit.Assert._
 import org.junit._
 import SbtDiscovery._
 
 class TestSbtDiscovery {
-  
+
   @Test
   def canSortOfDetermineInputTaskKeys(): Unit = {
     val name = sbt.Keys.name in sbt.Compile
@@ -16,7 +15,7 @@ class TestSbtDiscovery {
     assertFalse("Could not figure out spirces is not an input task!", isInputKey(sources))
     assertTrue("Could not figure out run is an input task!", isInputKey(run))
   }
-  
+
   @Test
   def canSortOfDetermineTaskKeys(): Unit = {
     val name = sbt.Keys.name in sbt.Compile

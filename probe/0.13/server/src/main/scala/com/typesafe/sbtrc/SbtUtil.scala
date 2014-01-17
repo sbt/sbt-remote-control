@@ -20,7 +20,7 @@ object SbtUtil {
   def extract(state: State): Extracted = {
     extractWithRef(state)._1
   }
-  
+
   def getSettingValue[T](key: sbt.ScopedKey[T], state: State): T = {
     extract(state).get(sbt.SettingKey(key.key) in key.scope)
   }
@@ -56,7 +56,7 @@ object SbtUtil {
         f()
     }
   }
-  
+
   def runCommand(command: String, state: State): State = {
     sbt.Command.process(command, state)
   }

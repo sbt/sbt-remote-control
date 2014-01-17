@@ -5,7 +5,7 @@ import com.typesafe.sbtrc.SbtUtil
 import play.api.libs.json.Format
 
 object TestShims {
-  
+
   val serverTestListener = taskKey[TestReportListener]("Global test listener for the sbt server.")
   val testShimSettings: Seq[Setting[_]] =
     Seq(
@@ -14,14 +14,13 @@ object TestShims {
         val listener = ServerState.extract(state).eventListeners
         new ServerTestListener(listener)
       },
-      sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value
-    )
-  def makeShims(state: State): Seq[Setting[_]] = 
+      sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value)
+  def makeShims(state: State): Seq[Setting[_]] =
     testShimSettings
 }
 
 import com.typesafe.sbtrc.protocol
-import testing.{Logger => TLogger, Event => TEvent, Status => TStatus}
+import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
 class ServerTestListener(val client: SbtClient) extends TestReportListener {
   override def startGroup(name: String): Unit = {}
