@@ -79,7 +79,7 @@ object SbtRcBuild {
     val scrubNameForId =
       sbtBinaryVersion.replaceAll("""[\W+\-]""", "-")
     (
-      Project("sbt-rc-" + name + "-"+scrubNameForId, file("probe") / sbtBinaryVersion / name)
+      Project(name + "-"+scrubNameForId, file(name))
       settings(sbtrcDefaults:_*)
       settings(sbtProbeSettings(sbtVersion): _*)
     )

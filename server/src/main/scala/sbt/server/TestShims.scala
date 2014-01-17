@@ -1,7 +1,6 @@
 package sbt
 package server
 
-import com.typesafe.sbtrc.SbtUtil
 import play.api.libs.json.Format
 
 object TestShims {

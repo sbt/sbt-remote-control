@@ -23,13 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt13ProbeProjects
-
-  // TODO - This should be the default properties we re-use between the controller and the driver.
-  lazy val props = (
-    PropsProject("props")
-    settings(Properties.makePropertyClassSetting(Dependencies.sbt13Version, Dependencies.scalaVersion):_*)
-  )
+  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController) ++ sbt13ProbeProjects
 
 
 
@@ -108,7 +102,6 @@ object TheBuild extends Build {
       resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
     )
     dependsOnSource("commons/protocol")
-    dependsOn(props)
     dependsOnRemote(playJson, brokenJoda)
     dependsOnRemote(sbtLauncherInterface,
                     sbtCompilerInterface,
@@ -121,7 +114,7 @@ object TheBuild extends Build {
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
     dependsOnRemote(sbtLauncherInterface, sbtIo)
-    dependsOn(sbtRemoteController, props)
+    dependsOn(sbtRemoteController)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {}

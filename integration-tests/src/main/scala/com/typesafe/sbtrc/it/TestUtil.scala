@@ -114,7 +114,8 @@ object Main3 extends App { println("Hello World 3") }
 }
 
 object TestUtil {
-  private val sbtVersionUsedToCompileTests = properties.SbtRcProperties.SBT_VERSION
+  // TODO - hook this back up.
+  private val sbtVersionUsedToCompileTests = "0.13.0"
   val sbt12TestVersion = "0.12.4"
   val sbt13TestVersion = "0.13.0"
   def defaultSbtTestVersion = sbt13TestVersion
