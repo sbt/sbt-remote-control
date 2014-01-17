@@ -60,13 +60,9 @@ object SbtRcBuild {
     Seq(
       sbtPlugin := true,
       publishMavenStyle := false,
+      // TODO - Whatever hacks we need so our definition is in whatever build definition.
       Keys.sbtVersion := sbtVersion,
-      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion,
-      // Hacked so we get the right dependnecies...
-      allDependencies <<= (Keys.projectDependencies, Keys.libraryDependencies, Keys.sbtVersion) map { (pd, ld, sv) =>
-        val base = pd ++ ld
-        (Dependencies.sbtOrg % "sbt" % sv % Provided.name) +: base
-      }
+      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion
     )
 
   def SbtRemoteControlProject(name: String): Project = (

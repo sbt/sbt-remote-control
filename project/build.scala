@@ -32,7 +32,6 @@ object TheBuild extends Build {
   // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
-      settings(noCrossVersioning:_*)
       dependsOnSource("commons/ui-interface")
       dependsOnRemote(playJson)
   )
