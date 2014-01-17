@@ -46,7 +46,6 @@ object TheBuild extends Build {
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.10")
     dependsOnSource("commons/probe")
     dependsOnSource("commons/server")
     dependsOnSource("commons/ui-interface")
@@ -111,7 +110,6 @@ object TheBuild extends Build {
       resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
     )
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.10")
     dependsOn(props)
     dependsOnRemote(playJson, brokenJoda)
     dependsOnRemote(sbtLauncherInterface,
