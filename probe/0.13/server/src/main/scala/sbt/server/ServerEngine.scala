@@ -110,7 +110,6 @@ abstract class ServerEngine {
       case ListenToValue(key) =>
         // TODO - We also need to get the value to send to the client...
         //  This only registers the listener, but doesn't actually 
-        import com.typesafe.sbtrc.SbtToProtocolUtils
         SbtToProtocolUtils.protocolToScopedKey(key, state) match {
           case Some(key) =>
             ServerState.update(state, serverState.addKeyListener(client, key))
@@ -122,7 +121,7 @@ abstract class ServerEngine {
   }
 
   def sendBuildStructure(state: State, listener: SbtClient): Unit = {
-    val structure = com.typesafe.sbtrc.SbtDiscovery.buildStructure(state)
+    val structure = SbtDiscovery.buildStructure(state)
     listener.send(BuildStructureChanged(structure))
   }
 
@@ -197,11 +196,10 @@ abstract class ServerEngine {
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state)
-    import com.typesafe.sbtrc.SbtUtil
     val extracted = Project.extract(state)
     val settings =
-      SbtUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)
-    SbtUtil.reloadWithAppended(state, settings)
+      SettingUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)
+    SettingUtil.reloadWithAppended(state, settings)
   }
 
 }

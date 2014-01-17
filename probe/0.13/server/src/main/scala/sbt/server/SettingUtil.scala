@@ -1,17 +1,11 @@
-package com.typesafe.sbtrc
+package sbt.server
 
 import _root_.sbt._
-import Project.Initialize
-import Keys._
-import Defaults._
-import Scope.GlobalScope
-import sbt.Aggregation.KeyValue
-import sbt.complete.DefaultParsers
-import sbt.Load.BuildStructure
-import SbtCustomHacks._
+import sbt.Keys._
+import sbt.Defaults._
 
 // TODO - We should probably rename this to "SettingUtil" to represent what it's actualyl doing for us.
-object SbtUtil {
+private[server] object SettingUtil {
 
   /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
   def makeAppendSettings(settings: Seq[Setting[_]], inProject: ProjectRef, extracted: Extracted) = {

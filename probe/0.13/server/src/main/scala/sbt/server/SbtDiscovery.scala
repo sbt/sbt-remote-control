@@ -1,10 +1,11 @@
-package com.typesafe.sbtrc
+package sbt
+package server
 
-import _root_.sbt._
+import com.typesafe.sbtrc.protocol
 import SbtToProtocolUtils._
 
 // This is a helper class that lets us run discovery methods on sbt.
-object SbtDiscovery {
+private[server] object SbtDiscovery {
 
   def buildStructure(state: State): protocol.MinimalBuildStructure = {
     val extracted = sbt.Project.extract(state)

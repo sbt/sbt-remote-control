@@ -1,8 +1,11 @@
-package com.typesafe.sbtrc
+package sbt.server
 
 import org.junit.Assert._
 import org.junit._
 import SbtDiscovery._
+import sbt.ConfigKey.configurationToKey
+import sbt.Scoped.inputScopedToKey
+import sbt.Scoped.taskScopedToKey
 
 class TestSbtDiscovery {
 

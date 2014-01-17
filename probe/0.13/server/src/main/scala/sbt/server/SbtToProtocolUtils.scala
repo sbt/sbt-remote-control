@@ -1,7 +1,10 @@
-package com.typesafe.sbtrc
+package sbt
+package server
+
+import com.typesafe.sbtrc.protocol
 
 /** Helpers to map from sbt types into serializable json types. */
-object SbtToProtocolUtils {
+private[server] object SbtToProtocolUtils {
 
   def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
     protocol.TypeInfo.fromManifest(mf)
