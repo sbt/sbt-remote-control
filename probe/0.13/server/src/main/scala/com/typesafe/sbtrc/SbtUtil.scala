@@ -10,42 +10,8 @@ import sbt.complete.DefaultParsers
 import sbt.Load.BuildStructure
 import SbtCustomHacks._
 
-// TODO - We may want to remove this class, or 90% of it.
+// TODO - We should probably rename this to "SettingUtil" to represent what it's actualyl doing for us.
 object SbtUtil {
-
-  def extractWithRef(state: State): (Extracted, ProjectRef) = {
-    val extracted = Project.extract(state)
-    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state)), extracted.currentRef)
-  }
-
-  def extract(state: State): Extracted = {
-    extractWithRef(state)._1
-  }
-
-  def getSettingValue[T](key: sbt.ScopedKey[T], state: State): T = {
-    extract(state).get(sbt.SettingKey(key.key) in key.scope)
-  }
-
-  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String): State = {
-    val extracted = extract(state)
-    implicit val display = Project.showContextKey(state)
-    val it = extracted.get(SettingKey(key.key) in key.scope)
-    val keyValues = KeyValue(key, it) :: Nil
-
-    val parser = Aggregation.evaluatingParser(state, extracted.structure, show = dontShowAggregate)(keyValues)
-    // we put a space in front of the args because the parsers expect
-    // *everything* after the task name it seems
-    DefaultParsers.parse(" " + args, parser) match {
-      case Left(message) =>
-        throw new Exception("Failed to run task: " + display(key) + ": " + message)
-      case Right(f) =>
-        f()
-    }
-  }
-
-  def runCommand(command: String, state: State): State = {
-    sbt.Command.process(command, state)
-  }
 
   /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
   def makeAppendSettings(settings: Seq[Setting[_]], inProject: ProjectRef, extracted: Extracted) = {
