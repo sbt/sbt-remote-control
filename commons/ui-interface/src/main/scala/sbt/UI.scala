@@ -15,6 +15,6 @@ sealed trait UIContext {
   def sendGenericEvent(data: JsValue): Unit
 }
 object UIContext {
-  val uiContext = SettingKey[UIContext]("ui-context", "The context used to communicate to a user interface running sbt.")
+  val uiContext = TaskKey[UIContext]("ui-context", "The context used to communicate to a user interface running sbt.")
 }
 private[sbt] abstract class AbstractUIContext extends UIContext

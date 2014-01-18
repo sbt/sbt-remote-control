@@ -193,7 +193,8 @@ abstract class ServerEngine {
     val rawSettings: Seq[Setting[_]] =
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
-        ServerExecuteProgress.getShims(state)
+        ServerExecuteProgress.getShims(state) ++
+        UIShims.makeShims(state)
     val extracted = Project.extract(state)
     val settings =
       SettingUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)
