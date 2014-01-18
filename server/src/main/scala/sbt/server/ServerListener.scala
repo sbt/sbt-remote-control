@@ -38,7 +38,9 @@ case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   override def toString = clients.mkString("Joined(", ",", ")")
 }
 // This is what concrete implementations implement.
-abstract class AbstractSbtClient extends SbtClient
+abstract class AbstractSbtClient extends SbtClient {
+  // TODO - Add methods so we can poll for user input here....
+}
 
 case class KeyValueClientListener[T](
   key: ScopedKey[T],

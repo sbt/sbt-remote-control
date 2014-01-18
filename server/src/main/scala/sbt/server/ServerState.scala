@@ -1,6 +1,7 @@
 package sbt
 package server
 
+case class LastCommand(command: String, client: SbtClient)
 /**
  * Represents the current state of the sbt server we use to drive
  * events/handle client requests.
@@ -10,7 +11,7 @@ case class ServerState(
   buildListeners: SbtClient = NullSbtClient,
   keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
 
-  lastCommand: Option[String] = None) {
+  lastCommand: Option[LastCommand] = None) {
 
   /** Remove a client from any registered listeners. */
   def disconnect(client: SbtClient): ServerState =
@@ -30,7 +31,7 @@ case class ServerState(
     val next = buildListeners zip l
     copy(buildListeners = next)
   }
-  def withLastCommand(cmd: String): ServerState = {
+  def withLastCommand(cmd: LastCommand): ServerState = {
     copy(lastCommand = Some(cmd))
   }
   def clearLastCommand: ServerState = copy(lastCommand = None)

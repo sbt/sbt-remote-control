@@ -73,7 +73,7 @@ abstract class ServerEngine {
   def postCommandCleanup(state: State): State = {
     val serverState = ServerState.extract(state)
     serverState.lastCommand match {
-      case Some(command) => serverState.eventListeners.send(ExecutionDone(command))
+      case Some(command) => serverState.eventListeners.send(ExecutionDone(command.command))
       case None => ()
     }
     ServerState.update(state, serverState.clearLastCommand)
@@ -105,7 +105,7 @@ abstract class ServerEngine {
         ServerState.update(state, serverState.disconnect(client))
       case ExecutionRequest(command) =>
         // TODO - Figure out how to run this and ack appropriately...
-        command :: ServerState.update(state, serverState.withLastCommand(command))
+        command :: ServerState.update(state, serverState.withLastCommand(LastCommand(command, client)))
       case ListenToValue(key) =>
         // TODO - We also need to get the value to send to the client...
         //  This only registers the listener, but doesn't actually 
