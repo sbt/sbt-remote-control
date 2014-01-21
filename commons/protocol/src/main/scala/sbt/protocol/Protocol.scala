@@ -41,6 +41,11 @@ sealed trait Event extends Message
 case class ExecutionRequest(command: String) extends Request
 case class ExecutionDone(command: String) extends Event
 
+case class CommandCompletionsRequest(id: String, in: String, level: Int) extends Request
+// Mimics util.completion, but without library dependency
+case class Completion(append: String, display: String, isEmpty: Boolean)
+case class CommandCompletionsResponse(id: String, results: Set[Completion]) extends Response
+
 // Request for the server to send us all events that happen on the sbt server.
 case class ListenToEvents() extends Request
 

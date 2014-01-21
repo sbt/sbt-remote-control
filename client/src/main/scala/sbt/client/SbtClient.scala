@@ -35,7 +35,7 @@ trait SbtClient extends Closeable {
    *        That would allow us to return examples or <tag> types that a client would not use
    *        in autocomplete...
    */
-  def possibleAutocompletions(partialCommand: String): Future[Set[String]]
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]]
 
   /**
    * This tries to find whether there is a build key associated with the

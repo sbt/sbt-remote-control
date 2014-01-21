@@ -89,7 +89,7 @@ case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  implicit val format = Json.format[SbtScope]
+  implicit val format: Format[SbtScope] = Json.format[SbtScope]
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -98,12 +98,12 @@ case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  implicit val format = Json.format[ScopedKey]
+  implicit val format: Format[ScopedKey] = Json.format[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
-  implicit val format = Json.format[KeyList]
+  implicit val format: Format[KeyList] = Json.format[KeyList]
 }
 
 

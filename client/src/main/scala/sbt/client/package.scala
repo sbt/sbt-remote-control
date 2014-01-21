@@ -7,6 +7,7 @@ package object client {
   type ScopedKey = protocol.ScopedKey
   type TaskResult[T] = protocol.TaskResult[T]
   type MinimalBuildStructure = protocol.MinimalBuildStructure
+  type Completion = protocol.Completion
 
   // Events from protocol API.
   type Event = protocol.Event

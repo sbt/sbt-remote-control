@@ -116,6 +116,18 @@ abstract class ServerEngine {
             client.send(ErrorResponse(s"Unable to find key: $key"))
             state
         }
+      // TODO - This may need to be in an off-band channel. We should be able to respond
+      // to these requests DURING another task execution....
+      case CommandCompletionsRequest(id, line, level) =>
+        val combined = state.combinedParser
+        val completions = complete.Parser.completions(combined, line, level)
+        def convertCompletion(c: complete.Completion): protocol.Completion =
+          protocol.Completion(
+            c.append,
+            c.display,
+            c.isEmpty)
+        client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
+        state
     }
   }
 

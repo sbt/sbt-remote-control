@@ -119,7 +119,6 @@ package object protocol {
       }
     }
   }
-
   // Protocol serializers...  
   implicit val errorResponseFormat = Json.format[ErrorResponse]
     
@@ -211,5 +210,7 @@ package object protocol {
       }
     }
   
-  
+  implicit val completionFormat = Json.format[Completion]
+  implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]
+  implicit val commandCompletionsResponseFormat = Json.format[CommandCompletionsResponse]
 }

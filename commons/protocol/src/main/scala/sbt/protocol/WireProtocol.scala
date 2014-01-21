@@ -32,7 +32,9 @@ object WireProtocol {
     msg[ErrorResponse],
     msg[CompilationFailure],
     msg[TaskStarted],
-    msg[TaskFinished]
+    msg[TaskFinished],
+    msg[CommandCompletionsRequest],
+    msg[CommandCompletionsResponse]
   )
   private val lookUpIndex: Map[String, Format[_]] =
     (for {

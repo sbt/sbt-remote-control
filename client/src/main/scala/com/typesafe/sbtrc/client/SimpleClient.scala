@@ -26,7 +26,14 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
-  def possibleAutocompletions(partialCommand: String): Future[Set[String]] = ???
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
+    val id = java.util.UUID.randomUUID.toString
+    client.sendJson(CommandCompletionsRequest(id, partialCommand, detailLevel))
+    val result = Promise[Set[Completion]]
+    // TODO - Register this guy for the request response.
+    completionsManager.register(id, result)
+    result.future
+  }
   def lookupScopedKey(name: String): Future[Option[ScopedKey]] = ???
 
   def requestExecution(commandOrTask: String): Future[Unit] = {
@@ -71,6 +78,20 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
       }
     }
   }
+  private object completionsManager {
+    private var handlers: Map[String, Promise[Set[Completion]]] = Map.empty
+    def register(id: String, listener: Promise[Set[Completion]]): Unit = synchronized {
+      handlers += (id -> listener)
+    }
+    def fire(id: String, completions: Set[Completion]): Unit = synchronized {
+      handlers get id match {
+        case Some(handler) =>
+          handler.success(completions)
+          handlers -= id
+        case None => // ignore
+      }
+    }
+  }
 
   // TODO - Error handling!
   object thread extends Thread {
@@ -97,6 +118,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           buildEventManager.sendEvent(e.structure)
         case protocol.Envelope(_, _, e: Event) =>
           eventManager.sendEvent(e)
+        case protocol.Envelope(_, _, protocol.CommandCompletionsResponse(id, completions)) =>
+          completionsManager.fire(id, completions)
         // TODO - Deal with other responses...
         case stuff =>
         // TODO - Do something here.

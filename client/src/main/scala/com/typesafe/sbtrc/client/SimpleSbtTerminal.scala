@@ -58,7 +58,12 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     connector onConnect { client =>
       import protocol._
       client handleEvents {
-        case NowListeningEvent => schedule(TakeNextCommand(client))
+        case NowListeningEvent =>
+          client.possibleAutocompletions("he", 2) onComplete {
+            case result =>
+              System.out.println("'he' completions: " + result)
+              schedule(TakeNextCommand(client))
+          }
         case LogEvent(LogSuccess(msg)) =>
           System.out.println()
           System.out.println(msg)
