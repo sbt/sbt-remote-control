@@ -12,7 +12,8 @@ private[sbtrc] class EventLogger(client: ipc.Client, requestSerial: Long) extend
     }
 
     def trace(t: => Throwable): Unit = {
-      send(protocol.LogTrace(t.getClass.getSimpleName, t.getMessage))
+      val message = Option(t.getMessage).getOrElse(t.toString) // for exceptions with null getMessage
+      send(protocol.LogTrace(t.getClass.getSimpleName, message))
     }
 
     def success(message: => String): Unit = {
