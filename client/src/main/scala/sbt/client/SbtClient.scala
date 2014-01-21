@@ -29,13 +29,13 @@ trait SbtClient extends Closeable {
    *
    * @param partialCommand  An incomplete command or task string
    *
-   * @return A set of "more complete" strings that could be used as sbt commands.
-   *
-   * TODO - This should probably return some more structured "completion" thing.
-   *        That would allow us to return examples or <tag> types that a client would not use
-   *        in autocomplete...
+   * @return A set of "completion" strings that could be used as sbt commands.  These
+   *         completions are triples of: 
+   *         - the string to append
+   *         - the string to display to users
+   *         - a flag denoting if the completion is empty.
    */
-  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]]
+   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]]
 
   /**
    * This tries to find whether there is a build key associated with the
