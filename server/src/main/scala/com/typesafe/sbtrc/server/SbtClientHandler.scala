@@ -15,7 +15,7 @@ class SbtClientHandler(
   val id: String,
   ipc: IpcServer,
   msgHandler: ServerRequest => Unit,
-  closed: () => Unit) extends sbt.server.AbstractSbtClient {
+  closed: () => Unit) extends sbt.server.LiveClient {
 
   // TODO - Configure this location.
   // TODO - Is this thread safe-ish?
@@ -71,6 +71,18 @@ class SbtClientHandler(
     // For now we start ignoring the routing...
     log.log(s"Sending msg to client $id: $msg")
     if (isAlive) ipc.replyJson(0L, msg)
+  }
+  def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] = {
+    val result = concurrent.promise[Option[String]]
+    // TODO - Fix this.
+    result.failure(new Error("Not implemented"))
+    result.future
+  }
+  def confirm(msg: String): concurrent.Future[Boolean] = {
+    val result = concurrent.promise[Boolean]
+    // TODO - Fix this.
+    result.failure(new Error("Not implemented"))
+    result.future
   }
 
   def shutdown(): Unit = {

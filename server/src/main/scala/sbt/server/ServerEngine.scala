@@ -13,7 +13,7 @@ import sbt.MainLoop
 import sbt.StandardMain
 import sbt.State
 
-case class ServerRequest(client: SbtClient, request: Request)
+case class ServerRequest(client: LiveClient, request: Request)
 
 /** An abstract implementation of the sbt server engine that can be used by clients. */
 abstract class ServerEngine {
@@ -85,7 +85,7 @@ abstract class ServerEngine {
     PostCommandCleanup :: HandleNextServerRequest :: state
   }
 
-  def handleRequest(client: SbtClient, request: Request, state: State): State = {
+  def handleRequest(client: LiveClient, request: Request, state: State): State = {
     val serverState = ServerState.extract(state)
     request match {
       case ListenToEvents() =>

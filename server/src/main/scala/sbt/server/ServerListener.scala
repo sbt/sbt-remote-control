@@ -2,7 +2,7 @@ package sbt
 package server
 
 import play.api.libs.json.Format
-
+import concurrent.Future
 /**
  * An interface we can use to send messages to an sbt client.
  *
@@ -11,6 +11,7 @@ import play.api.libs.json.Format
 sealed trait SbtClient {
   /** Sends a message out to an sbt client.  This should be a safe call (doens't throw on bad client.) */
   def send[T: Format](msg: T): Unit
+
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (JoinedSbtClient(clients), JoinedSbtClient(clients2)) => JoinedSbtClient(clients ++ clients2)
@@ -38,8 +39,11 @@ case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   override def toString = clients.mkString("Joined(", ",", ")")
 }
 // This is what concrete implementations implement.
-abstract class AbstractSbtClient extends SbtClient {
-  // TODO - Add methods so we can poll for user input here....
+abstract class LiveClient extends SbtClient {
+  /** requests a line of input from the client.  This will return sometime in the future. */
+  def readLine(prompt: String, mask: Boolean): Future[Option[String]]
+  /** Confirms a message from a client. */
+  def confirm(msg: String): Future[Boolean]
 }
 
 case class KeyValueClientListener[T](
