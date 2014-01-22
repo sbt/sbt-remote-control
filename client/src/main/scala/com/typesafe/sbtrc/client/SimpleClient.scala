@@ -3,10 +3,8 @@ package client
 
 import sbt.protocol
 import sbt.protocol._
-import sbt.client._
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
-import scala.concurrent.Promise
+import sbt.client.{ SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, SettingKey, TaskKey }
+import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.control.NonFatal
@@ -28,7 +26,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
     val id = java.util.UUID.randomUUID.toString
-    client.sendJson(CommandCompletionsRequest(id, partialCommand, detailLevel))
+    requestHandler.register(client.sendJson(CommandCompletionsRequest(id, partialCommand, detailLevel)))
     val result = Promise[Set[Completion]]
     // TODO - Register this guy for the request response.
     completionsManager.register(id, result)
@@ -37,11 +35,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   def lookupScopedKey(name: String): Future[Option[ScopedKey]] = ???
 
   def requestExecution(commandOrTask: String): Future[Unit] = {
-    val result = Promise[Unit]()
-    client.sendJson(ExecutionRequest(commandOrTask))
-    // TODO - Figure out how notify the ACK response...
-    result.success(())
-    result.future
+    requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask))).received
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
@@ -120,6 +114,10 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, protocol.CommandCompletionsResponse(id, completions)) =>
           completionsManager.fire(id, completions)
+        case protocol.Envelope(_, requestSerial, protocol.ReceivedResponse()) =>
+          requestHandler.accepted(requestSerial)
+        case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
+          requestHandler.error(requestSerial, msg)
         // TODO - Deal with other responses...
         case stuff =>
         // TODO - Do something here.
@@ -127,8 +125,45 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
       }
   }
   thread.start()
+
+  private object requestHandler {
+    private var runningRequests: Map[Long, RequestLifecycle] = Map.empty
+    def register(serial: Long): RequestLifecycle = {
+      synchronized {
+        val lifecycle = new RequestLifecycle(serial)
+        runningRequests += serial -> lifecycle
+        lifecycle
+      }
+    }
+    def error(serial: Long, msg: String): Unit =
+      finishRequest(serial)(_.error(msg))
+    def accepted(serial: Long): Unit =
+      finishRequest(serial)(_.accepted())
+    private def finishRequest(serial: Long)(f: RequestLifecycle => Unit): Unit = {
+      synchronized {
+        runningRequests get serial match {
+          case Some(req) =>
+            try f(req)
+            finally runningRequests -= serial
+          case None => // TODO - Issue some error or log!
+        }
+      }
+    }
+  }
+  /** Handles events during a request's lifecycle. */
+  private class RequestLifecycle(val serial: Long) {
+    private val receivedPromise = concurrent.promise[Unit]
+    val received = receivedPromise.future
+    def error(msg: String): Unit = {
+      receivedPromise.failure(new RequestException(msg))
+    }
+    def accepted(): Unit =
+      receivedPromise.success(())
+  }
+
 }
 
+class RequestException(msg: String) extends Exception
 /** Abstracted mechanism of sending events. */
 trait ListenerType[Event] {
   def send(e: Event): Unit

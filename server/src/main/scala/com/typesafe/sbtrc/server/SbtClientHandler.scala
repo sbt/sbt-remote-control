@@ -47,16 +47,17 @@ class SbtClientHandler(
       ipc.close()
       // Here we send a client disconnected message to the main sbt
       // engine so it stops using this client.
-      msgHandler(ServerRequest(SbtClientHandler.this, sbt.protocol.ClientClosedRequest()))
+      msgHandler(ServerRequest(SbtClientHandler.this, 0L, sbt.protocol.ClientClosedRequest()))
       // Here we tell the server thread handler...
       closed()
     }
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
       Envelope(ipc.receive()) match {
-        case Envelope(_, _, msg: Request) =>
+        case Envelope(serial, _, msg: Request) =>
           log.log(s"Got request: $msg")
-          val request = ServerRequest(SbtClientHandler.this, msg)
+          ipc.replyJson(serial, sbt.protocol.ReceivedResponse())
+          val request = ServerRequest(SbtClientHandler.this, serial, msg)
           msgHandler(request)
         case Envelope(_, _, msg) =>
           sys.error("Unable to handle client request: " + msg)
@@ -71,6 +72,12 @@ class SbtClientHandler(
     // For now we start ignoring the routing...
     log.log(s"Sending msg to client $id: $msg")
     if (isAlive) ipc.replyJson(0L, msg)
+  }
+  // ipc is synchronized, so this is ok.
+  def reply[T: Format](serial: Long, msg: T): Unit = {
+    // For now we start ignoring the routing...
+    log.log(s"Sending reply to client $id: $msg")
+    if (isAlive) ipc.replyJson(serial, msg)
   }
   def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] = {
     val result = concurrent.promise[Option[String]]

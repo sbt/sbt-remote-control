@@ -134,6 +134,8 @@ case class ValueChange[T](key: ScopedKey, value: TaskResult[T]) extends Event
 
 /** can be the response to anything. */
 case class ErrorResponse(error: String) extends Response
+/** A notification that a given request has been received. */
+case class ReceivedResponse() extends Response
 
 
 

@@ -44,6 +44,7 @@ abstract class LiveClient extends SbtClient {
   def readLine(prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */
   def confirm(msg: String): Future[Boolean]
+  def reply[T: Format](serial: Long, msg: T): Unit
 }
 
 case class KeyValueClientListener[T](

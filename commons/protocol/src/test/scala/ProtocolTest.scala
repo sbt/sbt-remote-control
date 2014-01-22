@@ -26,6 +26,7 @@ class ProtocolTest {
     )
     val specifics = Seq(
       // Requests
+      protocol.ReceivedResponse(),
       protocol.CommandCompletionsRequest("id", "He", 2),
       protocol.CommandCompletionsResponse("id", Set(protocol.Completion("llo", "Hello", true))),
       protocol.ListenToEvents(),

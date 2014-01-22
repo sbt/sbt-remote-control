@@ -167,10 +167,7 @@ package object protocol {
     def writes(e: A): JsValue = JsObject(Seq.empty)
     def reads(obj: JsValue): JsResult[A] = JsSuccess(instance)
   }
-  private def emptyCaseClassFormat[A](instance: A) = new Format[A] {
-    def writes(e: A): JsValue = JsObject(Seq.empty)
-    def reads(obj: JsValue): JsResult[A] = JsSuccess(instance)
-  }
+  implicit val receivedResponseFormat = emptyObjectFormat(ReceivedResponse())
 
   implicit val needRebootFormat = emptyObjectFormat(NeedRebootEvent)
   implicit val nowListeningFormat = emptyObjectFormat(NowListeningEvent)
@@ -186,8 +183,8 @@ package object protocol {
   implicit val testEventFormat = Json.format[TestEvent]     
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
   implicit val executionDoneFormat = Json.format[ExecutionDone]
-  implicit val listenToEventsFormat = emptyCaseClassFormat(ListenToEvents())
-  implicit val listenToBuildChangeFormat = emptyCaseClassFormat(ListenToBuildChange())
+  implicit val listenToEventsFormat = emptyObjectFormat(ListenToEvents())
+  implicit val listenToBuildChangeFormat = emptyObjectFormat(ListenToBuildChange())
   implicit val buildStructureChangedFormat = Json.format[BuildStructureChanged]
   implicit val listenToValueFormat = Json.format[ListenToValue]
   implicit val compilationFailureFormat = Json.format[CompilationFailure]

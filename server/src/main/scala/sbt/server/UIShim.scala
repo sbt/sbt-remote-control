@@ -7,7 +7,7 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
 
   private def withClient[A](state: ServerState)(f: LiveClient => A): Option[A] = {
     state.lastCommand match {
-      case Some(LastCommand(_, client)) => Some(f(client))
+      case Some(LastCommand(_, serial, client)) => Some(f(client))
       case _ => None
     }
   }

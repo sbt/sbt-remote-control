@@ -13,7 +13,7 @@ import sbt.MainLoop
 import sbt.StandardMain
 import sbt.State
 
-case class ServerRequest(client: LiveClient, request: Request)
+case class ServerRequest(client: LiveClient, serial: Long, request: Request)
 
 /** An abstract implementation of the sbt server engine that can be used by clients. */
 abstract class ServerEngine {
@@ -35,7 +35,7 @@ abstract class ServerEngine {
   final val InitializeServerState = "server-initialize-state"
   final def initializeServerStateCommand = Command.command(InitializeServerState) { state =>
     val eventListeners = takeAllEventListenerRequests collect {
-      case ServerRequest(client, ListenToEvents()) => client
+      case ServerRequest(client, _, ListenToEvents()) => client
     }
     val ss = (ServerState() /: eventListeners) { _ addEventListener _ }
     System.out.println("Initial listeners = " + eventListeners)
@@ -59,8 +59,8 @@ abstract class ServerEngine {
   // TODO - Clean this guy up a bit
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
     // TODO - What todo with failure?  Maybe we just wait for the next request...
-    val ServerRequest(client, request) = takeNextRequest
-    val next = handleRequest(client, request, state)
+    val ServerRequest(client, serial, request) = takeNextRequest
+    val next = handleRequest(client, serial, request, state)
     // make sure we always read another server request after this one
     // TODO - CHeck to see if we're done...
     next.copy(remainingCommands = next.remainingCommands :+ PostCommandCleanup :+ HandleNextServerRequest)
@@ -73,7 +73,9 @@ abstract class ServerEngine {
   def postCommandCleanup(state: State): State = {
     val serverState = ServerState.extract(state)
     serverState.lastCommand match {
-      case Some(command) => serverState.eventListeners.send(ExecutionDone(command.command))
+      case Some(command) =>
+        serverState.eventListeners.send(ExecutionDone(command.command))
+      // TODO - notify original requester we're done?
       case None => ()
     }
     ServerState.update(state, serverState.clearLastCommand)
@@ -81,11 +83,18 @@ abstract class ServerEngine {
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
-    // TODO - Should we send some kind of error notification to the server?
+    // TODO - Is this error going to be useful?
+    val lastState = ServerState.extract(state)
+    lastState.lastCommand match {
+      case Some(LastCommand(command, serial, client)) =>
+        client.reply(serial, ErrorResponse("Unknown failure while running command: " + command))
+      // TODO - Should we be replacing the PostCommandCleanup stuff here?
+      case None => ()
+    }
     PostCommandCleanup :: HandleNextServerRequest :: state
   }
 
-  def handleRequest(client: LiveClient, request: Request, state: State): State = {
+  def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {
     val serverState = ServerState.extract(state)
     request match {
       case ListenToEvents() =>
@@ -105,7 +114,7 @@ abstract class ServerEngine {
         ServerState.update(state, serverState.disconnect(client))
       case ExecutionRequest(command) =>
         // TODO - Figure out how to run this and ack appropriately...
-        command :: ServerState.update(state, serverState.withLastCommand(LastCommand(command, client)))
+        command :: ServerState.update(state, serverState.withLastCommand(LastCommand(command, serial, client)))
       case ListenToValue(key) =>
         // TODO - We also need to get the value to send to the client...
         //  This only registers the listener, but doesn't actually 
@@ -113,7 +122,7 @@ abstract class ServerEngine {
           case Some(key) =>
             ServerState.update(state, serverState.addKeyListener(client, key))
           case None => // Issue a no such key error
-            client.send(ErrorResponse(s"Unable to find key: $key"))
+            client.reply(serial, ErrorResponse(s"Unable to find key: $key"))
             state
         }
       // TODO - This may need to be in an off-band channel. We should be able to respond
