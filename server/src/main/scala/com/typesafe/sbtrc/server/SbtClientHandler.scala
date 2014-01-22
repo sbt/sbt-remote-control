@@ -56,7 +56,7 @@ class SbtClientHandler(
       Envelope(ipc.receive()) match {
         case Envelope(serial, _, msg: Request) =>
           log.log(s"Got request: $msg")
-          ipc.replyJson(serial, sbt.protocol.ReceivedResponse())
+          reply(serial, sbt.protocol.ReceivedResponse())
           val request = ServerRequest(SbtClientHandler.this, serial, msg)
           msgHandler(request)
         case Envelope(_, _, msg) =>
