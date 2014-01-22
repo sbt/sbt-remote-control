@@ -190,6 +190,11 @@ package object protocol {
   implicit val compilationFailureFormat = Json.format[CompilationFailure]
   implicit val taskStartedFormat = Json.format[TaskStarted]
   implicit val taskFinishedFormat = Json.format[TaskFinished]
+  implicit val readLineRequestFormat = Json.format[ReadLineRequest]
+  implicit val readLineResponseFormat = Json.format[ReadLineResponse]
+  implicit val confirmRequestFormat = Json.format[ConfirmRequest]
+  implicit val confirmResponseFormat = Json.format[ConfirmResponse]
+  
 
   // TODO - This needs an explicit format... yay.
   implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChange[A]] = 

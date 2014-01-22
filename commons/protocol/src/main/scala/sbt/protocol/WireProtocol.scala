@@ -17,6 +17,10 @@ import language.existentials
 object WireProtocol {
 
   private val messages: Map[Class[_], (String, Format[_])] = Map(
+    msg[ReadLineRequest],
+    msg[ReadLineResponse],
+    msg[ConfirmRequest],
+    msg[ConfirmResponse],
     msg[ReceivedResponse],
     msg[ExecutionRequest],
     msg[ExecutionDone],

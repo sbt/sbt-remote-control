@@ -2,9 +2,10 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Request }
+import sbt.protocol.{ Envelope, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Format
 import sbt.server.ServerRequest
+import concurrent.{ Promise, promise }
 
 /**
  * This class represents an external client into the sbt server.
@@ -59,6 +60,13 @@ class SbtClientHandler(
           reply(serial, sbt.protocol.ReceivedResponse())
           val request = ServerRequest(SbtClientHandler.this, serial, msg)
           msgHandler(request)
+        case Envelope(_, replyTo, msg: ConfirmResponse) =>
+          interactionManager.confirmed(replyTo, msg.confirmed)
+        case Envelope(_, replyTo, msg: ReadLineResponse) =>
+          interactionManager.lineRead(replyTo, msg.line)
+        case Envelope(_, replyTo, msg: ErrorResponse) =>
+          // TODO - other notifications?
+          interactionManager.error(replyTo, msg.error)
         case Envelope(_, _, msg) =>
           sys.error("Unable to handle client request: " + msg)
       }
@@ -79,17 +87,53 @@ class SbtClientHandler(
     log.log(s"Sending reply to client $id: $msg")
     if (isAlive) ipc.replyJson(serial, msg)
   }
-  def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] = {
-    val result = concurrent.promise[Option[String]]
-    // TODO - Fix this.
-    result.failure(new Error("Not implemented"))
-    result.future
-  }
-  def confirm(msg: String): concurrent.Future[Boolean] = {
-    val result = concurrent.promise[Boolean]
-    // TODO - Fix this.
-    result.failure(new Error("Not implemented"))
-    result.future
+  def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+    interactionManager.readLine(prompt, mask)
+  def confirm(msg: String): concurrent.Future[Boolean] =
+    interactionManager.confirm(msg)
+
+  object interactionManager {
+    private var readLineRequests: Map[Long, Promise[Option[String]]] = Map.empty
+    private var confirmRequests: Map[Long, Promise[Boolean]] = Map.empty
+
+    // TODO - timeouts on requests....
+
+    def error(serial: Long, msg: String): Unit = synchronized {
+      (readLineRequests get serial) orElse (confirmRequests get serial) match {
+        // TODO - Custom exception.
+        case Some(x: Promise[_]) => x.failure(new RuntimeException(msg))
+        case None => // TODO - error
+      }
+    }
+    def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+      synchronized {
+        val result = promise[Option[String]]
+        val serial = ipc.sendJson(ReadLineRequest(prompt, mask))
+        readLineRequests += serial -> result
+        result.future
+      }
+    def lineRead(serial: Long, line: Option[String]): Unit =
+      synchronized {
+        readLineRequests get serial match {
+          case Some(promise) => promise.success(line)
+          case None => // TODO - log error?
+        }
+      }
+    def confirm(msg: String): concurrent.Future[Boolean] =
+      synchronized {
+        val result = promise[Boolean]
+        val serial = ipc.sendJson(ConfirmRequest(msg))
+        confirmRequests += serial -> result
+        result.future
+      }
+
+    def confirmed(serial: Long, value: Boolean): Unit =
+      synchronized {
+        confirmRequests get serial match {
+          case Some(promise) => promise.success(value)
+          case None => // TODO - log error?
+        }
+      }
   }
 
   def shutdown(): Unit = {

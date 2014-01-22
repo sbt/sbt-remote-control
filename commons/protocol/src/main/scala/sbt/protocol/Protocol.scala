@@ -138,6 +138,10 @@ case class ErrorResponse(error: String) extends Response
 case class ReceivedResponse() extends Response
 
 
+case class ReadLineRequest(prompt: String, mask: Boolean) extends Request
+case class ReadLineResponse(line: Option[String]) extends Request
+case class ConfirmRequest(message: String) extends Request
+case class ConfirmResponse(confirmed: Boolean) extends Request
 
 
 sealed trait TestOutcome {
