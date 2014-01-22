@@ -118,6 +118,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           requestHandler.accepted(requestSerial)
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
           requestHandler.error(requestSerial, msg)
+        case protocol.Envelope(_, requestSerial, r: protocol.Request) =>
+          client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: " + r.simpleName))
         // TODO - Deal with other responses...
         case stuff =>
         // TODO - Do something here.
