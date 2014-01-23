@@ -123,8 +123,9 @@ abstract class ServerEngine {
         //  This only registers the listener, but doesn't actually 
         SbtToProtocolUtils.protocolToScopedKey(key, state) match {
           case Some(key) =>
-            ServerState.update(state, serverState.addKeyListener(client, key))
-          // TODO - register last command as well as forcing the task to run...
+            // Schedule the key to run as well as registering the key listener. 
+            val extracted = Project.extract(state)
+            extracted.showKey(key) :: ServerState.update(state, serverState.addKeyListener(client, key))
           case None => // Issue a no such key error
             client.reply(serial, ErrorResponse(s"Unable to find key: $key"))
             state
@@ -170,7 +171,7 @@ abstract class ServerEngine {
         s.initializeClassLoaderCache
       }
     val state: State =
-      // TODO - We need the sbt version to create the fake configuratoin.
+      // TODO - We need the sbt version to create the fake configuration.
       initialState(FakeAppConfiguration(configuration),
         initialDefinitions = Seq(
           early,
