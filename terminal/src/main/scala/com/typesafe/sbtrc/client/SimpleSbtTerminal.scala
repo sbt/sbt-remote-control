@@ -35,7 +35,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           }
           // TODO - We want to wait to schedule the next execution until after this
           // command is done...
-          client.requestExecution(line)
+          client.requestExecution(line, None)
           executionDone.future.onComplete { _ =>
             registration.cancel()
             schedule(this)

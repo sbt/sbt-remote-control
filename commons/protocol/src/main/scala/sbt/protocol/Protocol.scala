@@ -136,6 +136,7 @@ case class ValueChange[T](key: ScopedKey, value: TaskResult[T]) extends Event
 case class ErrorResponse(error: String) extends Response
 /** A notification that a given request has been received. */
 case class ReceivedResponse() extends Response
+case class RequestCompleted() extends Response
 
 
 case class ReadLineRequest(prompt: String, mask: Boolean) extends Request

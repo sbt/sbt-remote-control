@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(client) ++ sbt13ProbeProjects
+  lazy val publishedProjects: Seq[Project] = Seq(client, terminal) ++ sbt13ProbeProjects
 
 
 
@@ -97,14 +97,21 @@ object TheBuild extends Build {
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
       Keys.publishArtifact in (Test, Keys.packageBin) := true,
-      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver")),
-      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver"))
     )
     dependsOnSource("commons/protocol")
     dependsOnRemote(playJson, brokenJoda)
     dependsOnRemote(sbtLauncherInterface,
                     sbtCompilerInterface,
                     sbtIo, sbtCollections)
+  )
+
+ lazy val terminal: Project = (
+    SbtRemoteControlProject("terminal")
+    dependsOn(client)
+    settings(
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
+    )
   )
 
   // Set up a repository that has all our dependencies.

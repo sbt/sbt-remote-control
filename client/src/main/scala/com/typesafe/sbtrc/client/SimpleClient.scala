@@ -3,7 +3,7 @@ package client
 
 import sbt.protocol
 import sbt.protocol._
-import sbt.client.{ SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, SettingKey, TaskKey }
+import sbt.client.{ SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, SettingKey, TaskKey, Interaction }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -34,13 +34,14 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   }
   def lookupScopedKey(name: String): Future[Option[ScopedKey]] = ???
 
-  def requestExecution(commandOrTask: String): Future[Unit] = {
-    requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask))).received
+  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit] = {
+    requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
     valueEventManager[T](key.key).watch(listener)(ex)
+  // TODO - Some mechanisms of listening to interaction here...
   def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
     valueEventManager[T](key.key).watch(listener)(ex)
 
@@ -116,8 +117,22 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           completionsManager.fire(id, completions)
         case protocol.Envelope(_, requestSerial, protocol.ReceivedResponse()) =>
           requestHandler.accepted(requestSerial)
+        case protocol.Envelope(_, requestSerial, protocol.RequestCompleted()) =>
+          requestHandler.completed(requestSerial)
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
           requestHandler.error(requestSerial, msg)
+        case protocol.Envelope(request, requestSerial, protocol.ReadLineRequest(prompt, mask)) =>
+          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(requestSerial, prompt, mask)))
+          catch {
+            case NoInteractionException =>
+              client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+          }
+        case protocol.Envelope(request, requestSerial, protocol.ConfirmRequest(msg)) =>
+          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(requestSerial, msg)))
+          catch {
+            case NoInteractionException =>
+              client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+          }
         case protocol.Envelope(_, requestSerial, r: protocol.Request) =>
           client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: " + r.simpleName))
         // TODO - Deal with other responses...
@@ -128,40 +143,7 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   }
   thread.start()
 
-  private object requestHandler {
-    private var runningRequests: Map[Long, RequestLifecycle] = Map.empty
-    def register(serial: Long): RequestLifecycle = {
-      synchronized {
-        val lifecycle = new RequestLifecycle(serial)
-        runningRequests += serial -> lifecycle
-        lifecycle
-      }
-    }
-    def error(serial: Long, msg: String): Unit =
-      finishRequest(serial)(_.error(msg))
-    def accepted(serial: Long): Unit =
-      finishRequest(serial)(_.accepted())
-    private def finishRequest(serial: Long)(f: RequestLifecycle => Unit): Unit = {
-      synchronized {
-        runningRequests get serial match {
-          case Some(req) =>
-            try f(req)
-            finally runningRequests -= serial
-          case None => // TODO - Issue some error or log!
-        }
-      }
-    }
-  }
-  /** Handles events during a request's lifecycle. */
-  private class RequestLifecycle(val serial: Long) {
-    private val receivedPromise = concurrent.promise[Unit]
-    val received = receivedPromise.future
-    def error(msg: String): Unit = {
-      receivedPromise.failure(new RequestException(msg))
-    }
-    def accepted(): Unit =
-      receivedPromise.success(())
-  }
+  private val requestHandler = new RequestHandler()
 
 }
 

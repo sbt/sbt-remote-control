@@ -75,6 +75,7 @@ abstract class ServerEngine {
     serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionDone(command.command))
+        command.client.reply(command.serial, RequestCompleted())
       // TODO - notify original requester we're done?
       case None => ()
     }
@@ -93,6 +94,8 @@ abstract class ServerEngine {
     }
     PostCommandCleanup :: HandleNextServerRequest :: state
   }
+
+  val henrikIsAwesome = taskKey[Boolean]("")
 
   def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {
     val serverState = ServerState.extract(state)
@@ -121,6 +124,7 @@ abstract class ServerEngine {
         SbtToProtocolUtils.protocolToScopedKey(key, state) match {
           case Some(key) =>
             ServerState.update(state, serverState.addKeyListener(client, key))
+          // TODO - register last command as well as forcing the task to run...
           case None => // Issue a no such key error
             client.reply(serial, ErrorResponse(s"Unable to find key: $key"))
             state

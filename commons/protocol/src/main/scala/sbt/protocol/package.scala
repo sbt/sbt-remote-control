@@ -172,6 +172,7 @@ package object protocol {
   implicit val needRebootFormat = emptyObjectFormat(NeedRebootEvent)
   implicit val nowListeningFormat = emptyObjectFormat(NowListeningEvent)
   implicit val stoppedFormat = emptyObjectFormat(Stopped)
+  implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
   
   implicit object outcomeFormat extends Format[TestOutcome] {
     def writes(outcome: TestOutcome): JsValue =

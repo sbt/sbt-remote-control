@@ -54,7 +54,7 @@ trait SbtClient extends Closeable {
    *         that should be evaluated.
    * @return  A future that will return Unit if the command request was successfully sent.
    */
-  def requestExecution(commandOrTask: String): Future[Unit]
+  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit]
 
   /**
    * Adds a listener to general events which are fired from this sbt server.  These can be things like
