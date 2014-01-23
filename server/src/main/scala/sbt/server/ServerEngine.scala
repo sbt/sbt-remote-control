@@ -72,14 +72,14 @@ abstract class ServerEngine {
   // TODO - Maybe this should be called cleanupLastCommand?
   def postCommandCleanup(state: State): State = {
     val serverState = ServerState.extract(state)
-    serverState.lastCommand match {
+    val nextState = serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionDone(command.command))
         command.client.reply(command.serial, RequestCompleted())
-      // TODO - notify original requester we're done?
-      case None => ()
+        BuildStructureCache.update(state)
+      case None => state
     }
-    ServerState.update(state, serverState.clearLastCommand)
+    ServerState.update(nextState, serverState.clearLastCommand)
   }
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
@@ -108,10 +108,7 @@ abstract class ServerEngine {
       // TODO - update global logging?
       // TODO - Ack the server?
       case ListenToBuildChange() =>
-        // We should immediately send the structure...
-        sendBuildStructure(state, client)
-        // And add the client to get further notifications.
-        ServerState.update(state, serverState.addBuildListener(client))
+        BuildStructureCache.addListener(state, client)
       case ClientClosedRequest() =>
         val serverState = ServerState.extract(state)
         ServerState.update(state, serverState.disconnect(client))
@@ -143,11 +140,6 @@ abstract class ServerEngine {
         client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
         state
     }
-  }
-
-  def sendBuildStructure(state: State, listener: SbtClient): Unit = {
-    val structure = SbtDiscovery.buildStructure(state)
-    listener.send(BuildStructureChanged(structure))
   }
 
   /** This will load/launch the sbt execution engine. */

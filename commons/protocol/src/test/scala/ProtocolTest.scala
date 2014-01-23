@@ -31,6 +31,7 @@ class ProtocolTest {
       protocol.ConfirmRequest("msg"),
       protocol.ConfirmResponse(true),
       protocol.ReceivedResponse(),
+      protocol.RequestCompleted(),
       protocol.CommandCompletionsRequest("id", "He", 2),
       protocol.CommandCompletionsResponse("id", Set(protocol.Completion("llo", "Hello", true))),
       protocol.ListenToEvents(),
