@@ -10,12 +10,15 @@ import CommandStrings.DefaultsCommand
 import CommandStrings.InitCommand
 import sbt.Command
 import sbt.MainLoop
-import sbt.StandardMain
 import sbt.State
 
 case class ServerRequest(client: LiveClient, serial: Long, request: Request)
 
-/** An abstract implementation of the sbt server engine that can be used by clients. */
+/**
+ * An abstract implementation of the sbt server engine that can be used by clients.  This makes no
+ *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
+ *  it can draw events *and* a thread it will own during the lifecycle of event processing.
+ */
 abstract class ServerEngine {
 
   /**
@@ -95,8 +98,6 @@ abstract class ServerEngine {
     PostCommandCleanup :: HandleNextServerRequest :: state
   }
 
-  val henrikIsAwesome = taskKey[Boolean]("")
-
   def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {
     val serverState = ServerState.extract(state)
     request match {
@@ -175,11 +176,7 @@ abstract class ServerEngine {
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
         preCommands = runEarly(InitCommand) :: runEarly(InitializeServerState) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
-
-    // Now feed the state through an appropriate engine.   For now, we'll use the standard main...
-    // TODO - We need to write our own command loop
-    // that will inspect server state and issue appropriate commands.
-    MainLoop.runLogged(state)
+    StandardMain.runManaged(state)
   }
 
   /** Can convert an event logger into GlobalLogging. */
@@ -196,14 +193,23 @@ abstract class ServerEngine {
       GlobalLogBacking(file = throwawayBackingFile,
         last = None,
         newBackingFile = () => throwawayBackingFile)
-    def globalLogging: GlobalLogging =
+    def globalLogging(backing: GlobalLogBacking): GlobalLogging =
       GlobalLogging(
-        full = EventLogger,
+        full = EventLogger, // TODO - Send this to the "writer" we get in newLogger.
         console = EventLogger.consoleOut,
-        backed = ConsoleLogger(EventLogger.consoleOut),
-        backing = newBacking,
-        newLogger = (writer, oldBacking) => globalLogging)
-    globalLogging
+        backed = EventLogger,
+        backing = backing,
+        // TODO - This needs to be fixed.  Does not use the correct writer to enable "last" to work properly.
+        newLogger = (writer, newBacking) => globalLogging(newBacking))
+    globalLogging(newBacking)
+  }
+
+  def loggingShims(state: State): Seq[Setting[_]] = {
+    val extracted = Project.extract(state)
+    LogManager.defaults(null, null)
+    for {
+      project <- extracted.structure.allProjectRefs
+    } yield Keys.logManager in project := LogManager.withLoggers()
   }
 
   // Here we install our basic build hooks we use to fire events.
@@ -212,7 +218,9 @@ abstract class ServerEngine {
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state) ++
-        UIShims.makeShims(state)
+        UIShims.makeShims(state) ++
+        loggingShims(state)
+    // TODO - Override log manager for now, or figure out a better way.
     val extracted = Project.extract(state)
     val settings =
       SettingUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)

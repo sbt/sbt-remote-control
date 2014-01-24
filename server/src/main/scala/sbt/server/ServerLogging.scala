@@ -6,7 +6,7 @@ import java.io.Writer
 import java.io.PrintWriter
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
-private[sbt] object EventLogger extends Logger {
+private[sbt] object EventLogger extends BasicLogger {
   @volatile
   private var client: SbtClient = NullSbtClient
   @volatile
@@ -34,6 +34,14 @@ private[sbt] object EventLogger extends Logger {
   def log(level: Level.Value, message: => String): Unit = {
     send(protocol.LogMessage(level.toString, message))
   }
+
+  def control(event: sbt.ControlEvent.Value, message: => String): Unit = {
+    // TODO - mechanisms needed from AbstractLogger, implement these in some decent fashion instead of hackery.
+    //        although, this method is actually deprecated.
+    ()
+  }
+  // TODO - we should bundle these in one message...
+  def logAll(events: Seq[sbt.LogEvent]): Unit = events foreach log
 
   private val ansiCodeRegex = "\\033\\[[0-9;]+m".r
   private val logLevelRegex = new Regex("^\\[([a-z]+)\\] *(.*)", "level", "message")
@@ -92,6 +100,11 @@ private[sbt] object EventLogger extends Logger {
 
     override def close(): Unit = flushConsoleBuf
   }
-
-  private[sbt] val consoleOut = ConsoleLogger.printWriterOut(new PrintWriter(consoleWriter))
+  private[sbt] val consoleOut = ConsoleOut.printWriterOut(new PrintWriter(consoleWriter))
+  private[sbt] val voidConsoleOut = ConsoleOut.printWriterOut(new PrintWriter(new java.io.Writer() {
+    override def write(cbuf: Array[Char], off: Int, len: Int) = ()
+    override def close(): Unit = ()
+    override def flush(): Unit = ()
+  }))
 }
+
