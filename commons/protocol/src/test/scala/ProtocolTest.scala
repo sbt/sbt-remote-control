@@ -53,7 +53,13 @@ class ProtocolTest {
       protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
       protocol.LogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
-      protocol.ExecutionDone("test result command")
+      protocol.ExecutionDone("test result command"),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST")),
+      protocol.LogEvent(protocol.LogStdErr("TEST")),
+      protocol.LogEvent(protocol.LogStdOut("TEST2"))
       // TODO - protocol.GenericEvent("playServerStarted", Map("port" -> 10))
     )
     for (s <- specifics) {

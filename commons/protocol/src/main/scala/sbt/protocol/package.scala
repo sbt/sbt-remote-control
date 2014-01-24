@@ -156,7 +156,7 @@ package object protocol {
       (obj \ "type").asOpt[String].collect({
         case "success" => LogSuccess((obj \ "message").as[String])
         case "trace" => LogTrace((obj \ "class").as[String], (obj \ "message").as[String])
-        case "LogMessage" => LogMessage((obj \ "level").as[String], (obj \ "message").as[String])
+        case "message" => LogMessage((obj \ "level").as[String], (obj \ "message").as[String])
         case "stdout" => LogStdOut((obj \ "message").as[String])
         case "stderr" => LogStdErr((obj \ "message").as[String])
       }).map(x => JsSuccess(x)).getOrElse(JsError("Not a log message."))

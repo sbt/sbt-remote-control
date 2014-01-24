@@ -68,10 +68,16 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           System.out.println()
           System.out.println(msg)
           System.out.flush()
-        // TODO - Let's make sure INFO + stdout don't conflict....
-        //case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
-        //System.out.print(msg)
-        //System.out.flush()
+        // TODO - ASCII CHARACTER CODES!
+        case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
+          System.out.print(s"[info] $msg\n")
+          System.out.flush()
+        case LogEvent(LogMessage(LogMessage.WARN, msg)) =>
+          System.out.print(s"[warn] $msg\n")
+          System.out.flush()
+        case LogEvent(LogMessage(LogMessage.ERROR, msg)) =>
+          System.err.print(s"[error] $msg\n")
+          System.err.flush()
         case LogEvent(LogStdOut(msg)) =>
           System.out.print(msg)
           System.out.flush()
