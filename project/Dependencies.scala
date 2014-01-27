@@ -23,7 +23,14 @@ object Dependencies {
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
   val sbt13Version = "0.13.0"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
+
+  // Make sure to update supported versions if sbt-atmos plugin version is changed
   val sbtAtmosDefaultVersion = "0.3.2"
+  val sbt012AtmosSupportedAkkaVersion = "2.2.1"
+  val sbt012AtmosSupportedPlayVersion = "2.1.4"
+  val sbt013AtmosSupportedAkkaVersion = "2.2.1"
+  val sbt013AtmosSupportedPlayVersion = "2.2.0"
+
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
@@ -50,8 +57,6 @@ object Dependencies {
 
   val junitInterface       = "com.novocode" % "junit-interface" % "0.7"
   //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
-
-
 
   // Here we define dependencies for the shim/probe sections.
   def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
