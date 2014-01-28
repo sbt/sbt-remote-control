@@ -32,12 +32,24 @@ object EchoSupport {
     PoorManDebug.trace("Checking if sbt-echo is enabled.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    findEchoKey(EchoTracePort, settings).isDefined
+    val supportsEcho = findEchoKey(EchoTracePort, settings).isDefined
+    val supportsAkka =
+      if (AkkaSupport.isAkkaProject(state)) AkkaSupport.validAkkaVersion(state, BuildInfo.supportedAkkaVersionSbt012)
+      else true
+    val supportsPlay =
+      if (isPlayProject(state)) PlaySupport.validPlayVersion(state, BuildInfo.supportedPlayVersionSbt012)
+      else true
+    supportsEcho && supportsAkka && supportsPlay
   }
 
   def installEchoSupport(origState: State, tracePort: Option[Int]): State = {
     if (tracePort.isDefined && isEchoProject(origState)) {
       setTracePort(origState, tracePort.get)
     } else origState
+  }
+
+  def convertVersionString(version: String): Int = {
+    val index = if (version.contains("-")) version.indexOf("-") else version.length
+    version.substring(0, index).replace(".", "").toInt
   }
 }

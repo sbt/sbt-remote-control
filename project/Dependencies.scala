@@ -23,7 +23,12 @@ object Dependencies {
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
   val sbt13Version = "0.13.0"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
+  // Make sure to upgrade supported versions below when updating the sbt-echo version
   val sbtEchoDefaultVersion = "0.1.0"
+  val sbt012AtmosSupportedAkkaVersion = "2.2.1"
+  val sbt012AtmosSupportedPlayVersion = "2.1.4"
+  val sbt013AtmosSupportedAkkaVersion = "2.2.1"
+  val sbt013AtmosSupportedPlayVersion = "2.2.0"
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"

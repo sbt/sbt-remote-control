@@ -17,4 +17,18 @@ object AkkaSupport {
       hasAkka getOrElse false
     }
   }
+
+  def validAkkaVersion(state: State, maxVersion: String): Boolean = {
+    val (_, classpath: Seq[Attributed[File]]) = extract(state).runTask(Keys.dependencyClasspath in Compile, state)
+    classpath exists { f =>
+      val validAkka =
+        for {
+          id <- f.get(Keys.moduleID.key)
+          if id.organization == "com.typesafe.akka"
+          if id.name contains "akka"
+          if EchoSupport.convertVersionString(id.revision) <= EchoSupport.convertVersionString(maxVersion)
+        } yield true
+      validAkka getOrElse false
+    }
+  }
 }
