@@ -4,6 +4,7 @@ import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.SbtGit
 import Dependencies.getScalaVersionForSbtVersion
+import sbtbuildinfo.Plugin._ 
 
 object SbtRcBuild {
 
@@ -51,9 +52,17 @@ object SbtRcBuild {
     )
 
   def sbtProbeSettings(sbtVersion: String): Seq[Setting[_]] =
+    buildInfoSettings ++
     Seq(
       scalaVersion := getScalaVersionForSbtVersion(sbtVersion),
-      Keys.sbtVersion := sbtVersion
+      Keys.sbtVersion := sbtVersion,
+      sourceGenerators in Compile <+= buildInfo,
+      buildInfoKeys ++= Seq[BuildInfoKey](
+        "supportedAkkaVersionSbt012" -> Dependencies.sbt012AtmosSupportedAkkaVersion,
+        "supportedPlayVersionSbt012" -> Dependencies.sbt012AtmosSupportedPlayVersion,
+        "supportedAkkaVersionSbt013" -> Dependencies.sbt013AtmosSupportedAkkaVersion,
+        "supportedPlayVersionSbt013" -> Dependencies.sbt013AtmosSupportedPlayVersion),
+      buildInfoPackage := "com.typesafe.sbtrc"
     )
 
   def sbtShimPluginSettings(sbtVersion: String): Seq[Setting[_]] =
