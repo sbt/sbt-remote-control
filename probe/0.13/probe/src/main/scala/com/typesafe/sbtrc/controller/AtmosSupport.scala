@@ -48,7 +48,14 @@ object AtmosSupport {
     PoorManDebug.trace("Checking if atmos hooks are needed.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    findAtmosSetting("atmos-run-listeners", settings).isDefined
+    val supportsAtmos = findAtmosSetting("atmos-run-listeners", settings).isDefined
+    val supportsAkka =
+      if (AkkaSupport.isAkkaProject(state)) AkkaSupport.validAkkaVersion(state, BuildInfo.supportedAkkaVersionSbt013)
+      else true
+    val supportsPlay =
+      if (isPlayProject(state)) PlaySupport.validPlayVersion(state, BuildInfo.supportedPlayVersionSbt013)
+      else true
+    supportsAtmos && supportsAkka && supportsPlay
   }
 
   def installAtmosSupport(origState: State, ui: UIContext): State = {
@@ -88,5 +95,10 @@ object AtmosSupport {
       Seq(atmosPluginShim, atmosAkkaBuildShim,
         atmosPlayPluginDeleteShim, atmosPlayBuildDeleteShim)
     } else Nil
+  }
+
+  def convertVersionString(version: String): Int = {
+    val index = if (version.contains("-")) version.indexOf("-") else version.length
+    version.substring(0, index).replace(".", "").toInt
   }
 }
