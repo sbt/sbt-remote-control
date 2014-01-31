@@ -109,6 +109,7 @@ object TheBuild extends Build {
  lazy val terminal: Project = (
     SbtRemoteControlProject("terminal")
     dependsOn(client)
+    dependsOnRemote(sbtCompletion)
     settings(
       resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
     )

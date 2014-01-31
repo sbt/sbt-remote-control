@@ -42,9 +42,9 @@ object Dependencies {
   val sbtIo                = sbtOrg % "io" % sbtMainVersion
   val sbtCollections       = sbtOrg % "collections" % sbtMainVersion
   // We use an old version here, so we're compatible...
-  val sbtLauncherInterface = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
-  val sbtCompilerInterface = "org.scala-sbt" % "interface" % sbtMainVersion
-  val sbtCompletion        = "org.scala-sbt" % "completion" % sbtMainVersion
+  val sbtLauncherInterface = sbtOrg % "launcher-interface" % sbtMainVersion
+  val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
+  val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
   val playJson             = ("com.typesafe.play" % "play-json_2.10" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
   val brokenJoda           = "org.joda" % "joda-convert" % "1.2" % "provided"

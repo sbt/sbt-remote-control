@@ -8,11 +8,16 @@ import sbt.client.{
   RemoteKeys,
   RemoteConfigurations
 }
+import sbt.JLine
 import sbt.protocol
 
 class SimpleSbtTerminal extends xsbti.AppMain {
   private var queue = new java.util.concurrent.LinkedBlockingDeque[Runnable]
   private def schedule(run: Runnable): Unit = queue.add(run)
+  private def clearAndSchedule(run: Runnable): Unit = {
+    queue.clear()
+    schedule(run)
+  }
 
   implicit object Context extends ExecutionContext {
     def execute(runnable: Runnable): Unit =
@@ -20,13 +25,12 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     def reportFailure(t: Throwable): Unit = ()
   }
   val inStream = new java.io.BufferedReader(new java.io.InputStreamReader(System.in))
-  case class TakeNextCommand(client: SbtClient) extends Runnable {
+  case class TakeNextCommand(client: SbtClient, reader: JLine) extends Runnable {
     override final def run(): Unit = try {
-      System.out.print("> ")
-      inStream.readLine match {
-        case "exit" => System.exit(0)
-        case null => run()
-        case line =>
+      reader.readLine("> ", None) match {
+        case Some("exit") => System.exit(0)
+        case None => run()
+        case Some(line) =>
           // Register for when the execution is done.
           val executionDone = concurrent.promise[Unit]
           val registration = client.handleEvents {
@@ -56,14 +60,14 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     System.out.println("Connecting to sbt...")
     val connector = new SimpleConnector(configuration.baseDirectory, SimpleLocator)
     connector onConnect { client =>
+      // This guy should handle future execution NOT on our event loop, or we'll block.
+      // Ideally, "same thread" execution context instead.
+      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)(concurrent.ExecutionContext.global)
       import protocol._
       client handleEvents {
         case NowListeningEvent =>
-          client.possibleAutocompletions("he", 2) onComplete {
-            case result =>
-              System.out.println("'he' completions: " + result)
-              schedule(TakeNextCommand(client))
-          }
+          // Upon reconnection, down what's currently executing.
+          clearAndSchedule(TakeNextCommand(client, reader))
         case LogEvent(LogSuccess(msg)) =>
           System.out.println()
           System.out.println(msg)
