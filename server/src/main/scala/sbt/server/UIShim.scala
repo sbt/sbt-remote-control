@@ -21,6 +21,13 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
     withClient(state) { client =>
       waitForever(client.readLine(prompt, mask))
     }.getOrElse(throw new java.io.IOException("No clients listening to readLine request."))
+
+  def readLine(prompt: String, handler: interaction.CompletionHandler): Option[String] = {
+    // TODO - set up a temporary request handler for interaction evnets.
+    withClient(state) { client =>
+      waitForever(client.readLine(prompt, false))
+    }.getOrElse(throw new java.io.IOException("No clients listening to readLine request."))
+  }
   def confirm(msg: String): Boolean =
     withClient(state) { client =>
       waitForever(client.confirm(msg))

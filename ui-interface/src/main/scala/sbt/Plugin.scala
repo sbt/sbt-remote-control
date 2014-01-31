@@ -11,13 +11,17 @@ import play.api.libs.json._
 object SbtUiPlugin extends Plugin {
 
   override val buildSettings: Seq[Setting[_]] = Seq(
-    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? ComamndLineUiContext)
+    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext)
 }
 
-private[sbt] object ComamndLineUiContext extends AbstractUIContext {
+private[sbt] object CommandLineUiContext extends AbstractUIContext {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
+  }
+  override def readLine(prompt: String, completion: interaction.CompletionHandler): Option[String] = {
+    // TODO - Implement
+    SimpleReader.readLine(prompt, None)
   }
   // TODO - Implement this better!    
   def confirm(msg: String): Boolean = {
@@ -31,6 +35,7 @@ private[sbt] object ComamndLineUiContext extends AbstractUIContext {
       case _ => false
     }
   }
+
   override def sendEvent[T: Format](event: T): Unit = ()
   override def sendGenericEvent(data: JsValue): Unit = ()
 }

@@ -134,10 +134,7 @@ abstract class ServerEngine {
         val combined = state.combinedParser
         val completions = complete.Parser.completions(combined, line, level)
         def convertCompletion(c: complete.Completion): protocol.Completion =
-          protocol.Completion(
-            c.append,
-            c.display,
-            c.isEmpty)
+          protocol.Completion(c.append, c.display)
         client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
         state
     }

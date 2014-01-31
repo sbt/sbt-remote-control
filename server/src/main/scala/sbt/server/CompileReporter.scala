@@ -3,6 +3,10 @@ package server
 
 import xsbti.Position
 import xsbti.Severity
+import protocol.{
+  CompilationFailure,
+  ProjectReference
+}
 
 class CompileReporter(
   // TODO - Sbt - client and more...
@@ -23,7 +27,7 @@ class CompileReporter(
     val errorMessage =
       protocol.CompilationFailure(
         project,
-        pos,
+        newPos,
         severity,
         msg)
     client.send(errorMessage)
@@ -32,12 +36,14 @@ class CompileReporter(
 
   override def printSummary(): Unit = {
     // TODO - Fire event that summary is complete.
-    super.printSummary();
+    super.printSummary()
   }
 }
 object CompileReporter {
 
   def makeShims(state: State): Seq[Setting[_]] = {
+    val projects = Project.extract(state).structure.allProjectRefs
+
     // TODO - Override the derived compiler settings such that
     // our listener is installed on all compilers.
     val extracted = Project.extract(state)
@@ -66,4 +72,18 @@ object CompileReporter {
         inputs.config.sourcePositionMapper))
     }
   }
+
+  private val compileReporter = taskKey[LoggerReporter]("Compilation error reporter.")
+
+  private def makeProjectSettings(project: ProjectRef): Seq[Setting[_]] =
+    Seq(
+      compileReporter in project := {
+        val serverState = ServerState.extract(Keys.state.value)
+        new CompileReporter(
+          serverState.eventListeners,
+          SbtToProtocolUtils.projectRefToProtocol(project),
+          100,
+          Keys.streams.value.log,
+          Keys.compileInputs.value.config.sourcePositionMapper)
+      })
 }
