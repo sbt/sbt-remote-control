@@ -26,8 +26,9 @@ object Dependencies {
 
   // Make sure to update supported versions if sbt-atmos plugin version is changed
   val sbtAtmosDefaultVersion = "0.3.2"
-  val sbt012AtmosSupportedAkkaVersion = "2.2.1"
-  val sbt012AtmosSupportedPlayVersion = "2.1.4"
+  // for now we don't auto-add atmos to 0.12 projects ever
+  //val sbt012AtmosSupportedAkkaVersion = "2.2.1"
+  //val sbt012AtmosSupportedPlayVersion = "2.1.4"
   val sbt013AtmosSupportedAkkaVersion = "2.2.1"
   val sbt013AtmosSupportedPlayVersion = "2.2.0"
 
