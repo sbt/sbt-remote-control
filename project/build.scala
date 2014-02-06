@@ -147,6 +147,7 @@ object TheBuild extends Build {
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {}
     )
+   settings(SbtRcBuild.sbtrcBuildInfoSettings: _*)
   )
 
   lazy val itRunner: Project = (

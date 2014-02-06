@@ -145,4 +145,17 @@ object PlaySupport {
     if (isPlayProject(origState)) installHooks(origState, ui)
     else origState
   }
+
+  def playVersion(state: State): Option[String] = {
+    PoorManDebug.trace("Checking for Play version.")
+    val (_, classpath: Seq[Attributed[File]]) = Project.extract(state).runTask(Keys.dependencyClasspath in Compile, state)
+    val maybeAkkaVersions = classpath map { file =>
+      for {
+        id <- file.get(Keys.moduleID.key)
+        if id.organization == "com.typesafe.play"
+        if id.name contains "play"
+      } yield id.revision
+    }
+    maybeAkkaVersions.filter(_.isDefined).headOption.getOrElse(None)
+  }
 }
