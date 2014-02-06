@@ -46,24 +46,12 @@ object AtmosSupport {
   def isAtmosProject(state: State): Boolean = {
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    val supportsAtmos = findAtmosSetting("atmos-run-listeners", settings).isDefined
-    val supportsAkka =
-      if (AkkaSupport.isAkkaProject(state)) AkkaSupport.validAkkaVersion(state, BuildInfo.supportedAkkaVersionSbt012)
-      else true
-    val supportsPlay =
-      if (isPlayProject(state)) PlaySupport.validPlayVersion(state, BuildInfo.supportedPlayVersionSbt012)
-      else true
-    supportsAtmos && supportsAkka && supportsPlay
+    findAtmosSetting("atmos-run-listeners", settings).isDefined
   }
 
   def installAtmosSupport(origState: State, ui: UIContext): State = {
     if (isAtmosProject(origState)) {
       installHooks(origState, ui)
     } else origState
-  }
-
-  def convertVersionString(version: String): Int = {
-    val index = if (version.contains("-")) version.indexOf("-") else version.length
-    version.substring(0, index).replace(".", "").toInt
   }
 }
