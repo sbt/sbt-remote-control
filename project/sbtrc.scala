@@ -60,26 +60,22 @@ object SbtRcBuild {
     Seq(
       sbtPlugin := true,
       publishMavenStyle := false,
+      // TODO - Whatever hacks we need so our definition is in whatever build definition.
       Keys.sbtVersion := sbtVersion,
-      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion,
-      // Hacked so we get the right dependnecies...
-      allDependencies <<= (Keys.projectDependencies, Keys.libraryDependencies, Keys.sbtVersion) map { (pd, ld, sv) =>
-        val base = pd ++ ld
-        (Dependencies.sbtOrg % "sbt" % sv % Provided.name) +: base
-      }
+      sbtBinaryVersion <<= Keys.sbtVersion apply CrossVersion.binarySbtVersion
     )
 
   def SbtRemoteControlProject(name: String): Project = (
-    Project("sbt-rc-" + name, file(name))
+    Project(name, file(name))
     settings(sbtrcDefaults:_*)
   )
 
   def SbtProbeProject(name: String, sbtVersion: String): Project = {
-    val sbtBinaryVersion = CrossVersion.binarySbtVersion(sbtVersion)
+    val sbtBinaryVersion = Dependencies.crossSbtVersion(sbtVersion)
     val scrubNameForId =
       sbtBinaryVersion.replaceAll("""[\W+\-]""", "-")
     (
-      Project("sbt-rc-" + name + "-"+scrubNameForId, file("probe") / sbtBinaryVersion / name)
+      Project(name + "-"+scrubNameForId, file(name))
       settings(sbtrcDefaults:_*)
       settings(sbtProbeSettings(sbtVersion): _*)
     )
