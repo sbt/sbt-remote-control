@@ -23,13 +23,16 @@ object Dependencies {
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
   val sbt13Version = "0.13.0"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
+
+  // Make sure to update supported versions if Echo plugin version is changed
   val sbtEchoDefaultVersion = "0.1.0"
+  val sbt013EchoSupportedAkkaVersion = "2.2.1"
+  val sbt013EchoSupportedPlayVersion = "2.2.0"
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
   val sbtMainVersion = sbt13Version
   val akkaVersion = "2.2.0"
-
 
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
@@ -50,8 +53,6 @@ object Dependencies {
 
   val junitInterface       = "com.novocode" % "junit-interface" % "0.7"
   //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
-
-
 
   // Here we define dependencies for the shim/probe sections.
   def sbtControllerDeps(sbtVersion: String): Seq[ModuleID] = {
