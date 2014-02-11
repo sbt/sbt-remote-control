@@ -146,17 +146,16 @@ object PlaySupport {
     else origState
   }
 
-  def validPlayVersion(state: State, maxVersion: String): Boolean = {
+  def playVersion(state: State): Option[String] = {
+    PoorManDebug.trace("Checking for Play version.")
     val (_, classpath: Seq[Attributed[File]]) = Project.extract(state).runTask(Keys.dependencyClasspath in Compile, state)
-    classpath exists { f =>
-      val validPlay =
-        for {
-          id <- f.get(Keys.moduleID.key)
-          if id.organization == "com.typesafe.play"
-          if id.name contains "play"
-          if EchoSupport.convertVersionString(id.revision) <= EchoSupport.convertVersionString(maxVersion)
-        } yield true
-      validPlay getOrElse false
+    val maybeAkkaVersions = classpath map { file =>
+      for {
+        id <- file.get(Keys.moduleID.key)
+        if id.organization == "com.typesafe.play"
+        if id.name contains "play"
+      } yield id.revision
     }
+    maybeAkkaVersions.filter(_.isDefined).headOption.getOrElse(None)
   }
 }

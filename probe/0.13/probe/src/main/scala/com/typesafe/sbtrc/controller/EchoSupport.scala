@@ -32,14 +32,7 @@ object EchoSupport {
     PoorManDebug.trace("Checking if sbt-echo is enabled.")
     val extracted = Project.extract(state)
     val settings = extracted.session.mergeSettings
-    val supportsEcho = findEchoKey(EchoTracePort, settings).isDefined
-    val supportsAkka =
-      if (AkkaSupport.isAkkaProject(state)) AkkaSupport.validAkkaVersion(state, BuildInfo.supportedAkkaVersionSbt013)
-      else true
-    val supportsPlay =
-      if (isPlayProject(state)) PlaySupport.validPlayVersion(state, BuildInfo.supportedPlayVersionSbt013)
-      else true
-    supportsEcho && supportsAkka && supportsPlay
+    findEchoKey(EchoTracePort, settings).isDefined
   }
 
   def installEchoSupport(origState: State, tracePort: Option[Int]): State = {
@@ -62,27 +55,34 @@ object EchoSupport {
 
   def getEchoShims(state: State): Seq[ShimWriter] = {
     // TODO - Detect play/akka by project.
-    val isPlay = isPlayProject(state)
-    val isAkka = AkkaSupport.isAkkaProject(state)
+    val playSupported = PlaySupport.playVersion(state) map { version =>
+      val ok = VersionCompare(version, BuildInfo.supportedPlayVersionSbt013) <= 0
+      PoorManDebug.trace("Play version " + version + " required for Atmos " + BuildInfo.supportedPlayVersionSbt013 + " supported=" + ok)
+      ok
+    } getOrElse false
+    val akkaSupported = AkkaSupport.akkaVersion(state) map { version =>
+      val ok = VersionCompare(version, BuildInfo.supportedAkkaVersionSbt013) <= 0
+      PoorManDebug.trace("Akka version " + version + " required for Atmos " + BuildInfo.supportedAkkaVersionSbt013 + " supported=" + ok)
+      ok
+    } getOrElse false
+
     // TODO - When we have the latest echo plugin we can include the build shim
     // TODO - We need a shim to turn off the echoBuildShim if an akka project migrates to play...
-    if (isPlay) {
+    if (playSupported && akkaSupported) {
       PoorManDebug.trace("Play+Echo hooks are needed.")
       Seq(echoPlayPluginShim, echoPlayBuildShim,
         // When installing Play support, make sure we delete Akka support,
         // or things get wonky.
         echoAkkaBuildDeleteShim, echoPluginDeleteShim)
-    } else if (isAkka) {
+    } else if (akkaSupported) {
       PoorManDebug.trace("Akka+Echo hooks are needed.")
       // We have to also delete Play echo support if migrating from
       // play -> just akka.
       Seq(echoPluginShim, echoAkkaBuildShim,
         echoPlayPluginDeleteShim, echoPlayBuildDeleteShim)
-    } else Nil
-  }
-
-  def convertVersionString(version: String): Int = {
-    val index = if (version.contains("-")) version.indexOf("-") else version.length
-    version.substring(0, index).replace(".", "").toInt
+    } else {
+      PoorManDebug.trace("No Echo hooks are needed.")
+      Nil
+    }
   }
 }

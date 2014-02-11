@@ -150,18 +150,4 @@ object PlaySupport {
     if (isPlayProject(origState)) installHooks(origState, ui)
     else origState
   }
-
-  def validPlayVersion(state: State, maxVersion: String): Boolean = {
-    val (_, classpath: Seq[Attributed[File]]) = Project.extract(state).runTask(Keys.dependencyClasspath in Compile, state)
-    classpath exists { f =>
-      val validPlay =
-        for {
-          id <- f.get(Keys.moduleID.key)
-          if id.organization == "com.typesafe.play"
-          if id.name contains "play"
-          if EchoSupport.convertVersionString(id.revision) <= EchoSupport.convertVersionString(maxVersion)
-        } yield true
-      validPlay getOrElse false
-    }
-  }
 }
