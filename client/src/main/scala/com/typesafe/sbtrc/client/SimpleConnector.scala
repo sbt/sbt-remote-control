@@ -70,11 +70,13 @@ class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtCon
     if (reconnecting) connectToSbt()
   }
 
-  def close(): Unit = synchronized {
-    reconnecting = false
+  def close(): Unit = {
+    synchronized { reconnecting = false }
     currentClient foreach (_.close())
-    currentClient = None
-    // TODO - Is this the right way to go?
-    listeners = Nil
+    synchronized {
+      currentClient = None
+      // TODO - Is this the right way to go?
+      listeners = Nil
+    }
   }
 }

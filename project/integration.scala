@@ -48,22 +48,26 @@ object integration {
   def handleResults(results: Seq[IntegrationTestResult], out: TaskStreams): Unit = {
     // TODO - Only colorize if we're in ANSI terminal.
     out.log.info(scala.Console.BLUE + " --- Integration Test Report ---" + scala.Console.BLUE_B)
-    val maxName = results.map(_.name.length).max
-    def padName(name: String): String = {
-      val pad = Stream.continually(' ').take(maxName - name.length).mkString("")
-      pad + name
-    }
-    for(result <- results.sortBy(r => r.passed + r.name)) {
-      val resultString =
-        if(result.passed) "[ " + scala.Console.GREEN + "PASSED"+ scala.Console.RESET +" ]"
-        else              "[ " + scala.Console.RED + "FAILED"+ scala.Console.RESET +" ]"
-      val seeString =
-        if(result.passed) ""
-        else (" see " + result.log.getAbsolutePath+scala.Console.RESET)
-      out.log.info(" * " + padName(result.name) + " " + resultString + seeString)
-    }
-    if(results.exists(!_.passed)) {
-      sys.error("Failing integration tests!")
+    if(results.isEmpty) {
+      out.log.info("  NO TESTS FOUND")
+    } else {
+      val maxName = results.map(_.name.length).max
+      def padName(name: String): String = {
+        val pad = Stream.continually(' ').take(maxName - name.length).mkString("")
+        pad + name
+      }
+      for(result <- results.sortBy(r => r.passed + r.name)) {
+        val resultString =
+          if(result.passed) "[ " + scala.Console.GREEN + "PASSED"+ scala.Console.RESET +" ]"
+          else              "[ " + scala.Console.RED + "FAILED"+ scala.Console.RESET +" ]"
+        val seeString =
+          if(result.passed) ""
+          else (" see " + result.log.getAbsolutePath+scala.Console.RESET)
+        out.log.info(" * " + padName(result.name) + " " + resultString + seeString)
+      }
+      if(results.exists(!_.passed)) {
+        sys.error("Failing integration tests!")
+      }
     }
   }
 }
@@ -141,7 +145,7 @@ case class IntegrationContext(launchJar: File,
        |
        |[app]
        |  org: com.typesafe.sbtrc
-       |  name: sbt-rc-integration-tests
+       |  name: integration-tests
        |  version: %s
        |  class: %s
        |  cross-versioned: false

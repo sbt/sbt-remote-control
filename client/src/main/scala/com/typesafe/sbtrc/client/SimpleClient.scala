@@ -48,6 +48,9 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
   // TODO - Implement
   def close(): Unit = {
     running = false
+    // Here we force the client to close so it interrupts the read thread and we can kill the process, otherwise we may
+    // never stop in any reasonable time.
+    client.close()
     thread.join()
   }
 

@@ -66,7 +66,8 @@ object IvyRepositories {
     val withStaleCheck: Initialize[Task[Option[T]]] =
       loadPrevious(key).zipWith(staleCheck) { (previous, staleCheck) =>
         staleCheck flatMap { flag =>
-          if(flag) task(None) else previous
+          if(flag) task(None) 
+          else previous
         }
       }
     withStaleCheck.zipWith(action) { (previous, current) =>
@@ -85,15 +86,10 @@ object IvyRepositories {
   }
 
   def hasLocalDepRepoChanged: Initialize[Task[Boolean]] = {
-    loadPrevious(localDepRepoCreation).zip(localDepRepo).zipWith(localRepoArtifacts) { case ((task, file), arts) =>
-      task map {
+    loadPrevious(localDepRepoCreation).zip(localDepRepo).zipWith(localRepoArtifacts) { case ((previous, file), arts) =>
+      previous map {
         case Some(report) =>
-          task map {
-            case Some(previous) =>
-              !file.exists || (previous.dependencyHash != makeDephash(arts))
-            case None => true
-          }
-          false
+          !file.exists || (report.dependencyHash != makeDephash(arts))
         case _ => true
       }
     }
