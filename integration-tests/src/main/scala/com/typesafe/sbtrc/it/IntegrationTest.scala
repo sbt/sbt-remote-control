@@ -1,6 +1,11 @@
 package com.typesafe.sbtrc
 package it
 
+import sbt.client._
+import com.typesafe.sbtrc.client.{
+  SimpleConnector,
+  SimpleLocator
+}
 //import akka.actor.ActorSystem
 /** Base class for integration tests. */
 abstract class IntegrationTest extends DelayedInit with xsbti.AppMain {
