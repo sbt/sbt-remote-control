@@ -77,14 +77,19 @@ trait SbtClientTest extends IntegrationTest {
         // TODO - This is the wait time for us to connect to an sbt client....
         concurrent.Await.result(task.future, defaultTimeout).run()
     }
+    val newHandler: SbtClient => Unit = { client =>
+
+      (client handleEvents {
+        case sbt.protocol.LogEvent(msg) => System.out.println(msg)
+        case _ =>
+      })(concurrent.ExecutionContext.global)
+      f(client)
+    }
+    // TODO - We may want to connect to the sbt server and dump debugging information/logs.
     val subscription = (connector onConnect f)(runOneThingExecutor)
     // Block current thread until we can run the test.
     try runOneThingExecutor.runWhenReady()
-    finally {
-      println("Closing sbt connection.")
-      connector.close()
-    }
-    println("Done with test!")
+    finally connector.close()
   }
 
   lazy val utils = new TestUtil(new java.io.File("scratch"))
