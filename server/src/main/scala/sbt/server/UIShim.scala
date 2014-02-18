@@ -5,9 +5,10 @@ import play.api.libs.json.{ Format, JsValue }
 
 private[server] class ServerUIContext(state: ServerState) extends AbstractUIContext {
 
-  private def withClient[A](state: ServerState)(f: LiveClient => A): Option[A] = {
+  private def withClient[A](state: ServerState)(f: (Long, LiveClient) => A): Option[A] = {
     state.lastCommand match {
-      case Some(LastCommand(_, serial, client)) => Some(f(client))
+      // TODO - Send serial back with message
+      case Some(LastCommand(_, serial, client)) => Some(f(serial, client))
       case _ => None
     }
   }
@@ -18,12 +19,12 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
   // TODO - Figure out how to block on input from server
   def readLine(prompt: String, mask: Boolean): Option[String] =
     // TODO - Timeouts error handling....
-    withClient(state) { client =>
-      waitForever(client.readLine(prompt, mask))
+    withClient(state) { (serial, client) =>
+      waitForever(client.readLine(serial, prompt, mask))
     }.getOrElse(throw new java.io.IOException("No clients listening to readLine request."))
   def confirm(msg: String): Boolean =
-    withClient(state) { client =>
-      waitForever(client.confirm(msg))
+    withClient(state) { (serial, client) =>
+      waitForever(client.confirm(serial, msg))
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 

@@ -41,10 +41,10 @@ case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
 // This is what concrete implementations implement.
 abstract class LiveClient extends SbtClient {
   /** requests a line of input from the client.  This will return sometime in the future. */
-  def readLine(prompt: String, mask: Boolean): Future[Option[String]]
+  def readLine(replyTo: Long, prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */
-  def confirm(msg: String): Future[Boolean]
-  def reply[T: Format](serial: Long, msg: T): Unit
+  def confirm(replyTo: Long, msg: String): Future[Boolean]
+  def reply[T: Format](replyTo: Long, msg: T): Unit
 }
 
 case class KeyValueClientListener[T](

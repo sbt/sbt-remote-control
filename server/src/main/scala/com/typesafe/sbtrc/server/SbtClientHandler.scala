@@ -87,10 +87,10 @@ class SbtClientHandler(
     log.log(s"Sending reply to client $id: $msg")
     if (isAlive) ipc.replyJson(serial, msg)
   }
-  def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
-    interactionManager.readLine(prompt, mask)
-  def confirm(msg: String): concurrent.Future[Boolean] =
-    interactionManager.confirm(msg)
+  def readLine(replyTo: Long, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+    interactionManager.readLine(replyTo, prompt, mask)
+  def confirm(replyTo: Long, msg: String): concurrent.Future[Boolean] =
+    interactionManager.confirm(replyTo, msg)
 
   object interactionManager {
     private var readLineRequests: Map[Long, Promise[Option[String]]] = Map.empty
@@ -105,11 +105,11 @@ class SbtClientHandler(
         case None => // TODO - error
       }
     }
-    def readLine(prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+    def readLine(replyTo: Long, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
       synchronized {
         val result = promise[Option[String]]
-        val serial = ipc.sendJson(ReadLineRequest(prompt, mask))
-        readLineRequests += serial -> result
+        val newSerial = ipc.replyJson(replyTo, ReadLineRequest(prompt, mask))
+        readLineRequests += newSerial -> result
         result.future
       }
     def lineRead(serial: Long, line: Option[String]): Unit =
@@ -119,11 +119,11 @@ class SbtClientHandler(
           case None => // TODO - log error?
         }
       }
-    def confirm(msg: String): concurrent.Future[Boolean] =
+    def confirm(replyTo: Long, msg: String): concurrent.Future[Boolean] =
       synchronized {
         val result = promise[Boolean]
-        val serial = ipc.sendJson(ConfirmRequest(msg))
-        confirmRequests += serial -> result
+        val newSerial = ipc.replyJson(replyTo, ConfirmRequest(msg))
+        confirmRequests += newSerial -> result
         result.future
       }
 
