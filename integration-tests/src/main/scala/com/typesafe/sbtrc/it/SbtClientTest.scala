@@ -78,15 +78,14 @@ trait SbtClientTest extends IntegrationTest {
         concurrent.Await.result(task.future, defaultTimeout).run()
     }
     val newHandler: SbtClient => Unit = { client =>
-
+      // TODO - better error reporting than everything.
       (client handleEvents {
-        case sbt.protocol.LogEvent(msg) => System.out.println(msg)
-        case _ =>
+        msg => System.out.println(msg)
       })(concurrent.ExecutionContext.global)
       f(client)
     }
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
-    val subscription = (connector onConnect f)(runOneThingExecutor)
+    val subscription = (connector onConnect newHandler)(runOneThingExecutor)
     // Block current thread until we can run the test.
     try runOneThingExecutor.runWhenReady()
     finally connector.close()

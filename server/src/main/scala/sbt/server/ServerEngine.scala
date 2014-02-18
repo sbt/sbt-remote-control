@@ -78,7 +78,7 @@ abstract class ServerEngine {
     val nextState = serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionDone(command.command))
-        command.client.reply(command.serial, RequestCompleted())
+        command.client.reply(command.replyTo, RequestCompleted())
         BuildStructureCache.update(state)
       case None => state
     }
