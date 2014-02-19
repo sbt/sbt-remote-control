@@ -21,11 +21,19 @@ trait SbtClientTest extends IntegrationTest {
   // TODO - load from config
   def defaultTimeout = concurrent.duration.Duration(60, java.util.concurrent.TimeUnit.SECONDS)
 
-  def testingLocator: LaunchedSbtServerLocator = new LaunchedSbtServerLocator {
+  def testingLocator(globalDir: File): LaunchedSbtServerLocator = new LaunchedSbtServerLocator {
     // TODO - Do we care if the version for this directory is different?
     def sbtProperties(directory: File): URL =
       rewrittenPropsUrl
 
+    lazy val propsFile: File = {
+      val tmp = java.io.File.createTempFile("sbt-server", "properties")
+      tmp.deleteOnExit()
+      sbt.IO.write(tmp, s"sbt.global.base=${globalDir.toString}")
+      tmp
+    }
+
+    // Rewrites boot properties for debugging.
     lazy val rewrittenPropsUrl: URL = {
       val tmp = java.io.File.createTempFile("sbt-server", "properties")
       val existing = getClass.getClassLoader.getResource("sbt-server.properties")
@@ -49,9 +57,17 @@ trait SbtClientTest extends IntegrationTest {
       }
     }
 
+    // TODO - We also need to rewrite the line about the boot directory to use our boot directory.
     private def makeNewLaunchProperties(old: List[String]): List[String] = {
       val header = old.takeWhile(line => !line.contains("[repositories]"))
-      val tail = old.dropWhile(line => !line.contains("[boot]"))
+      val tail = old.dropWhile(line => !line.contains("[boot]")).map {
+        // TODO - did we get all the overrides we need?
+        case x if x contains "directory:" => s"  directory: ${configuration.provider.scalaProvider.launcher.bootDirectory.toString}"
+        case x if x contains "ivy-home:" => s"  ivy-home: ${configuration.provider.scalaProvider.launcher.ivyHome.toString}"
+        case x if x contains "override-build-repos:" => "override-build-repos: true"
+        case x if x contains "jvmprops:" => s"jvmprops: ${propsFile.toString}"
+        case x => x
+      }
       header ++ ("[repositories]" :: repositories) ++ List("") ++ tail
     }
   }
@@ -63,7 +79,7 @@ trait SbtClientTest extends IntegrationTest {
   final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
-    val connector = new SimpleConnector(projectDirectory, testingLocator)
+    val connector = new SimpleConnector(projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]
@@ -82,7 +98,8 @@ trait SbtClientTest extends IntegrationTest {
       (client handleEvents {
         msg => System.out.println(msg)
       })(concurrent.ExecutionContext.global)
-      f(client)
+      try f(client)
+      finally client.requestExecution("exit", None) // TODO - Will this shut down the server?
     }
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
     val subscription = (connector onConnect newHandler)(runOneThingExecutor)
