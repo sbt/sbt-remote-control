@@ -26,7 +26,8 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |   contex match {
        |     case Some(ctx) =>
        |       if(!ctx.confirm("test-confirm")) sys.error("COULD NOT CONFIRM TEST!")
-       |       if(ctx.readLine("> ", false) != "test-line") sys.error("COULD NOT READ LINE!")
+       |       val line = ctx.readLine("> ", false)
+       |       if(line != Some("test-line")) sys.error("COULD NOT READ LINE! - Got " + line)
        |       ()
        |     // This happens if server isn't loaded.
        |     case None => sys.error("NO UI CONTEXT DEFINED!")
@@ -39,9 +40,10 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     import concurrent.ExecutionContext.global
     object interaction extends Interaction {
       def readLine(prompt: String, mask: Boolean): Option[String] = Some("test-line")
-      def confirm(msg: String): Boolean =
+      def confirm(msg: String): Boolean = {
         if (msg == "test-confirm") true
         else false
+      }
     }
     val taskResult = concurrent.promise[Boolean]
     (client handleEvents {

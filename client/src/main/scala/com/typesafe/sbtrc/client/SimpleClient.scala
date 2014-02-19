@@ -124,17 +124,17 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           requestHandler.completed(requestSerial)
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
           requestHandler.error(requestSerial, msg)
-        case protocol.Envelope(request, requestSerial, protocol.ReadLineRequest(prompt, mask)) =>
-          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(requestSerial, prompt, mask)))
+        case protocol.Envelope(request, replyTo, protocol.ReadLineRequest(prompt, mask)) =>
+          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(replyTo, prompt, mask)))
           catch {
             case NoInteractionException =>
-              client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
           }
-        case protocol.Envelope(request, requestSerial, protocol.ConfirmRequest(msg)) =>
-          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(requestSerial, msg)))
+        case protocol.Envelope(request, replyTo, protocol.ConfirmRequest(msg)) =>
+          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(replyTo, msg)))
           catch {
             case NoInteractionException =>
-              client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
           }
         case protocol.Envelope(_, requestSerial, r: protocol.Request) =>
           client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: " + r.simpleName))

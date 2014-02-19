@@ -55,17 +55,20 @@ class SbtClientHandler(
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
       Envelope(ipc.receive()) match {
-        case Envelope(serial, _, msg: Request) =>
+        case Envelope(serial, replyTo, msg: Request) =>
           log.log(s"Got request: $msg")
           reply(serial, sbt.protocol.ReceivedResponse())
           val request = ServerRequest(SbtClientHandler.this, serial, msg)
           msgHandler(request)
         case Envelope(_, replyTo, msg: ConfirmResponse) =>
+          log.log(s"Response: $replyTo - $msg")
           interactionManager.confirmed(replyTo, msg.confirmed)
         case Envelope(_, replyTo, msg: ReadLineResponse) =>
+          log.log(s"Response: $replyTo - $msg")
           interactionManager.lineRead(replyTo, msg.line)
         case Envelope(_, replyTo, msg: ErrorResponse) =>
           // TODO - other notifications?
+          log.log(s"Response: $replyTo - $msg")
           interactionManager.error(replyTo, msg.error)
         case Envelope(_, _, msg) =>
           sys.error("Unable to handle client request: " + msg)

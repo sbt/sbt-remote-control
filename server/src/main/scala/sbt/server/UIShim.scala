@@ -8,7 +8,7 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
   private def withClient[A](state: ServerState)(f: (Long, LiveClient) => A): Option[A] = {
     state.lastCommand match {
       // TODO - Send serial back with message
-      case Some(LastCommand(_, serial, client)) => Some(f(serial, client))
+      case Some(LastCommand(_, replyTo, client)) => Some(f(replyTo, client))
       case _ => None
     }
   }
@@ -19,12 +19,13 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
   // TODO - Figure out how to block on input from server
   def readLine(prompt: String, mask: Boolean): Option[String] =
     // TODO - Timeouts error handling....
-    withClient(state) { (serial, client) =>
-      waitForever(client.readLine(serial, prompt, mask))
+    withClient(state) { (replyTo, client) =>
+      waitForever(client.readLine(replyTo, prompt, mask))
     }.getOrElse(throw new java.io.IOException("No clients listening to readLine request."))
   def confirm(msg: String): Boolean =
-    withClient(state) { (serial, client) =>
-      waitForever(client.confirm(serial, msg))
+    withClient(state) { (replyTo, client) =>
+      System.out.println(s"Asking client($client) to confirm on request: $replyTo, $msg")
+      waitForever(client.confirm(replyTo, msg))
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 
