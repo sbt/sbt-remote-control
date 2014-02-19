@@ -140,9 +140,9 @@ case class RequestCompleted() extends Response
 
 
 case class ReadLineRequest(prompt: String, mask: Boolean) extends Request
-case class ReadLineResponse(line: Option[String]) extends Request
+case class ReadLineResponse(line: Option[String]) extends Response
 case class ConfirmRequest(message: String) extends Request
-case class ConfirmResponse(confirmed: Boolean) extends Request
+case class ConfirmResponse(confirmed: Boolean) extends Response
 
 
 sealed trait TestOutcome {

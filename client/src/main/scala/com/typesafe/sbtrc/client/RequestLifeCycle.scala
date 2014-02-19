@@ -32,11 +32,12 @@ private[client] class InteractionHelper(i: Interaction, ex: ExecutionContext) ex
   private def withExecutionContext[A](f: => A): A = {
     val result = promise[A]
     ex.prepare.execute(new Runnable {
-      def run(): Unit =
+      def run(): Unit = {
         try result.success(f)
         catch {
           case NonFatal(e) => result.failure(e)
         }
+      }
     })
     Await.result(result.future, Inf)
   }
@@ -66,15 +67,18 @@ private[client] class RequestHandler {
     withRequest(serial) { request =>
       request.interaction.confirm(message)
     }
-  def error(serial: Long, msg: String): Unit =
+  def error(serial: Long, msg: String): Unit = {
+    System.err.println("Request errored: " + serial)
     finishRequest(serial)(_.error(msg))
+  }
   def accepted(serial: Long): Unit =
     try withRequest(serial)(_.accepted())
     catch {
       case e: RequestNotFound =>
     }
-  def completed(serial: Long): Unit =
+  def completed(serial: Long): Unit = {
     finishRequest(serial)(identity)
+  }
 
   private def withRequest[A](serial: Long)(f: RequestLifecycle => A): A =
     synchronized {
