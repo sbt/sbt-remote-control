@@ -23,6 +23,7 @@ import sbt.protocol._
 class ReadOnlyServerEngine(
   queue: BlockingQueue[ServerRequest],
   nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
+  // TODO - We should have a log somewhere to store events.
   @volatile
   private var serverState = ServerState()
   private val running = new AtomicBoolean(true)
@@ -37,8 +38,15 @@ class ReadOnlyServerEngine(
 
   override def run() {
     while (running.get && nextStateRef.get == null) {
-      val ServerRequest(client, serial, request) = queue.take
-      handleRequestsNoBuildState(client, serial, request)
+      // here we poll, on timeout we check to see if we have build state yet.
+      // We give at least one second for loading the build before timing out.
+      // TODO - Configurable timeout.
+      // TODO - Perhaps a non-blocking mechanism here...
+      queue.poll(1, java.util.concurrent.TimeUnit.SECONDS) match {
+        case null => () // Ignore.
+        case ServerRequest(client, serial, request) =>
+          handleRequestsNoBuildState(client, serial, request)
+      }
     }
     // Now we flush through all the events we had.
     if (running.get) {
@@ -50,6 +58,9 @@ class ReadOnlyServerEngine(
     }
     // Now we just run with the initialized build.
     while (running.get) {
+      // Here we can block on requests, because we have cached
+      // build state and no longer have to see if the sbt command
+      // loop is started.
       val ServerRequest(client, serial, request) = queue.take
       handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
     }
@@ -72,6 +83,7 @@ class ReadOnlyServerEngine(
       case req: ExecutionRequest =>
         commandQueue.add(ServerRequest(client, serial, request))
       case _ =>
+        System.out.println("Deferring request: " + request)
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
     }
@@ -81,8 +93,9 @@ class ReadOnlyServerEngine(
         client.send(NowListeningEvent)
         updateState(_.addEventListener(client))
       case ListenToBuildChange() =>
-        BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
+        System.out.println("Handling build structure from: " + client)
         updateState(_.addBuildListener(client))
+        BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
       case ListenToValue(key) =>
