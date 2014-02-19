@@ -10,7 +10,7 @@ import concurrent.Await
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
-  val dummy = utils.makeDummySbtProject("test", "0.13.1")
+  val dummy = utils.makeDummySbtProject("test")
 
   withSbt(dummy) { client =>
     val build = concurrent.promise[MinimalBuildStructure]
