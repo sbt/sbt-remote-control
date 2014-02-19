@@ -11,7 +11,7 @@ import sbt.protocol
  * This class implements the core sbt engine.   We delegate all behavior down to a single
  * threaded sbt execution engine.
  */
-class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) extends ServerEngine with xsbti.Server {
+class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) extends xsbti.Server {
 
   override val uri: java.net.URI = {
     val port = socket.getLocalPort
@@ -26,33 +26,16 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   // Create the helper which will handle socket requests.
   private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest)
 
-  override final def takeNextRequest: ServerRequest = {
-    // TODO - Flush a bunch of events and merge/drop
-    queue.take
-  }
-
-  override final def takeAllEventListenerRequests: Seq[ServerRequest] = {
-    import collection.JavaConverters._
-    val buf = new java.util.ArrayList[ServerRequest]
-    queue.drainTo(buf)
-
-    val (listeners, other) =
-      buf.asScala.partition {
-        case ServerRequest(_, _, protocol.ListenToEvents()) => true
-        case _ => false
-      }
-    // TODO - make sure this is done correctly
-    other.reverse.foreach(queue.addFirst)
-    listeners
-  }
-
-  // TODO - Construct our engine, and then start handling events on some thread.
-  private val thread = new Thread("sbt-server-main") {
+  private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
+  private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
+  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineQueue, stateRef)
+  // TODO - Maybe the command engine should extend thread too?
+  private val commandEngineThread = new Thread("sbt-server-command-loop") {
     override def run(): Unit = {
       val originOut = System.out
       val originErr = System.err
       // TODO - Timeouts that lead to us shutting down the server.
-      try execute(configuration)
+      try commandEngine.execute(configuration)
       catch {
         case e: Throwable =>
           e.printStackTrace(originErr)
@@ -64,10 +47,13 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     }
   }
   // TODO - just start automatically?
-  def start(): Unit = thread.start()
+  def start(): Unit = {
+    eventEngine.start()
+    commandEngineThread.start()
+  }
   override def awaitTermination(): xsbti.MainResult = {
     // Wait for the server to stop, then exit.
-    thread.join()
+    commandEngineThread.join()
     // TODO - We should allow the server to tell us to reboot.
     Exit(0)
   }
