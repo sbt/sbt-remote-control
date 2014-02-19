@@ -23,6 +23,10 @@ class CanLoadSimpleProject extends SbtClientTest {
        | }
        |""".stripMargin)
 
+  sbt.IO.write(new java.io.File(dummy, "src/main/scala/error.scala"),
+
+    """object Foo(x: String)""".stripMargin)
+
   withSbt(dummy) { client =>
     val build = concurrent.promise[MinimalBuildStructure]
     import concurrent.ExecutionContext.Implicits.global
@@ -54,6 +58,18 @@ class CanLoadSimpleProject extends SbtClientTest {
     waitWithError(stdoutCaptured.future, "Unable to read known stdout lines from server")
     waitWithError(stderrCaptured.future, "Unable to read known stderr lines from server")
     waitWithError(logInfoCaptured.future, "Unable to read known log info lines from server")
+    stdoutSub.cancel()
+
+    // Now we check compilation failure messages
+    val compileErrorCaptured = concurrent.promise[CompilationFailure]
+    val compileErrorSub = (client handleEvents {
+      case x: CompilationFailure =>
+        compileErrorCaptured.success(x)
+      case _ =>
+    })(global)
+    client.requestExecution("compile", None)
+    val error = waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
+    assert(error.severity == xsbti.Severity.Error, "Failed to capture appropriate error.")
   }
 
 }
