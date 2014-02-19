@@ -4,6 +4,7 @@ package client
 import xsbti.{ AppMain, AppConfiguration }
 import scala.concurrent.ExecutionContext
 import sbt.client.{
+  Interaction,
   SbtClient,
   RemoteKeys,
   RemoteConfigurations
@@ -25,6 +26,26 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     def reportFailure(t: Throwable): Unit = ()
   }
   val inStream = new java.io.BufferedReader(new java.io.InputStreamReader(System.in))
+
+  object TerminalInteraction extends Interaction {
+    def readLine(prompt: String, mask: Boolean): Option[String] = {
+      val maskChar = if (mask) Some('*') else None
+      sbt.SimpleReader.readLine(prompt, maskChar)
+    }
+
+    def confirm(msg: String): Boolean = {
+      object Assent {
+        def unapply(in: String): Boolean = {
+          (in == "y" || in == "yes")
+        }
+      }
+      sbt.SimpleReader.readLine(msg + " (yes/no): ", None) match {
+        case Some(Assent()) => true
+        case _ => false
+      }
+    }
+  }
+
   case class TakeNextCommand(client: SbtClient, reader: JLine) extends Runnable {
     override final def run(): Unit = try {
       reader.readLine("> ", None) match {
@@ -39,7 +60,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           }
           // TODO - We want to wait to schedule the next execution until after this
           // command is done...
-          client.requestExecution(line, None)
+          client.requestExecution(line, Some(TerminalInteraction -> concurrent.ExecutionContext.global))
           executionDone.future.onComplete { _ =>
             registration.cancel()
             schedule(this)
