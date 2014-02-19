@@ -21,6 +21,14 @@ trait SbtClientTest extends IntegrationTest {
   // TODO - load from config
   def defaultTimeout = concurrent.duration.Duration(60, java.util.concurrent.TimeUnit.SECONDS)
 
+  /** helper to add error messages when waiting for results and timeouts occur. */
+  def waitWithError[T](awaitable: scala.concurrent.Awaitable[T], msg: String): T = {
+    try scala.concurrent.Await.result(awaitable, defaultTimeout)
+    catch {
+      case e: java.util.concurrent.TimeoutException => sys.error(msg)
+    }
+  }
+
   def testingLocator(globalDir: File): LaunchedSbtServerLocator = new LaunchedSbtServerLocator {
     // TODO - Do we care if the version for this directory is different?
     def sbtProperties(directory: File): URL =
