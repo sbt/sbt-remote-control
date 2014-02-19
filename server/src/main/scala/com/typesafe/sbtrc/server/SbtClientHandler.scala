@@ -104,7 +104,11 @@ class SbtClientHandler(
     def error(serial: Long, msg: String): Unit = synchronized {
       (readLineRequests get serial) orElse (confirmRequests get serial) match {
         // TODO - Custom exception.
-        case Some(x: Promise[_]) => x.failure(new RuntimeException(msg))
+        case Some(x: Promise[_]) =>
+          x.failure(new RuntimeException(msg))
+          // Now clean out the request handler
+          readLineRequests -= serial
+          confirmRequests -= serial
         case None => // TODO - error
       }
     }
@@ -118,7 +122,10 @@ class SbtClientHandler(
     def lineRead(serial: Long, line: Option[String]): Unit =
       synchronized {
         readLineRequests get serial match {
-          case Some(promise) => promise.success(line)
+          case Some(promise) =>
+            promise.success(line)
+            // Now clean out the request handler
+            readLineRequests -= serial
           case None => // TODO - log error?
         }
       }
@@ -133,7 +140,10 @@ class SbtClientHandler(
     def confirmed(serial: Long, value: Boolean): Unit =
       synchronized {
         confirmRequests get serial match {
-          case Some(promise) => promise.success(value)
+          case Some(promise) =>
+            promise.success(value)
+            // Now clean out the request handler
+            confirmRequests -= serial
           case None => // TODO - log error?
         }
       }

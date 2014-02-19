@@ -114,12 +114,7 @@ object Main3 extends App { println("Hello World 3") }
 }
 
 object TestUtil {
-  // TODO - hook this back up.
-  private val sbtVersionUsedToCompileTests = "0.13.0"
-  val sbt12TestVersion = "0.12.4"
-  val sbt13TestVersion = "0.13.0"
+  // TODO - hook this up to build in some fashion
+  val sbt13TestVersion = "0.13.1"
   def defaultSbtTestVersion = sbt13TestVersion
-
-  if (!(sbtVersionUsedToCompileTests == sbt12TestVersion || sbtVersionUsedToCompileTests == sbt13TestVersion))
-    throw new RuntimeException("One of the versions we use to test should probably be the one we build with just to save downloads")
 }
