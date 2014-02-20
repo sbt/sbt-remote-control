@@ -40,8 +40,6 @@ class ReadOnlyServerEngine(
     while (running.get && nextStateRef.get == null) {
       // here we poll, on timeout we check to see if we have build state yet.
       // We give at least one second for loading the build before timing out.
-      // TODO - Configurable timeout.
-      // TODO - Perhaps a non-blocking mechanism here...
       queue.poll(1, java.util.concurrent.TimeUnit.SECONDS) match {
         case null => () // Ignore.
         case ServerRequest(client, serial, request) =>
