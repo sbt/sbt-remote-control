@@ -9,7 +9,8 @@ private[client] class RequestLifecycle(val serial: Long, val interaction: Intera
   private val receivedPromise = concurrent.promise[Unit]
   val received = receivedPromise.future
   def error(msg: String): Unit = {
-    receivedPromise.failure(new RequestException(msg))
+    if (!receivedPromise.isCompleted)
+      receivedPromise.failure(new RequestException(msg))
   }
   def accepted(): Unit =
     receivedPromise.success(())
@@ -68,7 +69,6 @@ private[client] class RequestHandler {
       request.interaction.confirm(message)
     }
   def error(serial: Long, msg: String): Unit = {
-    System.err.println("Request errored: " + serial)
     finishRequest(serial)(_.error(msg))
   }
   def accepted(serial: Long): Unit =
