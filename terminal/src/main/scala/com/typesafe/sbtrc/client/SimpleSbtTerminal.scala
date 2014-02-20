@@ -20,9 +20,13 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     schedule(run)
   }
 
-  implicit object Context extends ExecutionContext {
-    def execute(runnable: Runnable): Unit =
-      schedule(runnable)
+  object ReadContext extends ExecutionContext {
+    def execute(runnable: Runnable): Unit = schedule(runnable)
+    def reportFailure(t: Throwable): Unit = ()
+  }
+
+  object RunOnSameThreadContext extends ExecutionContext {
+    def execute(runnable: Runnable): Unit = runnable.run()
     def reportFailure(t: Throwable): Unit = ()
   }
   val inStream = new java.io.BufferedReader(new java.io.InputStreamReader(System.in))
@@ -54,16 +58,16 @@ class SimpleSbtTerminal extends xsbti.AppMain {
         case Some(line) =>
           // Register for when the execution is done.
           val executionDone = concurrent.promise[Unit]
-          val registration = client.handleEvents {
+          val registration = (client.handleEvents {
             case protocol.ExecutionDone(`line`) => executionDone.success(())
             case _ =>
-          }
-          val started = client.requestExecution(line, Some(TerminalInteraction -> concurrent.ExecutionContext.global))
+          })(RunOnSameThreadContext)
+          val started = client.requestExecution(line, Some(TerminalInteraction -> ReadContext))
           // Here we wait for the result of both starting (or failure) and the completion of the command.
-          (started zip executionDone.future).onComplete { _ =>
+          ((started zip executionDone.future).onComplete { _ =>
             registration.cancel()
             schedule(this)
-          }
+          })(ReadContext)
       }
     } catch {
       case e: Exception =>
@@ -79,7 +83,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   override def run(configuration: AppConfiguration): xsbti.Exit = {
     System.out.println("Connecting to sbt...")
     val connector = new SimpleConnector(configuration.baseDirectory, SimpleLocator)
-    connector onConnect { client =>
+    (connector onConnect { client =>
       import concurrent.ExecutionContext.global
       // This guy should handle future execution NOT on our event loop, or we'll block.
       // Ideally, "same thread" execution context instead.
@@ -104,8 +108,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           // TODO - on stderr?
           reader.printLineAndRedrawPrompt(msg)
         case _ => ()
-      })(global)
-    }
+      })(RunOnSameThreadContext)
+    })(ReadContext)
 
     // Now we need to run....
     def loop(): Unit = {
