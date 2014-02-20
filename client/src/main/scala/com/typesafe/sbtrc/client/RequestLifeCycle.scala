@@ -9,7 +9,11 @@ private[client] class RequestLifecycle(val serial: Long, val interaction: Intera
   private val receivedPromise = concurrent.promise[Unit]
   val received = receivedPromise.future
   def error(msg: String): Unit = {
-    receivedPromise.failure(new RequestException(msg))
+    // Ignore if we cannot.  There's an issue currently with TWO possible messages, both correct,
+    // about a request.   The second message is about failure DURING execution, not ACCEPTING
+    // the message, which we want to move its code path elsewhere.
+    // TODO - We may be able to remove this now.
+    receivedPromise.tryFailure(new RequestException(msg))
   }
   def accepted(): Unit =
     receivedPromise.success(())
@@ -68,7 +72,6 @@ private[client] class RequestHandler {
       request.interaction.confirm(message)
     }
   def error(serial: Long, msg: String): Unit = {
-    System.err.println("Request errored: " + serial)
     finishRequest(serial)(_.error(msg))
   }
   def accepted(serial: Long): Unit =

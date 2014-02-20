@@ -6,6 +6,7 @@ import sbt.protocol.{ Envelope, Request, ConfirmRequest, ConfirmResponse, ReadLi
 import play.api.libs.json.Format
 import sbt.server.ServerRequest
 import concurrent.{ Promise, promise }
+import java.io.EOFException
 
 /**
  * This class represents an external client into the sbt server.
@@ -29,23 +30,29 @@ class SbtClientHandler(
       while (running.get) {
         try readNextMessage()
         catch {
+          case e: EOFException =>
+            log.log("Client closed!, shutting down.")
+            running.set(false)
           case e: Throwable =>
             // On any throwable, we'll shut down this connection as bad.
             log.error(s"Client $id had error, shutting down", e)
+            // TODO - Remove this.
             e.printStackTrace(System.err)
             running.set(false)
         }
       }
-      log.log(s"Stopping client.")
-      // Send the stopped message to this client
-      try send(sbt.protocol.Stopped)
-      catch {
-        case e: Exception =>
-          // We ignore any exception trying to stop things.
-          log.log(s"Error trying to stop this client: ${e.getMessage}")
+      if (!ipc.isClosed) {
+        log.log(s"Stopping client.")
+        // Send the stopped message to this client
+        try send(sbt.protocol.Stopped)
+        catch {
+          case e: Exception =>
+            // We ignore any exception trying to stop things.
+            log.log(s"Error trying to stop this client: ${e.getMessage}")
+        }
+        // It's ok to close this connection when we're done.
+        ipc.close()
       }
-      // It's ok to close this connection when we're done.
-      ipc.close()
       // Here we send a client disconnected message to the main sbt
       // engine so it stops using this client.
       msgHandler(ServerRequest(SbtClientHandler.this, 0L, sbt.protocol.ClientClosedRequest()))

@@ -4,20 +4,19 @@ package server
 import scala.util.matching.Regex
 import java.io.Writer
 import java.io.PrintWriter
+import java.util.concurrent.atomic.AtomicReference
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
 private[sbt] object EventLogger extends BasicLogger {
-  @volatile
-  private var client: SbtClient = NullSbtClient
-  @volatile
-  private var peer: Option[String => Unit] = None
+  private val client: AtomicReference[SbtClient] = new AtomicReference(NullSbtClient)
+  private val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
 
-  def updateClient(next: SbtClient): Unit = client = next
-  def updatePeer(f: String => Unit): Unit = peer = Some(f)
+  def updateClient(next: SbtClient): Unit = client.lazySet(next)
+  def updatePeer(f: String => Unit): Unit = peer.lazySet(Some(f))
 
   def send(entry: protocol.LogEntry): Unit = {
-    client.send(protocol.LogEvent(entry))
-    peer match {
+    client.get.send(protocol.LogEvent(entry))
+    peer.get match {
       case Some(f) => f(entry.message)
       case None => ()
     }
@@ -57,7 +56,8 @@ private[sbt] object EventLogger extends BasicLogger {
       val levelString = m.group("level")
       val message = m.group("message")
       Level(levelString) match {
-        case Some(level) => Some(protocol.LogMessage(level.toString, message))
+        // These messages are duplicated by the logger itself.
+        case Some(level) => Some(protocol.LogMessage(level.toString, "Read from stdout: " + message))
         case None => levelString match {
           case "success" => Some(protocol.LogSuccess(message))
           case _ => None
@@ -66,7 +66,9 @@ private[sbt] object EventLogger extends BasicLogger {
     } getOrElse {
       protocol.LogMessage(Level.Info.toString, line)
     }
-    send(entry)
+    // TODO - Figure out WHY these are being sent via system out and NULLIFY THEM.
+    //   it could be this whole mechanism is just uneeded.
+    //send(entry)
   }
 
   private val consoleBuf = new java.lang.StringBuilder()

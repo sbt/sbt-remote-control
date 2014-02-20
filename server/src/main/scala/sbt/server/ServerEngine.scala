@@ -11,59 +11,36 @@ import CommandStrings.InitCommand
 import sbt.Command
 import sbt.MainLoop
 import sbt.State
+import java.util.concurrent.atomic.AtomicReference
 
 case class ServerRequest(client: LiveClient, serial: Long, request: Request)
 
 /**
- * An abstract implementation of the sbt server engine that can be used by clients.  This makes no
+ * An implementation of the sbt command server engine that can be used by clients.  This makes no
  *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
  *  it can draw events *and* a thread it will own during the lifecycle of event processing.
+ *
+ *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
+ *  @param queue - The queue we consume server requests from.
  */
-abstract class ServerEngine {
-
-  /**
-   * This blocks the current thread looking for the next request to execute and returns it,
-   * or throws an exception if we're done.
-   */
-  def takeNextRequest: ServerRequest
-  /**
-   * This is used to grab all event listening requests in one blow when
-   *  we first start up, as most clients will send one immediately.
-   *
-   *  This should clean the queue of all event listening requests if possible.
-   */
-  def takeAllEventListenerRequests: Seq[ServerRequest]
-
-  // Set up the server with all the initial things we need to do.
-  final val InitializeServerState = "server-initialize-state"
-  final def initializeServerStateCommand = Command.command(InitializeServerState) { state =>
-    val eventListeners = takeAllEventListenerRequests collect {
-      case ServerRequest(client, _, ListenToEvents()) => client
-    }
-    val ss = (ServerState() /: eventListeners) { _ addEventListener _ }
-    System.out.println("Initial listeners = " + eventListeners)
-    ServerState.update(state, ss)
-    // TODO - Should we check to see if anyone is listening to build state yet?
-
-    // Here we want to register our error handler that handles build load failure.
-  }
+class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
-    // Notify everyone we're ready to start...
-    val serverState = ServerState.extract(state)
-    serverState.eventListeners.send(NowListeningEvent)
-
     // here we want to register our error handler that handles command failure.
-    installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
+    val newState = installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
+    // Notify server event loop of the build state
+    nextStateRef.lazySet(newState)
+    newState
   }
   final val HandleNextServerRequest = "server-handle-next-server-request"
   // TODO - Clean this guy up a bit
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
     // TODO - What todo with failure?  Maybe we just wait for the next request...
-    val ServerRequest(client, serial, request) = takeNextRequest
-    val next = handleRequest(client, serial, request, state)
+    val (serverState, ServerRequest(client, serial, request)) = queue.takeNextRequest
+    // here we inject the current serverState into the State object.
+    val next = handleRequest(client, serial, request, ServerState.update(state, serverState))
     // make sure we always read another server request after this one
     // TODO - CHeck to see if we're done...
     next.copy(remainingCommands = next.remainingCommands :+ PostCommandCleanup :+ HandleNextServerRequest)
@@ -71,9 +48,10 @@ abstract class ServerEngine {
 
   final val PostCommandCleanup = "server-post-command-cleanup"
   final def postCommandCleanupCommand = Command.command(PostCommandCleanup)(postCommandCleanup)
-  // TODO - Maybe this should be its own command...
-  // TODO - Maybe this should be called cleanupLastCommand?
   def postCommandCleanup(state: State): State = {
+    // Make sure we update the reference to state for read-only
+    // stuffs before handling our next request.
+    nextStateRef.lazySet(state)
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
@@ -87,64 +65,34 @@ abstract class ServerEngine {
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
-    // TODO - Is this error going to be useful?
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
-      case Some(LastCommand(command, serial, client)) =>
-        client.reply(serial, ErrorResponse("Unknown failure while running command: " + command))
-      // TODO - Should we be replacing the PostCommandCleanup stuff here?
+      case Some(LastCommand(command, replyTo, client)) =>
+        client.reply(replyTo, RequestFailed())
+        lastState.eventListeners.send(ExecutionFailure(command))
       case None => ()
     }
-    PostCommandCleanup :: HandleNextServerRequest :: state
+    // NOTE - we always need to re-register ourselves as the error handler.
+    val withErrorHandler = state.copy(onFailure = Some(PostCommandErrorHandler))
+    // Here we clear the last command so we don't report success in the next step.
+    val clearedCommand = ServerState.update(withErrorHandler, lastState.clearLastCommand)
+    PostCommandCleanup :: HandleNextServerRequest :: clearedCommand
   }
 
   def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {
     val serverState = ServerState.extract(state)
     request match {
-      case ListenToEvents() =>
-        // Immediately tell new clients we're ready to receive commands if they're listening
-        // for events.
-        client.send(NowListeningEvent)
-        ServerState.update(state, serverState.addEventListener(client))
-      // TODO - update global logging?
-      // TODO - Ack the server?
-      case ListenToBuildChange() =>
-        BuildStructureCache.addListener(state, client)
-      case ClientClosedRequest() =>
-        val serverState = ServerState.extract(state)
-        ServerState.update(state, serverState.disconnect(client))
       case ExecutionRequest(command) =>
         // TODO - Figure out how to run this and ack appropriately...
         command :: ServerState.update(state, serverState.withLastCommand(LastCommand(command, serial, client)))
-      case ListenToValue(key) =>
-        // TODO - We also need to get the value to send to the client...
-        //  This only registers the listener, but doesn't actually 
-        SbtToProtocolUtils.protocolToScopedKey(key, state) match {
-          case Some(key) =>
-            // Schedule the key to run as well as registering the key listener. 
-            val extracted = Project.extract(state)
-            extracted.showKey(key) :: ServerState.update(state, serverState.addKeyListener(client, key))
-          case None => // Issue a no such key error
-            client.reply(serial, ErrorResponse(s"Unable to find key: $key"))
-            state
-        }
-      // TODO - This may need to be in an off-band channel. We should be able to respond
-      // to these requests DURING another task execution....
-      case CommandCompletionsRequest(id, line, level) =>
-        val combined = state.combinedParser
-        val completions = complete.Parser.completions(combined, line, level)
-        def convertCompletion(c: complete.Completion): protocol.Completion =
-          protocol.Completion(
-            c.append,
-            c.display,
-            c.isEmpty)
-        client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
-        state
+      case other =>
+        // TODO - better error reporting here!
+        sys.error("Command loop unable to handle msg: " + other)
     }
   }
 
   /** This will load/launch the sbt execution engine. */
-  protected def execute(configuration: xsbti.AppConfiguration): Unit = {
+  def execute(configuration: xsbti.AppConfiguration): Unit = {
     import BasicCommands.early
     import BasicCommandStrings.runEarly
     import BuiltinCommands.{ initialize, defaults }
@@ -168,14 +116,13 @@ abstract class ServerEngine {
       initialState(FakeAppConfiguration(configuration),
         initialDefinitions = Seq(
           early,
-          initializeServerStateCommand,
           handleNextRequestCommand,
           sendReadyForRequests,
           postCommandCleanupCommand,
           postCommandErrorHandler) ++ BuiltinCommands.DefaultCommands,
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
-        preCommands = runEarly(InitCommand) :: runEarly(InitializeServerState) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
+        preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
     StandardMain.runManaged(state)
   }
 
