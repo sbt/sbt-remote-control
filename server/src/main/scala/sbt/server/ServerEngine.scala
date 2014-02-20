@@ -71,11 +71,13 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command, serial, client)) =>
+        // TODO - This should probably be an event, *NOT* a response...
         client.reply(serial, ErrorResponse("Unknown failure while running command: " + command))
       // TODO - Should we be replacing the PostCommandCleanup stuff here?
       case None => ()
     }
-    PostCommandCleanup :: HandleNextServerRequest :: state
+    // NOTE - we always need to re-register ourselves as the error handler.
+    PostCommandCleanup :: HandleNextServerRequest :: state.copy(onFailure = Some(PostCommandErrorHandler))
   }
 
   def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {
