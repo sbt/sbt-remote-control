@@ -50,6 +50,9 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     }
   }
 
+  // Implements a trampolining runnable that will read a line of input, pass that to the
+  // sbt server and wait for it to complete (successfully or otherwise) before registering
+  // itself to run again.
   case class TakeNextCommand(client: SbtClient, reader: JLine) extends Runnable {
     override final def run(): Unit = try {
       reader.readLine("> ", None) match {
@@ -60,6 +63,9 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           val executionDone = concurrent.promise[Unit]
           val registration = (client.handleEvents {
             case protocol.ExecutionDone(`line`) => executionDone.success(())
+            case protocol.ExecutionFailure(`line`) =>
+              // TODO - failure here?
+              executionDone.success(())
             case _ =>
           })(RunOnSameThreadContext)
           val started = client.requestExecution(line, Some(TerminalInteraction -> ReadContext))

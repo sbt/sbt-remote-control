@@ -106,7 +106,7 @@ class ReadOnlyServerEngine(
             updateState(_.addKeyListener(client, key))
             commandQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(key))))
           case None => // Issue a no such key error
-            client.reply(serial, ErrorResponse(s"Unable to find key: $key"))
+            client.reply(serial, KeyNotFound(key))
         }
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.

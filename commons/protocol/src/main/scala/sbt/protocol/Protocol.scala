@@ -40,6 +40,7 @@ sealed trait Event extends Message
 
 case class ExecutionRequest(command: String) extends Request
 case class ExecutionDone(command: String) extends Event
+case class ExecutionFailure(command: String) extends Event
 
 /**
  * @param id An identifier we'll receive when we get the list of completions.
@@ -72,7 +73,9 @@ case class ListenToEvents() extends Request
 
 case class ListenToBuildChange() extends Request
 
-case class ListenToValue(key: ScopedKey) extends Request 
+case class ListenToValue(key: ScopedKey) extends Request
+// This is issued if a request for a key value fails.
+case class KeyNotFound(key: ScopedKey) extends Event 
 
 /** This is a local internal message fired when a client connection is detected
  * to be closed.
@@ -137,6 +140,7 @@ case class ErrorResponse(error: String) extends Response
 /** A notification that a given request has been received. */
 case class ReceivedResponse() extends Response
 case class RequestCompleted() extends Response
+case class RequestFailed() extends Response
 
 
 case class ReadLineRequest(prompt: String, mask: Boolean) extends Request

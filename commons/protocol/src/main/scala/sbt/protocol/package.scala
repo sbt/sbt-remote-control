@@ -173,6 +173,7 @@ package object protocol {
   implicit val nowListeningFormat = emptyObjectFormat(NowListeningEvent)
   implicit val stoppedFormat = emptyObjectFormat(Stopped)
   implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
+  implicit val requestFailedFormat = emptyObjectFormat(RequestFailed())
   
   implicit object outcomeFormat extends Format[TestOutcome] {
     def writes(outcome: TestOutcome): JsValue =
@@ -184,10 +185,12 @@ package object protocol {
   implicit val testEventFormat = Json.format[TestEvent]     
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
   implicit val executionDoneFormat = Json.format[ExecutionDone]
+  implicit val executionFailureFormat = Json.format[ExecutionFailure]
   implicit val listenToEventsFormat = emptyObjectFormat(ListenToEvents())
   implicit val listenToBuildChangeFormat = emptyObjectFormat(ListenToBuildChange())
   implicit val buildStructureChangedFormat = Json.format[BuildStructureChanged]
   implicit val listenToValueFormat = Json.format[ListenToValue]
+  implicit val keyNotFoundFormat = Json.format[KeyNotFound]
   implicit val compilationFailureFormat = Json.format[CompilationFailure]
   implicit val taskStartedFormat = Json.format[TaskStarted]
   implicit val taskFinishedFormat = Json.format[TaskFinished]

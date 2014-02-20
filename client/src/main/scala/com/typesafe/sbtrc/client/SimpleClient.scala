@@ -122,6 +122,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           requestHandler.accepted(requestSerial)
         case protocol.Envelope(_, requestSerial, protocol.RequestCompleted()) =>
           requestHandler.completed(requestSerial)
+        case protocol.Envelope(_, requestSerial, protocol.RequestFailed()) =>
+          requestHandler.error(requestSerial, "unknown failure")
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
           requestHandler.error(requestSerial, msg)
         case protocol.Envelope(request, replyTo, protocol.ReadLineRequest(prompt, mask)) =>

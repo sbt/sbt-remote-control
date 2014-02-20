@@ -48,8 +48,6 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
 
   final val PostCommandCleanup = "server-post-command-cleanup"
   final def postCommandCleanupCommand = Command.command(PostCommandCleanup)(postCommandCleanup)
-  // TODO - Maybe this should be its own command...
-  // TODO - Maybe this should be called cleanupLastCommand?
   def postCommandCleanup(state: State): State = {
     // Make sure we update the reference to state for read-only
     // stuffs before handling our next request.
@@ -67,17 +65,18 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
-    // TODO - Is this error going to be useful?
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
-      case Some(LastCommand(command, serial, client)) =>
-        // TODO - This should probably be an event, *NOT* a response...
-        client.reply(serial, ErrorResponse("Unknown failure while running command: " + command))
-      // TODO - Should we be replacing the PostCommandCleanup stuff here?
+      case Some(LastCommand(command, replyTo, client)) =>
+        client.reply(replyTo, RequestFailed())
+        lastState.eventListeners.send(ExecutionFailure(command))
       case None => ()
     }
     // NOTE - we always need to re-register ourselves as the error handler.
-    PostCommandCleanup :: HandleNextServerRequest :: state.copy(onFailure = Some(PostCommandErrorHandler))
+    val withErrorHandler = state.copy(onFailure = Some(PostCommandErrorHandler))
+    // Here we clear the last command so we don't report success in the next step.
+    val clearedCommand = ServerState.update(withErrorHandler, lastState.clearLastCommand)
+    PostCommandCleanup :: HandleNextServerRequest :: clearedCommand
   }
 
   def handleRequest(client: LiveClient, serial: Long, request: Request, state: State): State = {

@@ -12,6 +12,7 @@ private[client] class RequestLifecycle(val serial: Long, val interaction: Intera
     // Ignore if we cannot.  There's an issue currently with TWO possible messages, both correct,
     // about a request.   The second message is about failure DURING execution, not ACCEPTING
     // the message, which we want to move its code path elsewhere.
+    // TODO - We may be able to remove this now.
     receivedPromise.tryFailure(new RequestException(msg))
   }
   def accepted(): Unit =
