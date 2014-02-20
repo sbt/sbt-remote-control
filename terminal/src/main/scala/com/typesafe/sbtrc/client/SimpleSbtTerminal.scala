@@ -58,10 +58,9 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             case protocol.ExecutionDone(`line`) => executionDone.success(())
             case _ =>
           }
-          // TODO - We want to wait to schedule the next execution until after this
-          // command is done...
-          client.requestExecution(line, Some(TerminalInteraction -> concurrent.ExecutionContext.global))
-          executionDone.future.onComplete { _ =>
+          val started = client.requestExecution(line, Some(TerminalInteraction -> concurrent.ExecutionContext.global))
+          // Here we wait for the result of both starting (or failure) and the completion of the command.
+          (started zip executionDone.future).onComplete { _ =>
             registration.cancel()
             schedule(this)
           }
@@ -81,44 +80,31 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     System.out.println("Connecting to sbt...")
     val connector = new SimpleConnector(configuration.baseDirectory, SimpleLocator)
     connector onConnect { client =>
+      import concurrent.ExecutionContext.global
       // This guy should handle future execution NOT on our event loop, or we'll block.
       // Ideally, "same thread" execution context instead.
-      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)(concurrent.ExecutionContext.global)
+      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)(global)
       import protocol._
-      client handleEvents {
+      (client handleEvents {
         case NowListeningEvent =>
           // Upon reconnection, down what's currently executing.
           clearAndSchedule(TakeNextCommand(client, reader))
         case LogEvent(LogSuccess(msg)) =>
-          System.out.println()
-          System.out.println(msg)
-          System.out.flush()
-        // TODO - ASCII CHARACTER CODES!
+          // TODO - ASCII CHARACTER CODES!
+          reader.printLineAndRedrawPrompt(msg)
         case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
-          System.out.print(s"[info] $msg\n")
-          System.out.flush()
+          reader.printLineAndRedrawPrompt(s"[info] $msg")
         case LogEvent(LogMessage(LogMessage.WARN, msg)) =>
-          System.out.print(s"[warn] $msg\n")
-          System.out.flush()
+          reader.printLineAndRedrawPrompt(s"[warn] $msg")
         case LogEvent(LogMessage(LogMessage.ERROR, msg)) =>
-          System.err.print(s"[error] $msg\n")
-          System.err.flush()
+          reader.printLineAndRedrawPrompt(s"[error] $msg")
         case LogEvent(LogStdOut(msg)) =>
-          System.out.print(msg)
-          System.out.flush()
+          reader.printLineAndRedrawPrompt(msg)
         case LogEvent(LogStdErr(msg)) =>
-          System.err.print(msg)
-          System.err.flush()
+          // TODO - on stderr?
+          reader.printLineAndRedrawPrompt(msg)
         case _ => ()
-      }
-      client watchBuild { build =>
-        val project = build.projects.head
-        val key = RemoteKeys.fullClasspath in project in RemoteConfigurations.Compile
-        client.watch(key) { (key, classpath) =>
-          System.out.println("New classpath = " + classpath)
-          System.out.flush()
-        }
-      }
+      })(global)
     }
 
     // Now we need to run....

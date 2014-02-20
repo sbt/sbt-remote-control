@@ -12,9 +12,24 @@ final class RemoteJLineReader(
   client: SbtClient,
   val handleCONT: Boolean)(implicit ex: ExecutionContext) extends JLine {
 
+  private val reading = new java.util.concurrent.atomic.AtomicBoolean(false)
+
+  // We synchronize output...
+  def printLineAndRedrawPrompt(line: String): Unit = reader.synchronized {
+    // TODO - Is this the correct mechanism?
+    reader.println(s"\r$line")
+    if (reading.get) reader.redrawLine()
+  }
+
+  override def readLine(prompt: String, mask: Option[Char]): Option[String] = {
+    reading.set(true)
+    try super.readLine(prompt, mask)
+    finally reading.lazySet(false)
+  }
+
   protected[this] val reader = {
     val r = JLine.createReader(historyPath)
-    // TODO - Install completions.
+    // TODO - Install custom completions if the client requests autocompletion...    
     sbt.complete.JLineCompletion.installCustomCompletor(r)(blockingServerCompleter)
     r
   }
