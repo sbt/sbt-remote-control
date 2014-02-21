@@ -83,7 +83,11 @@ case class KeyNotFound(key: ScopedKey) extends Event
 case class ClientClosedRequest() extends Request
 
 
+case class KeyLookupRequest(name: String) extends Request
+case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Request
 
+case class KeyListRequest(filter: KeyFilter) extends Request
+case class KeyListResponse(keys: KeyList) extends Response
 
 
 

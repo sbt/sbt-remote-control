@@ -198,6 +198,8 @@ package object protocol {
   implicit val readLineResponseFormat = Json.format[ReadLineResponse]
   implicit val confirmRequestFormat = Json.format[ConfirmRequest]
   implicit val confirmResponseFormat = Json.format[ConfirmResponse]
+  implicit val keyLookupRequestFormat = Json.format[KeyLookupRequest]
+  implicit val keyLookupResponseFormat = Json.format[KeyLookupResponse]
   
 
   // TODO - This needs an explicit format... yay.

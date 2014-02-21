@@ -39,13 +39,9 @@ trait SbtClient extends Closeable {
 
   /**
    * This tries to find whether there is a build key associated with the
-   * current string.
-   *
-   * TODO - default/current project?
-   * TODO - How to handle delegate keys?
-   * TODO - Does this make sense to expose?
+   * current string.  Returns all such keys (if aggregation is enabled).
    */
-  def lookupScopedKey(name: String): Future[Option[ScopedKey]]
+  def lookupScopedKey(name: String): Future[Seq[ScopedKey]]
 
   /**
    * Runs the command/task associated with the given input string.
