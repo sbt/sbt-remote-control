@@ -47,6 +47,7 @@ class ReadOnlyServerEngine(
       }
     }
     // Now we flush through all the events we had.
+    // TODO - handle failures 
     if (running.get) {
       // Notify all listener's we're ready.
       serverState.eventListeners.send(NowListeningEvent)
@@ -58,9 +59,15 @@ class ReadOnlyServerEngine(
     while (running.get) {
       // Here we can block on requests, because we have cached
       // build state and no longer have to see if the sbt command
-      // loop is started.
+      // loop is started.p
       val ServerRequest(client, serial, request) = queue.take
-      handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
+      // TODO - handle failures 
+      try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
+      catch {
+        case e: Exception =>
+          // TODO - Fatal exceptions?
+          client.reply(serial, protocol.ErrorResponse(e.getMessage))
+      }
     }
   }
   /** Object we use to synch requests/state between event loop + command loop. */
@@ -81,7 +88,6 @@ class ReadOnlyServerEngine(
       case req: ExecutionRequest =>
         commandQueue.add(ServerRequest(client, serial, request))
       case _ =>
-        System.out.println("Deferring request: " + request)
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
     }
@@ -91,11 +97,17 @@ class ReadOnlyServerEngine(
         client.send(NowListeningEvent)
         updateState(_.addEventListener(client))
       case ListenToBuildChange() =>
-        System.out.println("Handling build structure from: " + client)
         updateState(_.addBuildListener(client))
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
+      case KeyLookupRequest(key) =>
+        val parser: complete.Parser[Seq[sbt.ScopedKey[_]]] = Act.aggregatedKeyParser(buildState)
+        import SbtToProtocolUtils.scopedKeyToProtocol
+        complete.Parser.parse(key, parser) match {
+          case Right(sk) => client.reply(serial, KeyLookupResponse(key, sk.map(k => scopedKeyToProtocol(k))))
+          case Left(msg) => client.reply(serial, KeyLookupResponse(key, Seq.empty))
+        }
       case ListenToValue(key) =>
         // TODO - We also need to get the value if it's a setting
         // and send it immediately...

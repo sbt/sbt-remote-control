@@ -32,7 +32,12 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     completionsManager.register(id, result)
     result.future
   }
-  def lookupScopedKey(name: String): Future[Option[ScopedKey]] = ???
+  def lookupScopedKey(name: String): Future[Seq[ScopedKey]] = {
+    val result = Promise[Seq[ScopedKey]]
+    println("Sending key lookup request: " + name)
+    keyLookupRequestManager.register(client.sendJson(KeyLookupRequest(name)), result)
+    result.future
+  }
 
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit] = {
     requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
@@ -91,6 +96,21 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
     }
   }
 
+  private object keyLookupRequestManager {
+    private var handlers: Map[Long, Promise[Seq[ScopedKey]]] = Map.empty
+    def register(id: Long, listener: Promise[Seq[ScopedKey]]): Unit = synchronized {
+      handlers += (id -> listener)
+    }
+    def fire(id: Long, key: Seq[ScopedKey]): Unit = synchronized {
+      handlers get id match {
+        case Some(handler) =>
+          handler.success(key)
+          handlers -= id
+        case None => // ignore
+      }
+    }
+  }
+
   // TODO - Error handling!
   object thread extends Thread {
     override def run(): Unit = {
@@ -116,6 +136,8 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           buildEventManager.sendEvent(e.structure)
         case protocol.Envelope(_, _, e: Event) =>
           eventManager.sendEvent(e)
+        case protocol.Envelope(_, replyTo, KeyLookupResponse(key, result)) =>
+          keyLookupRequestManager.fire(replyTo, result)
         case protocol.Envelope(_, _, protocol.CommandCompletionsResponse(id, completions)) =>
           completionsManager.fire(id, completions)
         case protocol.Envelope(_, requestSerial, protocol.ReceivedResponse()) =>

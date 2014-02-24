@@ -70,6 +70,11 @@ class CanLoadSimpleProject extends SbtClientTest {
     client.requestExecution("compile", None)
     val error = waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
     assert(error.severity == xsbti.Severity.Error, "Failed to capture appropriate error.")
+
+    val keysFuture = client.lookupScopedKey("compile")
+    val keys = waitWithError(keysFuture, "Never received key lookup response!")
+    assert(!keys.isEmpty && keys.head.key.name == "compile", s"Failed to find compile key: $keys!")
+
   }
 
 }
