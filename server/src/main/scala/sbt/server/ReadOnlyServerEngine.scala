@@ -109,8 +109,6 @@ class ReadOnlyServerEngine(
           case Left(msg) => client.reply(serial, KeyLookupResponse(key, Seq.empty))
         }
       case ListenToValue(key) =>
-        // TODO - We also need to get the value if it's a setting
-        // and send it immediately...
         SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
           case Some(scopedKey) =>
             val extracted = Project.extract(buildState)
