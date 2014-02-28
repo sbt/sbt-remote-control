@@ -1,6 +1,10 @@
 package sbt
 package server
 
+import sbt.protocol.TaskSuccess
+import sbt.protocol.TaskResult
+import sbt.protocol.BuildValue
+
 /** Helpers to map from sbt types into serializable json types. */
 private[server] object SbtToProtocolUtils {
 
@@ -43,6 +47,11 @@ private[server] object SbtToProtocolUtils {
       config = configString,
       project = project,
       task = taskString)
+  }
+
+  def settingKeyToProtocolValue[T](key: SettingKey[T], extracted: Extracted): TaskResult[T] = {
+    val value = extracted.get(key)
+    TaskSuccess(BuildValue(value)(key.key.manifest))
   }
 
   def projectRefToProtocol(x: sbt.ProjectRef): protocol.ProjectReference = {

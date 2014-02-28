@@ -4,9 +4,10 @@ package loading
 
 import sbt.client._
 import sbt.protocol._
-
 import concurrent.duration.Duration.Inf
 import concurrent.Await
+import java.io.File
+import sbt.client.ScopedKey
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -74,6 +75,23 @@ class CanLoadSimpleProject extends SbtClientTest {
     val keysFuture = client.lookupScopedKey("compile")
     val keys = waitWithError(keysFuture, "Never received key lookup response!")
     assert(!keys.isEmpty && keys.head.key.name == "compile", s"Failed to find compile key: $keys!")
+
+    // check receiving the value of a setting key
+    val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.name}/baseDirectory")
+    val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
+
+    val baseDirectoryPromise = concurrent.Promise[File]
+    client.watch(SettingKey[File](baseDirectoryKeys.head)) { (a, b) =>
+      b match {
+        case TaskSuccess(file) =>
+          baseDirectoryPromise.trySuccess(file.value.get)
+        case TaskFailure(msg) =>
+          baseDirectoryPromise.tryFailure(new Exception(msg))
+      }
+    }
+
+    val baseDirectory = waitWithError(baseDirectoryPromise.future, "Never received watch setting key first value")
+    assert(dummy.getAbsoluteFile() == baseDirectory, s"Failed to received correct baseDirectory: $baseDirectory")
 
   }
 

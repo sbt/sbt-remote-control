@@ -109,14 +109,25 @@ class ReadOnlyServerEngine(
           case Left(msg) => client.reply(serial, KeyLookupResponse(key, Seq.empty))
         }
       case ListenToValue(key) =>
-        // TODO - We also need to get the value if it's a setting
-        // and send it immediately...
         SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
-          case Some(key) =>
-            // Schedule the key to run as well as registering the key listener.
+          case Some(scopedKey) =>
             val extracted = Project.extract(buildState)
-            updateState(_.addKeyListener(client, key))
-            commandQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(key))))
+
+            if (SettingCompletions.isSetting(scopedKey.key)) {
+              // get the value of the setting key from the build state, and send it to the client
+              val settingKey = SettingKey(scopedKey.key.asInstanceOf[sbt.AttributeKey[Any]]) in scopedKey.scope
+              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, extracted)
+              client.send(ValueChange(key, change))
+
+              // register the key listener.
+              // TODO: needs support somewhere to send events when the value of setting keys are updated
+              updateState(_.addKeyListener(client, scopedKey))
+            } else {
+              // Schedule the key to run as well as registering the key listener.
+              updateState(_.addKeyListener(client, scopedKey))
+              commandQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
+            }
+
           case None => // Issue a no such key error
             client.reply(serial, KeyNotFound(key))
         }
