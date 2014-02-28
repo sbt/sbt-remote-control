@@ -108,7 +108,11 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     val unmanagedSources = waitWithError(unmanagedSourcesPromise.future, "Never received watch task key first value")
-    assert(false, s"Failed to received correct unmanagedSources: $unmanagedSources")
+    val expectedSources =
+      Seq(
+        new File(dummy, "src/main/scala/hello.scala").getCanonicalFile,
+        new File(dummy, "src/main/scala/error.scala").getCanonicalFile)
+    assert(unmanagedSources == expectedSources, s"Failed to received correct unmanagedSources: $unmanagedSources, expected $expectedSources")
 
   }
 

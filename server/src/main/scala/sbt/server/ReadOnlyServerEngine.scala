@@ -24,8 +24,8 @@ class ReadOnlyServerEngine(
   queue: BlockingQueue[ServerRequest],
   nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
   // TODO - We should have a log somewhere to store events.
-  @volatile
-  private var serverState = ServerState()
+  private var serverStateRef = new AtomicReference[ServerState](ServerState())
+  def serverState = serverStateRef.get()
   private val running = new AtomicBoolean(true)
   /** TODO - we should use data structure that allows us to merge/purge requests. */
   private val commandQueue: BlockingQueue[ServerRequest] =
@@ -33,8 +33,9 @@ class ReadOnlyServerEngine(
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
 
+  // TODO - This only works because it is called from a single thread.
   private def updateState(f: ServerState => ServerState): Unit =
-    serverState = f(serverState)
+    serverStateRef.lazySet(f(serverStateRef.get))
 
   override def run() {
     while (running.get && nextStateRef.get == null) {
@@ -72,10 +73,12 @@ class ReadOnlyServerEngine(
   }
   /** Object we use to synch requests/state between event loop + command loop. */
   final object engineQueue extends ServerEngineQueue {
-    // TODO - We just want volatile read of serverState, we don't need the whole variable to be
-    // volatile always...
-    // But the blocking command queue makes us not care about that performance hit at all.
-    def takeNextRequest: (ServerState, ServerRequest) = (serverState, commandQueue.take)
+    def takeNextRequest: (ServerState, ServerRequest) = {
+      // We have to grab commandQueue *FIRST* then wait for serverState value. We
+      // Do not want the jvm to re-order these executions, so we do some dirty tricks to force it.
+      val nextCommand = commandQueue.take
+      (serverState, nextCommand)
+    }
   }
 
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
