@@ -93,6 +93,27 @@ class CanLoadSimpleProject extends SbtClientTest {
     val baseDirectory = waitWithError(baseDirectoryPromise.future, "Never received watch setting key first value")
     assert(dummy.getAbsoluteFile() == baseDirectory, s"Failed to received correct baseDirectory: $baseDirectory")
 
+    // check receiving the initial value of a task key
+    val unmanagedSourcesKeysFuture = client.lookupScopedKey(s"${project.name}/compile:unmanagedSources")
+    val unmanagedSourcesKeys = waitWithError(unmanagedSourcesKeysFuture, "Never received key lookup response!")
+
+    val unmanagedSourcesPromise = concurrent.Promise[collection.Seq[File]]
+    client.watch(TaskKey[collection.Seq[File]](unmanagedSourcesKeys.head)) { (a, b) =>
+      b match {
+        case TaskSuccess(files) =>
+          unmanagedSourcesPromise.trySuccess(files.value.get)
+        case TaskFailure(msg) =>
+          unmanagedSourcesPromise.tryFailure(new Exception(msg))
+      }
+    }
+
+    val unmanagedSources = waitWithError(unmanagedSourcesPromise.future, "Never received watch task key first value")
+    val expectedSources =
+      Seq(
+        new File(dummy, "src/main/scala/hello.scala").getCanonicalFile,
+        new File(dummy, "src/main/scala/error.scala").getCanonicalFile)
+    assert(unmanagedSources.sorted == expectedSources.sorted, s"Failed to received correct unmanagedSources: $unmanagedSources, expected $expectedSources")
+
   }
 
 }

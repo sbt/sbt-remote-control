@@ -53,7 +53,6 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
         // Send basic notification
         val protocolKey = SbtToProtocolUtils.scopedKeyToProtocol(key)
         state.eventListeners.send(TaskFinished(protocolKey, result.toEither.isRight))
-        // TODO - Send value to value listeners...
         for {
           kl <- state.keyListeners
           if kl.key == key
