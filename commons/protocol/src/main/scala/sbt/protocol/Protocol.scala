@@ -39,8 +39,11 @@ sealed trait Event extends Message
 // ------------------------------------------
 
 case class ExecutionRequest(command: String) extends Request
-case class ExecutionDone(command: String) extends Event
-case class ExecutionFailure(command: String) extends Event
+// if the request was combined with an identical pending one,
+// then the id will be the same for the combined requests.
+case class ExecutionRequestReceived(id: Long) extends Response
+case class ExecutionDone(id: Long, command: String) extends Event
+case class ExecutionFailure(id: Long, command: String) extends Event
 
 /**
  * @param id An identifier we'll receive when we get the list of completions.

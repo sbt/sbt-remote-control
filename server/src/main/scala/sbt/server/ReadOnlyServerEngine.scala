@@ -7,6 +7,9 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
 
+// a little wrapper around protocol.request to keep the client/serial with it
+case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
+
 /**
  * This class represents an event loop which sits outside the normal sbt command
  * processing loop.
@@ -27,8 +30,8 @@ class ReadOnlyServerEngine(
   private var serverStateRef = new AtomicReference[ServerState](ServerState())
   def serverState = serverStateRef.get()
   private val running = new AtomicBoolean(true)
-  /** TODO - we should use data structure that allows us to merge/purge requests. */
-  private val commandQueue: BlockingQueue[ServerRequest] =
+  // IPC protocol requests which turn into ServerEngineWork go in here
+  private val workRequestsQueue: BlockingQueue[ServerRequest] =
     new java.util.concurrent.ArrayBlockingQueue[ServerRequest](10) // TODO - this should limit the number of queued requests for now
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
@@ -71,13 +74,100 @@ class ReadOnlyServerEngine(
       }
     }
   }
+
   /** Object we use to synch requests/state between event loop + command loop. */
   final object engineQueue extends ServerEngineQueue {
-    def takeNextRequest: (ServerState, ServerRequest) = {
-      // We have to grab commandQueue *FIRST* then wait for serverState value. We
-      // Do not want the jvm to re-order these executions, so we do some dirty tricks to force it.
-      val nextCommand = commandQueue.take
-      (serverState, nextCommand)
+    // synchronized access
+    private var nextWorkId: Long = 1 // start with 1, so 0 is a "null" value
+    // as we coalesce ExecutionRequest into commands for the sbt engine
+    // (combining duplicates), we store them here.
+    private var workQueue: List[ServerEngineWork] = Nil
+
+    private def emitWorkQueueChanged(oldQueue: List[ServerEngineWork], newQueue: List[ServerEngineWork]): Unit = {
+      // FIXME emit a change event so clients can monitor what is
+      // queued up
+    }
+
+    private def queueNextRequest(request: ServerRequest): Unit = synchronized {
+      val oldWorkQueue = workQueue
+
+      workQueue = request match {
+        case ServerRequest(client, serial, command: ExecutionRequest) =>
+          val work: CommandExecutionWork = {
+            val oldOption: Option[ServerEngineWork] = oldWorkQueue.find({
+              case old: CommandExecutionWork if old.command == command.command =>
+                true
+              case _ =>
+                false
+            })
+
+            oldOption match {
+              case Some(old: CommandExecutionWork) =>
+                old.copy(allRequesters = old.allRequesters + request.client)
+              case None =>
+                val id = nextWorkId
+                nextWorkId += 1
+                CommandExecutionWork(id, command.command, Set(request.client))
+            }
+          }
+
+          import sbt.protocol.executionReceivedFormat
+          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id))
+
+          oldWorkQueue :+ work
+        case wtf =>
+          throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
+      }
+
+      emitWorkQueueChanged(oldWorkQueue, workQueue)
+    }
+
+    override def takeNextWork: (ServerState, ServerEngineWork) = {
+
+      // OVERVIEW of this method.
+      // 1. DO NOT BLOCK but do see if we have ServerEngineWork
+      //    which can be coalesced into our workQueue.
+      // 2. If workQueue has changed, send change notification
+      //    events.
+      // 3. If we have no workQueue after pulling off all
+      //    the requests, BLOCK for the next request.
+      // 4. If we DO have workQueue after pulling off all requests,
+      //    pop ONE work item. Send change notification for pendingExecutions
+      //    being one shorter. Return work item.
+
+      def pollRequests(): Unit = {
+        Option(workRequestsQueue.poll()) match {
+          case Some(request) =>
+            queueNextRequest(request)
+            pollRequests()
+          case None =>
+        }
+      }
+
+      // NONBLOCKING scan of requests
+      pollRequests()
+
+      val work = synchronized {
+        val prePopQueue = workQueue
+        val popped = workQueue.headOption
+        if (popped.isDefined)
+          emitWorkQueueChanged(prePopQueue, workQueue)
+        popped
+      }
+
+      work match {
+        case Some(work) =>
+          // serverState is a method and it gets the LATEST server state
+          // ONLY when we're about to return it - we don't ever want to get
+          // stale state or get the state before we pop the request.
+          (serverState, work)
+        case None =>
+          // BLOCK - note don't put this in "synchronized"
+          val request = workRequestsQueue.take()
+          queueNextRequest(request)
+          // recurse to process the workQueue
+          takeNextWork
+      }
     }
   }
 
@@ -89,7 +179,7 @@ class ReadOnlyServerEngine(
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
       case req: ExecutionRequest =>
-        commandQueue.add(ServerRequest(client, serial, request))
+        workRequestsQueue.add(ServerRequest(client, serial, request))
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
@@ -128,7 +218,7 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              commandQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
+              workRequestsQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
             }
 
           case None => // Issue a no such key error
@@ -136,7 +226,7 @@ class ReadOnlyServerEngine(
         }
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
-        commandQueue.add(ServerRequest(client, serial, request))
+        workRequestsQueue.add(ServerRequest(client, serial, request))
       case CommandCompletionsRequest(id, line, level) =>
         val combined = buildState.combinedParser
         val completions = complete.Parser.completions(combined, line, level)
