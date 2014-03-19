@@ -1,7 +1,8 @@
 package sbt
 package server
 
-case class LastCommand(id: Long, command: String)
+case class LastCommand(command: CommandExecutionWork)
+
 /**
  * Represents the current state of the sbt server we use to drive
  * events/handle client requests.

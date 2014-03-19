@@ -150,9 +150,9 @@ case class RequestCompleted() extends Response
 case class RequestFailed() extends Response
 
 
-case class ReadLineRequest(prompt: String, mask: Boolean) extends Request
+case class ReadLineRequest(workId: Long, prompt: String, mask: Boolean) extends Request
 case class ReadLineResponse(line: Option[String]) extends Response
-case class ConfirmRequest(message: String) extends Request
+case class ConfirmRequest(workId: Long, message: String) extends Request
 case class ConfirmResponse(confirmed: Boolean) extends Response
 
 

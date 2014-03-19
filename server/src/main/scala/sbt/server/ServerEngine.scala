@@ -13,6 +13,8 @@ import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 
+final case class WorkId(id: Long)
+
 sealed trait ServerEngineWork
 
 // If you find yourself adding stuff from sbt.protocol such as the reply serial
@@ -20,7 +22,7 @@ sealed trait ServerEngineWork
 // not just the requester care about this work, so we don't want to special-case
 // the original request anymore. We also combine requests into one of these
 // chunks of work, thus allRequesters not a single requester.
-case class CommandExecutionWork(id: Long, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
+case class CommandExecutionWork(id: WorkId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
 
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
@@ -61,7 +63,7 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
-        serverState.eventListeners.send(ExecutionDone(command.id, command.command))
+        serverState.eventListeners.send(ExecutionDone(command.command.id.id, command.command.command))
         BuildStructureCache.update(state)
       case None => state
     }
@@ -72,8 +74,8 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
-      case Some(LastCommand(id, command)) =>
-        lastState.eventListeners.send(ExecutionFailure(id, command))
+      case Some(LastCommand(command)) =>
+        lastState.eventListeners.send(ExecutionFailure(command.id.id, command.command))
       case None => ()
     }
     // NOTE - we always need to re-register ourselves as the error handler.
@@ -86,9 +88,9 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
   def handleWork(work: ServerEngineWork, state: State): State = {
     val serverState = ServerState.extract(state)
     work match {
-      case CommandExecutionWork(id, command, requesters) =>
+      case work: CommandExecutionWork =>
         // TODO - Figure out how to run this and ack appropriately...
-        command :: ServerState.update(state, serverState.withLastCommand(LastCommand(id, command)))
+        work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
       case other =>
         // TODO - better error reporting here!
         sys.error("Command loop unable to handle msg: " + other)

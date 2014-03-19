@@ -105,14 +105,14 @@ class ReadOnlyServerEngine(
               case Some(old: CommandExecutionWork) =>
                 old.copy(allRequesters = old.allRequesters + request.client)
               case None =>
-                val id = nextWorkId
+                val id = WorkId(nextWorkId)
                 nextWorkId += 1
                 CommandExecutionWork(id, command.command, Set(request.client))
             }
           }
 
           import sbt.protocol.executionReceivedFormat
-          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id))
+          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
 
           oldWorkQueue :+ work
         case wtf =>
