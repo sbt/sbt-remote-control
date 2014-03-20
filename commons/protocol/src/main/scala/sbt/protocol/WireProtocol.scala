@@ -24,6 +24,7 @@ object WireProtocol {
     msg[ConfirmRequest],
     msg[ConfirmResponse],
     msg[ReceivedResponse],
+    msg[ExecutionRequestReceived],
     msg[ExecutionRequest],
     msg[ExecutionFailure],
     msg[ExecutionDone],
