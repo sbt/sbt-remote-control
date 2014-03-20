@@ -13,7 +13,9 @@ import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 
-final case class ExecutionId(id: Long)
+final case class ExecutionId(id: Long) {
+  require(id != 0L)
+}
 
 sealed trait ServerEngineWork
 
