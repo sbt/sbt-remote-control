@@ -34,7 +34,103 @@ case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters:
  *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
  *  @param queue - The queue we consume server requests from.
  */
-class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
+class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
+
+  private object workQueue {
+
+    private var nextExecutionId = 1L // 1 so 0 is our invalid flag
+    // as we coalesce ExecutionRequest into commands for the sbt engine
+    // (combining duplicates), we store them here.
+    private var workQueue: List[ServerEngineWork] = Nil
+
+    private def emitWorkQueueChanged(oldQueue: List[ServerEngineWork], newQueue: List[ServerEngineWork]): Unit = {
+      // FIXME emit a change event so clients can monitor what is
+      // queued up
+    }
+
+    private def queueNextRequest(request: ServerRequest): Unit = {
+      val oldWorkQueue = workQueue
+
+      workQueue = request match {
+        case ServerRequest(client, serial, command: ExecutionRequest) =>
+          val work: CommandExecutionWork = {
+            val oldOption: Option[ServerEngineWork] = oldWorkQueue.find({
+              case old: CommandExecutionWork if old.command == command.command =>
+                true
+              case _ =>
+                false
+            })
+
+            oldOption match {
+              case Some(old: CommandExecutionWork) =>
+                old.copy(allRequesters = old.allRequesters + request.client)
+              case None =>
+                val id = ExecutionId(nextExecutionId)
+                nextExecutionId += 1
+                CommandExecutionWork(id, command.command, Set(request.client))
+            }
+          }
+
+          import sbt.protocol.executionReceivedFormat
+          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
+
+          oldWorkQueue :+ work
+        case wtf =>
+          throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
+      }
+
+      emitWorkQueueChanged(oldWorkQueue, workQueue)
+    }
+
+    def takeNextWork: (ServerState, ServerEngineWork) = {
+
+      // OVERVIEW of this method.
+      // 1. DO NOT BLOCK but do see if we have ServerEngineWork
+      //    which can be coalesced into our workQueue.
+      // 2. If workQueue has changed, send change notification
+      //    events.
+      // 3. If we have no workQueue after pulling off all
+      //    the requests, BLOCK for the next request.
+      // 4. If we DO have workQueue after pulling off all requests,
+      //    pop ONE work item. Send change notification for pendingExecutions
+      //    being one shorter. Return work item.
+
+      def pollRequests(): ServerState = {
+        requestQueue.pollNextRequest match {
+          case Right(request) =>
+            queueNextRequest(request)
+            pollRequests()
+          case Left(state) =>
+            state
+        }
+      }
+
+      // NONBLOCKING scan of requests
+      val serverState = pollRequests()
+
+      val work =
+        workQueue match {
+          case head :: tail =>
+            val prePopQueue = workQueue
+            workQueue = tail
+            emitWorkQueueChanged(prePopQueue, workQueue)
+            Some(head)
+          case Nil =>
+            None
+        }
+
+      work match {
+        case Some(work) =>
+          (serverState, work)
+        case None =>
+          // BLOCK
+          val request = requestQueue.takeNextRequest
+          queueNextRequest(request)
+          // recurse to process the workQueue
+          takeNextWork
+      }
+    }
+  }
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -48,7 +144,7 @@ class ServerEngine(queue: ServerEngineQueue, nextStateRef: AtomicReference[State
 
   final val HandleNextServerRequest = "server-handle-next-server-request"
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
-    val (serverState, work) = queue.takeNextWork
+    val (serverState, work) = workQueue.takeNextWork
     // here we inject the current serverState into the State object.
     val next = handleWork(work, ServerState.update(state, serverState))
     // make sure we always read another server request after this one

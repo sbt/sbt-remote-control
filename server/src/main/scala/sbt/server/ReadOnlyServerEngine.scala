@@ -77,101 +77,15 @@ class ReadOnlyServerEngine(
 
   /** Object we use to synch requests/state between event loop + command loop. */
   final object engineQueue extends ServerEngineQueue {
-    // synchronized access
-    private var nextExecutionId: Long = 1 // start with 1, so 0 is a "null" value
-    // as we coalesce ExecutionRequest into commands for the sbt engine
-    // (combining duplicates), we store them here.
-    private var workQueue: List[ServerEngineWork] = Nil
-
-    private def emitWorkQueueChanged(oldQueue: List[ServerEngineWork], newQueue: List[ServerEngineWork]): Unit = {
-      // FIXME emit a change event so clients can monitor what is
-      // queued up
+    override def pollNextRequest(): Either[ServerState, ServerRequest] = {
+      Option(workRequestsQueue.poll()) match {
+        case Some(req) => Right(req)
+        case None => Left(serverState)
+      }
     }
 
-    private def queueNextRequest(request: ServerRequest): Unit = synchronized {
-      val oldWorkQueue = workQueue
-
-      workQueue = request match {
-        case ServerRequest(client, serial, command: ExecutionRequest) =>
-          val work: CommandExecutionWork = {
-            val oldOption: Option[ServerEngineWork] = oldWorkQueue.find({
-              case old: CommandExecutionWork if old.command == command.command =>
-                true
-              case _ =>
-                false
-            })
-
-            oldOption match {
-              case Some(old: CommandExecutionWork) =>
-                old.copy(allRequesters = old.allRequesters + request.client)
-              case None =>
-                val id = ExecutionId(nextExecutionId)
-                nextExecutionId += 1
-                CommandExecutionWork(id, command.command, Set(request.client))
-            }
-          }
-
-          import sbt.protocol.executionReceivedFormat
-          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
-
-          oldWorkQueue :+ work
-        case wtf =>
-          throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
-      }
-
-      emitWorkQueueChanged(oldWorkQueue, workQueue)
-    }
-
-    override def takeNextWork: (ServerState, ServerEngineWork) = {
-
-      // OVERVIEW of this method.
-      // 1. DO NOT BLOCK but do see if we have ServerEngineWork
-      //    which can be coalesced into our workQueue.
-      // 2. If workQueue has changed, send change notification
-      //    events.
-      // 3. If we have no workQueue after pulling off all
-      //    the requests, BLOCK for the next request.
-      // 4. If we DO have workQueue after pulling off all requests,
-      //    pop ONE work item. Send change notification for pendingExecutions
-      //    being one shorter. Return work item.
-
-      def pollRequests(): Unit = {
-        Option(workRequestsQueue.poll()) match {
-          case Some(request) =>
-            queueNextRequest(request)
-            pollRequests()
-          case None =>
-        }
-      }
-
-      // NONBLOCKING scan of requests
-      pollRequests()
-
-      val work = synchronized {
-        val prePopQueue = workQueue
-        workQueue match {
-          case head :: tail =>
-            workQueue = tail
-            emitWorkQueueChanged(prePopQueue, workQueue)
-            Some(head)
-          case Nil =>
-            None
-        }
-      }
-
-      work match {
-        case Some(work) =>
-          // serverState is a method and it gets the LATEST server state
-          // ONLY when we're about to return it - we don't ever want to get
-          // stale state or get the state before we pop the request.
-          (serverState, work)
-        case None =>
-          // BLOCK - note don't put this in "synchronized"
-          val request = workRequestsQueue.take()
-          queueNextRequest(request)
-          // recurse to process the workQueue
-          takeNextWork
-      }
+    override def takeNextRequest(): ServerRequest = {
+      workRequestsQueue.take()
     }
   }
 
