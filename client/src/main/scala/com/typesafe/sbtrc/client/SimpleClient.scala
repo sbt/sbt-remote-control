@@ -148,13 +148,13 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           requestHandler.error(requestSerial, "unknown failure")
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
           requestHandler.error(requestSerial, msg)
-        case protocol.Envelope(request, replyTo, protocol.ReadLineRequest(workId, prompt, mask)) =>
+        case protocol.Envelope(request, replyTo, protocol.ReadLineRequest(executionId, prompt, mask)) =>
           try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(replyTo, prompt, mask)))
           catch {
             case NoInteractionException =>
               client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
           }
-        case protocol.Envelope(request, replyTo, protocol.ConfirmRequest(workId, msg)) =>
+        case protocol.Envelope(request, replyTo, protocol.ConfirmRequest(executionId, msg)) =>
           try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(replyTo, msg)))
           catch {
             case NoInteractionException =>

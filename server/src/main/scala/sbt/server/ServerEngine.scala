@@ -13,7 +13,7 @@ import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 
-final case class WorkId(id: Long)
+final case class ExecutionId(id: Long)
 
 sealed trait ServerEngineWork
 
@@ -22,7 +22,7 @@ sealed trait ServerEngineWork
 // not just the requester care about this work, so we don't want to special-case
 // the original request anymore. We also combine requests into one of these
 // chunks of work, thus allRequesters not a single requester.
-case class CommandExecutionWork(id: WorkId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
+case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
 
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no

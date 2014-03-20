@@ -78,7 +78,7 @@ class ReadOnlyServerEngine(
   /** Object we use to synch requests/state between event loop + command loop. */
   final object engineQueue extends ServerEngineQueue {
     // synchronized access
-    private var nextWorkId: Long = 1 // start with 1, so 0 is a "null" value
+    private var nextExecutionId: Long = 1 // start with 1, so 0 is a "null" value
     // as we coalesce ExecutionRequest into commands for the sbt engine
     // (combining duplicates), we store them here.
     private var workQueue: List[ServerEngineWork] = Nil
@@ -105,8 +105,8 @@ class ReadOnlyServerEngine(
               case Some(old: CommandExecutionWork) =>
                 old.copy(allRequesters = old.allRequesters + request.client)
               case None =>
-                val id = WorkId(nextWorkId)
-                nextWorkId += 1
+                val id = ExecutionId(nextExecutionId)
+                nextExecutionId += 1
                 CommandExecutionWork(id, command.command, Set(request.client))
             }
           }
