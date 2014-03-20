@@ -149,10 +149,14 @@ class ReadOnlyServerEngine(
 
       val work = synchronized {
         val prePopQueue = workQueue
-        val popped = workQueue.headOption
-        if (popped.isDefined)
-          emitWorkQueueChanged(prePopQueue, workQueue)
-        popped
+        workQueue match {
+          case head :: tail =>
+            workQueue = tail
+            emitWorkQueueChanged(prePopQueue, workQueue)
+            Some(head)
+          case Nil =>
+            None
+        }
       }
 
       work match {
