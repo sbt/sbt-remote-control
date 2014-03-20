@@ -56,7 +56,10 @@ object WireProtocol {
   // TODO - Implement...
   implicit object messageFormat extends Format[Message] {   
     def writes(t: Message): JsValue = {
-      val (name, out) = messages(t.getClass)
+      val (name, out) = try messages(t.getClass) catch {
+        case e: NoSuchElementException =>
+          throw new RuntimeException(s"No message writer known for ${t.getClass.getName}")
+      }
       // TODO - Should the message field be something like "event" or "request"?
       out.asInstanceOf[Format[Message]].writes(t) match {
         case x: JsObject => x + ("type" -> JsString(name))
@@ -65,7 +68,11 @@ object WireProtocol {
     }
     def reads(msg: JsValue): JsResult[Message] = {
       val name = (msg \ "type").as[String]
-      lookUpIndex(name).reads(msg).asInstanceOf[JsResult[Message]]
+      try lookUpIndex(name).reads(msg).asInstanceOf[JsResult[Message]]
+      catch {
+        case e: NoSuchElementException =>
+          throw new RuntimeException(s"No message reader known for $name", e)
+      }
     }
 
   }
