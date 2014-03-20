@@ -134,28 +134,30 @@ class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtC
           valueEventManager(e.key).sendEvent(e)
         case protocol.Envelope(_, _, e: BuildStructureChanged) =>
           buildEventManager.sendEvent(e.structure)
-        case protocol.Envelope(_, _, e: Event) =>
-          eventManager.sendEvent(e)
         case protocol.Envelope(_, replyTo, KeyLookupResponse(key, result)) =>
           keyLookupRequestManager.fire(replyTo, result)
         case protocol.Envelope(_, _, protocol.CommandCompletionsResponse(id, completions)) =>
           completionsManager.fire(id, completions)
-        case protocol.Envelope(_, requestSerial, protocol.ReceivedResponse()) =>
-          requestHandler.accepted(requestSerial)
-        case protocol.Envelope(_, requestSerial, protocol.RequestCompleted()) =>
-          requestHandler.completed(requestSerial)
-        case protocol.Envelope(_, requestSerial, protocol.RequestFailed()) =>
-          requestHandler.error(requestSerial, "unknown failure")
+        case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
+          requestHandler.executionReceived(requestSerial, executionId)
+        case protocol.Envelope(_, _, e: protocol.ExecutionDone) =>
+          requestHandler.executionDone(e.id)
+          eventManager.sendEvent(e)
+        case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
+          requestHandler.executionFailed(e.id, s"execution of '${e.command}' failed")
+          eventManager.sendEvent(e)
+        case protocol.Envelope(_, _, e: Event) =>
+          eventManager.sendEvent(e)
         case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
-          requestHandler.error(requestSerial, msg)
-        case protocol.Envelope(request, replyTo, protocol.ReadLineRequest(executionId, prompt, mask)) =>
-          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(replyTo, prompt, mask)))
+          requestHandler.protocolError(requestSerial, msg)
+        case protocol.Envelope(request, _, protocol.ReadLineRequest(executionId, prompt, mask)) =>
+          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
           catch {
             case NoInteractionException =>
               client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
           }
-        case protocol.Envelope(request, replyTo, protocol.ConfirmRequest(executionId, msg)) =>
-          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(replyTo, msg)))
+        case protocol.Envelope(request, _, protocol.ConfirmRequest(executionId, msg)) =>
+          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
           catch {
             case NoInteractionException =>
               client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
