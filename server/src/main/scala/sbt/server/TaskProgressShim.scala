@@ -15,6 +15,12 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   type S = ServerState
   def initial: S = state
 
+  private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+
+  private def taskId(protocolKey: protocol.ScopedKey): Long = {
+    taskIds.get(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
+  }
+
   private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
     task.info.get(Keys.taskDefinitionKey) match {
       case Some(key) =>
@@ -36,7 +42,16 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
    * The dependencies of `task` are `allDeps` and the subset of those dependencies that
    * have not completed are `pendingDeps`.
    */
-  def registered(state: S, task: Task[_], allDeps: Iterable[Task[_]], pendingDeps: Iterable[Task[_]]): S = state
+  def registered(state: S, task: Task[_], allDeps: Iterable[Task[_]], pendingDeps: Iterable[Task[_]]): S = {
+    // generate task IDs
+    for (task <- allDeps) {
+      withProtocolKey(task) { protocolKey =>
+        // assuming the keys are unique within a ServerExecuteProgress... safe?
+        taskIds = taskIds + (protocolKey -> ServerExecuteProgress.nextTaskId.getAndIncrement())
+      }
+    }
+    state
+  }
 
   /**
    * Notifies that all of the dependencies of `task` have completed and `task` is therefore
@@ -45,6 +60,7 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   def ready(state: S, task: Task[_]): S = {
     withProtocolKey(task) { protocolKey =>
       state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+        taskId(protocolKey),
         protocolKey))
     }
     state
@@ -62,7 +78,9 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
     withKeyAndProtocolKey(task) { (key, protocolKey) =>
-      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id, protocolKey, result.toEither.isRight))
+      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
+        taskId(protocolKey),
+        protocolKey, result.toEither.isRight))
       for {
         kl <- state.keyListeners
         if kl.key == key
@@ -99,4 +117,6 @@ object ServerExecuteProgress {
       })
 
   }
+
+  val nextTaskId = new java.util.concurrent.atomic.AtomicLong(1) // start with 1 so 0 is invalid
 }

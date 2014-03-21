@@ -204,6 +204,11 @@ case class CompilationFailure(
     msg: String
 ) extends Event
 
-case class TaskStarted(executionId: Long, key: ScopedKey) extends Event
-// TODO - Send result? no...
-case class TaskFinished(executionId: Long, key: ScopedKey, success: Boolean) extends Event
+// the taskId is provided here (tying it to an executionId and key),
+// and then in further events from the task we only provide taskId
+// since the exeuctionId and key can be deduced from that.
+case class TaskStarted(executionId: Long, taskId: Long, key: ScopedKey) extends Event
+// we really could provide taskId ONLY here, but we throw the executionId and key
+// in just for convenience so clients don't have to hash taskId if their
+// only interest is in the key and executionId
+case class TaskFinished(executionId: Long, taskId: Long, key: ScopedKey, success: Boolean) extends Event
