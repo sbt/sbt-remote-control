@@ -7,6 +7,10 @@ import concurrent.{ ExecutionContext, Future }
 /** This represents a connection to the Sbt server, and all the actions that can be performed against an active sbt build. */
 trait SbtClient extends Closeable {
 
+  def uuid: java.util.UUID
+  def configName: String
+  def humanReadableName: String
+
   /**
    * This is our mechanism of watching the build structure to see when it changes,
    * and update our information about the build.

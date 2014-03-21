@@ -87,7 +87,8 @@ trait SbtClientTest extends IntegrationTest {
   final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
-    val connector = new SimpleConnector(projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
+    val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
+      projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]

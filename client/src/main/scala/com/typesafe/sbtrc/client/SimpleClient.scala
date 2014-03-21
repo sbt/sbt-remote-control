@@ -19,7 +19,10 @@ import java.io.EOFException
  *
  * This is only to do proof of concept work and flesh out the server.
  */
-class SimpleSbtClient(client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
+class SimpleSbtClient(override val uuid: java.util.UUID,
+  override val configName: String,
+  override val humanReadableName: String,
+  client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
