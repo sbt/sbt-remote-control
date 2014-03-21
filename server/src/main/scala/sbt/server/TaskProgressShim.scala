@@ -15,6 +15,22 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   type S = ServerState
   def initial: S = state
 
+  private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
+    task.info.get(Keys.taskDefinitionKey) match {
+      case Some(key) =>
+        block(key, SbtToProtocolUtils.scopedKeyToProtocol(key))
+      case None => // Ignore tasks without keys.
+    }
+  }
+
+  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit = {
+    task.info.get(Keys.taskDefinitionKey) match {
+      case Some(key) =>
+        block(SbtToProtocolUtils.scopedKeyToProtocol(key))
+      case None => // Ignore tasks without keys.
+    }
+  }
+
   /**
    * Notifies that a `task` has been registered in the system for execution.
    * The dependencies of `task` are `allDeps` and the subset of those dependencies that
@@ -27,12 +43,9 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
    * ready to run.  The task has not been scheduled on a thread yet.
    */
   def ready(state: S, task: Task[_]): S = {
-    task.info.get(Keys.taskDefinitionKey) match {
-      case Some(key) =>
-        // Send notification
-        state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
-          SbtToProtocolUtils.scopedKeyToProtocol(key)))
-      case None => // Ignore tasks without keys.
+    withProtocolKey(task) { protocolKey =>
+      state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+        protocolKey))
     }
     state
   }
@@ -48,19 +61,14 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
    * Any tasks called by `task` have completed.
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
-
-    task.info.get(Keys.taskDefinitionKey) match {
-      case Some(key) =>
-        // Send basic notification
-        val protocolKey = SbtToProtocolUtils.scopedKeyToProtocol(key)
-        state.eventListeners.send(TaskFinished(state.requiredExecutionId.id, protocolKey, result.toEither.isRight))
-        for {
-          kl <- state.keyListeners
-          if kl.key == key
-          // TODO - Check value against some "last value cache"
-          mf = getManifestOfTask[T](key.key.manifest)
-        } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
-      case None => // Ignore tasks without keys.
+    withKeyAndProtocolKey(task) { (key, protocolKey) =>
+      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id, protocolKey, result.toEither.isRight))
+      for {
+        kl <- state.keyListeners
+        if kl.key == key
+        // TODO - Check value against some "last value cache"
+        mf = getManifestOfTask[T](key.key.manifest)
+      } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
     }
     state
   }
