@@ -30,7 +30,8 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     task.info.get(Keys.taskDefinitionKey) match {
       case Some(key) =>
         // Send notification
-        state.eventListeners.send(TaskStarted(SbtToProtocolUtils.scopedKeyToProtocol(key)))
+        state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+          SbtToProtocolUtils.scopedKeyToProtocol(key)))
       case None => // Ignore tasks without keys.
     }
     state
@@ -52,7 +53,7 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
       case Some(key) =>
         // Send basic notification
         val protocolKey = SbtToProtocolUtils.scopedKeyToProtocol(key)
-        state.eventListeners.send(TaskFinished(protocolKey, result.toEither.isRight))
+        state.eventListeners.send(TaskFinished(state.requiredExecutionId.id, protocolKey, result.toEither.isRight))
         for {
           kl <- state.keyListeners
           if kl.key == key

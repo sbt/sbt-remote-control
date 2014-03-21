@@ -206,6 +206,6 @@ case class CompilationFailure(
     msg: String
 ) extends Event
 
-case class TaskStarted(key: ScopedKey) extends Event
+case class TaskStarted(executionId: Long, key: ScopedKey) extends Event
 // TODO - Send result? no...
-case class TaskFinished(key: ScopedKey, success: Boolean) extends Event
+case class TaskFinished(executionId: Long, key: ScopedKey, success: Boolean) extends Event

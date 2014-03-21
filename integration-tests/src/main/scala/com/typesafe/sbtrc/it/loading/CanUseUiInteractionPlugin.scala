@@ -47,7 +47,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     }
     val taskResult = concurrent.promise[Boolean]
     (client handleEvents {
-      case TaskFinished(key, result) =>
+      case TaskFinished(executionId, key, result) =>
         if (key.key.name == "readInput") {
           taskResult.success(result)
         }
