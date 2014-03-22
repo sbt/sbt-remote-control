@@ -38,6 +38,8 @@ sealed trait Event extends Message
 //              Requests (Reactive API)
 // ------------------------------------------
 
+case class RegisterClientRequest(uuid: String, configName: String, humanReadableName: String) extends Request
+
 case class ExecutionRequest(command: String) extends Request
 case class ExecutionDone(command: String) extends Event
 case class ExecutionFailure(command: String) extends Event

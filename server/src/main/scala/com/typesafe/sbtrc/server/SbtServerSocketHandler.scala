@@ -7,6 +7,7 @@ import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.server.ServerRequest
 import com.typesafe.sbtrc.ipc.HandshakeException
+import sbt.protocol.RegisterClientRequest
 
 /**
  * A class that will spawn up a thread to handle client connection requests.
@@ -19,12 +20,6 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
   // TODO - This should be configurable.
   private val log = new FileLogger(new java.io.File(".sbtserver/connections/master.log"))
 
-  @volatile
-  private var count = 0L
-  def nextCount = {
-    count += 1
-    count
-  }
   private val clientLock = new AnyRef {}
   private val clients = collection.mutable.ArrayBuffer.empty[SbtClientHandler]
 
@@ -41,18 +36,36 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
           log.log(s"New client attempting to connect on port: ${socket.getPort}-${socket.getLocalPort}")
           log.log(s"  Address = ${socket.getLocalSocketAddress}")
           val server = new IpcServer(socket)
-          // For ID we'll use the address of the socket...
-          val id = s"client-port-${socket.getPort}-connection-${nextCount}"
+
+          val (uuid, register) = Envelope(server.receive()) match {
+            case Envelope(serial, replyTo, req: RegisterClientRequest) =>
+              clientLock.synchronized {
+                if (clients.exists(_.uuid == req.uuid))
+                  throw new HandshakeException(s"Client tried to recycle UUID ${req.uuid}", null, null)
+              }
+              try (java.util.UUID.fromString(req.uuid) -> req)
+              catch {
+                case e: IllegalArgumentException =>
+                  throw new HandshakeException(s"Bad UUID '${req.uuid}'", null, null)
+              }
+            case wtf =>
+              throw new HandshakeException(s"First message from client was ${wtf} instead of register request",
+                null, null)
+          }
+
+          log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName}")
+
           // TODO - Clear out any client we had before with this same port *OR* take over that client....
           def onClose(): Unit = {
-            clientLock.synchronized(clients.remove(clients.indexWhere(_.id == id)))
+            clientLock.synchronized(clients.remove(clients.indexWhere(_.uuid == uuid)))
             // TODO - See if we can reboot the timeout on the server socket waiting
             // for another connection.
           }
-          val client = new SbtClientHandler(id, server, msgHandler, onClose)
+          val client = new SbtClientHandler(uuid, register.configName, register.humanReadableName,
+            server, msgHandler, onClose)
           clientLock.synchronized {
             clients.append(client)
-            log.log(s"Connected Clients: ${clients map (_.id) mkString ", "}")
+            log.log(s"Connected Clients: ${clients map (c => s"${c.configName}-${c.uuid}") mkString ", "}")
           }
         } catch {
           case e: HandshakeException =>

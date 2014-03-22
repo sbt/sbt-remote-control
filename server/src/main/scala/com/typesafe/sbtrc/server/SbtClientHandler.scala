@@ -14,18 +14,20 @@ import java.io.EOFException
  * We forward messages from the client into the sbt build loop.
  */
 class SbtClientHandler(
-  val id: String,
+  override val uuid: java.util.UUID,
+  override val configName: String,
+  override val humanReadableName: String,
   ipc: IpcServer,
   msgHandler: ServerRequest => Unit,
   closed: () => Unit) extends sbt.server.LiveClient {
 
   // TODO - Configure this location.
   // TODO - Is this thread safe-ish?
-  private val log = new FileLogger(new java.io.File(s".sbtserver/connections/${id}.log"))
+  private val log = new FileLogger(new java.io.File(s".sbtserver/connections/${configName}-${uuid}.log"))
 
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   def isAlive: Boolean = clientThread.isAlive && running.get
-  private object clientThread extends Thread(s"sbt-client-handler-$id") {
+  private object clientThread extends Thread(s"sbt-client-handler-$configName-$uuid") {
     final override def run(): Unit = {
       while (running.get) {
         try readNextMessage()
@@ -35,7 +37,7 @@ class SbtClientHandler(
             running.set(false)
           case e: Throwable =>
             // On any throwable, we'll shut down this connection as bad.
-            log.error(s"Client $id had error, shutting down", e)
+            log.error(s"Client $configName-$uuid had error, shutting down", e)
             // TODO - Remove this.
             e.printStackTrace(System.err)
             running.set(false)
@@ -88,13 +90,13 @@ class SbtClientHandler(
   // ipc is synchronized, so this is ok.
   def send[T: Format](msg: T): Unit = {
     // For now we start ignoring the routing...
-    log.log(s"Sending msg to client $id: $msg")
+    log.log(s"Sending msg to client $configName-$uuid: $msg")
     if (isAlive) ipc.replyJson(0L, msg)
   }
   // ipc is synchronized, so this is ok.
   def reply[T: Format](serial: Long, msg: T): Unit = {
     // For now we start ignoring the routing...
-    log.log(s"Sending reply to client $id: $msg")
+    log.log(s"Sending reply to client $configName-$uuid: $msg")
     if (isAlive) ipc.replyJson(serial, msg)
   }
   def readLine(replyTo: Long, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
@@ -163,9 +165,9 @@ class SbtClientHandler(
 
   override def equals(o: Any): Boolean =
     o match {
-      case x: SbtClientHandler => id == x.id
+      case x: SbtClientHandler => uuid == x.uuid
       case _ => false
     }
-  override def hashCode = id.hashCode
-  override def toString = "LiveClient(" + id + ")"
+  override def hashCode = uuid.hashCode
+  override def toString = "LiveClient(" + configName + " " + uuid + ")"
 }
