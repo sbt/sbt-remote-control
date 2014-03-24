@@ -118,6 +118,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
       })(RunOnSameThreadContext)
     })(ReadContext)
 
+    connector.open()
+
     // Now we need to run....
     def loop(): Unit = {
       val next = queue.take

@@ -7,6 +7,7 @@ import concurrent.{ ExecutionContext, Future }
 /**
  * This represents something that will connect to the sbt server *and* reconnect on failure.
  *
+ * Start trying to connect by calling open().
  * You can close the connection and stop reconnecting by calling `close()`.
  */
 trait SbtConnector extends Closeable {
@@ -30,4 +31,12 @@ trait SbtConnector extends Closeable {
    *                the boolean is false; string is the error message.
    */
   def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * Begin trying to connect to the server. Set up callbacks prior to opening the
+   * connection, your callbacks will receive any errors or created clients.
+   * If called twice, subsequent calls will force immediate retry if we are currently
+   * in a retry timeout; if we're currently connected then later calls do nothing.
+   */
+  def open(): Unit
 }

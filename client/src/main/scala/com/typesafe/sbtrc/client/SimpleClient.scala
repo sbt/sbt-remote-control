@@ -127,11 +127,13 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       while (running) {
         try handleNextEvent()
         catch {
-          case e @ (_: SocketException | _: EOFException) =>
-            e.printStackTrace()
+          case e @ (_: SocketException | _: EOFException | _: IOException) =>
+            // don't print anything here, this is a normal occurrence when server
+            // restarts or the socket otherwise closes for some reason.
+            // Closing the socket can cause "IOException: Stream closed"
+            // when reading a stream or in other cases we might get a socket
+            // exception or EOFException perhaps.
             running = false
-          case e: IOException =>
-            e.printStackTrace()
         }
       }
       // Here we think sbt connection has closed.
