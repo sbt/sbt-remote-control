@@ -8,10 +8,10 @@ import sbt.protocol._
 
 class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
   private var currentClient: Option[SbtClient] = None
-  private var listeners: List[Listener] = Nil
+  private var connectListeners: List[ConnectListener] = Nil
   private var reconnecting: Boolean = true
 
-  private final class Listener(handler: SbtClient => Unit, ctx: ExecutionContext) {
+  private final class ConnectListener(handler: SbtClient => Unit, ctx: ExecutionContext) {
     def emit(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
         override def run(): Unit = {
@@ -21,17 +21,17 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   }
 
   def onConnect(handler: SbtClient => Unit)(implicit ex: ExecutionContext): Subscription = {
-    val listener = new Listener(handler, ex)
-    SimpleConnector.this.synchronized(listeners = listener :: listeners)
+    val listener = new ConnectListener(handler, ex)
+    SimpleConnector.this.synchronized(connectListeners = listener :: connectListeners)
     object sub extends Subscription {
       def cancel(): Unit = {
-        SimpleConnector.this.synchronized(listeners = listeners.filterNot(_ == listener))
+        SimpleConnector.this.synchronized(connectListeners = connectListeners.filterNot(_ == listener))
       }
     }
     handleNewSubscriber(listener)
     sub
   }
-  private[this] def handleNewSubscriber(listener: Listener): Unit = synchronized {
+  private[this] def handleNewSubscriber(listener: ConnectListener): Unit = synchronized {
     currentClient match {
       case Some(client) => listener emit client
       case None => connectToSbt()
@@ -57,14 +57,14 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     val sbtClient = new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => onClose())
     currentClient = Some(sbtClient)
     // notify all existing folks of the new client.
-    def loop(remaining: List[Listener]): Unit =
+    def loop(remaining: List[ConnectListener]): Unit =
       remaining match {
         case Nil => ()
         case head :: tail =>
           head emit sbtClient
           loop(tail)
       }
-    loop(listeners)
+    loop(connectListeners)
   }
   // A callback from the server handling thread.
   private def onClose(): Unit = synchronized {
@@ -79,7 +79,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     synchronized {
       currentClient = None
       // TODO - Is this the right way to go?
-      listeners = Nil
+      connectListeners = Nil
     }
   }
 }
