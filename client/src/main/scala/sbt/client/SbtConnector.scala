@@ -18,4 +18,16 @@ trait SbtConnector extends Closeable {
    * @param ex        The context (thread) where the handler should be executed.
    */
   def onConnect(handler: SbtClient => Unit)(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * Register a callback to be notified anytime we disconnect or have some other error.
+   * Callback parameters are a boolean "reconnecting" and an error message.
+   * If an error is fatal/permanent or the connector has been closed, reconnecting
+   * will be false. Otherwise if we're going to retry (or have never tried) reconnecting
+   * will be true.
+   *
+   * @param handler A callback invoked on errors; if we are permanently closed,
+   *                the boolean is false; string is the error message.
+   */
+  def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription
 }

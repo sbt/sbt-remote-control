@@ -5,10 +5,12 @@ import sbt.client._
 import java.io.File
 import scala.concurrent.ExecutionContext
 import sbt.protocol._
+import scala.util.control.NonFatal
 
 class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
   private var currentClient: Option[SbtClient] = None
   private var connectListeners: List[ConnectListener] = Nil
+  private var errorListeners: List[ErrorListener] = Nil
   private var reconnecting: Boolean = true
 
   private final class ConnectListener(handler: SbtClient => Unit, ctx: ExecutionContext) {
@@ -16,6 +18,15 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
       ctx.prepare.execute(new Runnable() {
         override def run(): Unit = {
           handler(client)
+        }
+      })
+  }
+
+  private final class ErrorListener(handler: (Boolean, String) => Unit, ctx: ExecutionContext) {
+    def emit(reconnecting: Boolean, message: String): Unit =
+      ctx.prepare.execute(new Runnable() {
+        override def run(): Unit = {
+          handler(reconnecting, message)
         }
       })
   }
@@ -28,17 +39,29 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
         SimpleConnector.this.synchronized(connectListeners = connectListeners.filterNot(_ == listener))
       }
     }
-    handleNewSubscriber(listener)
+    handleNewConnectSubscriber(listener)
     sub
   }
-  private[this] def handleNewSubscriber(listener: ConnectListener): Unit = synchronized {
+  private[this] def handleNewConnectSubscriber(listener: ConnectListener): Unit = synchronized {
     currentClient match {
       case Some(client) => listener emit client
       case None => connectToSbt()
     }
   }
+  def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
+    val listener = new ErrorListener(handler, ex)
+    SimpleConnector.this.synchronized(errorListeners = listener :: errorListeners)
+    object sub extends Subscription {
+      def cancel(): Unit = {
+        SimpleConnector.this.synchronized(errorListeners = errorListeners.filterNot(_ == listener))
+      }
+    }
+    sub
+  }
 
-  private[this] def connectToSbt(): Unit = synchronized {
+  // TODO the error handling here makes little or no sense. We have to make
+  // connection async instead of a side effect of onConnect, to fix it.
+  private[this] def connectToSbt(): Unit = try synchronized {
     val uri = locator.locate(directory)
     // TODO - We need  way to be notified of failures so we can reconnect here...
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
@@ -65,7 +88,15 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
           loop(tail)
       }
     loop(connectListeners)
+  } catch {
+    case NonFatal(e) =>
+      // somewhat oddly, reconnecting can change midstream
+      // if one of the error listeners calls close()
+      for (listener <- errorListeners)
+        listener.emit(reconnecting, e.getMessage)
+      throw e
   }
+
   // A callback from the server handling thread.
   private def onClose(): Unit = synchronized {
     // TODO - This should only happen if we think the connection to the
