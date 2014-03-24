@@ -12,6 +12,7 @@ import sbt.Command
 import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
+import scala.annotation.tailrec
 
 final case class ExecutionId(id: Long) {
   require(id != 0L)
@@ -82,6 +83,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       emitWorkQueueChanged(oldWorkQueue, workQueue)
     }
 
+    @tailrec
     def takeNextWork: (ServerState, ServerEngineWork) = {
 
       // OVERVIEW of this method.
@@ -95,6 +97,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       //    pop ONE work item. Send change notification for pendingExecutions
       //    being one shorter. Return work item.
 
+      @tailrec
       def pollRequests(): ServerState = {
         requestQueue.pollNextRequest match {
           case Right(request) =>
