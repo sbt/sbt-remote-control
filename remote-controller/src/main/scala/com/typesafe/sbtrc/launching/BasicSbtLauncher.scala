@@ -41,9 +41,9 @@ trait SbtDefaultPropsfileLaunchInfo extends SbtBasicProcessLaunchInfo {
 
 /** A "template" for how to create an sbt process launcher. */
 trait BasicSbtProcessLauncher extends SbtProcessLauncher {
-  override def apply(cwd: File, port: Int): ProcessBuilder = {
+  override def apply(cwd: File, port: Int, extraJvmArgs: Seq[String] = Seq.empty[String]): ProcessBuilder = {
     import collection.JavaConverters._
-    new ProcessBuilder(arguments(cwd, port).asJava).
+    new ProcessBuilder(arguments(cwd, port, extraJvmArgs).asJava).
       directory(cwd)
   }
 
@@ -99,12 +99,12 @@ trait BasicSbtProcessLauncher extends SbtProcessLauncher {
   /**
    * Generates the arguments used by the sbt process launcher.
    */
-  def arguments(cwd: File, port: Int): Seq[String] = {
+  def arguments(cwd: File, port: Int, extraJvmArgs: Seq[String] = Seq.empty[String]): Seq[String] = {
     val portArg = "-Dsbtrc.control-port=" + port.toString
     // TODO - These need to be configurable *and* discoverable.
     // we have no idea if computers will be able to handle this amount of
     // memory....
-    val defaultJvmArgs = jvmArgs ++ passThroughJvmArgs
+    val defaultJvmArgs = jvmArgs ++ extraJvmArgs ++ passThroughJvmArgs
     val (sbtFullVersion, sbtBinaryVersion) = getSbtVersions(cwd)
     val info = getLaunchInfo(sbtBinaryVersion, sbtFullVersion)
     // TODO - handle spaces in strings and such...

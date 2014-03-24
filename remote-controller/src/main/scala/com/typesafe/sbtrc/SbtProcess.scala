@@ -19,7 +19,10 @@ case class UnsubscribeOutput(ref: ActorRef) extends SbtProcessRequest
 
 private class NeedRebootException extends Exception("Need to reboot")
 
-class SbtProcessUnderlyingActor(supervisor: ActorRef, workingDir: File, sbtProcessMaker: SbtProcessLauncher) extends SafeWatchActor with ActorLogging {
+class SbtProcessUnderlyingActor(supervisor: ActorRef,
+  workingDir: File,
+  sbtProcessMaker: SbtProcessLauncher,
+  extraJvmArgs: Seq[String] = Seq.empty[String]) extends SafeWatchActor with ActorLogging {
 
   private val serverSocket = ipc.openServerSocket()
   private val port = serverSocket.getLocalPort()
@@ -45,7 +48,7 @@ class SbtProcessUnderlyingActor(supervisor: ActorRef, workingDir: File, sbtProce
 
   // TODO the "textMode=true" here shouldn't be needed but scala 2.9.2 seems to not
   // realize that it has a default value? maybe some local quirk on my system?
-  private val process = context.actorOf(Props(new ProcessActor(sbtProcessMaker(workingDir, port),
+  private val process = context.actorOf(Props(new ProcessActor(sbtProcessMaker(workingDir, port, extraJvmArgs),
     textMode = true)), "sbt-process")
 
   private val server = context.actorOf(Props(new ServerActor(serverSocket, supervisor)), "sbt-server")
@@ -192,10 +195,12 @@ class SbtProcessUnderlyingActor(supervisor: ActorRef, workingDir: File, sbtProce
 
 // we track the pre-start buffer and event subscriptions, since
 // those are supposed to persist across restart
-class SbtProcessSupervisorActor(workingDir: File, sbtLauncher: SbtProcessLauncher) extends EventSourceActor with ActorLogging {
+class SbtProcessSupervisorActor(workingDir: File,
+  sbtLauncher: SbtProcessLauncher,
+  extraJvmArgs: Seq[String] = Seq.empty[String]) extends EventSourceActor with ActorLogging {
   private var protocolStarted = false
   private var preStartBuffer = Vector.empty[(protocol.Request, ActorRef)]
-  private val underlying = context.actorOf(Props(new SbtProcessUnderlyingActor(self, workingDir, sbtLauncher)),
+  private val underlying = context.actorOf(Props(new SbtProcessUnderlyingActor(self, workingDir, sbtLauncher, extraJvmArgs)),
     name = "underlying")
 
   watch(underlying)
@@ -297,9 +302,11 @@ class SbtProcessSupervisorActor(workingDir: File, sbtLauncher: SbtProcessLaunche
 }
 
 object SbtProcess {
-  def apply(factory: ActorRefFactory, workingDir: File, sbtLauncher: SbtProcessLauncher): ActorRef =
-    factory.actorOf(Props(new SbtProcessSupervisorActor(workingDir, sbtLauncher)),
-      "sbt-process-" + SbtProcess.nextSerial.getAndIncrement())
+  def apply(factory: ActorRefFactory,
+    workingDir: File,
+    sbtLauncher: SbtProcessLauncher,
+    extraJvmArgs: Seq[String] = Seq.empty[String]): ActorRef = factory.actorOf(Props(new SbtProcessSupervisorActor(workingDir, sbtLauncher, extraJvmArgs)),
+    "sbt-process-" + SbtProcess.nextSerial.getAndIncrement())
 
   private val nextSerial = new AtomicInteger(1)
 }
