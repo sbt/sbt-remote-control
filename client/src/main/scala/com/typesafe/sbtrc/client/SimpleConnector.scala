@@ -11,22 +11,13 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   private var listeners: List[Listener] = Nil
   private var reconnecting: Boolean = true
 
-  // Helper to give listeners an identity and execute methods on the given
-  // context.
   private final class Listener(handler: SbtClient => Unit, ctx: ExecutionContext) {
-    private val id = java.util.UUID.randomUUID.toString
     def emit(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
         override def run(): Unit = {
           handler(client)
         }
       })
-    override def hashCode = id.hashCode
-    override def equals(o: Any) =
-      o match {
-        case other: Listener => id == other.id
-        case _ => false
-      }
   }
 
   def onConnect(handler: SbtClient => Unit)(implicit ex: ExecutionContext): Subscription = {
