@@ -13,7 +13,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
 
   // Helper to give listeners an identity and execute methods on the given
   // context.
-  class Listener(handler: SbtClient => Unit, ctx: ExecutionContext) {
+  private final class Listener(handler: SbtClient => Unit, ctx: ExecutionContext) {
     private val id = java.util.UUID.randomUUID.toString
     def emit(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
