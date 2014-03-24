@@ -55,9 +55,9 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.sendJson(RegisterClientRequest(uuid.toString, configName, humanReadableName))
     Envelope(rawClient.receive()) match {
-      case Envelope(_, replyTo, ErrorResponse(message)) if replyTo == registerSerial =>
+      case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")
-      case Envelope(_, replyTo, reply: ReceivedResponse) if replyTo == registerSerial =>
+      case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>
       case wtf => {
         rawClient.close()
         throw new RuntimeException(s"unexpected initial message from server was not a register client reply: ${wtf}")
