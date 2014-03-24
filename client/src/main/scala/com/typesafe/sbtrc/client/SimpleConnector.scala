@@ -4,8 +4,9 @@ package client
 import sbt.client._
 import java.io.File
 import scala.concurrent.ExecutionContext
+import sbt.protocol.RegisterClientRequest
 
-class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtConnector {
+class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
   private var currentClient: Option[SbtClient] = None
   private var listeners: List[Listener] = Nil
   private var reconnecting: Boolean = true
@@ -51,7 +52,9 @@ class SimpleConnector(directory: File, locator: SbtServerLocator) extends SbtCon
     // TODO - We need  way to be notified of failures so we can reconnect here...
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
     val rawClient = new ipc.Client(socket)
-    val sbtClient = new SimpleSbtClient(rawClient, () => onClose())
+    val uuid = java.util.UUID.randomUUID()
+    rawClient.sendJson(RegisterClientRequest(uuid.toString, configName, humanReadableName))
+    val sbtClient = new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => onClose())
     currentClient = Some(sbtClient)
     // notify all existing folks of the new client.
     def loop(remaining: List[Listener]): Unit =

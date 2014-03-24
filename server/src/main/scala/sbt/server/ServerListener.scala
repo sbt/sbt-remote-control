@@ -40,6 +40,10 @@ case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
 }
 // This is what concrete implementations implement.
 abstract class LiveClient extends SbtClient {
+  def uuid: java.util.UUID
+  def configName: String
+  def humanReadableName: String
+
   /** requests a line of input from the client.  This will return sometime in the future. */
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */

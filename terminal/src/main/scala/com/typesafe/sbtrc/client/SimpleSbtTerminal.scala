@@ -88,7 +88,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   case class Exit(code: Int) extends xsbti.Exit
   override def run(configuration: AppConfiguration): xsbti.Exit = {
     System.out.println("Connecting to sbt...")
-    val connector = new SimpleConnector(configuration.baseDirectory, SimpleLocator)
+    val connector = new SimpleConnector("terminal", "Command Line Terminal",
+      configuration.baseDirectory, SimpleLocator)
     (connector onConnect { client =>
       import concurrent.ExecutionContext.global
       // This guy should handle future execution NOT on our event loop, or we'll block.
