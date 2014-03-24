@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
+import java.io.Closeable
 
 /**
  * Very terrible implementation of the sbt client.
@@ -84,7 +85,11 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       }
     }
   }
-  private object completionsManager {
+  def completePromisesOnClose(handlers: Map[_, Promise[_]]): Unit = {
+    for (promise <- handlers.values)
+      promise.failure(new RuntimeException("Connection to sbt closed"))
+  }
+  private object completionsManager extends Closeable {
     private var handlers: Map[String, Promise[Set[Completion]]] = Map.empty
     def register(id: String, listener: Promise[Set[Completion]]): Unit = synchronized {
       handlers += (id -> listener)
@@ -97,9 +102,10 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         case None => // ignore
       }
     }
+    override def close(): Unit = completePromisesOnClose(handlers)
   }
 
-  private object keyLookupRequestManager {
+  private object keyLookupRequestManager extends Closeable {
     private var handlers: Map[Long, Promise[Seq[ScopedKey]]] = Map.empty
     def register(id: Long, listener: Promise[Seq[ScopedKey]]): Unit = synchronized {
       handlers += (id -> listener)
@@ -112,6 +118,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         case None => // ignore
       }
     }
+    override def close(): Unit = completePromisesOnClose(handlers)
   }
 
   // TODO - Error handling!
@@ -129,6 +136,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       }
       // Here we think sbt connection has closed.
       client.close()
+      requestHandler.close()
+      completionsManager.close()
+      keyLookupRequestManager.close()
       closeHandler()
     }
     def handleNextEvent(): Unit =

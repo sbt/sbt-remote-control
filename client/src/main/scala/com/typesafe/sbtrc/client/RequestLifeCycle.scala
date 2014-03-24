@@ -3,6 +3,7 @@ package client
 
 import sbt.client.Interaction
 import concurrent.ExecutionContext
+import java.io.Closeable
 
 /** Handles events during a request's lifecycle. */
 private[client] class RequestLifecycle(val serial: Long, val interaction: Interaction) {
@@ -45,7 +46,7 @@ private[client] class InteractionHelper(i: Interaction, ex: ExecutionContext) ex
 
 private[client] class ExecutionNotFound(executionId: Long) extends Exception(s"Execution $executionId not found")
 
-private[client] class RequestHandler {
+private[client] class RequestHandler extends Closeable {
   // requests are initially tracked by serial, then converted into
   // by execution ID once we get one.
   // Multiple requests may have the same execution ID,
@@ -53,6 +54,11 @@ private[client] class RequestHandler {
   // while errors after that should be sbt errors.
   private var bySerial: Map[Long, RequestLifecycle] = Map.empty
   private var byExecutionId: Map[Long, Seq[RequestLifecycle]] = Map.empty
+  override def close(): Unit = {
+    for (lifecycle <- bySerial.values)
+      lifecycle.error("Connection to sbt closed")
+    bySerial = Map.empty
+  }
   def register(serial: Long, interaction: Option[(Interaction, ExecutionContext)] = None): RequestLifecycle = {
     synchronized {
       val (iact, context) = interaction match {
