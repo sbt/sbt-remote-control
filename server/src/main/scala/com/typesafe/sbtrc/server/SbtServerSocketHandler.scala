@@ -52,6 +52,12 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
                   throw replyAndException(s"UUID already in use: ${req.uuid}")
               }
 
+              if (!req.configName.matches("^[-a-zA-Z0-9]+$"))
+                throw replyAndException(s"configName '${req.configName}' must be non-empty and ASCII alphanumeric only")
+
+              if (req.humanReadableName.isEmpty())
+                throw replyAndException(s"humanReadableName must not be empty")
+
               try { (java.util.UUID.fromString(req.uuid), req, serial) }
               catch {
                 case e: IllegalArgumentException =>
