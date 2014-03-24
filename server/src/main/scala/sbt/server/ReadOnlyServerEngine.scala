@@ -7,6 +7,9 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
 
+// a little wrapper around protocol.request to keep the client/serial with it
+case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
+
 /**
  * This class represents an event loop which sits outside the normal sbt command
  * processing loop.
@@ -27,8 +30,8 @@ class ReadOnlyServerEngine(
   private var serverStateRef = new AtomicReference[ServerState](ServerState())
   def serverState = serverStateRef.get()
   private val running = new AtomicBoolean(true)
-  /** TODO - we should use data structure that allows us to merge/purge requests. */
-  private val commandQueue: BlockingQueue[ServerRequest] =
+  // IPC protocol requests which turn into ServerEngineWork go in here
+  private val workRequestsQueue: BlockingQueue[ServerRequest] =
     new java.util.concurrent.ArrayBlockingQueue[ServerRequest](10) // TODO - this should limit the number of queued requests for now
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
@@ -71,13 +74,18 @@ class ReadOnlyServerEngine(
       }
     }
   }
+
   /** Object we use to synch requests/state between event loop + command loop. */
   final object engineQueue extends ServerEngineQueue {
-    def takeNextRequest: (ServerState, ServerRequest) = {
-      // We have to grab commandQueue *FIRST* then wait for serverState value. We
-      // Do not want the jvm to re-order these executions, so we do some dirty tricks to force it.
-      val nextCommand = commandQueue.take
-      (serverState, nextCommand)
+    override def pollNextRequest(): Either[ServerState, ServerRequest] = {
+      Option(workRequestsQueue.poll()) match {
+        case Some(req) => Right(req)
+        case None => Left(serverState)
+      }
+    }
+
+    override def takeNextRequest(): ServerRequest = {
+      workRequestsQueue.take()
     }
   }
 
@@ -89,7 +97,7 @@ class ReadOnlyServerEngine(
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
       case req: ExecutionRequest =>
-        commandQueue.add(ServerRequest(client, serial, request))
+        workRequestsQueue.add(ServerRequest(client, serial, request))
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
@@ -128,7 +136,7 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              commandQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
+              workRequestsQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
             }
 
           case None => // Issue a no such key error
@@ -136,7 +144,7 @@ class ReadOnlyServerEngine(
         }
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
-        commandQueue.add(ServerRequest(client, serial, request))
+        workRequestsQueue.add(ServerRequest(client, serial, request))
       case CommandCompletionsRequest(id, line, level) =>
         val combined = buildState.combinedParser
         val completions = complete.Parser.completions(combined, line, level)

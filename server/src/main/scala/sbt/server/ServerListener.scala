@@ -45,9 +45,9 @@ abstract class LiveClient extends SbtClient {
   def humanReadableName: String
 
   /** requests a line of input from the client.  This will return sometime in the future. */
-  def readLine(replyTo: Long, prompt: String, mask: Boolean): Future[Option[String]]
+  def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */
-  def confirm(replyTo: Long, msg: String): Future[Boolean]
+  def confirm(executionId: ExecutionId, msg: String): Future[Boolean]
   def reply[T: Format](replyTo: Long, msg: T): Unit
 }
 

@@ -8,13 +8,8 @@ import concurrent.ExecutionContext
 private[client] class RequestLifecycle(val serial: Long, val interaction: Interaction) {
   private val receivedPromise = concurrent.promise[Unit]
   val received = receivedPromise.future
-  def error(msg: String): Unit = {
-    // Ignore if we cannot.  There's an issue currently with TWO possible messages, both correct,
-    // about a request.   The second message is about failure DURING execution, not ACCEPTING
-    // the message, which we want to move its code path elsewhere.
-    // TODO - We may be able to remove this now.
-    receivedPromise.tryFailure(new RequestException(msg))
-  }
+  def error(msg: String): Unit =
+    receivedPromise.failure(new RequestException(msg))
   def accepted(): Unit =
     receivedPromise.success(())
 }
@@ -48,10 +43,16 @@ private[client] class InteractionHelper(i: Interaction, ex: ExecutionContext) ex
 
 }
 
-private[client] class RequestNotFound(serial: Long) extends Exception(s"Request $serial not found")
+private[client] class ExecutionNotFound(executionId: Long) extends Exception(s"Execution $executionId not found")
 
 private[client] class RequestHandler {
-  private var runningRequests: Map[Long, RequestLifecycle] = Map.empty
+  // requests are initially tracked by serial, then converted into
+  // by execution ID once we get one.
+  // Multiple requests may have the same execution ID,
+  // serials are unique. Errors by serial are protocol breakage
+  // while errors after that should be sbt errors.
+  private var bySerial: Map[Long, RequestLifecycle] = Map.empty
+  private var byExecutionId: Map[Long, Seq[RequestLifecycle]] = Map.empty
   def register(serial: Long, interaction: Option[(Interaction, ExecutionContext)] = None): RequestLifecycle = {
     synchronized {
       val (iact, context) = interaction match {
@@ -59,43 +60,66 @@ private[client] class RequestHandler {
         case None => (NoInteraction, ExecutionContext.global)
       }
       val lifecycle = new RequestLifecycle(serial, new InteractionHelper(iact, context))
-      runningRequests += serial -> lifecycle
+      bySerial += serial -> lifecycle
       lifecycle
     }
   }
-  def readLine(serial: Long, prompt: String, mask: Boolean): Option[String] =
-    withRequest(serial) { request =>
+  def readLine(executionId: Long, prompt: String, mask: Boolean): Option[String] =
+    withExecution(executionId) { request =>
       request.interaction.readLine(prompt, mask)
     }
-  def confirm(serial: Long, message: String): Boolean =
-    withRequest(serial) { request =>
+  def confirm(executionId: Long, message: String): Boolean =
+    withExecution(executionId) { request =>
       request.interaction.confirm(message)
     }
-  def error(serial: Long, msg: String): Unit = {
-    finishRequest(serial)(_.error(msg))
+  def protocolError(requestSerial: Long, msg: String): Unit = {
+    finishRequest(requestSerial, executionIdOption = None)(_.error(msg))
   }
-  def accepted(serial: Long): Unit =
-    try withRequest(serial)(_.accepted())
-    catch {
-      case e: RequestNotFound =>
-    }
-  def completed(serial: Long): Unit = {
-    finishRequest(serial)(identity)
+  def executionReceived(requestSerial: Long, executionId: Long): Unit = {
+    finishRequest(requestSerial, Some(executionId))(_.accepted())
+  }
+  def executionDone(executionId: Long): Unit = {
+    finishExecutions(executionId)(identity)
+  }
+  def executionFailed(executionId: Long, message: String): Unit = {
+    // TODO we just swallow the error! that can't be quite right.
+    executionDone(executionId)
   }
 
-  private def withRequest[A](serial: Long)(f: RequestLifecycle => A): A =
+  private def withExecution[A](executionId: Long)(f: RequestLifecycle => A): A =
     synchronized {
-      runningRequests get serial match {
+      // we pick a request with this executionId at random, if
+      // there are multiple
+      byExecutionId get executionId flatMap (_.headOption) match {
         case Some(req) => f(req)
-        case None => throw new RequestNotFound(serial)
+        case None => throw new ExecutionNotFound(executionId)
       }
     }
-  private def finishRequest(serial: Long)(f: RequestLifecycle => Unit): Unit = {
+  private def finishExecutions(executionId: Long)(f: Seq[RequestLifecycle] => Unit): Unit = {
     synchronized {
-      runningRequests get serial match {
+      byExecutionId get executionId match {
+        case Some(reqs) =>
+          try f(reqs)
+          finally byExecutionId -= executionId
+        case None => // TODO - Issue some error or log!
+      }
+    }
+  }
+  private def finishRequest(serial: Long, executionIdOption: Option[Long])(f: RequestLifecycle => Unit): Unit = {
+    synchronized {
+      bySerial get serial match {
         case Some(req) =>
+          // move it to byExecutionId
+          for (executionId <- executionIdOption) {
+            byExecutionId += executionId -> (byExecutionId.get(executionId) map { existing =>
+              req +: existing
+            } getOrElse {
+              Seq(req)
+            })
+          }
+          // run function and remove from bySerial
           try f(req)
-          finally runningRequests -= serial
+          finally bySerial -= serial
         case None => // TODO - Issue some error or log!
       }
     }

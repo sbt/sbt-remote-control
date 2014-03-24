@@ -26,9 +26,9 @@ class ProtocolTest {
     )
     val specifics = Seq(
       // Requests
-      protocol.ReadLineRequest("HI", true),
+      protocol.ReadLineRequest(42, "HI", true),
       protocol.ReadLineResponse(Some("line")),
-      protocol.ConfirmRequest("msg"),
+      protocol.ConfirmRequest(43, "msg"),
       protocol.ConfirmResponse(true),
       protocol.ReceivedResponse(),
       protocol.RequestCompleted(),
@@ -53,7 +53,7 @@ class ProtocolTest {
       protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
       protocol.LogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
-      protocol.ExecutionDone("test result command"),
+      protocol.ExecutionDone(44, "test result command"),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),

@@ -5,6 +5,7 @@ import ipc.{ MultiClientServer => IpcServer }
 import sbt.protocol.{ Envelope, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Format
 import sbt.server.ServerRequest
+import sbt.server.ExecutionId
 import concurrent.{ Promise, promise }
 import java.io.EOFException
 
@@ -99,10 +100,10 @@ class SbtClientHandler(
     log.log(s"Sending reply to client $configName-$uuid: $msg")
     if (isAlive) ipc.replyJson(serial, msg)
   }
-  def readLine(replyTo: Long, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
-    interactionManager.readLine(replyTo, prompt, mask)
-  def confirm(replyTo: Long, msg: String): concurrent.Future[Boolean] =
-    interactionManager.confirm(replyTo, msg)
+  def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+    interactionManager.readLine(executionId, prompt, mask)
+  def confirm(executionId: ExecutionId, msg: String): concurrent.Future[Boolean] =
+    interactionManager.confirm(executionId, msg)
 
   object interactionManager {
     private var readLineRequests: Map[Long, Promise[Option[String]]] = Map.empty
@@ -121,10 +122,10 @@ class SbtClientHandler(
         case None => // TODO - error
       }
     }
-    def readLine(replyTo: Long, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
+    def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
       synchronized {
         val result = promise[Option[String]]
-        val newSerial = ipc.replyJson(replyTo, ReadLineRequest(prompt, mask))
+        val newSerial = ipc.sendJson(ReadLineRequest(executionId.id, prompt, mask))
         readLineRequests += newSerial -> result
         result.future
       }
@@ -138,10 +139,10 @@ class SbtClientHandler(
           case None => // TODO - log error?
         }
       }
-    def confirm(replyTo: Long, msg: String): concurrent.Future[Boolean] =
+    def confirm(executionId: ExecutionId, msg: String): concurrent.Future[Boolean] =
       synchronized {
         val result = promise[Boolean]
-        val newSerial = ipc.replyJson(replyTo, ConfirmRequest(msg))
+        val newSerial = ipc.sendJson(ConfirmRequest(executionId.id, msg))
         confirmRequests += newSerial -> result
         result.future
       }

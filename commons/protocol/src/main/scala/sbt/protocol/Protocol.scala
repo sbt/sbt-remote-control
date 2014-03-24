@@ -41,8 +41,11 @@ sealed trait Event extends Message
 case class RegisterClientRequest(uuid: String, configName: String, humanReadableName: String) extends Request
 
 case class ExecutionRequest(command: String) extends Request
-case class ExecutionDone(command: String) extends Event
-case class ExecutionFailure(command: String) extends Event
+// if the request was combined with an identical pending one,
+// then the id will be the same for the combined requests.
+case class ExecutionRequestReceived(id: Long) extends Response
+case class ExecutionDone(id: Long, command: String) extends Event
+case class ExecutionFailure(id: Long, command: String) extends Event
 
 /**
  * @param id An identifier we'll receive when we get the list of completions.
@@ -149,9 +152,9 @@ case class RequestCompleted() extends Response
 case class RequestFailed() extends Response
 
 
-case class ReadLineRequest(prompt: String, mask: Boolean) extends Request
+case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) extends Request
 case class ReadLineResponse(line: Option[String]) extends Response
-case class ConfirmRequest(message: String) extends Request
+case class ConfirmRequest(executionId: Long, message: String) extends Request
 case class ConfirmResponse(confirmed: Boolean) extends Response
 
 

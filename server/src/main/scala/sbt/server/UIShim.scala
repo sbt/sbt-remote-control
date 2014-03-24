@@ -5,10 +5,10 @@ import play.api.libs.json.{ Format, JsValue }
 
 private[server] class ServerUIContext(state: ServerState) extends AbstractUIContext {
 
-  private def withClient[A](state: ServerState)(f: (Long, LiveClient) => A): Option[A] = {
+  private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
-      // TODO - Send serial back with message
-      case Some(LastCommand(_, replyTo, client)) => Some(f(replyTo, client))
+      // work.allRequesters.head picks a client at random to do the confirmation protocol.
+      case Some(LastCommand(work)) => Some(f(work.id, work.allRequesters.head))
       case _ => None
     }
   }
@@ -19,13 +19,13 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
   // TODO - Figure out how to block on input from server
   def readLine(prompt: String, mask: Boolean): Option[String] =
     // TODO - Timeouts error handling....
-    withClient(state) { (replyTo, client) =>
-      waitForever(client.readLine(replyTo, prompt, mask))
+    withClient(state) { (executionId, client) =>
+      waitForever(client.readLine(executionId, prompt, mask))
     }.getOrElse(throw new java.io.IOException("No clients listening to readLine request."))
   def confirm(msg: String): Boolean =
-    withClient(state) { (replyTo, client) =>
-      System.out.println(s"Asking client($client) to confirm on request: $replyTo, $msg")
-      waitForever(client.confirm(replyTo, msg))
+    withClient(state) { (executionId, client) =>
+      System.out.println(s"Asking client($client) to confirm on request: $executionId, $msg")
+      waitForever(client.confirm(executionId, msg))
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 
