@@ -38,22 +38,24 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
 
           val (uuid, register, registerSerial) = Envelope(server.receive()) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>
+              def replyAndException(message: String): Exception = {
+                server.replyJson(serial, ErrorResponse(message))
+                new HandshakeException(message, null, null)
+              }
               clientLock.synchronized {
                 // Note there is a race here; two clients with same UUID can connect,
                 // the UUID isn't in the list for either, then we append both to the
                 // list. But we aren't really worried about evil/hostile clients just
                 // detecting buggy clients so don't worry about it. Can't happen unless
                 // clients are badly broken (hardcoded fixed uuid?) or malicious.
-                if (clients.exists(_.uuid == req.uuid)) {
-                  server.replyJson(serial, ErrorResponse("UUID is already in use"))
-                  throw new HandshakeException(s"Client tried to recycle UUID ${req.uuid}", null, null)
-                }
+                if (clients.exists(_.uuid == req.uuid))
+                  throw replyAndException(s"UUID already in use: ${req.uuid}")
               }
+
               try { (java.util.UUID.fromString(req.uuid), req, serial) }
               catch {
                 case e: IllegalArgumentException =>
-                  server.replyJson(serial, ErrorResponse("Invalid UUID format"))
-                  throw new HandshakeException(s"Bad UUID '${req.uuid}'", null, null)
+                  throw replyAndException(s"Invalid UUID format: '${req.uuid}'")
               }
             case Envelope(serial, _, wtf) =>
               server.replyJson(serial, ErrorResponse("First message must be a RegisterClientRequest"))
