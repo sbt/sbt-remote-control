@@ -4,7 +4,7 @@ package client
 import sbt.client._
 import java.io.File
 import scala.concurrent.ExecutionContext
-import sbt.protocol.RegisterClientRequest
+import sbt.protocol._
 
 class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
   private var currentClient: Option[SbtClient] = None
@@ -53,7 +53,16 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
     val rawClient = new ipc.Client(socket)
     val uuid = java.util.UUID.randomUUID()
-    rawClient.sendJson(RegisterClientRequest(uuid.toString, configName, humanReadableName))
+    val registerSerial = rawClient.sendJson(RegisterClientRequest(uuid.toString, configName, humanReadableName))
+    Envelope(rawClient.receive()) match {
+      case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
+        throw new RuntimeException(s"Failed to register client with sbt: ${message}")
+      case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>
+      case wtf => {
+        rawClient.close()
+        throw new RuntimeException(s"unexpected initial message from server was not a register client reply: ${wtf}")
+      }
+    }
     val sbtClient = new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => onClose())
     currentClient = Some(sbtClient)
     // notify all existing folks of the new client.

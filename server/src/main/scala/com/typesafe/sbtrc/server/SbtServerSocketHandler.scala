@@ -2,12 +2,11 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Request }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.server.ServerRequest
 import com.typesafe.sbtrc.ipc.HandshakeException
-import sbt.protocol.RegisterClientRequest
+import sbt.protocol._
 
 /**
  * A class that will spawn up a thread to handle client connection requests.
@@ -37,21 +36,40 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
           log.log(s"  Address = ${socket.getLocalSocketAddress}")
           val server = new IpcServer(socket)
 
-          val (uuid, register) = Envelope(server.receive()) match {
+          val (uuid, register, registerSerial) = Envelope(server.receive()) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>
-              clientLock.synchronized {
-                if (clients.exists(_.uuid == req.uuid))
-                  throw new HandshakeException(s"Client tried to recycle UUID ${req.uuid}", null, null)
+              def replyAndException(message: String): Exception = {
+                server.replyJson(serial, ErrorResponse(message))
+                new HandshakeException(message, null, null)
               }
-              try (java.util.UUID.fromString(req.uuid) -> req)
+              clientLock.synchronized {
+                // Note there is a race here; two clients with same UUID can connect,
+                // the UUID isn't in the list for either, then we append both to the
+                // list. But we aren't really worried about evil/hostile clients just
+                // detecting buggy clients so don't worry about it. Can't happen unless
+                // clients are badly broken (hardcoded fixed uuid?) or malicious.
+                if (clients.exists(_.uuid == req.uuid))
+                  throw replyAndException(s"UUID already in use: ${req.uuid}")
+              }
+
+              if (!req.configName.matches("^[-a-zA-Z0-9]+$"))
+                throw replyAndException(s"configName '${req.configName}' must be non-empty and ASCII alphanumeric only")
+
+              if (req.humanReadableName.isEmpty())
+                throw replyAndException(s"humanReadableName must not be empty")
+
+              try { (java.util.UUID.fromString(req.uuid), req, serial) }
               catch {
                 case e: IllegalArgumentException =>
-                  throw new HandshakeException(s"Bad UUID '${req.uuid}'", null, null)
+                  throw replyAndException(s"Invalid UUID format: '${req.uuid}'")
               }
-            case wtf =>
+            case Envelope(serial, _, wtf) =>
+              server.replyJson(serial, ErrorResponse("First message must be a RegisterClientRequest"))
               throw new HandshakeException(s"First message from client was ${wtf} instead of register request",
                 null, null)
           }
+
+          server.replyJson(registerSerial, ReceivedResponse())
 
           log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName}")
 
