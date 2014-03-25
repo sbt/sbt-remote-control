@@ -182,6 +182,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   // onClose
   private def onConnectionAttempt(result: Try[SbtClient]): Unit = synchronized {
     require(currentClient.isEmpty) // we shouldn't have created a thread if we had a client
+    require(currentConnectThread.isDefined) // we shouldn't get this callback if there's no thread
     currentConnectThread.foreach(_.join())
     currentConnectThread = None
     result match {
@@ -199,6 +200,8 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     // we shouldn't have received a close callback without first getting
     // an onConnectionAttempt with a client
     require(currentClient.isDefined)
+    require(currentConnectThread.isEmpty)
+    currentClient = None
     notifyAndRecoverFromError("Connection closed")
   }
 
