@@ -110,8 +110,17 @@ trait SbtClientTest extends IntegrationTest {
       try f(client)
       finally client.requestExecution("exit", None) // TODO - Will this shut down the server?
     }
+    val errorHandler: (Boolean, String) => Unit = { (reconnecting, error) =>
+      // don't retry forever just close. But print those errors.
+      if (reconnecting)
+        connector.close()
+      else
+        System.err.println(s"sbt connection closed, reconnecting=${reconnecting} error=${error}")
+    }
+
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
-    val subscription = (connector onConnect newHandler)(runOneThingExecutor)
+    val subscription = (connector.open(newHandler, errorHandler))(runOneThingExecutor)
+
     // Block current thread until we can run the test.
     try runOneThingExecutor.runWhenReady()
     finally connector.close()

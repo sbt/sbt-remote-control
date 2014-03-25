@@ -90,7 +90,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     System.out.println("Connecting to sbt...")
     val connector = new SimpleConnector("terminal", "Command Line Terminal",
       configuration.baseDirectory, SimpleLocator)
-    (connector onConnect { client =>
+
+    def onConnect(client: SbtClient): Unit = {
       import concurrent.ExecutionContext.global
       // This guy should handle future execution NOT on our event loop, or we'll block.
       // Ideally, "same thread" execution context instead.
@@ -116,7 +117,18 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           reader.printLineAndRedrawPrompt(msg)
         case _ => ()
       })(RunOnSameThreadContext)
-    })(ReadContext)
+    }
+
+    def onError(reconnecting: Boolean, message: String): Unit = {
+      if (reconnecting) {
+        System.out.println("Lost connection to sbt, reconnecting...")
+      } else {
+        System.out.println("Connection to sbt closed.")
+        Exit(0)
+      }
+    }
+
+    connector.open(onConnect, onError)(ReadContext)
 
     // Now we need to run....
     def loop(): Unit = {
