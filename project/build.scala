@@ -32,6 +32,16 @@ object TheBuild extends Build {
     settings(Properties.makePropertyClassSetting(Dependencies.sbt12Version, Dependencies.scalaVersion):_*)
   )
 
+  lazy val exampleAgent = (
+    SbtRemoteControlProject("example-agent")
+    settings(
+      Keys.version := "1.0",
+      Keys.publish := {},
+      Keys.exportJars := true,
+      Keys.packageOptions in (Compile, Keys.packageBin) +=
+          Package.ManifestAttributes( new java.util.jar.Attributes.Name("Premain-Class") -> "com.typesafe.sbtrc.agent.ExampleAgent" )
+    )
+  )
 
   // ================= 0.12 shims ==========================
 
@@ -152,6 +162,7 @@ object TheBuild extends Build {
 
   lazy val itRunner: Project = (
     SbtRemoteControlProject("it-runner")
+    dependsOn(exampleAgent)
     settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,

@@ -44,7 +44,9 @@ trait SbtProcessFactory {
   def newChild(actorFactory: ActorRefFactory): ActorRef
 }
 
-class DefaultSbtProcessFactory(val workingDir: File, val sbtProcessLauncher: SbtProcessLauncher) extends SbtProcessFactory {
+class DefaultSbtProcessFactory(val workingDir: File,
+  val sbtProcessLauncher: SbtProcessLauncher,
+  val extraJvmArgs: Seq[String] = Seq.empty[String]) extends SbtProcessFactory {
   override def init(log: akka.event.LoggingAdapter): Unit = {
     // TODO - We should error out on bad version numbers!
     val sbtBinaryVersion =
@@ -63,7 +65,7 @@ class DefaultSbtProcessFactory(val workingDir: File, val sbtProcessLauncher: Sbt
     }
   }
 
-  override def newChild(actorFactory: ActorRefFactory): ActorRef = SbtProcess(actorFactory, workingDir, sbtProcessLauncher)
+  override def newChild(actorFactory: ActorRefFactory): ActorRef = SbtProcess(actorFactory, workingDir, sbtProcessLauncher, extraJvmArgs)
 }
 
 // This class manages a pool of sbt processes.

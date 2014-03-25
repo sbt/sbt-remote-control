@@ -26,7 +26,7 @@ class SbtProcessTest {
     private def isWindows =
       sys.props("os.name").toLowerCase contains "windows"
 
-    override def apply(cwd: File, port: Int): ProcessBuilder = {
+    override def apply(cwd: File, port: Int, extraJvmArgs: Seq[String] = Seq.empty[String]): ProcessBuilder = {
       val cmd =
         if (isWindows) Seq("cmd.exe", "/c", "echo", "Hello World")
         else Seq("echo", "Hello World")

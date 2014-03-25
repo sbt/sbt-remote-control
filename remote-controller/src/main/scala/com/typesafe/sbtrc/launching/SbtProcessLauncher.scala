@@ -18,7 +18,7 @@ trait SbtProcessLauncher {
    * @param port
    *     The port with which the sbt process should listen for changes.
    */
-  def apply(cwd: File, port: Int): ProcessBuilder
+  def apply(cwd: File, port: Int, extraJvmArgs: Seq[String] = Seq.empty[String]): ProcessBuilder
 
   protected final def quoteCommandLine(argv: Seq[String]): Seq[String] = {
     if (System.getProperty("os.name").toLowerCase.contains("windows")) {
@@ -44,7 +44,7 @@ object SbtProcessLauncher {
        * ProcessBuilder adds its own layer, where if an arg contains a space or tab, AND does not already have
        * quotes on the outside, it adds quotes on the outside; but it does not properly quote, just sticks
        * quotes around the outside. By adding our own quotes we should avoid ProcessBuilder's insanity.
-       * 
+       *
        * See also http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
        */
 
