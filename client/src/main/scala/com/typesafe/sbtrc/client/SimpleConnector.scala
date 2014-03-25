@@ -82,12 +82,27 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
 }
 
 class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
-  private var currentClient: Option[SbtClient] = None
-  // this should only exist if currentClient.isEmpty since its job
-  // is to try to make a new client
-  private var currentConnectThread: Option[ConnectThread] = None
+
+  private sealed trait ConnectState
+  // open() never called
+  private final case object NotYetOpened extends ConnectState
+  // close() has been called (not same as client being closed)
+  private final case object Closed extends ConnectState
+  // connecting thread working on a connect
+  private final case class Connecting(thread: ConnectThread) extends ConnectState
+  // connecting ended in success
+  private final case class Open(client: SbtClient) extends ConnectState
+
+  private var connectState: ConnectState = NotYetOpened
+
   private var connectListeners: List[ConnectListener] = Nil
   private var errorListeners: List[ErrorListener] = Nil
+
+  // still retrying or have we been closed? This flag is almost the same
+  // as connectState == Closed, but this boolean is what has been requested,
+  // while Closed is the actual notified state. So if we've asked to close
+  // but haven't gotten back the closed callback, reconnecting=false but
+  // connectState != Closed.
   private var reconnecting: Boolean = true
 
   private final class ConnectListener(handler: SbtClient => Unit, ctx: ExecutionContext) {
@@ -109,23 +124,25 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   }
 
   private def startConnectAttempt(afterMilliseconds: Long): Unit = {
-    require(currentClient.isEmpty)
-    require(currentConnectThread.isEmpty)
-    currentConnectThread = Some(new ConnectThread(onConnectionAttempt, onClose,
+    require(connectState != Closed)
+    require(reconnecting)
+
+    val state = Connecting(new ConnectThread(onConnectionAttempt, onClientClose,
       afterMilliseconds,
       configName, humanReadableName, directory, locator))
-    currentConnectThread.foreach(_.start())
+    connectState = state
+    state.thread.start()
   }
 
   def open(): Unit = synchronized {
-    if (currentClient.isEmpty) {
-      currentConnectThread match {
-        case Some(thread) =>
-          // force immediate retry
-          thread.connectInNoMoreThan(0)
-        case None =>
-          startConnectAttempt(0 /* immediate attempt */ )
-      }
+    connectState match {
+      case NotYetOpened =>
+        startConnectAttempt(0 /* immediate attempt */ )
+      case Connecting(thread) =>
+        // force immediate retry
+        thread.connectInNoMoreThan(0)
+      case Closed | Open(_) =>
+      // nothing to do
     }
   }
 
@@ -141,9 +158,9 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     sub
   }
   private[this] def handleNewConnectSubscriber(listener: ConnectListener): Unit = synchronized {
-    currentClient match {
-      case Some(client) => listener emit client
-      case None =>
+    connectState match {
+      case Open(client) => listener emit client
+      case NotYetOpened | Closed | Connecting(_) =>
     }
   }
   def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
@@ -157,19 +174,18 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     sub
   }
 
-  private def notifyAndRecoverFromError(message: String): Unit = synchronized {
+  private def reconnectOrCloseOnError(message: String): Unit = synchronized {
     for (listener <- errorListeners)
       listener.emit(reconnecting, message)
 
     if (reconnecting) {
-      currentConnectThread match {
-        case Some(thread) => // already retrying
-        case None =>
-          startConnectAttempt(4000 /* retry every this many milliseconds */ )
-      }
+      // transitions state to Connecting
+      startConnectAttempt(4000 /* retry every this many milliseconds */ )
     } else {
+      connectState = Closed
+
       // It's impossible for these to be called again
-      // because once reconnecting=false it's always false,
+      // because we never leave the Closed state,
       // AND we just notified on the final fatal error.
       // So clear them out to allow GC - these may well capture a big
       // hunk of application functionality.
@@ -181,35 +197,61 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   // A callback from our connecting thread when it's done; always called before
   // onClose
   private def onConnectionAttempt(result: Try[SbtClient]): Unit = synchronized {
-    require(currentClient.isEmpty) // we shouldn't have created a thread if we had a client
-    require(currentConnectThread.isDefined) // we shouldn't get this callback if there's no thread
-    currentConnectThread.foreach(_.join())
-    currentConnectThread = None
-    result match {
-      case Failure(error) =>
-        notifyAndRecoverFromError(error.getMessage)
-      case Success(client) =>
-        currentClient = Some(client)
-        for (listener <- connectListeners)
-          listener.emit(client)
+    connectState match {
+      case Connecting(thread) =>
+        thread.join()
+        result match {
+          case Failure(error) =>
+            reconnectOrCloseOnError(error.getMessage)
+          case Success(client) =>
+            connectState = Open(client)
+            for (listener <- connectListeners)
+              listener.emit(client)
+            if (!reconnecting) {
+              // close() was called after the thread made the client
+              // but before we received notification of the client,
+              // so close the client here, which results in onClientClose
+              // which then transitions us to Closed state.
+              client.close()
+            }
+        }
+      case Closed | NotYetOpened | Open(_) =>
+        throw new RuntimeException(s"State ${connectState} should have been impossible in onConnectionAttempt")
     }
   }
 
-  // A callback from the server handling thread.
-  private def onClose(): Unit = synchronized {
+  // A callback from the server handling thread. This means one client
+  // is closed, not that the connector is closed.
+  private def onClientClose(): Unit = synchronized {
     // we shouldn't have received a close callback without first getting
     // an onConnectionAttempt with a client
-    require(currentClient.isDefined)
-    require(currentConnectThread.isEmpty)
-    currentClient = None
-    notifyAndRecoverFromError("Connection closed")
+    connectState match {
+      case Open(client) =>
+        // transition state to Connecting or Closed
+        reconnectOrCloseOnError("Connection closed")
+      case Closed => // nothing to do
+      case NotYetOpened =>
+        throw new RuntimeException("close callback should be impossible if open() never called")
+      case Connecting(thread) =>
+        throw new RuntimeException("should not have entered Connecting state with a client still open")
+    }
   }
 
   def close(): Unit = synchronized {
+    // We mark our desired state with this flag
     reconnecting = false
-    // don't set these to None here - it should happen
-    // in the appropriate callbacks
-    currentConnectThread.foreach(_.close())
-    currentClient.foreach(_.close())
+
+    // then we update connectState, usually async when the actual
+    // closing has taken place.
+    connectState match {
+      // the onClientClose handler above should transition our state to Closed
+      case Open(client) => client.close()
+      // the onConnectionAttempt handler should transition us to Closed
+      case Connecting(thread) => thread.close()
+      // we can transition ourselves to closed right away
+      case NotYetOpened => connectState = Closed
+      // nothing to do here
+      case Closed =>
+    }
   }
 }
