@@ -59,6 +59,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
 
   override def close(): Unit = {
     closed = true
+    adjustRemaining(_ => 0)
   }
 
   private[this] def connectToSbt(): SbtClient = {
