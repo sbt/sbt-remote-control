@@ -95,8 +95,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
 
   private var connectState: ConnectState = NotYetOpened
 
-  private var connectListeners: List[ConnectListener] = Nil
-  private var errorListeners: List[ErrorListener] = Nil
+  private var listeners: List[OpenListener] = Nil
 
   // still retrying or have we been closed? This flag is almost the same
   // as connectState == Closed, but this boolean is what has been requested,
@@ -105,20 +104,19 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   // connectState != Closed.
   private var reconnecting: Boolean = true
 
-  private final class ConnectListener(handler: SbtClient => Unit, ctx: ExecutionContext) {
-    def emit(client: SbtClient): Unit =
+  private final class OpenListener(onConnect: SbtClient => Unit,
+    onError: (Boolean, String) => Unit,
+    ctx: ExecutionContext) {
+    def emitConnected(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
         override def run(): Unit = {
-          handler(client)
+          onConnect(client)
         }
       })
-  }
-
-  private final class ErrorListener(handler: (Boolean, String) => Unit, ctx: ExecutionContext) {
-    def emit(reconnecting: Boolean, message: String): Unit =
+    def emitError(reconnecting: Boolean, message: String): Unit =
       ctx.prepare.execute(new Runnable() {
         override def run(): Unit = {
-          handler(reconnecting, message)
+          onError(reconnecting, message)
         }
       })
   }
@@ -134,49 +132,42 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     state.thread.start()
   }
 
-  def open(): Unit = synchronized {
-    connectState match {
-      case NotYetOpened =>
-        startConnectAttempt(0 /* immediate attempt */ )
-      case Connecting(thread) =>
-        // force immediate retry
-        thread.connectInNoMoreThan(0)
-      case Closed | Open(_) =>
-      // nothing to do
-    }
-  }
-
-  def onConnect(handler: SbtClient => Unit)(implicit ex: ExecutionContext): Subscription = {
-    val listener = new ConnectListener(handler, ex)
-    SimpleConnector.this.synchronized(connectListeners = listener :: connectListeners)
+  def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
+    val listener = new OpenListener(onConnect, onError, ex)
+    SimpleConnector.this.synchronized(listeners = listener :: listeners)
     object sub extends Subscription {
       def cancel(): Unit = {
-        SimpleConnector.this.synchronized(connectListeners = connectListeners.filterNot(_ == listener))
+        SimpleConnector.this.synchronized(listeners = listeners.filterNot(_ == listener))
       }
     }
     handleNewConnectSubscriber(listener)
-    sub
-  }
-  private[this] def handleNewConnectSubscriber(listener: ConnectListener): Unit = synchronized {
-    connectState match {
-      case Open(client) => listener emit client
-      case NotYetOpened | Closed | Connecting(_) =>
-    }
-  }
-  def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
-    val listener = new ErrorListener(handler, ex)
-    SimpleConnector.this.synchronized(errorListeners = listener :: errorListeners)
-    object sub extends Subscription {
-      def cancel(): Unit = {
-        SimpleConnector.this.synchronized(errorListeners = errorListeners.filterNot(_ == listener))
+
+    synchronized {
+      connectState match {
+        case NotYetOpened =>
+          startConnectAttempt(0 /* immediate attempt */ )
+        case Connecting(thread) =>
+          // force immediate retry
+          thread.connectInNoMoreThan(0)
+        case Closed | Open(_) =>
+        // nothing to do
       }
     }
+
     sub
   }
 
+  private[this] def handleNewConnectSubscriber(listener: OpenListener): Unit = synchronized {
+    connectState match {
+      case Open(client) => listener.emitConnected(client)
+      case Closed => listener.emitError(reconnecting = false, "Connection closed")
+      case NotYetOpened | Connecting(_) => // a later event is guaranteed
+    }
+  }
+
   private def reconnectOrCloseOnError(message: String): Unit = synchronized {
-    for (listener <- errorListeners)
-      listener.emit(reconnecting, message)
+    for (listener <- listeners)
+      listener.emitError(reconnecting, message)
 
     if (reconnecting) {
       // transitions state to Connecting
@@ -189,8 +180,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
       // AND we just notified on the final fatal error.
       // So clear them out to allow GC - these may well capture a big
       // hunk of application functionality.
-      connectListeners = Nil
-      errorListeners = Nil
+      listeners = Nil
     }
   }
 
@@ -205,8 +195,8 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
             reconnectOrCloseOnError(error.getMessage)
           case Success(client) =>
             connectState = Open(client)
-            for (listener <- connectListeners)
-              listener.emit(client)
+            for (listener <- listeners)
+              listener.emitConnected(client)
             if (!reconnecting) {
               // close() was called after the thread made the client
               // but before we received notification of the client,

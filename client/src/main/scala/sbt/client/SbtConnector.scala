@@ -11,32 +11,25 @@ import concurrent.{ ExecutionContext, Future }
  * You can close the connection and stop reconnecting by calling `close()`.
  */
 trait SbtConnector extends Closeable {
-  /**
-   * Register a callback to be notified on initial connection and subsequent reconnects to
-   * an sbt server.  If the server is already connected, the handler will be called immediately.
-   *
-   * @param handler   A callback that will be called upon every connection/reconnect.
-   * @param ex        The context (thread) where the handler should be executed.
-   */
-  def onConnect(handler: SbtClient => Unit)(implicit ex: ExecutionContext): Subscription
 
   /**
-   * Register a callback to be notified anytime we disconnect or have some other error.
-   * Callback parameters are a boolean "reconnecting" and an error message.
-   * If an error is fatal/permanent or the connector has been closed, reconnecting
-   * will be false. Otherwise if we're going to retry (or have never tried) reconnecting
-   * will be true.
+   * Begin trying to connect to the server. Handlers may be called multiple times
+   * if we disconnect and then reconnect. If a connection is already active when you call
+   * this, your onConnect handler will be called immediately. If the connector
+   * has already been closed when you call this, your onError handler will be called immediately.
+   * Otherwise the handlers are called when connection or error occurs.
    *
-   * @param handler A callback invoked on errors; if we are permanently closed,
-   *                the boolean is false; string is the error message.
+   * The onConnect handler is invoked for initial connection and each subsequent successful
+   * reconnect.
+   *
+   * The onError handler is invoked anytime we fail to connect or anytime the connection
+   * is closed. The boolean parameter is true if we will try to connect again and false
+   * if we are permanently closed. The string parameter is the error message.
+   *
+   * Both handlers are run in the provided execution context.
+   *
+   * The returned subscription may be canceled to remove both handlers. The subscription
+   * will also be canceled when the SbtConnector is closed.
    */
-  def onError(handler: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription
-
-  /**
-   * Begin trying to connect to the server. Set up callbacks prior to opening the
-   * connection, your callbacks will receive any errors or created clients.
-   * If called twice, subsequent calls will force immediate retry if we are currently
-   * in a retry timeout; if we're currently connected then later calls do nothing.
-   */
-  def open(): Unit
+  def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription
 }
