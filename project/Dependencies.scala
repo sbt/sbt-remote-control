@@ -25,9 +25,9 @@ object Dependencies {
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
 
   // Make sure to update supported versions if Echo plugin version is changed
-  val sbtEchoDefaultVersion = "0.1.0"
-  val sbt013EchoSupportedAkkaVersion = "2.2.1"
-  val sbt013EchoSupportedPlayVersion = "2.2.1"
+  val sbtEchoDefaultVersion = "0.1.1"
+  val sbt013EchoSupportedAkkaVersion = "2.2.4"
+  val sbt013EchoSupportedPlayVersion = "2.2.2"
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.1"
