@@ -15,6 +15,9 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   type S = ServerState
   def initial: S = state
 
+  // this is not synchronized because we know we won't change it after generating it
+  // in the initial registered() call, which (in theory) is guaranteed to be before
+  // any other threads get involved.
   private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
 
   private def taskId(protocolKey: protocol.ScopedKey): Long = {
