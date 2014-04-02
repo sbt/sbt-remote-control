@@ -206,6 +206,7 @@ case object TestSkipped extends TestOutcome {
 
 /** A compilation issue from the compiler. */
 case class CompilationFailure(
+    taskId: Long,
     project: ProjectReference,
     position: xsbti.Position,
     severity: xsbti.Severity,
