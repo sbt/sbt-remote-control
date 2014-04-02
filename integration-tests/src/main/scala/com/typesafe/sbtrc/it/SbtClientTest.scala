@@ -93,7 +93,13 @@ trait SbtClientTest extends IntegrationTest {
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
-        task.success(runnable)
+        // we typically get two runnables; the first one is "newHandler"
+        // below and the second is "errorHandler" when the connector is
+        // closed. We just drop "errorHandler" on the floor.
+        if (task.isCompleted)
+          System.out.println(s"Not executing runnable because we only run one thing: ${runnable}")
+        else
+          task.success(runnable)
       }
       // TODO - Test failure...
       def reportFailure(t: Throwable): Unit = task.failure(t)
