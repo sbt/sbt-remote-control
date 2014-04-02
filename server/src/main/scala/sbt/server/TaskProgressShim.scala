@@ -19,6 +19,7 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   // in the initial registered() call, which (in theory) is guaranteed to be before
   // any other threads get involved.
   @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+  var nextTaskId = 1L // start with 1 so 0 is invalid
 
   private def taskId(protocolKey: protocol.ScopedKey): Long = {
     taskIds.get(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
@@ -45,7 +46,8 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     for (task <- allDeps) {
       withProtocolKey(task) { protocolKey =>
         // assuming the keys are unique within a ServerExecuteProgress... safe?
-        taskIds += (protocolKey -> ServerExecuteProgress.nextTaskId.getAndIncrement())
+        taskIds += (protocolKey -> nextTaskId)
+        nextTaskId += 1
       }
     }
     state
@@ -115,6 +117,4 @@ object ServerExecuteProgress {
       })
 
   }
-
-  val nextTaskId = new java.util.concurrent.atomic.AtomicLong(1) // start with 1 so 0 is invalid
 }
