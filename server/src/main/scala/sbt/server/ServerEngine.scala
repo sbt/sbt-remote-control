@@ -133,6 +133,11 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       // NONBLOCKING scan of requests
       val serverState = pollRequests()
 
+      // get the latest listeners before we send out the
+      // work changed events; we'll also use these listeners
+      // during execution of the next work item.
+      EventLogger.updateClient(serverState.eventListeners)
+
       // Emit work queue changed here before we pop, so that
       // all work items appear in the queue once before we remove
       // them. We don't want to compress across removal.

@@ -23,9 +23,6 @@ case class ServerState(
 
   def addEventListener(l: SbtClient): ServerState = {
     val next = eventListeners zip l
-    // TODO - This should probably happen in the command
-    // engine before running a command.
-    EventLogger.updateClient(next)
     copy(eventListeners = next)
   }
   def addBuildListener(l: SbtClient): ServerState = {
