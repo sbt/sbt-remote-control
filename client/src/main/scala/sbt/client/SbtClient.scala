@@ -48,13 +48,25 @@ trait SbtClient extends Closeable {
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]]
 
   /**
-   * Runs the command/task associated with the given input string.
+   * Asks to run the command/task associated with the given input string.
+   * The server has a queue of input strings to execute. When a string is
+   * added to the queue, it gets an execution ID (returned from this method)
+   * which will appear in related events. Events include ExecutionWaiting
+   * when the execution is queued, ExecutionStarting when it is about to
+   * run, and either ExecutionDone or ExecutionFailure when it is complete.
+   *
+   * Duplicates in the queue are combined. This means that if you requestExecution()
+   * and the given command or task is already in the queue, you will get an
+   * existing execution ID back, and there will not be a new ExecutionWaiting
+   * event. Another implication of this is that execution requests may appear
+   * to be re-ordered (since you can "jump ahead" in the queue if your request
+   * is combined with one which is already present).
    *
    * @param commandOrTask The full command/task string to run.
    *         that should be evaluated.
-   * @return  A future that will return Unit if the command request was successfully sent.
+   * @return  A future execution ID, which then appears in execution-related events
    */
-  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit]
+  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long]
 
   /**
    * Adds a listener to general events which are fired from this sbt server.  These can be things like

@@ -7,12 +7,12 @@ import java.io.Closeable
 
 /** Handles events during a request's lifecycle. */
 private[client] class RequestLifecycle(val serial: Long, val interaction: Interaction) {
-  private val receivedPromise = concurrent.promise[Unit]
+  private val receivedPromise = concurrent.promise[Long]
   val received = receivedPromise.future
   def error(msg: String): Unit =
     receivedPromise.failure(new RequestException(msg))
-  def accepted(): Unit =
-    receivedPromise.success(())
+  def accepted(executionId: Long): Unit =
+    receivedPromise.success(executionId)
 }
 // TODO - Throw some sort of exception or other means of denoting we do not support interaction!
 private[client] object NoInteraction extends Interaction {
@@ -82,7 +82,7 @@ private[client] class RequestHandler extends Closeable {
     finishRequest(requestSerial, executionIdOption = None)(_.error(msg))
   }
   def executionReceived(requestSerial: Long, executionId: Long): Unit = {
-    finishRequest(requestSerial, Some(executionId))(_.accepted())
+    finishRequest(requestSerial, Some(executionId))(_.accepted(executionId))
   }
   def executionDone(executionId: Long): Unit = {
     finishExecutions(executionId)(identity)

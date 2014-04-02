@@ -43,7 +43,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     result.future
   }
 
-  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit] = {
+  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
