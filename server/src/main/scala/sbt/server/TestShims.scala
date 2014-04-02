@@ -9,18 +9,22 @@ object TestShims {
   val testShimSettings: Seq[Setting[_]] =
     Seq(
       serverTestListener in Global := {
-        val state = sbt.Keys.state.value
-        val listener = ServerState.extract(state).eventListeners
-        new ServerTestListener(listener)
+        val context = UIContext.uiContext.value
+        new ServerTestListener(context)
       },
       sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value)
+
+  // Don't pass anything in here that's "internal" because we
+  // should be moving this code into the default sbt test task,
+  // and it won't be able to use internals. You probably have to
+  // add anything you need to UIContext.
   def makeShims(state: State): Seq[Setting[_]] =
     testShimSettings
 }
 
 import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
-class ServerTestListener(val client: SbtClient) extends TestReportListener {
+class ServerTestListener(val context: UIContext) extends TestReportListener {
   override def startGroup(name: String): Unit = {}
 
   override def testEvent(event: TestEvent): Unit = {
@@ -37,16 +41,13 @@ class ServerTestListener(val client: SbtClient) extends TestReportListener {
         // TODO - Handle this correctly...
         case TStatus.Pending => protocol.TestSkipped
       }
-      sendEvent(
-        protocol.TestEvent(detail.fullyQualifiedName,
+      context.sendEvent(
+        protocol.TestEvent(context.taskId,
+          detail.fullyQualifiedName,
           None, // No descriptions in new interface?
           outcome,
           Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)))
     }
-  }
-
-  private def sendEvent[T: Format](msg: T): Unit = {
-    client.send(msg)
   }
 
   override def endGroup(name: String, t: Throwable): Unit = {}
