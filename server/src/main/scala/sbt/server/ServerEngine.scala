@@ -27,6 +27,90 @@ sealed trait ServerEngineWork
 // chunks of work, thus allRequesters not a single requester.
 case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
 
+// this is the read-only face of TaskIdRecorder which is used outside of ServerExecuteProgress
+trait TaskIdFinder {
+  // guess task ID from the key and/or the current thread.
+  // this returns 0 (invalid task ID) if we can't come up with any guess;
+  // doesn't return an Option because normally we want to just send the event
+  // anyway with a 0 task ID.
+  def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long
+
+  // just look up the task ID by key, don't use any thread info.
+  def taskId(task: protocol.ScopedKey): Option[Long]
+}
+
+class TaskIdRecorder extends TaskIdFinder {
+  // this is not synchronized because we know we won't change it after generating it
+  // in the initial ServerExecuteProgress.registered() call,
+  // which (in theory) is guaranteed to be before any other threads get involved.
+  // In other words it's written only from the engine thread though read
+  // by many task threads.
+  @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+  private var nextTaskId = 1L // start with 1 so 0 is invalid
+
+  // this one is used from the task threads and thus we have to synchronize
+  private var runningTasks: Set[protocol.ScopedKey] = Set.empty
+
+  private object taskIdThreadLocal extends ThreadLocal[Long] {
+    override def initialValue(): Long = 0
+  }
+
+  def register(key: protocol.ScopedKey): Unit = {
+    taskIds += (key -> nextTaskId)
+    nextTaskId += 1
+  }
+
+  def clear(): Unit = {
+    taskIds = Map.empty
+  }
+
+  // TODO we want to replace this with *requiring* all event senders
+  // to know their key, which means we need to pass the task key
+  // through to the UIContext and the EventLogger. This can probably
+  // be done with a streamsManager plus somehow relating UIContext to
+  // the streams, or handling UIContext in a similar way to streams
+  // where it's a dummy value replaced by sbt before invoking each
+  // task. Exact details TBD and may require sbt ABI break.
+  // The problem with this hack is that if a task spawns its
+  // own threads, we won't have the task ID.
+  def setThreadTask(key: protocol.ScopedKey): Unit =
+    taskId(key) foreach { id =>
+      taskIdThreadLocal.set(id)
+      synchronized {
+        runningTasks += key
+      }
+    }
+
+  def clearThreadTask(key: protocol.ScopedKey): Unit = {
+    taskIdThreadLocal.remove()
+    synchronized {
+      runningTasks -= key
+    }
+  }
+
+  override def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long = {
+    taskIfKnown flatMap { key =>
+      taskIds.get(key)
+    } getOrElse {
+      taskIdThreadLocal.get match {
+        // if we don't have anything in the thread local, if we have
+        // only one task running we can guess that one.
+        case 0L => synchronized {
+          if (runningTasks.size == 1)
+            taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?"))
+          else
+            0L
+        }
+        case other => other
+      }
+    }
+  }
+
+  override def taskId(task: protocol.ScopedKey): Option[Long] = {
+    taskIds.get(task)
+  }
+}
+
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
  *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
@@ -37,7 +121,8 @@ case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters:
  */
 class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
 
-  val eventLogger = new EventLogger
+  private val taskIdRecorder = new TaskIdRecorder
+  private val eventLogger = new EventLogger(taskIdRecorder)
 
   private object workQueue {
 
@@ -308,7 +393,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val rawSettings: Seq[Setting[_]] =
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
-        ServerExecuteProgress.getShims(state) ++
+        ServerExecuteProgress.getShims(state, taskIdRecorder) ++
         UIShims.makeShims(state) ++
         loggingShims(state)
     // TODO - Override log manager for now, or figure out a better way.

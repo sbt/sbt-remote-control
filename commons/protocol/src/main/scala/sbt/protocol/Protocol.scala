@@ -131,8 +131,8 @@ object LogMessage {
   val ERROR = "error"
   private[protocol] val validLevels = Set(DEBUG, INFO, WARN, ERROR)
 }
-/** We have a new log to display. */
-case class LogEvent(entry: LogEntry) extends Event
+/** We have a new log to display. taskId is 0 if the task is unknown. */
+case class LogEvent(taskId: Long, entry: LogEntry) extends Event
 /** exactly one of the boot events is sent on startup */
 sealed trait BootEvent extends Event
 /** we need to restart sbt in an orderly fashion */

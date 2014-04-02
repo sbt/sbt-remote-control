@@ -11,18 +11,12 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
-  // this is not synchronized because we know we won't change it after generating it
-  // in the initial registered() call, which (in theory) is guaranteed to be before
-  // any other threads get involved.
-  @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
-  var nextTaskId = 1L // start with 1 so 0 is invalid
-
   private def taskId(protocolKey: protocol.ScopedKey): Long = {
-    taskIds.get(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
+    taskIdRecorder.taskId(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
   }
 
   private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
@@ -46,8 +40,7 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     for (task <- allDeps) {
       withProtocolKey(task) { protocolKey =>
         // assuming the keys are unique within a ServerExecuteProgress... safe?
-        taskIds += (protocolKey -> nextTaskId)
-        nextTaskId += 1
+        taskIdRecorder.register(protocolKey)
       }
     }
     state
@@ -66,10 +59,14 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     state
   }
 
-  // This is not called on the engine thread, so we can't get state.  For now, we'll ignore it.
-  def workStarting(task: Task[_]): Unit = ()
-  // This is not called on the engine thread, so we can't have state.  For now, we'll ignore it.
-  def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = ()
+  // This is not called on the engine thread, so we can't get state.
+  def workStarting(task: Task[_]): Unit = {
+    withProtocolKey(task) { taskIdRecorder.setThreadTask(_) }
+  }
+  // This is not called on the engine thread, so we can't have state.
+  def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = {
+    withProtocolKey(task) { taskIdRecorder.clearThreadTask(_) }
+  }
 
   /**
    * Notifies that `task` has completed.
@@ -106,14 +103,17 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   }
 
   /** All tasks have completed with the final `results` provided. */
-  def allCompleted(state: S, results: RMap[Task, Result]): S = state
+  def allCompleted(state: S, results: RMap[Task, Result]): S = {
+    taskIdRecorder.clear()
+    state
+  }
 }
 object ServerExecuteProgress {
-  def getShims(state: State): Seq[Setting[_]] = {
+  def getShims(state: State, taskIdRecorder: TaskIdRecorder): Seq[Setting[_]] = {
     Seq(
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)
-        new Keys.TaskProgress(new ServerExecuteProgress(sstate))
+        new Keys.TaskProgress(new ServerExecuteProgress(sstate, taskIdRecorder))
       })
 
   }

@@ -109,18 +109,18 @@ class SimpleSbtTerminal extends xsbti.AppMain {
         case NowListeningEvent =>
           // Upon reconnection, down what's currently executing.
           clearAndSchedule(TakeNextCommand(client, reader))
-        case LogEvent(LogSuccess(msg)) =>
+        case LogEvent(taskId, LogSuccess(msg)) =>
           // TODO - ASCII CHARACTER CODES!
           reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(LogMessage(LogMessage.INFO, msg)) =>
+        case LogEvent(taskId, LogMessage(LogMessage.INFO, msg)) =>
           reader.printLineAndRedrawPrompt(s"[info] $msg")
-        case LogEvent(LogMessage(LogMessage.WARN, msg)) =>
+        case LogEvent(taskId, LogMessage(LogMessage.WARN, msg)) =>
           reader.printLineAndRedrawPrompt(s"[warn] $msg")
-        case LogEvent(LogMessage(LogMessage.ERROR, msg)) =>
+        case LogEvent(taskId, LogMessage(LogMessage.ERROR, msg)) =>
           reader.printLineAndRedrawPrompt(s"[error] $msg")
-        case LogEvent(LogStdOut(msg)) =>
+        case LogEvent(taskId, LogStdOut(msg)) =>
           reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(LogStdErr(msg)) =>
+        case LogEvent(taskId, LogStdErr(msg)) =>
           // TODO - on stderr?
           reader.printLineAndRedrawPrompt(msg)
         case _ => ()
