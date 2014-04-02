@@ -44,6 +44,11 @@ case class ExecutionRequest(command: String) extends Request
 // if the request was combined with an identical pending one,
 // then the id will be the same for the combined requests.
 case class ExecutionRequestReceived(id: Long) extends Response
+// execution queued up
+case class ExecutionWaiting(id: Long, command: String) extends Event
+// about to execute this one (popped off the queue)
+case class ExecutionStarting(id: Long) extends Event
+// TODO remove "command" from these since clients can get it from the Pending
 case class ExecutionDone(id: Long, command: String) extends Event
 case class ExecutionFailure(id: Long, command: String) extends Event
 

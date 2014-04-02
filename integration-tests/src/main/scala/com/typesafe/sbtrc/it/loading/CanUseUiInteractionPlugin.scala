@@ -45,17 +45,26 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
         else false
       }
     }
+    var eventSet = Set.empty[Event]
     val taskResult = concurrent.promise[Boolean]
+    val executionResult = concurrent.promise[Boolean]
     (client handleEvents {
       case TaskFinished(executionId, taskId, key, result) =>
         if (key.key.name == "readInput") {
           taskResult.success(result)
         }
-      case _ => ()
+      case ExecutionDone(id, command) =>
+        executionResult.success(true)
+      case ExecutionFailure(id, command) =>
+        executionResult.success(false)
+      case other => eventSet += other
     })(global)
     // Here we want to wait for the task to be done.
     client.requestExecution("readInput", Some(interaction -> global))
     assert(Await.result(taskResult.future, defaultTimeout), "Failed to interact with sbt task!")
+    assert(Await.result(executionResult.future, defaultTimeout), "Failed to get ExecutionDone")
+    assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, "Execution was never queued up")
+    assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, "Execution was never started")
   }
 
 }

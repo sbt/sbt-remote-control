@@ -57,8 +57,17 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     private def emitWorkQueueChanged(state: ServerState): Unit = {
       previouslyBroadcastWorkQueue match {
         case Some(old) =>
-          // TODO diff old vs. workQueue and send events;
-          // we need ServerState to get the listeners
+          val oldSet = old.collect({ case command: CommandExecutionWork => command }).toSet
+          val newSet = workQueue.collect({ case command: CommandExecutionWork => command }).toSet
+          val added = newSet -- oldSet
+          val removed = oldSet -- newSet
+
+          for (waiting <- added)
+            state.eventListeners.send(protocol.ExecutionWaiting(waiting.id.id, waiting.command))
+          for (started <- removed)
+            state.eventListeners.send(protocol.ExecutionStarting(started.id.id))
+
+          // reset to nothing
           previouslyBroadcastWorkQueue = None
         case None => // we haven't made any changes
       }
