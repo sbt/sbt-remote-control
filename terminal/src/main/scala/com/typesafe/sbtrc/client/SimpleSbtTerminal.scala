@@ -59,19 +59,22 @@ class SimpleSbtTerminal extends xsbti.AppMain {
         case Some("exit") => System.exit(0)
         case None => run()
         case Some(line) =>
-          // Register for when the execution is done.
-          val executionDone = concurrent.promise[Unit]
-          val registration = (client.handleEvents {
-            case protocol.ExecutionDone(id, `line`) => executionDone.success(())
-            case protocol.ExecutionFailure(id, `line`) =>
-              // TODO - failure here?
-              executionDone.success(())
-            case _ =>
-          })(RunOnSameThreadContext)
           val started = client.requestExecution(line, Some(TerminalInteraction -> ReadContext))
           // Here we wait for the result of both starting (or failure) and the completion of the command.
-          ((started zip executionDone.future).onComplete { _ =>
-            registration.cancel()
+          val executionFuture = (started flatMap { executionId =>
+            // Register for when the execution is done.
+            val executionDone = concurrent.promise[Unit]
+            val registration = (client.handleEvents {
+              case protocol.ExecutionDone(`executionId`, _) => executionDone.success(())
+              case protocol.ExecutionFailure(`executionId`, _) =>
+                // TODO - failure here?
+                executionDone.success(())
+              case _ =>
+            })(RunOnSameThreadContext)
+            executionDone.future.onComplete(_ => registration.cancel())(RunOnSameThreadContext)
+            executionDone.future
+          })(RunOnSameThreadContext)
+          (executionFuture.onComplete { _ =>
             schedule(this)
           })(ReadContext)
       }
