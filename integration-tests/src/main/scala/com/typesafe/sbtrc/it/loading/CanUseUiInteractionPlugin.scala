@@ -55,7 +55,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
         if (key.key.name == "readInput") {
           taskResult.success(result)
         }
-      case ExecutionDone(id) =>
+      case ExecutionSuccess(id) =>
         executionResult.success(true)
       case ExecutionFailure(id) =>
         executionResult.success(false)
@@ -64,7 +64,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     // Here we want to wait for the task to be done.
     client.requestExecution("readInput", Some(interaction -> global))
     assert(Await.result(taskResult.future, defaultTimeout), "Failed to interact with sbt task!")
-    assert(Await.result(executionResult.future, defaultTimeout), "Failed to get ExecutionDone")
+    assert(Await.result(executionResult.future, defaultTimeout), "Failed to get ExecutionSuccess")
     val eventSet = events.iterator().asScala.toSet
     assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, s"Execution was never queued up, got ${eventSet}")
     assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")

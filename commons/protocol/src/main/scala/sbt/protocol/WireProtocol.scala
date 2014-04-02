@@ -30,7 +30,7 @@ object WireProtocol {
     msg[ExecutionStarting],
     msg[ExecutionWaiting],
     msg[ExecutionFailure],
-    msg[ExecutionDone],
+    msg[ExecutionSuccess],
     msg[ListenToEvents],
     msg[ListenToBuildChange],
     msg[ListenToValue],

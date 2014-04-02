@@ -194,7 +194,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
-        serverState.eventListeners.send(ExecutionDone(command.command.id.id))
+        serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
         BuildStructureCache.update(state)
       case None => state
     }

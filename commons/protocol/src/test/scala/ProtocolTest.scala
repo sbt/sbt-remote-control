@@ -56,7 +56,7 @@ class ProtocolTest {
       protocol.ExecutionWaiting(41, "foo"),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
-      protocol.ExecutionDone(44),
+      protocol.ExecutionSuccess(44),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
       protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),

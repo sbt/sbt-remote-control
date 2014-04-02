@@ -49,7 +49,7 @@ case class ExecutionWaiting(id: Long, command: String) extends Event
 // about to execute this one (popped off the queue)
 case class ExecutionStarting(id: Long) extends Event
 // finished executing successfully
-case class ExecutionDone(id: Long) extends Event
+case class ExecutionSuccess(id: Long) extends Event
 // finished executing unsuccessfully
 case class ExecutionFailure(id: Long) extends Event
 

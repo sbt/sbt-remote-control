@@ -53,7 +53,7 @@ trait SbtClient extends Closeable {
    * added to the queue, it gets an execution ID (returned from this method)
    * which will appear in related events. Events include ExecutionWaiting
    * when the execution is queued, ExecutionStarting when it is about to
-   * run, and either ExecutionDone or ExecutionFailure when it is complete.
+   * run, and either ExecutionSuccess or ExecutionFailure when it is complete.
    *
    * Duplicates in the queue are combined. This means that if you requestExecution()
    * and the given command or task is already in the queue, you will get an

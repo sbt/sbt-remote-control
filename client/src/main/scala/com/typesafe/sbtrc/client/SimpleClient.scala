@@ -155,7 +155,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
           completionsManager.fire(id, completions)
         case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
           requestHandler.executionReceived(requestSerial, executionId)
-        case protocol.Envelope(_, _, e: protocol.ExecutionDone) =>
+        case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>
           requestHandler.executionDone(e.id)
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
