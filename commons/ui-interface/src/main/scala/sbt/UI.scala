@@ -13,6 +13,9 @@ sealed trait UIContext {
   /** Sends an event out to all registered event listeners. */
   def sendEvent[T: Format](event: T): Unit
   def sendGenericEvent(data: JsValue): Unit
+
+  // obtain the task ID that should be included in events
+  def taskId: Long
 }
 object UIContext {
   val uiContext = TaskKey[UIContext]("ui-context", "The context used to communicate to a user interface running sbt.")

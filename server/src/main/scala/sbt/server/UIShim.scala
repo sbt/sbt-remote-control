@@ -3,7 +3,7 @@ package server
 
 import play.api.libs.json.{ Format, JsValue }
 
-private[server] class ServerUIContext(state: ServerState) extends AbstractUIContext {
+private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder) extends AbstractUIContext {
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -33,15 +33,23 @@ private[server] class ServerUIContext(state: ServerState) extends AbstractUICont
     state.eventListeners.send(event)
   def sendGenericEvent(data: JsValue): Unit =
     state.eventListeners.send(data)
+
+  def taskId: Long = {
+    // TODO currently this depends on thread locals; we need to
+    // set things up similar to how streams work now where we make
+    // a per-task UIContext which knows that task's ID. This may
+    // involve changes to the sbt core.
+    taskIdFinder.bestGuessTaskId(taskIfKnown = None)
+  }
 }
 
 object UIShims {
 
-  private val uiContextSetting: Setting[_] =
+  private def uiContextSetting(taskIdFinder: TaskIdFinder): Setting[_] =
     UIContext.uiContext in Global := {
       val state = sbt.Keys.state.value
-      new ServerUIContext(ServerState.extract(state))
+      new ServerUIContext(ServerState.extract(state), taskIdFinder)
     }
-  def makeShims(state: State): Seq[Setting[_]] =
-    Seq(uiContextSetting)
+  def makeShims(state: State, taskIdFinder: TaskIdFinder): Seq[Setting[_]] =
+    Seq(uiContextSetting(taskIdFinder))
 }

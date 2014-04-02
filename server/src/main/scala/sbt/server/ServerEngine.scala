@@ -394,7 +394,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder) ++
-        UIShims.makeShims(state) ++
+        UIShims.makeShims(state, taskIdRecorder) ++
         loggingShims(state)
     // TODO - Override log manager for now, or figure out a better way.
     val extracted = Project.extract(state)
