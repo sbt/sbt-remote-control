@@ -64,6 +64,11 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           val executionFuture = (started flatMap { executionId =>
             // Register for when the execution is done.
             val executionDone = concurrent.promise[Unit]
+            // TODO this is broken because we add the event handler
+            // AFTER we request execution, which means we might miss
+            // the events. We need to add the event handler first
+            // and then we are guaranteed to get events triggered
+            // by a request we make after adding the handler.
             val registration = (client.handleEvents {
               case protocol.ExecutionSuccess(`executionId`) => executionDone.success(())
               case protocol.ExecutionFailure(`executionId`) =>
