@@ -45,7 +45,7 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     for (task <- allDeps) {
       withProtocolKey(task) { protocolKey =>
         // assuming the keys are unique within a ServerExecuteProgress... safe?
-        taskIds = taskIds + (protocolKey -> ServerExecuteProgress.nextTaskId.getAndIncrement())
+        taskIds += (protocolKey -> ServerExecuteProgress.nextTaskId.getAndIncrement())
       }
     }
     state
