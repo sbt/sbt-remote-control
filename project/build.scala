@@ -22,121 +22,97 @@ object TheBuild extends Build {
   )
 
   // These are the projects we want in the local repository we deploy.
-  lazy val sbt12ProbeProjects = Set(playShimPlugin, sbtUiInterface, defaultsShimPlugin, sbtControllerProbe)
-  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtControllerProbe13)
-  lazy val publishedProjects: Seq[Project] = Seq(sbtRemoteController, props) ++ sbt12ProbeProjects ++ sbt13ProbeProjects
-
-  // TODO - This should be the default properties we re-use between the controller and the driver.
-  lazy val props = (
-    PropsProject("props")
-    settings(Properties.makePropertyClassSetting(Dependencies.sbt12Version, Dependencies.scalaVersion):_*)
-  )
+  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
+  lazy val publishedProjects: Seq[Project] = Seq(client, terminal) ++ sbt13ProbeProjects
 
 
-  // ================= 0.12 shims ==========================
 
-  // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
-  lazy val sbtUiInterface = (
-      SbtShimPlugin("ui-interface", sbt12Version)
-      settings(noCrossVersioning:_*)
-      dependsOnSource("commons/ui-interface")
-      dependsOnRemote(sbtControllerDeps(sbt12Version):_*)
-  )
+  // ================= 0.13 projects ==========================
 
-  // This is the embedded controller for sbt projects.
-  lazy val sbtControllerProbe = (
-    SbtProbeProject("probe", sbt12Version)
-    dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.9")
-    dependsOnSource("commons/probe")
-    dependsOn(props, sbtUiInterface % "provided")
-    dependsOnRemote(
-      sbtControllerDeps(sbt12Version):_*
-    )
-    settings(requiredJars(props, sbtUiInterface))
-    settings(noCrossVersioning:_*)
-  )
-
-  // Plugin shims
-  lazy val playShimPlugin = (
-    SbtShimPlugin("play", sbt12Version)
-    dependsOn(sbtUiInterface)
-    dependsOnRemote(playSbtPlugin12.exclude("org.avaje.ebeanorm", "avaje-ebeanorm-agent"))
-  )
-
-  lazy val defaultsShimPlugin = (
-    SbtShimPlugin("defaults", sbt12Version)
-    // TODO - can we just depend on all the other plugins so we only have one shim?
-  )
-
-  // ================= END 0.12 shims ==========================
-
-
-  // ================= 0.13 shims ==========================
-
-  // Generic UI we use in all our shims and in the remote control to execute SBT as a UI.
+  // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
-      settings(noCrossVersioning:_*)
       dependsOnSource("commons/ui-interface")
+      dependsOnRemote(playJson)
   )
-
-  // This is the embedded controller for sbt projects.
-  lazy val sbtControllerProbe13 = (
-    SbtProbeProject("probe", sbt13Version)
+  // Wrapper around sbt 0.13.x that runs as a server.
+  lazy val sbtServer13 = (
+    SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.10")
-    dependsOnSource("commons/probe")
+    dependsOnSource("commons/ui-interface")
     dependsOnRemote(
-      sbtControllerDeps(sbt13Version):_*
+      sbtControllerDeps(sbt13Version, provided=false):_*
     )
-    dependsOn(props, sbtUiInterface13 % "provided")
+    dependsOnRemote(playJson, brokenJoda)
     settings(noCrossVersioning:_*)
   )
 
   // ================= Remote Controler main project ==========================
 
 
-  val verboseSbtTests = Option(sys.props("sbtrc.verbose.tests")).map(_ == "true").getOrElse(false)
-
-  def configureSbtTest(testKey: Scoped) = Seq(
-    // set up embedded sbt for tests, we fork so we can set
-    // system properties.
-    Keys.fork in testKey := true,
-    Keys.javaOptions in testKey <<= (
-      SbtSupport.sbtLaunchJar,
-      Keys.javaOptions in testKey,
-      requiredClasspath in sbtControllerProbe,
-      Keys.compile in Compile in sbtControllerProbe) map {
-      (launcher, oldOptions, controllerCp, _) =>
-        oldOptions ++ Seq("-Dsbtrc.no-shims=true",
-                          "-Dsbtrc.launch.jar=" + launcher.getAbsoluteFile.getAbsolutePath,
-                          "-Dsbtrc.controller.classpath=" + Path.makeString(controllerCp.files)) ++
-      (if (verboseSbtTests)
-        Seq("-Dakka.loglevel=DEBUG",
-            "-Dakka.actor.debug.autoreceive=on",
-            "-Dakka.actor.debug.receive=on",
-            "-Dakka.actor.debug.lifecycle=on")
-       else
-         Seq.empty)
-    })
-
+  import Keys._
+  import Project.Initialize
+  def makeSbtLaunchProperties(filename: String, mainClass: String, project: Option[Project] = None, lockFile: Option[String] = None): Initialize[Task[Seq[File]]] =
+    (resourceManaged in Compile, project.map(r => projectID in r).getOrElse(projectID)) map { (target, id) =>
+        val file = target / filename
+        val contents = """|[scala]
+                    |  version: ${sbt.scala.version-auto}
+                    |[app]
+                    |  org: %s
+                    |  name: %s
+                    |  version: %s
+                    |  class: %s
+                    |  components: xsbti,extra
+                    |  cross-versioned: ${sbt.cross.versioned-false}
+                    |  resources: ${sbt.extraClasspath-}
+                    |
+                    |[repositories]
+                    |  local
+                    |  maven-central
+                    |
+                    |[boot]
+                    |  directory: ${sbt.boot.directory-${sbt.global.base-${user.home}/.sbt}/boot/}
+                    |
+                    |[ivy]
+                    |  ivy-home: ${sbt.ivy.home-${user.home}/.ivy2/}
+                    |  checksums: ${sbt.checksums-sha1,md5}
+                    |  override-build-repos: ${sbt.override.build.repos-false}
+                    |  repository-config: ${sbt.repository.config-${sbt.global.base-${user.home}/.sbt}/repositories}
+                    |
+                    |""".stripMargin.format(id.organization, id.name, id.revision, mainClass)
+       val fullContents = lockFile match {
+         case Some(file) => contents + """|[server]
+                                          |  lock: %s
+                                          |  jvmargs: ${sbt.jvmargs-${sbt.global.base-${user.home}/.sbt}/.jvmargs}
+                                          |  jvmprops: ${sbt.jvmprops-${sbt.global.base-${user.home}/.sbt}/.jvmprops}""".stripMargin.format(file)
+         case None => contents
+       }
+       IO.write(file, fullContents)
+       Seq(file)
+    }
 
   // This project is used to drive sbt processes, installing the controller.
-  lazy val sbtRemoteController = (
-    SbtRemoteControlProject("remote-controller")
+  lazy val client: Project = (
+    SbtRemoteControlProject("client")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
-      Keys.publishArtifact in (Test, Keys.packageBin) := true
+      Keys.publishArtifact in (Test, Keys.packageBin) := true,
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver"))
     )
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/protocol-shims-2.10")
-    dependsOn(props)
-    dependsOnRemote(akkaActor,
-                    sbtLauncherInterface,
+    dependsOnRemote(playJson, brokenJoda)
+    dependsOnRemote(sbtLauncherInterface,
+                    sbtCompilerInterface,
                     sbtIo, sbtCollections)
-    settings(configureSbtTest(Keys.test): _*)
-    settings(configureSbtTest(Keys.testOnly): _*)
+  )
+
+ lazy val terminal: Project = (
+    SbtRemoteControlProject("terminal")
+    dependsOn(client)
+    dependsOnRemote(sbtCompletion)
+    settings(
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
+    )
   )
 
   // Set up a repository that has all our dependencies.
@@ -145,7 +121,7 @@ object TheBuild extends Build {
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
     dependsOnRemote(sbtLauncherInterface, sbtIo)
-    dependsOn(sbtRemoteController, props)
+    dependsOn(client)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {}
@@ -161,15 +137,13 @@ object TheBuild extends Build {
       Keys.publishLocal := {},
       Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
-      localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.3",
+      localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.1",
+      localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % "2.2.1",
       localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
       localRepoArtifacts += Dependencies.playSbtPlugin12,
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.12", "2.9.2"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
       localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.2", "0.13", "2.10"),
       localRepoArtifacts += "com.novocode" % "junit-interface" % "0.7" % "test",

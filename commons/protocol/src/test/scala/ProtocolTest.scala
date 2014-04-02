@@ -4,9 +4,11 @@
 import org.junit.Assert._
 import org.junit._
 import com.typesafe.sbtrc._
+import sbt.protocol
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+
 
 class ProtocolTest {
 
@@ -18,200 +20,57 @@ class ProtocolTest {
         protocol.ProjectReference(build, "test")))
     val scopedKey = protocol.ScopedKey(key, scope)
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
+    val buildStructure = protocol.MinimalBuildStructure(
+      builds = Seq(build),
+      projects = Seq(scope.project.get)
+    )
     val specifics = Seq(
+      // Requests
+      protocol.ReadLineRequest(42, "HI", true),
+      protocol.ReadLineResponse(Some("line")),
+      protocol.ConfirmRequest(43, "msg"),
+      protocol.ConfirmResponse(true),
+      protocol.ReceivedResponse(),
+      protocol.RequestCompleted(),
+      protocol.CommandCompletionsRequest("id", "He", 2),
+      protocol.CommandCompletionsResponse("id", Set(protocol.Completion("llo", "Hello", true))),
+      protocol.ListenToEvents(),
+      protocol.ListenToBuildChange(),
+      protocol.ExecutionRequest("test command string"),
+      protocol.ListenToValue(scopedKey),
+      // Responses
+      protocol.ErrorResponse("ZOMG"),
       // Events
-      protocol.Started,
-      protocol.Stopped,
+      // TODO - CompilationFailure
+      protocol.TaskStarted(47, 1, scopedKey),
+      protocol.TaskFinished(48, 1, scopedKey, true),
       protocol.NeedRebootEvent,
       protocol.NowListeningEvent,
-      protocol.RequestReceivedEvent,
+      protocol.TaskStarted(49, 2, scopedKey),
+      protocol.TaskFinished(50, 2, scopedKey, true),
+      protocol.BuildStructureChanged(buildStructure),
+      protocol.ValueChange(scopedKey, protocol.TaskFailure("O NOES")),
+      protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
       protocol.LogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
-      protocol.GenericEvent("playServerStarted", Map("port" -> 10)),
-      // Generic API
-      protocol.ErrorResponse("ZOMG"),
-      protocol.SettingKeyRequest(keyFilter),
-      protocol.TaskKeyRequest(keyFilter),
-      protocol.InputTaskKeyRequest(keyFilter),
-      protocol.SettingValueRequest(scopedKey),
-      protocol.TaskValueRequest(scopedKey),
-      protocol.KeyListResponse(protocol.KeyList(Seq(scopedKey))),
-      protocol.KeyListResponse(protocol.KeyList(Nil)),
-      protocol.TaskValueResponse(protocol.TaskSuccess(protocol.BuildValue("Hey"))),
-      protocol.ExecuteCommandRequest("hello"),
-      protocol.ExecuteCommandResponse(),
-      protocol.SettingValueResponse(protocol.TaskFailure("O NOES")),
-      // High level API
-      protocol.NameRequest(true),
-      protocol.NameResponse(Seq(
-          protocol.ProjectInfo(
-            protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
-            "Johnny Test",
-            true,
-            Map("awesome" -> true)
-          )
-      )),
-      protocol.MainClassRequest(false),
-      protocol.MainClassResponse(Seq(
-        protocol.DiscoveredMainClasses(
-          protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
-          Seq("test.Main", "test.Main2"),
-          Some("test.Main")
-        )
-      )),
-      protocol.WatchTransitiveSourcesRequest(true),
-      protocol.WatchTransitiveSourcesResponse(Seq(new java.io.File(".").getAbsoluteFile)),
-      protocol.CompileRequest(true, ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test"))),
-      protocol.CompileResponse(Seq(
-         protocol.CompileResult(
-           protocol.ProjectReference(new java.net.URI("file://temp"), "test"),
-           success = false
-         )
-      )),
-      protocol.RunRequest(
-          sendEvents = true,
-          ref = Some(protocol.ProjectReference(new java.net.URI("file://temp"), "test")),
-          mainClass = Some("hi"), 
-          useAtmos = true),
-      protocol.RunRequest(sendEvents = false, mainClass = None, useAtmos = false),
-      protocol.RunResponse(success = true, task = "run"),
-      protocol.RunResponse(success = false, task = "run-main"),
-      protocol.TestRequest(true),
-      protocol.TestResponse(protocol.TestError)
+      protocol.ExecutionWaiting(41, "foo"),
+      protocol.ExecutionStarting(56),
+      protocol.ExecutionFailure(42),
+      protocol.ExecutionSuccess(44),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),
+      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST")),
+      protocol.LogEvent(protocol.LogStdErr("TEST")),
+      protocol.LogEvent(protocol.LogStdOut("TEST2"))
+      // TODO - protocol.GenericEvent("playServerStarted", Map("port" -> 10))
     )
     for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
-      val roundtrippedOption = struct unapply struct(s)
-      assertEquals("Failed to serialize: " + s, Some(s), roundtrippedOption)
-    }
-
-    // and through json
-    for (s <- specifics) {
-      val struct = com.typesafe.sbtrc.protocol.WireProtocol.MessageStructure
-      val writer = com.typesafe.sbtrc.ipc.JsonWriter.jsonWriter(struct)
-      val reader = com.typesafe.sbtrc.ipc.JsonReader.fromRaw(struct)
-      val roundtrippedOption = reader.fromJson(writer.toJson(s)) 
-      assertEquals(s, roundtrippedOption)
+      import protocol.WireProtocol.{fromRaw,toRaw}
+      val roundtrippedOption = fromRaw(toRaw(s))
+      assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
   }
 
-  private def testClientServer(clientBlock: (ipc.Client) => Unit,
-    serverBlock: (ipc.Server) => Unit) = {
-    val executor = Executors.newCachedThreadPool()
-    val serverSocket = ipc.openServerSocket()
-    val port = serverSocket.getLocalPort()
-    val latch = new CountDownLatch(2)
-
-    var fail: Option[Exception] = None
-    var ok = false
-
-    executor.execute(new Runnable() {
-      override def run() = {
-        try {
-          val server = ipc.accept(serverSocket)
-
-          try {
-            serverBlock(server)
-          } finally {
-            server.close()
-          }
-
-          ok = true
-
-        } catch {
-          case e: Exception => fail = Some(e)
-        } finally {
-          latch.countDown()
-        }
-      }
-    })
-
-    executor.execute(new Runnable() {
-      override def run() = {
-        try {
-          val client = ipc.openClient(port)
-
-          try {
-            clientBlock(client)
-          } finally {
-            client.close()
-          }
-
-        } catch {
-          case e: Exception => fail = Some(e)
-        } finally {
-          latch.countDown()
-        }
-      }
-    })
-
-    latch.await()
-
-    executor.shutdown()
-    executor.awaitTermination(1000, TimeUnit.MILLISECONDS)
-
-    fail foreach { e => throw e }
-
-    assertTrue(ok)
-  }
-
-  @Test
-  def testRetrieveProjectName(): Unit = {
-    testClientServer(
-      { (client) =>
-        protocol.Envelope(client.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.NameRequest(true)) =>
-            client.replyJson(serial, protocol.LogEvent(protocol.LogMessage("info", "a message")))
-            client.replyJson(serial, protocol.NameResponse(Seq(
-          protocol.ProjectInfo(
-            protocol.ProjectReference(new java.net.URI("file://sample/"), "jtest"),
-            "foobar",
-            true,
-            Map("awesome" -> true)
-          )
-      )))
-          case protocol.Envelope(serial, replyTo, other) =>
-            client.replyJson(serial, protocol.ErrorResponse("did not understand request: " + other))
-        }
-      },
-      { (server) =>
-        server.sendJson(protocol.NameRequest(sendEvents = true))
-        val logMessage = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, r: protocol.LogEvent) => r.entry.message
-          case protocol.Envelope(serial, replyTo, r) =>
-            throw new AssertionError("unexpected response: " + r)
-        }
-        assertEquals("a message", logMessage)
-        val name = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, protocol.NameResponse(Seq(
-            protocol.ProjectInfo(_, name, _, _)    
-          ))) => name
-          case protocol.Envelope(serial, replyTo, r) =>
-            throw new AssertionError("unexpected response: " + r)
-        }
-        assertEquals("foobar", name)
-      })
-  }
-
-  @Test
-  def testRetrieveEmptyMainClasses(): Unit = {
-    testClientServer(
-      { (client) =>
-        protocol.Envelope(client.receive()) match {
-          case protocol.Envelope(serial, replyTo, _:protocol.MainClassRequest) =>
-            client.replyJson(serial, protocol.MainClassResponse(Nil))
-          case protocol.Envelope(serial, replyTo, other) =>
-            client.replyJson(serial, protocol.ErrorResponse("did not understand request: " + other))
-        }
-      },
-      { (server) =>
-        server.sendJson(protocol.MainClassRequest(sendEvents = true))
-        val names = protocol.Envelope(server.receive()) match {
-          case protocol.Envelope(serial, replyTo, r: protocol.MainClassResponse) => r.projects
-          case protocol.Envelope(serial, replyTo, r) =>
-            throw new AssertionError("unexpected response: " + r)
-        }
-        assertTrue("no names returned", names.isEmpty)
-      })
-  }
+ 
 }

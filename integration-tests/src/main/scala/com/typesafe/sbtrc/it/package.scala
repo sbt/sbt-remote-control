@@ -1,6 +1,5 @@
 package com.typesafe.sbtrc
 
-import properties.SbtRcProperties._
 import sbt.IO
 // Helper methods for running tests.
 package object it {
