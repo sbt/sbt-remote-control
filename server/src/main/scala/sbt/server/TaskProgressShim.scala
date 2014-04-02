@@ -32,13 +32,8 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
     }
   }
 
-  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit = {
-    task.info.get(Keys.taskDefinitionKey) match {
-      case Some(key) =>
-        block(SbtToProtocolUtils.scopedKeyToProtocol(key))
-      case None => // Ignore tasks without keys.
-    }
-  }
+  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit =
+    withKeyAndProtocolKey(task) { (_, protocolKey) => block(protocolKey) }
 
   /**
    * Notifies that a `task` has been registered in the system for execution.
