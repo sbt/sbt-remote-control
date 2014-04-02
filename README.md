@@ -1,7 +1,12 @@
 # sbt remote control
 
-This is a project for starting up and controlling a pool of sbt processes remotely (via a different process).
+This is an API for controlling [sbt](http://scala-sbt.org/) from
+another Scala program. It would be used for example by command line tools,
+IDEs, [Activator](https://github.com/typesafehub/activator),
+etc. to inspect a project build and run build tasks such as compilation.
 
+In essence sbt-remote-control converts sbt from a command line tool into a
+general backend for any kind of user interface, command line or GUI.
 
 ## Using
 
@@ -10,11 +15,11 @@ TODO - Let's write some documentation, for now check out the tests.
 
 ## Developing
 
-This project uses [sbt 0.12](http://scala-sbt.org/). Make sure you have an SBT launcher, and run it in the checked out directory.
+Use [sbt](http://scala-sbt.org/) to build the project. Make sure you have an SBT launcher, and run it in the checked out directory.
 
 
-Please check out the [Architecture](https://github.com/sbt/sbt-remote-control/wiki/Architecture) wiki page for information on 
-project layout, structure and goals.
+Some possibly-still-relevant architectural information can be
+found [on this wiki page](https://github.com/sbt/sbt/wiki/Client-server-split).
 
 ### Testing
 
