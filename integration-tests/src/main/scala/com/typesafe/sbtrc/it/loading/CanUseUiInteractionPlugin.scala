@@ -8,6 +8,8 @@ import sbt.protocol._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
 
+import scala.collection.JavaConverters._
+
 // Tests using interaction...
 class CanUseUiInteractionPlugin extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -45,7 +47,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
         else false
       }
     }
-    var eventSet = Set.empty[Event]
+    val events = new java.util.concurrent.ConcurrentLinkedQueue[Event]
     val taskResult = concurrent.promise[Boolean]
     val executionResult = concurrent.promise[Boolean]
     (client handleEvents {
@@ -57,14 +59,15 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
         executionResult.success(true)
       case ExecutionFailure(id) =>
         executionResult.success(false)
-      case other => eventSet += other
+      case other => events.add(other)
     })(global)
     // Here we want to wait for the task to be done.
     client.requestExecution("readInput", Some(interaction -> global))
     assert(Await.result(taskResult.future, defaultTimeout), "Failed to interact with sbt task!")
     assert(Await.result(executionResult.future, defaultTimeout), "Failed to get ExecutionDone")
-    assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, "Execution was never queued up")
-    assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, "Execution was never started")
+    val eventSet = events.iterator().asScala.toSet
+    assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, s"Execution was never queued up, got ${eventSet}")
+    assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")
   }
 
 }
