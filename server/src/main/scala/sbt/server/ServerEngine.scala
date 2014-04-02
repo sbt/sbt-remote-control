@@ -48,6 +48,9 @@ class TaskIdRecorder extends TaskIdFinder {
   @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
   private var nextTaskId = 1L // start with 1 so 0 is invalid
 
+  // this one is used from the task threads and thus we have to synchronize
+  private var runningTasks: Set[protocol.ScopedKey] = Set.empty
+
   private object taskIdThreadLocal extends ThreadLocal[Long] {
     override def initialValue(): Long = 0
   }
@@ -71,15 +74,36 @@ class TaskIdRecorder extends TaskIdFinder {
   // The problem with this hack is that if a task spawns its
   // own threads, we won't have the task ID.
   def setThreadTask(key: protocol.ScopedKey): Unit =
-    taskId(key) foreach { taskIdThreadLocal.set(_) }
+    taskId(key) foreach { id =>
+      taskIdThreadLocal.set(id)
+      synchronized {
+        runningTasks += key
+      }
+    }
 
-  def clearThreadTask(): Unit =
+  def clearThreadTask(key: protocol.ScopedKey): Unit = {
     taskIdThreadLocal.remove()
+    synchronized {
+      runningTasks -= key
+    }
+  }
 
   override def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long = {
     taskIfKnown flatMap { key =>
       taskIds.get(key)
-    } getOrElse taskIdThreadLocal.get
+    } getOrElse {
+      taskIdThreadLocal.get match {
+        // if we don't have anything in the thread local, if we have
+        // only one task running we can guess that one.
+        case 0L => synchronized {
+          if (runningTasks.size == 1)
+            taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?"))
+          else
+            0L
+        }
+        case other => other
+      }
+    }
   }
 
   override def taskId(task: protocol.ScopedKey): Option[Long] = {

@@ -65,7 +65,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
   }
   // This is not called on the engine thread, so we can't have state.
   def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = {
-    taskIdRecorder.clearThreadTask()
+    withProtocolKey(task) { taskIdRecorder.clearThreadTask(_) }
   }
 
   /**
