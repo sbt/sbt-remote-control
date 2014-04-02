@@ -7,7 +7,7 @@ import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicReference
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
-private[sbt] object EventLogger extends BasicLogger {
+private[sbt] class EventLogger extends BasicLogger {
   private val client: AtomicReference[SbtClient] = new AtomicReference(NullSbtClient)
   private val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
 

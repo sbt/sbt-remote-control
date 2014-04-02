@@ -37,6 +37,8 @@ case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters:
  */
 class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
 
+  val eventLogger = new EventLogger
+
   private object workQueue {
 
     private var nextExecutionId = 1L // 1 so 0 is our invalid flag
@@ -136,7 +138,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       // get the latest listeners before we send out the
       // work changed events; we'll also use these listeners
       // during execution of the next work item.
-      EventLogger.updateClient(serverState.eventListeners)
+      eventLogger.updateClient(serverState.eventListeners)
 
       // Emit work queue changed here before we pop, so that
       // all work items appear in the queue once before we remove
@@ -273,9 +275,9 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     // First override all logging.
     serverLogFile.getParentFile.mkdirs()
     val output = new java.io.PrintWriter(new java.io.FileWriter(serverLogFile))
-    EventLogger.updatePeer({ msg => output.println(msg); output.flush })
-    def handleStdOut(line: String): Unit = EventLogger.send(LogStdOut(line))
-    def handleStdErr(line: String): Unit = EventLogger.send(LogStdErr(line))
+    eventLogger.updatePeer({ msg => output.println(msg); output.flush })
+    def handleStdOut(line: String): Unit = eventLogger.send(LogStdOut(line))
+    def handleStdErr(line: String): Unit = eventLogger.send(LogStdErr(line))
     SystemShims.replaceOutput(handleStdOut, handleStdErr)
     def throwawayBackingFile = java.io.File.createTempFile("sbt-server-", ".log")
     def newBacking =
@@ -284,9 +286,9 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
         newBackingFile = () => throwawayBackingFile)
     def globalLogging(backing: GlobalLogBacking): GlobalLogging =
       GlobalLogging(
-        full = EventLogger, // TODO - Send this to the "writer" we get in newLogger.
-        console = EventLogger.consoleOut,
-        backed = EventLogger,
+        full = eventLogger, // TODO - Send this to the "writer" we get in newLogger.
+        console = eventLogger.consoleOut,
+        backed = eventLogger,
         backing = backing,
         // TODO - This needs to be fixed.  Does not use the correct writer to enable "last" to work properly.
         newLogger = (writer, newBacking) => globalLogging(newBacking))
