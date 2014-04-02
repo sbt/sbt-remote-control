@@ -6,10 +6,24 @@ import SbtToProtocolUtils._
 // This is a helper class that lets us run discovery methods on sbt.
 private[server] object SbtDiscovery {
 
+  private def getRootObjectName(o: AnyRef): String = {
+    val rawClassname = o.getClass.getName
+    // Technically, the $ shoudl ALWAYS be there for autoplugins.
+    if (rawClassname endsWith "$") rawClassname.dropRight(1)
+    else rawClassname
+  }
+
   def buildStructure(state: State): protocol.MinimalBuildStructure = {
     val extracted = sbt.Project.extract(state)
-    val projects = extracted.structure.allProjectRefs map projectRefToProtocol
-    val builds = projects.map(_.build).distinct
+    val projects =
+      (for {
+        (build, unit) <- extracted.structure.units
+        resolved <- unit.defined.values
+        ref = projectRefToProtocol(ProjectRef(build, resolved.id))
+        plugins = resolved.autoPlugins.map(getRootObjectName)
+      } yield protocol.MinimalProjectStructure(ref, plugins)).toSeq
+
+    val builds = projects.map(_.id.build).distinct
     protocol.MinimalBuildStructure(
       builds = builds,
       projects = projects)

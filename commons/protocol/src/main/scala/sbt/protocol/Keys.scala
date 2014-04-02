@@ -107,16 +107,28 @@ object KeyList {
 }
 
 
+/** Core information returned about projects for build clients. */
+case class MinimalProjectStructure(
+  id: ProjectReference,
+  // Class names of plugins used by this project.
+  plugins: Seq[String]
+)
+object MinimalProjectStructure {
+  implicit val format = Json.format[MinimalProjectStructure] 
+}
+
+
 case class MinimalBuildStructure(
   builds: Seq[URI],
-  projects: Seq[ProjectReference]
+  projects: Seq[MinimalProjectStructure]
   // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
   // "unwind" on the client side into ScopedKeys.
 )
 object MinimalBuildStructure {
-  // TODO - Serializer/Structure...
   implicit val format = Json.format[MinimalBuildStructure]
 }
+
+
 
 
 /** A filter for which keys to display. */
