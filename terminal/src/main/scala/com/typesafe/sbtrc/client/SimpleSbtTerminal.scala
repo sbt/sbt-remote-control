@@ -65,8 +65,8 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             // Register for when the execution is done.
             val executionDone = concurrent.promise[Unit]
             val registration = (client.handleEvents {
-              case protocol.ExecutionDone(`executionId`, _) => executionDone.success(())
-              case protocol.ExecutionFailure(`executionId`, _) =>
+              case protocol.ExecutionDone(`executionId`) => executionDone.success(())
+              case protocol.ExecutionFailure(`executionId`) =>
                 // TODO - failure here?
                 executionDone.success(())
               case _ =>

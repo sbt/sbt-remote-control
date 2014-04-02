@@ -159,7 +159,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
           requestHandler.executionDone(e.id)
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
-          requestHandler.executionFailed(e.id, s"execution of '${e.command}' failed")
+          requestHandler.executionFailed(e.id, s"execution failed")
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, e: Event) =>
           eventManager.sendEvent(e)

@@ -194,7 +194,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
-        serverState.eventListeners.send(ExecutionDone(command.command.id.id, command.command.command))
+        serverState.eventListeners.send(ExecutionDone(command.command.id.id))
         BuildStructureCache.update(state)
       case None => state
     }
@@ -206,7 +206,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
-        lastState.eventListeners.send(ExecutionFailure(command.id.id, command.command))
+        lastState.eventListeners.send(ExecutionFailure(command.id.id))
       case None => ()
     }
     // NOTE - we always need to re-register ourselves as the error handler.

@@ -48,9 +48,10 @@ case class ExecutionRequestReceived(id: Long) extends Response
 case class ExecutionWaiting(id: Long, command: String) extends Event
 // about to execute this one (popped off the queue)
 case class ExecutionStarting(id: Long) extends Event
-// TODO remove "command" from these since clients can get it from the Pending
-case class ExecutionDone(id: Long, command: String) extends Event
-case class ExecutionFailure(id: Long, command: String) extends Event
+// finished executing successfully
+case class ExecutionDone(id: Long) extends Event
+// finished executing unsuccessfully
+case class ExecutionFailure(id: Long) extends Event
 
 /**
  * @param id An identifier we'll receive when we get the list of completions.

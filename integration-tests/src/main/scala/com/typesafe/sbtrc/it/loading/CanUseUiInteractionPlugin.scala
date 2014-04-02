@@ -53,9 +53,9 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
         if (key.key.name == "readInput") {
           taskResult.success(result)
         }
-      case ExecutionDone(id, command) =>
+      case ExecutionDone(id) =>
         executionResult.success(true)
-      case ExecutionFailure(id, command) =>
+      case ExecutionFailure(id) =>
         executionResult.success(false)
       case other => eventSet += other
     })(global)
