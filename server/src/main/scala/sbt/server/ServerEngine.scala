@@ -324,7 +324,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
 // TODO - make this less hacky
 // TODO - Don't hard-code all this. It should be somewhat flexible....
 import xsbti._
-case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.2-M2") extends AppConfiguration {
+case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.5-M2") extends AppConfiguration {
   final val arguments: Array[String] = Array.empty
   final def baseDirectory: File = original.baseDirectory
   private def origAp = original.provider
