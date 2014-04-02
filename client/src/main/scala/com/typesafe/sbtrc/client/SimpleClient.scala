@@ -43,7 +43,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     result.future
   }
 
-  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Unit] = {
+  def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
@@ -155,11 +155,11 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
           completionsManager.fire(id, completions)
         case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
           requestHandler.executionReceived(requestSerial, executionId)
-        case protocol.Envelope(_, _, e: protocol.ExecutionDone) =>
+        case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>
           requestHandler.executionDone(e.id)
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
-          requestHandler.executionFailed(e.id, s"execution of '${e.command}' failed")
+          requestHandler.executionFailed(e.id, s"execution failed")
           eventManager.sendEvent(e)
         case protocol.Envelope(_, _, e: Event) =>
           eventManager.sendEvent(e)

@@ -15,23 +15,53 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
   type S = ServerState
   def initial: S = state
 
+  // this is not synchronized because we know we won't change it after generating it
+  // in the initial registered() call, which (in theory) is guaranteed to be before
+  // any other threads get involved.
+  @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+  var nextTaskId = 1L // start with 1 so 0 is invalid
+
+  private def taskId(protocolKey: protocol.ScopedKey): Long = {
+    taskIds.get(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
+  }
+
+  private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
+    task.info.get(Keys.taskDefinitionKey) match {
+      case Some(key) =>
+        block(key, SbtToProtocolUtils.scopedKeyToProtocol(key))
+      case None => // Ignore tasks without keys.
+    }
+  }
+
+  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit =
+    withKeyAndProtocolKey(task) { (_, protocolKey) => block(protocolKey) }
+
   /**
    * Notifies that a `task` has been registered in the system for execution.
    * The dependencies of `task` are `allDeps` and the subset of those dependencies that
    * have not completed are `pendingDeps`.
    */
-  def registered(state: S, task: Task[_], allDeps: Iterable[Task[_]], pendingDeps: Iterable[Task[_]]): S = state
+  def registered(state: S, task: Task[_], allDeps: Iterable[Task[_]], pendingDeps: Iterable[Task[_]]): S = {
+    // generate task IDs
+    for (task <- allDeps) {
+      withProtocolKey(task) { protocolKey =>
+        // assuming the keys are unique within a ServerExecuteProgress... safe?
+        taskIds += (protocolKey -> nextTaskId)
+        nextTaskId += 1
+      }
+    }
+    state
+  }
 
   /**
    * Notifies that all of the dependencies of `task` have completed and `task` is therefore
    * ready to run.  The task has not been scheduled on a thread yet.
    */
   def ready(state: S, task: Task[_]): S = {
-    task.info.get(Keys.taskDefinitionKey) match {
-      case Some(key) =>
-        // Send notification
-        state.eventListeners.send(TaskStarted(SbtToProtocolUtils.scopedKeyToProtocol(key)))
-      case None => // Ignore tasks without keys.
+    withProtocolKey(task) { protocolKey =>
+      state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+        taskId(protocolKey),
+        protocolKey))
     }
     state
   }
@@ -47,19 +77,16 @@ private[server] class ServerExecuteProgress(state: ServerState) extends ExecuteP
    * Any tasks called by `task` have completed.
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
-
-    task.info.get(Keys.taskDefinitionKey) match {
-      case Some(key) =>
-        // Send basic notification
-        val protocolKey = SbtToProtocolUtils.scopedKeyToProtocol(key)
-        state.eventListeners.send(TaskFinished(protocolKey, result.toEither.isRight))
-        for {
-          kl <- state.keyListeners
-          if kl.key == key
-          // TODO - Check value against some "last value cache"
-          mf = getManifestOfTask[T](key.key.manifest)
-        } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
-      case None => // Ignore tasks without keys.
+    withKeyAndProtocolKey(task) { (key, protocolKey) =>
+      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
+        taskId(protocolKey),
+        protocolKey, result.toEither.isRight))
+      for {
+        kl <- state.keyListeners
+        if kl.key == key
+        // TODO - Check value against some "last value cache"
+        mf = getManifestOfTask[T](key.key.manifest)
+      } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
     }
     state
   }

@@ -44,8 +44,14 @@ case class ExecutionRequest(command: String) extends Request
 // if the request was combined with an identical pending one,
 // then the id will be the same for the combined requests.
 case class ExecutionRequestReceived(id: Long) extends Response
-case class ExecutionDone(id: Long, command: String) extends Event
-case class ExecutionFailure(id: Long, command: String) extends Event
+// execution queued up
+case class ExecutionWaiting(id: Long, command: String) extends Event
+// about to execute this one (popped off the queue)
+case class ExecutionStarting(id: Long) extends Event
+// finished executing successfully
+case class ExecutionSuccess(id: Long) extends Event
+// finished executing unsuccessfully
+case class ExecutionFailure(id: Long) extends Event
 
 /**
  * @param id An identifier we'll receive when we get the list of completions.
@@ -206,6 +212,11 @@ case class CompilationFailure(
     msg: String
 ) extends Event
 
-case class TaskStarted(key: ScopedKey) extends Event
-// TODO - Send result? no...
-case class TaskFinished(key: ScopedKey, success: Boolean) extends Event
+// the taskId is provided here (tying it to an executionId and key),
+// and then in further events from the task we only provide taskId
+// since the exeuctionId and key can be deduced from that.
+case class TaskStarted(executionId: Long, taskId: Long, key: ScopedKey) extends Event
+// we really could provide taskId ONLY here, but we throw the executionId and key
+// in just for convenience so clients don't have to hash taskId if their
+// only interest is in the key and executionId
+case class TaskFinished(executionId: Long, taskId: Long, key: ScopedKey, success: Boolean) extends Event

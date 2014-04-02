@@ -37,6 +37,9 @@ case class ServerState(
   }
   def clearLastCommand: ServerState = copy(lastCommand = None)
 
+  def optionalExecutionId: Option[ExecutionId] = lastCommand.map(_.command.id)
+  def requiredExecutionId: ExecutionId = optionalExecutionId.getOrElse(throw new RuntimeException("Last command with execution ID should be set here but is not"))
+
   def addKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
     // TODO - Speed this up.
     val handler =

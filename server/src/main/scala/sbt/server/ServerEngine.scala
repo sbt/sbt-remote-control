@@ -43,19 +43,43 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     // as we coalesce ExecutionRequest into commands for the sbt engine
     // (combining duplicates), we store them here.
     private var workQueue: List[ServerEngineWork] = Nil
+    // if we have modified workQueue since our last changed event,
+    // then the value just before the first modification is here
+    private var previouslyBroadcastWorkQueue: Option[List[ServerEngineWork]] = Some(Nil)
 
-    private def emitWorkQueueChanged(oldQueue: List[ServerEngineWork], newQueue: List[ServerEngineWork]): Unit = {
-      // FIXME emit a change event so clients can monitor what is
-      // queued up
+    private def savePreviousWorkQueue(): Unit = {
+      previouslyBroadcastWorkQueue match {
+        case Some(_) => // keep the oldest
+        case None => previouslyBroadcastWorkQueue = Some(workQueue)
+      }
+    }
+
+    private def emitWorkQueueChanged(state: ServerState): Unit = {
+      previouslyBroadcastWorkQueue match {
+        case Some(old) =>
+          val oldSet = old.collect({ case command: CommandExecutionWork => command }).toSet
+          val newSet = workQueue.collect({ case command: CommandExecutionWork => command }).toSet
+          val added = newSet -- oldSet
+          val removed = oldSet -- newSet
+
+          for (waiting <- added)
+            state.eventListeners.send(protocol.ExecutionWaiting(waiting.id.id, waiting.command))
+          for (started <- removed)
+            state.eventListeners.send(protocol.ExecutionStarting(started.id.id))
+
+          // reset to nothing
+          previouslyBroadcastWorkQueue = None
+        case None => // we haven't made any changes
+      }
     }
 
     private def queueNextRequest(request: ServerRequest): Unit = {
-      val oldWorkQueue = workQueue
+      savePreviousWorkQueue()
 
       workQueue = request match {
         case ServerRequest(client, serial, command: ExecutionRequest) =>
           val work: CommandExecutionWork = {
-            val oldOption: Option[ServerEngineWork] = oldWorkQueue.find({
+            val oldOption: Option[ServerEngineWork] = workQueue.find({
               case old: CommandExecutionWork if old.command == command.command =>
                 true
               case _ =>
@@ -75,12 +99,10 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
           import sbt.protocol.executionReceivedFormat
           request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
 
-          oldWorkQueue :+ work
+          workQueue :+ work
         case wtf =>
           throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
       }
-
-      emitWorkQueueChanged(oldWorkQueue, workQueue)
     }
 
     @tailrec
@@ -111,12 +133,20 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       // NONBLOCKING scan of requests
       val serverState = pollRequests()
 
+      // Emit work queue changed here before we pop, so that
+      // all work items appear in the queue once before we remove
+      // them. We don't want to compress across removal.
+      emitWorkQueueChanged(serverState)
+
       val work =
         workQueue match {
           case head :: tail =>
-            val prePopQueue = workQueue
+            savePreviousWorkQueue()
             workQueue = tail
-            emitWorkQueueChanged(prePopQueue, workQueue)
+            // then immediately notify that we've removed a queue item,
+            // this way we say we've removed before we start to execute,
+            // or we notify that we've emptied the queue before we block
+            emitWorkQueueChanged(serverState)
             Some(head)
           case Nil =>
             None
@@ -164,7 +194,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
-        serverState.eventListeners.send(ExecutionDone(command.command.id.id, command.command.command))
+        serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
         BuildStructureCache.update(state)
       case None => state
     }
@@ -176,7 +206,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
-        lastState.eventListeners.send(ExecutionFailure(command.id.id, command.command))
+        lastState.eventListeners.send(ExecutionFailure(command.id.id))
       case None => ()
     }
     // NOTE - we always need to re-register ourselves as the error handler.

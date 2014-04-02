@@ -186,7 +186,9 @@ package object protocol {
   implicit val testEventFormat = Json.format[TestEvent]     
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
   implicit val executionReceivedFormat = Json.format[ExecutionRequestReceived]
-  implicit val executionDoneFormat = Json.format[ExecutionDone]
+  implicit val executionWaitingFormat = Json.format[ExecutionWaiting]
+  implicit val executionStartingFormat = Json.format[ExecutionStarting]
+  implicit val executionSuccessFormat = Json.format[ExecutionSuccess]
   implicit val executionFailureFormat = Json.format[ExecutionFailure]
   implicit val listenToEventsFormat = emptyObjectFormat(ListenToEvents())
   implicit val listenToBuildChangeFormat = emptyObjectFormat(ListenToBuildChange())
