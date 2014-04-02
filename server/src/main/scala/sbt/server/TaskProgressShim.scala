@@ -59,10 +59,14 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
     state
   }
 
-  // This is not called on the engine thread, so we can't get state.  For now, we'll ignore it.
-  def workStarting(task: Task[_]): Unit = ()
-  // This is not called on the engine thread, so we can't have state.  For now, we'll ignore it.
-  def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = ()
+  // This is not called on the engine thread, so we can't get state.
+  def workStarting(task: Task[_]): Unit = {
+    withProtocolKey(task) { taskIdRecorder.setThreadTask(_) }
+  }
+  // This is not called on the engine thread, so we can't have state.
+  def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = {
+    taskIdRecorder.clearThreadTask()
+  }
 
   /**
    * Notifies that `task` has completed.

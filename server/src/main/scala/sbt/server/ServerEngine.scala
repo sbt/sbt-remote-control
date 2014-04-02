@@ -48,6 +48,10 @@ class TaskIdRecorder extends TaskIdFinder {
   @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
   private var nextTaskId = 1L // start with 1 so 0 is invalid
 
+  private object taskIdThreadLocal extends ThreadLocal[Long] {
+    override def initialValue(): Long = 0
+  }
+
   def register(key: protocol.ScopedKey): Unit = {
     taskIds += (key -> nextTaskId)
     nextTaskId += 1
@@ -57,10 +61,25 @@ class TaskIdRecorder extends TaskIdFinder {
     taskIds = Map.empty
   }
 
+  // TODO we want to replace this with *requiring* all event senders
+  // to know their key, which means we need to pass the task key
+  // through to the UIContext and the EventLogger. This can probably
+  // be done with a streamsManager plus somehow relating UIContext to
+  // the streams, or handling UIContext in a similar way to streams
+  // where it's a dummy value replaced by sbt before invoking each
+  // task. Exact details TBD and may require sbt ABI break.
+  // The problem with this hack is that if a task spawns its
+  // own threads, we won't have the task ID.
+  def setThreadTask(key: protocol.ScopedKey): Unit =
+    taskId(key) foreach { taskIdThreadLocal.set(_) }
+
+  def clearThreadTask(): Unit =
+    taskIdThreadLocal.remove()
+
   override def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long = {
     taskIfKnown flatMap { key =>
       taskIds.get(key)
-    } getOrElse 0L
+    } getOrElse taskIdThreadLocal.get
   }
 
   override def taskId(task: protocol.ScopedKey): Option[Long] = {
