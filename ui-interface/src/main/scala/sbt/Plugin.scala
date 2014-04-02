@@ -11,10 +11,10 @@ import play.api.libs.json._
 object SbtUiPlugin extends Plugin {
 
   override val buildSettings: Seq[Setting[_]] = Seq(
-    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? ComamndLineUiContext)
+    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext)
 }
 
-private[sbt] object ComamndLineUiContext extends AbstractUIContext {
+private[sbt] object CommandLineUiContext extends AbstractUIContext {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
