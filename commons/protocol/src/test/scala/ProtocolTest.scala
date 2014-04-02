@@ -51,18 +51,18 @@ class ProtocolTest {
       protocol.BuildStructureChanged(buildStructure),
       protocol.ValueChange(scopedKey, protocol.TaskFailure("O NOES")),
       protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
-      protocol.LogEvent(protocol.LogStdOut("Hello, world")),
+      protocol.LogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
       protocol.ExecutionWaiting(41, "foo"),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
       protocol.ExecutionSuccess(44),
-      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
-      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
-      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),
-      protocol.LogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST")),
-      protocol.LogEvent(protocol.LogStdErr("TEST")),
-      protocol.LogEvent(protocol.LogStdOut("TEST2"))
+      protocol.LogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST")),
+      protocol.LogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")),
+      protocol.LogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST")),
+      protocol.LogEvent(5, protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST")),
+      protocol.LogEvent(6, protocol.LogStdErr("TEST")),
+      protocol.LogEvent(7, protocol.LogStdOut("TEST2"))
       // TODO - protocol.GenericEvent("playServerStarted", Map("port" -> 10))
     )
     for (s <- specifics) {

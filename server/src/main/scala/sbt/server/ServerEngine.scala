@@ -27,6 +27,47 @@ sealed trait ServerEngineWork
 // chunks of work, thus allRequesters not a single requester.
 case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
 
+// this is the read-only face of TaskIdRecorder which is used outside of ServerExecuteProgress
+trait TaskIdFinder {
+  // guess task ID from the key and/or the current thread.
+  // this returns 0 (invalid task ID) if we can't come up with any guess;
+  // doesn't return an Option because normally we want to just send the event
+  // anyway with a 0 task ID.
+  def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long
+
+  // just look up the task ID by key, don't use any thread info.
+  def taskId(task: protocol.ScopedKey): Option[Long]
+}
+
+class TaskIdRecorder extends TaskIdFinder {
+  // this is not synchronized because we know we won't change it after generating it
+  // in the initial ServerExecuteProgress.registered() call,
+  // which (in theory) is guaranteed to be before any other threads get involved.
+  // In other words it's written only from the engine thread though read
+  // by many task threads.
+  @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+  private var nextTaskId = 1L // start with 1 so 0 is invalid
+
+  def register(key: protocol.ScopedKey): Unit = {
+    taskIds += (key -> nextTaskId)
+    nextTaskId += 1
+  }
+
+  def clear(): Unit = {
+    taskIds = Map.empty
+  }
+
+  override def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long = {
+    taskIfKnown flatMap { key =>
+      taskIds.get(key)
+    } getOrElse 0L
+  }
+
+  override def taskId(task: protocol.ScopedKey): Option[Long] = {
+    taskIds.get(task)
+  }
+}
+
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
  *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
@@ -37,7 +78,8 @@ case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters:
  */
 class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
 
-  val eventLogger = new EventLogger
+  private val taskIdRecorder = new TaskIdRecorder
+  private val eventLogger = new EventLogger(taskIdRecorder)
 
   private object workQueue {
 
@@ -308,7 +350,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val rawSettings: Seq[Setting[_]] =
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
-        ServerExecuteProgress.getShims(state) ++
+        ServerExecuteProgress.getShims(state, taskIdRecorder) ++
         UIShims.makeShims(state) ++
         loggingShims(state)
     // TODO - Override log manager for now, or figure out a better way.

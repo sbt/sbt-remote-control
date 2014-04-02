@@ -46,11 +46,11 @@ class CanLoadSimpleProject extends SbtClientTest {
     val logInfoCaptured = concurrent.promise[Unit]
     val stderrCaptured = concurrent.promise[Unit]
     val stdoutSub = (client handleEvents {
-      case LogEvent(LogStdOut(line)) if line contains "test-out" =>
+      case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
         stdoutCaptured.success(())
-      case LogEvent(LogStdErr(line)) if line contains "test-err" =>
+      case LogEvent(taskId, LogStdErr(line)) if line contains "test-err" =>
         stderrCaptured.success(())
-      case LogEvent(LogMessage("info", line)) if line contains "test-info" =>
+      case LogEvent(taskId, LogMessage("info", line)) if line contains "test-info" =>
         logInfoCaptured.success(())
       case _ =>
     })(global)
