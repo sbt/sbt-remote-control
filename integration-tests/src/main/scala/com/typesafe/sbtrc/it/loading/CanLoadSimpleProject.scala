@@ -35,7 +35,8 @@ class CanLoadSimpleProject extends SbtClientTest {
     val result = waitWithError(build.future, "Never got build structure.")
     assert(result.projects.size == 1, "Found too many projects!")
     val project = result.projects.head
-    assert(project.name == "test", "failed to discover project name == file name.")
+    assert(project.id.name == "test", "failed to discover project name == file name.")
+    assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
 
     // Here we check autocompletions:
     val completes = waitWithError(client.possibleAutocompletions("hel", 0), "Autocompletions not returned in time.")
@@ -86,7 +87,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     assert(!keys.isEmpty && keys.head.key.name == "compile", s"Failed to find compile key: $keys!")
 
     // check receiving the value of a setting key
-    val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.name}/baseDirectory")
+    val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.id.name}/baseDirectory")
     val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
 
     val baseDirectoryPromise = concurrent.Promise[File]
@@ -103,7 +104,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     assert(dummy.getAbsoluteFile() == baseDirectory, s"Failed to received correct baseDirectory: $baseDirectory")
 
     // check receiving the initial value of a task key
-    val unmanagedSourcesKeysFuture = client.lookupScopedKey(s"${project.name}/compile:unmanagedSources")
+    val unmanagedSourcesKeysFuture = client.lookupScopedKey(s"${project.id.name}/compile:unmanagedSources")
     val unmanagedSourcesKeys = waitWithError(unmanagedSourcesKeysFuture, "Never received key lookup response!")
 
     val unmanagedSourcesPromise = concurrent.Promise[collection.Seq[File]]

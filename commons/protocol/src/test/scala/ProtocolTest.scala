@@ -22,7 +22,7 @@ class ProtocolTest {
     val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
-      projects = Seq(scope.project.get)
+      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin")))
     )
     val specifics = Seq(
       // Requests
