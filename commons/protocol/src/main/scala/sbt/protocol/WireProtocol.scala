@@ -27,6 +27,7 @@ object WireProtocol {
     msg[ReceivedResponse],
     msg[ExecutionRequestReceived],
     msg[ExecutionRequest],
+    msg[KeyExecutionRequest],
     msg[ExecutionStarting],
     msg[ExecutionWaiting],
     msg[ExecutionFailure],

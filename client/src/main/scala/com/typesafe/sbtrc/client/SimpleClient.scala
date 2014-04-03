@@ -46,6 +46,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
   }
+  def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
+    requestHandler.register(client.sendJson(KeyExecutionRequest(key)), interaction).received
+  }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =

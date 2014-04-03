@@ -42,34 +42,40 @@ class CanLoadSimpleProject extends SbtClientTest {
     val completes = waitWithError(client.possibleAutocompletions("hel", 0), "Autocompletions not returned in time.")
     assert(completes.exists(_.append == "p"), "Failed to autocomplete `help` command.")
 
-    // Attempt to call a custom task and ensure we get our stdout events.
-    val stdoutCaptured = concurrent.promise[Unit]
-    val logInfoCaptured = concurrent.promise[Unit]
-    val stderrCaptured = concurrent.promise[Unit]
-    val stdoutSub = (client handleEvents {
-      case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
-        if (taskId != 0)
-          stdoutCaptured.success(())
-        else
-          stdoutCaptured.failure(new RuntimeException("task ID was 0 for task stdout"))
-      case LogEvent(taskId, LogStdErr(line)) if line contains "test-err" =>
-        if (taskId != 0)
-          stderrCaptured.success(())
-        else
-          stderrCaptured.failure(new RuntimeException("task ID was 0 for task stderr"))
-      case LogEvent(taskId, LogMessage("info", line)) if line contains "test-info" =>
-        if (taskId != 0)
-          logInfoCaptured.success(())
-        else
-          logInfoCaptured.failure(new RuntimeException("task ID was 0 for task log info"))
-      case _ =>
-    })(global)
-    client.requestExecution("printOut", None)
-    // Now we wait for the futures to fill out.
-    waitWithError(stdoutCaptured.future, "Unable to read known stdout lines from server")
-    waitWithError(stderrCaptured.future, "Unable to read known stderr lines from server")
-    waitWithError(logInfoCaptured.future, "Unable to read known log info lines from server")
-    stdoutSub.cancel()
+    def testTask(requestExecution: => concurrent.Future[Long]): Unit = {
+      // Attempt to call a custom task and ensure we get our stdout events.
+      val stdoutCaptured = concurrent.promise[Unit]
+      val logInfoCaptured = concurrent.promise[Unit]
+      val stderrCaptured = concurrent.promise[Unit]
+      val stdoutSub = (client handleEvents {
+        case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
+          if (taskId != 0)
+            stdoutCaptured.success(())
+          else
+            stdoutCaptured.failure(new RuntimeException("task ID was 0 for task stdout"))
+        case LogEvent(taskId, LogStdErr(line)) if line contains "test-err" =>
+          if (taskId != 0)
+            stderrCaptured.success(())
+          else
+            stderrCaptured.failure(new RuntimeException("task ID was 0 for task stderr"))
+        case LogEvent(taskId, LogMessage("info", line)) if line contains "test-info" =>
+          if (taskId != 0)
+            logInfoCaptured.success(())
+          else
+            logInfoCaptured.failure(new RuntimeException("task ID was 0 for task log info"))
+        case _ =>
+      })(global)
+      requestExecution
+      // Now we wait for the futures to fill out.
+      waitWithError(stdoutCaptured.future, "Unable to read known stdout lines from server")
+      waitWithError(stderrCaptured.future, "Unable to read known stderr lines from server")
+      waitWithError(logInfoCaptured.future, "Unable to read known log info lines from server")
+      stdoutSub.cancel()
+    }
+    testTask(client.requestExecution("printOut", None))
+    testTask {
+      client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
+    }
 
     // Now we check compilation failure messages
     val compileErrorCaptured = concurrent.promise[CompilationFailure]
