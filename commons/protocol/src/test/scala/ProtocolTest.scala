@@ -52,7 +52,7 @@ class ProtocolTest {
       protocol.ValueChange(scopedKey, protocol.TaskFailure("O NOES")),
       protocol.ValueChange(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
       protocol.LogEvent(1, protocol.LogStdOut("Hello, world")),
-      protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None),
+      protocol.TestEvent(4, "name", None, protocol.TestOutcome("passed"), None),
       protocol.ExecutionWaiting(41, "foo"),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),

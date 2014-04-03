@@ -144,7 +144,7 @@ case object NowListeningEvent extends BootEvent
 case object Stopped extends Event
 
 /** A build test has done something useful and we're being notified of it. */
-case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String]) extends Event
+case class TestEvent(taskId: Long, name: String, description: Option[String], outcome: TestOutcome, error: Option[String]) extends Event
 /** A generic mechanism to send events. */
 //case class GenericEvent(value: play.api.libs.json.JsValue) extends Event
 /** The build has been changed in some fashion. */
@@ -207,6 +207,7 @@ case object TestSkipped extends TestOutcome {
 
 /** A compilation issue from the compiler. */
 case class CompilationFailure(
+    taskId: Long,
     project: ProjectReference,
     position: xsbti.Position,
     severity: xsbti.Severity,
