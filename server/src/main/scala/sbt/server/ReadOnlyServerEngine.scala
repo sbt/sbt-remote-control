@@ -96,8 +96,6 @@ class ReadOnlyServerEngine(
         updateState(_.addEventListener(client))
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
-      case req: ExecutionRequest =>
-        workRequestsQueue.add(ServerRequest(client, serial, request))
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
