@@ -90,8 +90,7 @@ class ReadOnlyServerEngine(
   }
 
   private def executeKey(client: LiveClient, serial: Long, scopedKey: sbt.ScopedKey[_], buildState: State): Unit = {
-    val extracted = Project.extract(buildState)
-    handleRequestsWithBuildState(client, serial, ExecutionRequest(extracted.showKey(scopedKey)), buildState)
+    handleRequestsWithBuildState(client, serial, ExecutionRequest(Def.showFullKey(scopedKey)), buildState)
   }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
