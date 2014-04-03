@@ -89,6 +89,10 @@ class ReadOnlyServerEngine(
     }
   }
 
+  private def executeKey(client: LiveClient, serial: Long, scopedKey: sbt.ScopedKey[_], buildState: State): Unit = {
+    val extracted = Project.extract(buildState)
+    handleRequestsWithBuildState(client, serial, ExecutionRequest(extracted.showKey(scopedKey)), buildState)
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
       case ListenToEvents() =>
@@ -136,7 +140,7 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              workRequestsQueue.add(ServerRequest(client, serial, ExecutionRequest(extracted.showKey(scopedKey))))
+              executeKey(client, serial, scopedKey, buildState)
             }
 
           case None => // Issue a no such key error
@@ -149,8 +153,7 @@ class ReadOnlyServerEngine(
         // translate to a regular ExecutionRequest
         SbtToProtocolUtils.protocolToScopedKey(keyRequest.key, buildState) match {
           case Some(scopedKey) =>
-            val extracted = Project.extract(buildState)
-            handleRequestsWithBuildState(client, serial, ExecutionRequest(extracted.showKey(scopedKey)), buildState)
+            executeKey(client, serial, scopedKey, buildState)
           case None =>
             client.reply(serial, KeyNotFound(keyRequest.key))
         }
