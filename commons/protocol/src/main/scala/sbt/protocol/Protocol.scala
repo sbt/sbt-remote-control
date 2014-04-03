@@ -41,6 +41,7 @@ sealed trait Event extends Message
 case class RegisterClientRequest(uuid: String, configName: String, humanReadableName: String) extends Request
 
 case class ExecutionRequest(command: String) extends Request
+case class KeyExecutionRequest(key: ScopedKey) extends Request
 // if the request was combined with an identical pending one,
 // then the id will be the same for the combined requests.
 case class ExecutionRequestReceived(id: Long) extends Response

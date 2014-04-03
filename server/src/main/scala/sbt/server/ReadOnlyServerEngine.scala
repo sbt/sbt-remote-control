@@ -145,6 +145,15 @@ class ReadOnlyServerEngine(
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
         workRequestsQueue.add(ServerRequest(client, serial, request))
+      case keyRequest: KeyExecutionRequest =>
+        // translate to a regular ExecutionRequest
+        SbtToProtocolUtils.protocolToScopedKey(keyRequest.key, buildState) match {
+          case Some(scopedKey) =>
+            val extracted = Project.extract(buildState)
+            handleRequestsWithBuildState(client, serial, ExecutionRequest(extracted.showKey(scopedKey)), buildState)
+          case None =>
+            client.reply(serial, KeyNotFound(keyRequest.key))
+        }
       case CommandCompletionsRequest(id, line, level) =>
         val combined = buildState.combinedParser
         val completions = complete.Parser.completions(combined, line, level)

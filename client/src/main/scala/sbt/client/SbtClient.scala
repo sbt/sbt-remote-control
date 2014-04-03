@@ -64,9 +64,17 @@ trait SbtClient extends Closeable {
    *
    * @param commandOrTask The full command/task string to run.
    *         that should be evaluated.
-   * @return  A future execution ID, which then appears in execution-related events
+   * @return A future execution ID, which then appears in execution-related events
    */
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long]
+
+  /**
+   * See the docs for the other variant of requestExecution(). This one takes a key rather than
+   * a string.
+   * @param key key for the task to run
+   * @return A future execution ID, which then appears in execution-related events
+   */
+  def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long]
 
   /**
    * Adds a listener to general events which are fired from this sbt server.  These can be things like
