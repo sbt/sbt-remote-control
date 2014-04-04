@@ -33,30 +33,35 @@ trait TaskIdFinder {
   // this returns 0 (invalid task ID) if we can't come up with any guess;
   // doesn't return an Option because normally we want to just send the event
   // anyway with a 0 task ID.
-  def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long
+  def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long
 
   // just look up the task ID by key, don't use any thread info.
-  def taskId(task: protocol.ScopedKey): Option[Long]
+  def taskId(task: Task[_]): Option[Long]
 }
 
 class TaskIdRecorder extends TaskIdFinder {
-  // this is not synchronized because we know we won't change it after generating it
-  // in the initial ServerExecuteProgress.registered() call,
-  // which (in theory) is guaranteed to be before any other threads get involved.
-  // In other words it's written only from the engine thread though read
-  // by many task threads.
-  @volatile private var taskIds: Map[protocol.ScopedKey, Long] = Map.empty
+  // This is always modified from the engine thread, and we will
+  // add the ID for each task in register() before
+  // the corresponding task runs. So while a task thread might
+  // get an old map that's missing a newly-registered ID, that
+  // task thread should not care about or need to access said
+  // newly-registered ID. The thread which needs a task ID
+  // should run post-register. In theory, of course. If this
+  // theory is wrong not sure what we'll have to do.
+  @volatile private var taskIds: Map[Task[_], Long] = Map.empty
   private var nextTaskId = 1L // start with 1 so 0 is invalid
 
   // this one is used from the task threads and thus we have to synchronize
-  private var runningTasks: Set[protocol.ScopedKey] = Set.empty
+  private var runningTasks: Set[Task[_]] = Set.empty
 
   private object taskIdThreadLocal extends ThreadLocal[Long] {
     override def initialValue(): Long = 0
   }
 
-  def register(key: protocol.ScopedKey): Unit = {
-    taskIds += (key -> nextTaskId)
+  def register(task: Task[_]): Unit = {
+    if (taskIds.contains(task))
+      throw new RuntimeException(s"registered more than once? ${task}")
+    taskIds += (task -> nextTaskId)
     nextTaskId += 1
   }
 
@@ -73,22 +78,25 @@ class TaskIdRecorder extends TaskIdFinder {
   // task. Exact details TBD and may require sbt ABI break.
   // The problem with this hack is that if a task spawns its
   // own threads, we won't have the task ID.
-  def setThreadTask(key: protocol.ScopedKey): Unit =
-    taskId(key) foreach { id =>
-      taskIdThreadLocal.set(id)
-      synchronized {
-        runningTasks += key
-      }
+  def setThreadTask(task: Task[_]): Unit =
+    taskId(task) match {
+      case Some(id) =>
+        taskIdThreadLocal.set(id)
+        synchronized {
+          runningTasks += task
+        }
+      case None =>
+        throw new RuntimeException(s"Running a task which was never ExecuteProgress#registered? ${task}")
     }
 
-  def clearThreadTask(key: protocol.ScopedKey): Unit = {
+  def clearThreadTask(task: Task[_]): Unit = {
     taskIdThreadLocal.remove()
     synchronized {
-      runningTasks -= key
+      runningTasks -= task
     }
   }
 
-  override def bestGuessTaskId(taskIfKnown: Option[protocol.ScopedKey] = None): Long = {
+  override def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long = {
     taskIfKnown flatMap { key =>
       taskIds.get(key)
     } getOrElse {
@@ -106,7 +114,7 @@ class TaskIdRecorder extends TaskIdFinder {
     }
   }
 
-  override def taskId(task: protocol.ScopedKey): Option[Long] = {
+  override def taskId(task: Task[_]): Option[Long] = {
     taskIds.get(task)
   }
 }
