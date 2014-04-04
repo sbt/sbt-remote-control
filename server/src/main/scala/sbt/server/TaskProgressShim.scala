@@ -19,6 +19,11 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
     taskIdRecorder.taskId(task).getOrElse(throw new RuntimeException(s"Task was not registered? no task ID for $task"))
   }
 
+  private def protocolKeyOption(task: Task[_]): Option[protocol.ScopedKey] =
+    task.info.get(Keys.taskDefinitionKey) map {
+      SbtToProtocolUtils.scopedKeyToProtocol(_)
+    }
+
   // Note: not all tasks have keys. Anonymous tasks are allowed.
   private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
     task.info.get(Keys.taskDefinitionKey) match {
@@ -27,9 +32,6 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
       case None => // Ignore tasks without keys.
     }
   }
-
-  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit =
-    withKeyAndProtocolKey(task) { (_, protocolKey) => block(protocolKey) }
 
   /**
    * Notifies that a `task` has been registered in the system for execution.
@@ -53,13 +55,9 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * ready to run.  The task has not been scheduled on a thread yet.
    */
   def ready(state: S, task: Task[_]): S = {
-    withProtocolKey(task) { protocolKey =>
-      // TODO if a task has no protocol key, we should probably still send
-      // an event ...
-      state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
-        taskId(task),
-        protocolKey))
-    }
+    state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+      taskId(task),
+      protocolKeyOption(task)))
     state
   }
 
@@ -78,11 +76,11 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * Any tasks called by `task` have completed.
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
-    // TODO if a task has no protocol key, we should maybe still send an event
+    state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
+      taskId(task),
+      protocolKeyOption(task), result.toEither.isRight))
+
     withKeyAndProtocolKey(task) { (key, protocolKey) =>
-      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
-        taskId(task),
-        protocolKey, result.toEither.isRight))
       for {
         kl <- state.keyListeners
         if kl.key == key

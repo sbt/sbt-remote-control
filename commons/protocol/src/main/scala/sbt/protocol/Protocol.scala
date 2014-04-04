@@ -203,10 +203,8 @@ case class CompilationFailure(
 // the taskId is provided here (tying it to an executionId and key),
 // and then in further events from the task we only provide taskId
 // since the exeuctionId and key can be deduced from that.
-// TODO not all tasks have keys; this event needs to support those.
-case class TaskStarted(executionId: Long, taskId: Long, key: ScopedKey) extends Event
+case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends Event
 // we really could provide taskId ONLY here, but we throw the executionId and key
 // in just for convenience so clients don't have to hash taskId if their
 // only interest is in the key and executionId
-// TODO not all tasks have keys; this event needs to support those.
-case class TaskFinished(executionId: Long, taskId: Long, key: ScopedKey, success: Boolean) extends Event
+case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends Event
