@@ -87,7 +87,7 @@ case class ListenToBuildChange() extends Request
 
 case class ListenToValue(key: ScopedKey) extends Request
 // This is issued if a request for a key value fails.
-case class KeyNotFound(key: ScopedKey) extends Event 
+case class KeyNotFound(key: ScopedKey) extends Response
 
 /** This is a local internal message fired when a client connection is detected
  * to be closed.
