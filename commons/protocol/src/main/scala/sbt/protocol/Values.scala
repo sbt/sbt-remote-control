@@ -43,6 +43,11 @@ object Classes {
    val StringClass = classOf[String]
    val FileClass = classOf[java.io.File]
    val BooleanClass = classOf[Boolean]
+   val ShortClass = classOf[Short]
+   val IntClass = classOf[Int]
+   val LongClass = classOf[Long]
+   val FloatClass = classOf[Float]
+   val DoubleClass = classOf[Double]
    val SeqClass = classOf[Seq[_]]
    val AttributedClass = classOf[sbt.Attributed[_]]
    
@@ -81,6 +86,11 @@ object BuildValue {
       case Classes.StringClass => Some(implicitly[Format[String]])
       case Classes.FileClass => Some(implicitly[Format[java.io.File]])
       case Classes.BooleanClass => Some(implicitly[Format[Boolean]])
+      case Classes.ShortClass => Some(implicitly[Format[Short]])
+      case Classes.IntClass => Some(implicitly[Format[Int]])
+      case Classes.LongClass => Some(implicitly[Format[Long]])
+      case Classes.FloatClass => Some(implicitly[Format[Float]])
+      case Classes.DoubleClass => Some(implicitly[Format[Double]])
       // TODO - polymorphism?
       case Classes.SeqSubClass() =>
         // Now we need to find the first type arguments structure:
