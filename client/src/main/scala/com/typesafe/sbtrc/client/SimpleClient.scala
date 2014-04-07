@@ -64,10 +64,10 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   }
 
   @volatile var running = true
-  private object eventManager extends ListenerManager[protocol.Event, EventListener, ListenToEvents](ListenToEvents(), client) {
+  private object eventManager extends ListenerManager[protocol.Event, EventListener, ListenToEvents, UnlistenToEvents](ListenToEvents(), UnlistenToEvents(), client) {
     override def wrapListener(l: EventListener, ex: ExecutionContext) = new EventListenerHelper(l, ex)
   }
-  private object buildEventManager extends ListenerManager[MinimalBuildStructure, BuildStructureListener, ListenToBuildChange](ListenToBuildChange(), client) {
+  private object buildEventManager extends ListenerManager[MinimalBuildStructure, BuildStructureListener, ListenToBuildChange, UnlistenToBuildChange](ListenToBuildChange(), UnlistenToBuildChange(), client) {
     override def wrapListener(l: BuildStructureListener, ex: ExecutionContext) = new BuildListenerHelper(l, ex)
   }
   private object valueEventManager {
@@ -197,7 +197,7 @@ trait ListenerType[Event] {
   def send(e: Event): Unit
 }
 /** Helper to manage registering events and telling the server we want them. */
-private abstract class ListenerManager[Event, Listener, RequestMsg <: Request](requestEventsMsg: RequestMsg, client: ipc.Peer)(implicit format: play.api.libs.json.Format[RequestMsg]) {
+private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, UnlistenMsg <: Request](requestEventsMsg: RequestMsg, requestUnlistenMsg: UnlistenMsg, client: ipc.Peer)(implicit format1: play.api.libs.json.Format[RequestMsg], format2: play.api.libs.json.Format[UnlistenMsg]) {
 
   def wrapListener(l: Listener, ex: ExecutionContext): ListenerType[Event]
 
@@ -211,17 +211,20 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request](r
       def cancel(): Unit =
         removeEventListener(helper)
     }
-    if (listeningToEvents.compareAndSet(false, true)) {
-      client.sendJson(requestEventsMsg)
-    }
     subscription
   }
 
   private def addEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners += l
+    if (listeningToEvents.compareAndSet(false, true)) {
+      client.sendJson(requestEventsMsg)
+    }
   }
   private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners -= l
+    if (listeners.isEmpty && listeningToEvents.compareAndSet(true, false)) {
+      client.sendJson(requestUnlistenMsg)
+    }
   }
   def sendEvent(e: Event): Unit = synchronized {
     listeners foreach { l =>
@@ -288,7 +291,7 @@ private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], e
 }
 /** Helper to track value changes. */
 private final class ValueChangeManager[T](key: ScopedKey, peer: ipc.Peer)
-  extends ListenerManager[ValueChanged[T], ValueListener[T], ListenToValue](ListenToValue(key), peer) {
+  extends ListenerManager[ValueChanged[T], ValueListener[T], ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), peer) {
 
   def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChanged[T]] =
     new ValueChangeListenerHelper(l, ex)

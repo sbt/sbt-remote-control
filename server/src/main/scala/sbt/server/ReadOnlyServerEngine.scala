@@ -108,9 +108,15 @@ class ReadOnlyServerEngine(
       case ListenToEvents() =>
         updateState(_.addEventListener(client))
         client.reply(serial, ReceivedResponse())
+      case UnlistenToEvents() =>
+        updateState(_.removeEventListener(client))
+        client.reply(serial, ReceivedResponse())
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
+        client.reply(serial, ReceivedResponse())
+      case UnlistenToBuildChange() =>
+        updateState(_.removeBuildListener(client))
         client.reply(serial, ReceivedResponse())
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
@@ -145,6 +151,14 @@ class ReadOnlyServerEngine(
             }
             client.reply(serial, ReceivedResponse())
 
+          case None => // Issue a no such key error
+            client.reply(serial, KeyNotFound(key))
+        }
+      case UnlistenToValue(key) =>
+        SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
+          case Some(scopedKey) =>
+            updateState(_.removeKeyListener(client, scopedKey))
+            client.reply(serial, ReceivedResponse())
           case None => // Issue a no such key error
             client.reply(serial, KeyNotFound(key))
         }
