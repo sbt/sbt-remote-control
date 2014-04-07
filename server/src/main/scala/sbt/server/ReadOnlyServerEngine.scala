@@ -87,7 +87,7 @@ class ReadOnlyServerEngine(
     }
   }
 
-  private def executeKey(client: LiveClient, serial: Long, scopedKey: sbt.ScopedKey[_], buildState: State): Unit = {
+  private def syntheticExecuteRequest(client: LiveClient, serial: Long, scopedKey: sbt.ScopedKey[_], buildState: State): Unit = {
     handleRequestsWithBuildState(client, serial, ExecutionRequest(Def.showFullKey(scopedKey)), buildState)
   }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
@@ -95,8 +95,10 @@ class ReadOnlyServerEngine(
       case ListenToEvents() =>
         // We do not send a listening message, because we aren't yet.
         updateState(_.addEventListener(client))
+        client.reply(serial, ReceivedResponse())
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
+        client.reply(serial, ReceivedResponse())
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
@@ -105,11 +107,14 @@ class ReadOnlyServerEngine(
     request match {
       case ListenToEvents() =>
         updateState(_.addEventListener(client))
+        client.reply(serial, ReceivedResponse())
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
+        client.reply(serial, ReceivedResponse())
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
+        client.reply(serial, ReceivedResponse())
       case KeyLookupRequest(key) =>
         val parser: complete.Parser[Seq[sbt.ScopedKey[_]]] = Act.aggregatedKeyParser(buildState)
         import SbtToProtocolUtils.scopedKeyToProtocol
@@ -134,8 +139,11 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              executeKey(client, serial, scopedKey, buildState)
+              // we set serial=0 because we don't want to generate a reply for the
+              // synthetic ExecutionRequest generated in this call
+              syntheticExecuteRequest(client, serial = 0L, scopedKey, buildState)
             }
+            client.reply(serial, ReceivedResponse())
 
           case None => // Issue a no such key error
             client.reply(serial, KeyNotFound(key))
@@ -143,11 +151,12 @@ class ReadOnlyServerEngine(
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
         workRequestsQueue.add(ServerRequest(client, serial, request))
+      // don't client.reply to ExecutionRequest here - it's done in the work queue
       case keyRequest: KeyExecutionRequest =>
         // translate to a regular ExecutionRequest
         SbtToProtocolUtils.protocolToScopedKey(keyRequest.key, buildState) match {
           case Some(scopedKey) =>
-            executeKey(client, serial, scopedKey, buildState)
+            syntheticExecuteRequest(client, serial, scopedKey, buildState)
           case None =>
             client.reply(serial, KeyNotFound(keyRequest.key))
         }

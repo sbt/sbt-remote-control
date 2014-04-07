@@ -183,8 +183,12 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
             }
           }
 
-          import sbt.protocol.executionReceivedFormat
-          request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
+          // serial of 0 means a synthetic request with nobody who cares
+          // about the reply.
+          if (request.serial != 0L) {
+            import sbt.protocol.executionReceivedFormat
+            request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
+          }
 
           workQueue :+ work
         case wtf =>
