@@ -208,18 +208,18 @@ package object protocol {
   
 
   // TODO - This needs an explicit format... yay.
-  implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChange[A]] = 
-    new Format[ValueChange[A]] {
-      def writes(v: ValueChange[A]): JsValue =
+  implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = 
+    new Format[ValueChanged[A]] {
+      def writes(v: ValueChanged[A]): JsValue =
         JsObject(Seq(
           "key" -> Json.toJson(v.key),
           "value" -> result.writes(v.value)
         ))
-      def reads(v: JsValue): JsResult[ValueChange[A]] = {
+      def reads(v: JsValue): JsResult[ValueChanged[A]] = {
         for {
           key <- Json.fromJson[ScopedKey](v \ "key")
           result <- result.reads(v \ "value")
-        } yield ValueChange(key,result)
+        } yield ValueChanged(key,result)
       }
     }
   

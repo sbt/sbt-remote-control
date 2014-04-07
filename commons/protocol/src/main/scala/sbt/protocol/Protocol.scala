@@ -149,7 +149,7 @@ case class TestEvent(taskId: Long, name: String, description: Option[String], ou
 //case class GenericEvent(value: play.api.libs.json.JsValue) extends Event
 /** The build has been changed in some fashion. */
 case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
-case class ValueChange[T](key: ScopedKey, value: TaskResult[T]) extends Event
+case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event
 
 /** can be the response to anything. */
 case class ErrorResponse(error: String) extends Response

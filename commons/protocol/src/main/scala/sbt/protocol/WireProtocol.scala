@@ -42,7 +42,7 @@ object WireProtocol {
     msg[Stopped.type],
     msg[TestEvent],
     msg[BuildStructureChanged],
-    msg[ValueChange[Any]],
+    msg[ValueChanged[Any]],
     msg[ErrorResponse],
     msg[CompilationFailure],
     msg[TaskStarted],
