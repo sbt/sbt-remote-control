@@ -134,14 +134,6 @@ object LogMessage {
 }
 /** We have a new log to display. taskId is 0 if the task is unknown. */
 case class LogEvent(taskId: Long, entry: LogEntry) extends Event
-/** exactly one of the boot events is sent on startup */
-sealed trait BootEvent extends Event
-/** we need to restart sbt in an orderly fashion */
-case object NeedRebootEvent extends BootEvent
-/** we successfully booted up */
-case object NowListeningEvent extends BootEvent
-/** The server is shutting down. */
-case object Stopped extends Event
 
 /** A build test has done something useful and we're being notified of it. */
 case class TestEvent(taskId: Long, name: String, description: Option[String], outcome: TestOutcome, error: Option[String]) extends Event

@@ -169,9 +169,6 @@ package object protocol {
   }
   implicit val receivedResponseFormat = emptyObjectFormat(ReceivedResponse())
 
-  implicit val needRebootFormat = emptyObjectFormat(NeedRebootEvent)
-  implicit val nowListeningFormat = emptyObjectFormat(NowListeningEvent)
-  implicit val stoppedFormat = emptyObjectFormat(Stopped)
   implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
   implicit val requestFailedFormat = emptyObjectFormat(RequestFailed())
   

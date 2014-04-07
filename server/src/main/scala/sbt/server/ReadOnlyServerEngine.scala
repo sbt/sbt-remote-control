@@ -53,8 +53,6 @@ class ReadOnlyServerEngine(
     // Now we flush through all the events we had.
     // TODO - handle failures 
     if (running.get) {
-      // Notify all listener's we're ready.
-      serverState.eventListeners.send(NowListeningEvent)
       for {
         ServerRequest(client, serial, request) <- deferredStartupBuffer
       } handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
@@ -106,7 +104,6 @@ class ReadOnlyServerEngine(
   private def handleRequestsWithBuildState(client: LiveClient, serial: Long, request: Request, buildState: State): Unit =
     request match {
       case ListenToEvents() =>
-        client.send(NowListeningEvent)
         updateState(_.addEventListener(client))
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
