@@ -46,13 +46,7 @@ class SbtClientHandler(
       }
       if (!ipc.isClosed) {
         log.log(s"Stopping client.")
-        // Send the stopped message to this client
-        try send(sbt.protocol.Stopped)
-        catch {
-          case e: Exception =>
-            // We ignore any exception trying to stop things.
-            log.log(s"Error trying to stop this client: ${e.getMessage}")
-        }
+
         // It's ok to close this connection when we're done.
         ipc.close()
       }

@@ -44,8 +44,6 @@ class ProtocolTest {
       // TODO - CompilationFailure
       protocol.TaskStarted(47, 1, scopedKey),
       protocol.TaskFinished(48, 1, scopedKey, true),
-      protocol.NeedRebootEvent,
-      protocol.NowListeningEvent,
       protocol.TaskStarted(49, 2, scopedKey),
       protocol.TaskFinished(50, 2, scopedKey, true),
       protocol.BuildStructureChanged(buildStructure),
