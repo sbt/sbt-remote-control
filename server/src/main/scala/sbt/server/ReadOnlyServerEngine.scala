@@ -126,7 +126,7 @@ class ReadOnlyServerEngine(
               // get the value of the setting key from the build state, and send it to the client
               val settingKey = SettingKey(scopedKey.key.asInstanceOf[sbt.AttributeKey[Any]]) in scopedKey.scope
               val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, extracted)
-              client.send(ValueChange(key, change))
+              client.send(ValueChanged(key, change))
 
               // register the key listener.
               // TODO: needs support somewhere to send events when the value of setting keys are updated

@@ -4,7 +4,7 @@ package server
 import protocol.{
   TaskStarted,
   TaskFinished,
-  ValueChange,
+  ValueChanged,
   TaskResult,
   TaskFailure,
   TaskSuccess,
@@ -83,7 +83,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
         if kl.key == key
         // TODO - Check value against some "last value cache"
         mf = getManifestOfTask[T](key.key.manifest)
-      } kl.client.send(ValueChange(protocolKey, resultToProtocol(result, mf)))
+      } kl.client.send(ValueChanged(protocolKey, resultToProtocol(result, mf)))
     }
     state
   }

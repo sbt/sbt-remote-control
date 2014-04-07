@@ -148,7 +148,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
     def handleNextEvent(): Unit =
       protocol.Envelope(client.receive()) match {
-        case protocol.Envelope(_, _, e: ValueChange[_]) =>
+        case protocol.Envelope(_, _, e: ValueChanged[_]) =>
           valueEventManager(e.key).sendEvent(e)
         case protocol.Envelope(_, _, e: BuildStructureChanged) =>
           buildEventManager.sendEvent(e.structure)
@@ -273,9 +273,9 @@ private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: 
 }
 
 /** A wrapped build event listener that ensures events are fired on the desired execution context. */
-private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChange[T]] {
+private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChanged[T]] {
   private val id = java.util.UUID.randomUUID
-  override def send(e: ValueChange[T]): Unit = {
+  override def send(e: ValueChanged[T]): Unit = {
     // TODO - do we need to prepare the context?
     ex.prepare.execute(new Runnable() {
       def run(): Unit = {
@@ -291,8 +291,8 @@ private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], e
 }
 /** Helper to track value changes. */
 private final class ValueChangeManager[T](key: ScopedKey, peer: ipc.Peer)
-  extends ListenerManager[ValueChange[T], ValueListener[T], ListenToValue](ListenToValue(key), peer) {
+  extends ListenerManager[ValueChanged[T], ValueListener[T], ListenToValue](ListenToValue(key), peer) {
 
-  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChange[T]] =
+  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChanged[T]] =
     new ValueChangeListenerHelper(l, ex)
 }
