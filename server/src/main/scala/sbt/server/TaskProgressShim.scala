@@ -81,12 +81,17 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
       protocolKeyOption(task), result.toEither.isRight))
 
     withKeyAndProtocolKey(task) { (key, protocolKey) =>
+      // we want to serialize the value only once, iff there's
+      // a listener at all...
+      lazy val event = {
+        // TODO - Check value against some "last value cache"
+        val mf = getManifestOfTask[T](key.key.manifest)
+        ValueChanged(protocolKey, resultToProtocol(result, mf))
+      }
       for {
         kl <- state.keyListeners
         if kl.key == key
-        // TODO - Check value against some "last value cache"
-        mf = getManifestOfTask[T](key.key.manifest)
-      } kl.client.send(ValueChanged(protocolKey, resultToProtocol(result, mf)))
+      } kl.client.send(event)
     }
     state
   }
