@@ -54,7 +54,12 @@ case class ServerState(
   }
   def removeKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
     keyListeners.find(_.key == key) map { handler =>
-      val newListeners = keyListeners.filterNot(_.key == key) :+ handler.remove(client)
+      val withoutHandler = keyListeners.filterNot(_.key == key)
+      val newHandler = handler.remove(client)
+      val newListeners = if (newHandler.client != NullSbtClient)
+        withoutHandler :+ newHandler
+      else
+        withoutHandler
       copy(keyListeners = newListeners)
     } getOrElse {
       this
