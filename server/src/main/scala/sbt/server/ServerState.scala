@@ -19,7 +19,7 @@ case class ServerState(
     copy(
       eventListeners = eventListeners without client,
       buildListeners = buildListeners without client,
-      keyListeners = keyListeners map (_ disconnect client))
+      keyListeners = keyListeners map (_ remove client))
 
   def addEventListener(l: SbtClient): ServerState = {
     val next = eventListeners zip l
@@ -53,8 +53,12 @@ case class ServerState(
     copy(keyListeners = newListeners)
   }
   def removeKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
-    val newListeners = keyListeners.filterNot(_.key == key)
-    copy(keyListeners = newListeners)
+    keyListeners.find(_.key == key) map { handler =>
+      val newListeners = keyListeners.filterNot(_.key == key) :+ handler.remove(client)
+      copy(keyListeners = newListeners)
+    } getOrElse {
+      this
+    }
   }
 }
 
