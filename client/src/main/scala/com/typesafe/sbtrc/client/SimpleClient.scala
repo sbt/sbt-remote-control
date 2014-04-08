@@ -34,6 +34,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     sub
   }
 
+  def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
+    buildEventManager.watch(listener)(ex)
+
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
     val result = Promise[Set[Completion]]
     completionsManager.register(client.sendJson(CommandCompletionsRequest(partialCommand, detailLevel)), result)
@@ -54,17 +57,21 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
+
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
-    val sub = valueEventManager[T](key.key).watch(listener)(ex)
+    val sub = lazyWatch(key)(listener)
     // TODO this is really busted; we need to have a local cache of the latest value and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
     client.sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+    valueEventManager[T](key.key).watch(listener)(ex)
+
   // TODO - Some mechanisms of listening to interaction here...
   def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
-    val sub = valueEventManager[T](key.key).watch(listener)(ex)
+    val sub = lazyWatch(key)(listener)
     // TODO this is really busted; we need to have a local cache of the latest value and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
@@ -74,6 +81,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     client.sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+    valueEventManager[T](key.key).watch(listener)(ex)
 
   // TODO - Implement
   def close(): Unit = {
