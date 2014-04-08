@@ -31,7 +31,7 @@ class CanLoadSimpleProject extends SbtClientTest {
   withSbt(dummy) { client =>
     val build = concurrent.promise[MinimalBuildStructure]
     import concurrent.ExecutionContext.Implicits.global
-    client watchBuild build.success
+    client watchBuild build.trySuccess
     val result = waitWithError(build.future, "Never got build structure.")
     assert(result.projects.size == 1, "Found too many projects!")
     val project = result.projects.head

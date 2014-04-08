@@ -15,10 +15,16 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
   type S = ServerState
   def initial: S = state
 
-  private def taskId(protocolKey: protocol.ScopedKey): Long = {
-    taskIdRecorder.taskId(protocolKey).getOrElse(throw new RuntimeException(s"Task $protocolKey was not registered? no task ID"))
+  private def taskId(task: Task[_]): Long = {
+    taskIdRecorder.taskId(task).getOrElse(throw new RuntimeException(s"Task was not registered? no task ID for $task"))
   }
 
+  private def protocolKeyOption(task: Task[_]): Option[protocol.ScopedKey] =
+    task.info.get(Keys.taskDefinitionKey) map {
+      SbtToProtocolUtils.scopedKeyToProtocol(_)
+    }
+
+  // Note: not all tasks have keys. Anonymous tasks are allowed.
   private def withKeyAndProtocolKey(task: Task[_])(block: (ScopedKey[_], protocol.ScopedKey) => Unit): Unit = {
     task.info.get(Keys.taskDefinitionKey) match {
       case Some(key) =>
@@ -27,22 +33,20 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
     }
   }
 
-  private def withProtocolKey(task: Task[_])(block: protocol.ScopedKey => Unit): Unit =
-    withKeyAndProtocolKey(task) { (_, protocolKey) => block(protocolKey) }
-
   /**
    * Notifies that a `task` has been registered in the system for execution.
    * The dependencies of `task` are `allDeps` and the subset of those dependencies that
-   * have not completed are `pendingDeps`.
+   * have not completed are `pendingDeps`. This is called once per task so we expect to
+   * get a lot of these calls.
+   *
+   * Registration can happen throughout execution (as each task
+   * runs, it can trigger additional tasks, which will be registered at that time).
+   * Duplicate *keys* can be registered, but this code assumes duplicate tasks
+   * will not be and my reading of the sbt code is that they won't be.
    */
   def registered(state: S, task: Task[_], allDeps: Iterable[Task[_]], pendingDeps: Iterable[Task[_]]): S = {
-    // generate task IDs
-    for (task <- allDeps) {
-      withProtocolKey(task) { protocolKey =>
-        // assuming the keys are unique within a ServerExecuteProgress... safe?
-        taskIdRecorder.register(protocolKey)
-      }
-    }
+    // generate task ID for this one
+    taskIdRecorder.register(task)
     state
   }
 
@@ -51,21 +55,19 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * ready to run.  The task has not been scheduled on a thread yet.
    */
   def ready(state: S, task: Task[_]): S = {
-    withProtocolKey(task) { protocolKey =>
-      state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
-        taskId(protocolKey),
-        protocolKey))
-    }
+    state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+      taskId(task),
+      protocolKeyOption(task)))
     state
   }
 
   // This is not called on the engine thread, so we can't get state.
   def workStarting(task: Task[_]): Unit = {
-    withProtocolKey(task) { taskIdRecorder.setThreadTask(_) }
+    taskIdRecorder.setThreadTask(task)
   }
   // This is not called on the engine thread, so we can't have state.
   def workFinished[T](task: Task[T], result: Either[Task[T], Result[T]]): Unit = {
-    withProtocolKey(task) { taskIdRecorder.clearThreadTask(_) }
+    taskIdRecorder.clearThreadTask(task)
   }
 
   /**
@@ -74,10 +76,11 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * Any tasks called by `task` have completed.
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
+    state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
+      taskId(task),
+      protocolKeyOption(task), result.toEither.isRight))
+
     withKeyAndProtocolKey(task) { (key, protocolKey) =>
-      state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
-        taskId(protocolKey),
-        protocolKey, result.toEither.isRight))
       for {
         kl <- state.keyListeners
         if kl.key == key

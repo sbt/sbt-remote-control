@@ -42,10 +42,12 @@ class ProtocolTest {
       protocol.ErrorResponse("ZOMG"),
       // Events
       // TODO - CompilationFailure
-      protocol.TaskStarted(47, 1, scopedKey),
-      protocol.TaskFinished(48, 1, scopedKey, true),
-      protocol.TaskStarted(49, 2, scopedKey),
-      protocol.TaskFinished(50, 2, scopedKey, true),
+      protocol.TaskStarted(47, 1, Some(scopedKey)),
+      protocol.TaskFinished(48, 1, Some(scopedKey), true),
+      protocol.TaskStarted(47, 1, None),
+      protocol.TaskFinished(48, 1, None, true),
+      protocol.TaskStarted(49, 2, Some(scopedKey)),
+      protocol.TaskFinished(50, 2, Some(scopedKey), true),
       protocol.BuildStructureChanged(buildStructure),
       protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES")),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
