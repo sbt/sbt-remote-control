@@ -2,12 +2,11 @@ package com.typesafe.sbtrc
 package controller
 
 import sbt._
-import SbtUtil.extract
 
 object AkkaSupport {
   def akkaVersion(state: State): Option[String] = {
     PoorManDebug.trace("Checking for Akka version.")
-    val (_, classpath: Seq[Attributed[File]]) = extract(state).runTask(Keys.dependencyClasspath in Compile, state)
+    val (_, classpath: Seq[Attributed[File]]) = Project.extract(state).runTask(Keys.dependencyClasspath in Compile, state)
     val maybeAkkaVersions = classpath map { file =>
       for {
         id <- file.get(Keys.moduleID.key)

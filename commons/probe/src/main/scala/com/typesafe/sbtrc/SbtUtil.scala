@@ -14,17 +14,9 @@ import SbtCustomHacks._
 
 object SbtUtil {
 
-  def extractWithRef(state: State, context: Option[UIContext] = None): (Extracted, ProjectRef) = {
-    val state2: State = context match {
-      case Some(ui) => reloadWithUiContext(state, ui)
-      case None => state
-    }
-    val extracted = Project.extract(state2)
-    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state2)), extracted.currentRef)
-  }
-
-  def extract(state: State, context: Option[UIContext] = None): Extracted = {
-    extractWithRef(state, context)._1
+  def extractWithRef(state: State): (Extracted, ProjectRef) = {
+    val extracted = Project.extract(state)
+    (Extracted(extracted.structure, extracted.session, extracted.currentRef)(showFullKey(state)), extracted.currentRef)
   }
   
   private def debugSettings(seq: Seq[Setting[_]]): Unit = {
@@ -39,9 +31,9 @@ object SbtUtil {
     } PoorManDebug.trace("  %03d. ".format(idx) + project + "/" + config + ":" + key)
   }
 
-  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String, context: Option[UIContext] = None): State = {
+  def runInputTask[T](key: sbt.ScopedKey[T], state: State, args: String): State = {
     PoorManDebug.trace("Running input task: " + key)
-    val extracted = extract(state, context)
+    val extracted = Project.extract(state)
     PoorManDebug.trace("Additional raw settings:")
     debugSettings(extracted.session.rawAppend)
     implicit val display = Project.showContextKey(state)
@@ -59,13 +51,8 @@ object SbtUtil {
     }
   }
   
-  def runCommand(command: String, state: State, context: Option[UIContext] = None): State = {
-    // TODO - We may need to adapt state so we can run a command against a particular project/ref.  Commands are
-    // attached to projects, so this gets odd.
-    def loadUi(ui: UIContext): State = reloadWithUiContext(state,ui)
-    val realState = context map loadUi getOrElse state
-    sbt.Command.process(command, realState)
-  }
+  def runCommand(command: String, state: State): State =
+    sbt.Command.process(command, state)
 
   /** A helper method to ensure that settings we're appending are scoped according to the current project ref. */
   def makeAppendSettings(settings: Seq[Setting[_]], inProject: ProjectRef, extracted: Extracted) = {
