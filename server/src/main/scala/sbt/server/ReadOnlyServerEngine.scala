@@ -146,9 +146,6 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              // we set serial=0 because we don't want to generate a reply for the
-              // synthetic ExecutionRequest generated in this call
-              syntheticExecuteRequest(client, serial = 0L, scopedKey, buildState)
             }
             client.reply(serial, ReceivedResponse())
 
