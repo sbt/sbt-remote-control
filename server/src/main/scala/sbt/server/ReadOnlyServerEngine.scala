@@ -169,6 +169,10 @@ class ReadOnlyServerEngine(
             c.display,
             c.isEmpty)
         client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
+      case _: ConfirmRequest | _: ReadLineRequest =>
+        client.reply(serial, ErrorResponse(s"Request ${request.getClass.getName} is intended to go from server to client"))
+      case _: RegisterClientRequest =>
+        client.reply(serial, ErrorResponse("Client can only be registered once, on connection"))
     }
 
 }
