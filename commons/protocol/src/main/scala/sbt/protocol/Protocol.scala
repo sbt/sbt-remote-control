@@ -85,9 +85,13 @@ case class UnlistenToEvents() extends Request
 
 case class ListenToBuildChange() extends Request
 case class UnlistenToBuildChange() extends Request
+// send us a build changed event even if it didn't change
+case class SendSyntheticBuildChanged() extends Request
 
 case class ListenToValue(key: ScopedKey) extends Request
 case class UnlistenToValue(key: ScopedKey) extends Request
+// send us a value changed event even if it didn't change
+case class SendSyntheticValueChanged(key: ScopedKey) extends Request
 // This is issued if a request for a key value fails.
 case class KeyNotFound(key: ScopedKey) extends Response
 
