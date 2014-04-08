@@ -55,13 +55,12 @@ case class ExecutionSuccess(id: Long) extends Event
 case class ExecutionFailure(id: Long) extends Event
 
 /**
- * @param id An identifier we'll receive when we get the list of completions.
  * @param in The (partial) command we'd like possible completions for.
  * @param level  The interpretation of `level` is up to parser definitions, but 0 is the default by convention,
  * with increasing positive numbers corresponding to increasing verbosity.  Typically no more than
  * a few levels are defined. 
  */
-case class CommandCompletionsRequest(id: String, in: String, level: Int) extends Request
+case class CommandCompletionsRequest(in: String, level: Int) extends Request
 /**
 * Represents a completion.
 * The abstract members `display` and `append` are best explained with an example. 
@@ -78,7 +77,7 @@ case class CommandCompletionsRequest(id: String, in: String, level: Int) extends
 *  2) the full token being completed, which is useful for presenting a user with choices to select
 */
 case class Completion(append: String, display: String, isEmpty: Boolean)
-case class CommandCompletionsResponse(id: String, results: Set[Completion]) extends Response
+case class CommandCompletionsResponse(results: Set[Completion]) extends Response
 
 // Request for the server to send us all events that happen on the sbt server.
 case class ListenToEvents() extends Request

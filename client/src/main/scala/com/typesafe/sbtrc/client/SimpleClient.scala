@@ -29,11 +29,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     buildEventManager.watch(listener)(ex)
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
-    val id = java.util.UUID.randomUUID.toString
-    requestHandler.register(client.sendJson(CommandCompletionsRequest(id, partialCommand, detailLevel)))
     val result = Promise[Set[Completion]]
-    // TODO - Register this guy for the request response.
-    completionsManager.register(id, result)
+    completionsManager.register(client.sendJson(CommandCompletionsRequest(partialCommand, detailLevel)), result)
     result.future
   }
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]] = {
@@ -93,15 +90,15 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       promise.failure(new RuntimeException("Connection to sbt closed"))
   }
   private object completionsManager extends Closeable {
-    private var handlers: Map[String, Promise[Set[Completion]]] = Map.empty
-    def register(id: String, listener: Promise[Set[Completion]]): Unit = synchronized {
-      handlers += (id -> listener)
+    private var handlers: Map[Long, Promise[Set[Completion]]] = Map.empty
+    def register(serial: Long, listener: Promise[Set[Completion]]): Unit = synchronized {
+      handlers += (serial -> listener)
     }
-    def fire(id: String, completions: Set[Completion]): Unit = synchronized {
-      handlers get id match {
+    def fire(serial: Long, completions: Set[Completion]): Unit = synchronized {
+      handlers get serial match {
         case Some(handler) =>
           handler.success(completions)
-          handlers -= id
+          handlers -= serial
         case None => // ignore
       }
     }
@@ -154,8 +151,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
           buildEventManager.sendEvent(e.structure)
         case protocol.Envelope(_, replyTo, KeyLookupResponse(key, result)) =>
           keyLookupRequestManager.fire(replyTo, result)
-        case protocol.Envelope(_, _, protocol.CommandCompletionsResponse(id, completions)) =>
-          completionsManager.fire(id, completions)
+        case protocol.Envelope(_, replyTo, protocol.CommandCompletionsResponse(completions)) =>
+          completionsManager.fire(replyTo, completions)
         case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
           requestHandler.executionReceived(requestSerial, executionId)
         case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>

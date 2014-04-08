@@ -160,7 +160,7 @@ class ReadOnlyServerEngine(
           case None =>
             client.reply(serial, KeyNotFound(keyRequest.key))
         }
-      case CommandCompletionsRequest(id, line, level) =>
+      case CommandCompletionsRequest(line, level) =>
         val combined = buildState.combinedParser
         val completions = complete.Parser.completions(combined, line, level)
         def convertCompletion(c: complete.Completion): protocol.Completion =
@@ -168,7 +168,7 @@ class ReadOnlyServerEngine(
             c.append,
             c.display,
             c.isEmpty)
-        client.send(CommandCompletionsResponse(id, completions.get map convertCompletion))
+        client.reply(serial, CommandCompletionsResponse(completions.get map convertCompletion))
       case _: ConfirmRequest | _: ReadLineRequest =>
         client.reply(serial, ErrorResponse(s"Request ${request.getClass.getName} is intended to go from server to client"))
       case _: RegisterClientRequest =>
