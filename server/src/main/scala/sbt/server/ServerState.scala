@@ -19,7 +19,7 @@ case class ServerState(
     copy(
       eventListeners = eventListeners without client,
       buildListeners = buildListeners without client,
-      keyListeners = keyListeners map (_ disconnect client))
+      keyListeners = keyListeners map (_ remove client))
 
   def addEventListener(l: SbtClient): ServerState = {
     val next = eventListeners zip l
@@ -27,6 +27,14 @@ case class ServerState(
   }
   def addBuildListener(l: SbtClient): ServerState = {
     val next = buildListeners zip l
+    copy(buildListeners = next)
+  }
+  def removeEventListener(l: SbtClient): ServerState = {
+    val next = eventListeners without l
+    copy(eventListeners = next)
+  }
+  def removeBuildListener(l: SbtClient): ServerState = {
+    val next = buildListeners without l
     copy(buildListeners = next)
   }
   def withLastCommand(cmd: LastCommand): ServerState = {
@@ -43,6 +51,19 @@ case class ServerState(
       keyListeners.find(_.key == key).getOrElse(KeyValueClientListener(key, NullSbtClient))
     val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client)
     copy(keyListeners = newListeners)
+  }
+  def removeKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
+    keyListeners.find(_.key == key) map { handler =>
+      val withoutHandler = keyListeners.filterNot(_.key == key)
+      val newHandler = handler.remove(client)
+      val newListeners = if (newHandler.client != NullSbtClient)
+        withoutHandler :+ newHandler
+      else
+        withoutHandler
+      copy(keyListeners = newListeners)
+    } getOrElse {
+      this
+    }
   }
 }
 
