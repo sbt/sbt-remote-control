@@ -48,6 +48,11 @@ class TaskIdRecorder extends TaskIdFinder {
   // newly-registered ID. The thread which needs a task ID
   // should run post-register. In theory, of course. If this
   // theory is wrong not sure what we'll have to do.
+  //
+  // Note:  This is a single-producer of changed values, with multiple thread consumers.
+  //        If that assumption ever changes, this will have to change
+  //        from a volatile into an Atomic Reference and use CAS operations
+  //        for writing.
   @volatile private var taskIds: Map[Task[_], Long] = Map.empty
   private var nextTaskId = 1L // start with 1 so 0 is invalid
 
@@ -58,6 +63,9 @@ class TaskIdRecorder extends TaskIdFinder {
     override def initialValue(): Long = 0
   }
 
+  // This is only ever called from one thread at a time (we assume).
+  // NOTE: We should validate this is the case even in the presence of
+  //       custom commands.
   def register(task: Task[_]): Unit = {
     if (taskIds.contains(task))
       throw new RuntimeException(s"registered more than once? ${task}")
