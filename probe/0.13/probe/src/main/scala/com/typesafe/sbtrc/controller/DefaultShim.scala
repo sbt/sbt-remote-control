@@ -7,7 +7,6 @@ import sbt.Keys._
 import sbt.Defaults._
 import org.scalatools.testing._
 import sbt.testing.{ Status => TStatus }
-import SbtUtil.extract
 import SbtUtil.extractWithRef
 import SbtUtil.reloadWithAppended
 import SbtUtil.runInputTask
@@ -63,7 +62,7 @@ object DefaultsShim {
 
   private val nameHandler: RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Extracting name and capabilities of this build.")
-    val result = extract(origState).get(name)
+    val result = Project.extract(origState).get(name)
 
     // TODO - These are all hacks for now until we have the generic API.
     val hasPlay = controller.isPlayProject(origState)
@@ -76,26 +75,36 @@ object DefaultsShim {
         "hasEcho" -> hasEcho))))
   }
 
+  private def withUiContext[T](state: State, ui: UIContext)(f: State => (State, T)): (State, T) = {
+    val newState = reloadWithUiContext(state, ui)
+    f(newState)
+  }
+
+  private def runTask[T](state: State, ui: UIContext, key: TaskKey[T])(f: T => protocol.SpecificResponse): (State, Params) = {
+    withUiContext(state, ui) { newState =>
+      val (s, result) = Project.extract(newState).runTask(key, newState)
+      (s, makeResponseParams(f(result)))
+    }
+  }
+
   private val mainClassHandler: RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Running `mainClass` task.")
-    val (s, result) = extract(origState).runTask(mainClass in Compile in run, origState)
-    (s, makeResponseParams(protocol.MainClassResponse(name = result)))
+    runTask(origState, ui, mainClass in Compile in run) { result =>
+      protocol.MainClassResponse(name = result)
+    }
   }
 
   private val discoveredMainClassesHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(discoveredMainClasses in Compile in run, origState)
-    (s, makeResponseParams(protocol.DiscoveredMainClassesResponse(names = result)))
+    runTask(origState, ui, discoveredMainClasses in Compile in run)(result => protocol.DiscoveredMainClassesResponse(result))
   }
 
   private val watchTransitiveSourcesHandler: RequestHandler = { (origState, ui, params) =>
-    val (s, result) = extract(origState).runTask(watchTransitiveSources, origState)
-    (s, makeResponseParams(protocol.WatchTransitiveSourcesResponse(files = result)))
+    runTask(origState, ui, watchTransitiveSources)(result => protocol.WatchTransitiveSourcesResponse(files = result))
   }
 
   private val compileHandler: RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Compiling the project.")
-    val (s, result) = extract(origState).runTask(compile in Compile, origState)
-    (s, makeResponseParams(protocol.CompileResponse(success = true)))
+    runTask(origState, ui, compile in Compile)(result => protocol.CompileResponse(success = true))
   }
 
   private def makeRunHandler[T](key: sbt.ScopedKey[T], taskName: String): RequestHandler = { (origState, ui, params) =>
@@ -103,9 +112,8 @@ object DefaultsShim {
     import ParamsHelper._
     val tracePort = TaskParams.tracePort(params.toMap)
     val shimedState = installShims(origState, ui, tracePort)
-    val s = runInputTask(key, shimedState, args = "", Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = taskName)))
+    val s = runInputTask(key, shimedState, args = "")
+    (s, makeResponseParams(protocol.RunResponse(success = true, task = taskName)))
   }
 
   private val runHandler: RequestHandler = makeRunHandler(run in Compile, protocol.TaskNames.run)
@@ -119,9 +127,8 @@ object DefaultsShim {
     val shimedState = installShims(origState, ui, tracePort)
     val klass = TaskParams.mainClass(params.toMap)
       .getOrElse(throw new RuntimeException("need to specify mainClass in params"))
-    val s = runInputTask(key, shimedState, args = klass, Some(ui))
-    (origState, makeResponseParams(protocol.RunResponse(success = true,
-      task = taskName)))
+    val s = runInputTask(key, shimedState, args = klass)
+    (s, makeResponseParams(protocol.RunResponse(success = true, task = taskName)))
   }
 
   private val runMainHandler: RequestHandler = makeRunMainHandler(runMain in Compile, protocol.TaskNames.runMain)
@@ -131,15 +138,15 @@ object DefaultsShim {
   private val testHandler: RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the test task.")
     val shimedState = installShims(origState, ui, tracePort = None)
-    val (s2, result1) = extract(shimedState).runTask(test in Test, shimedState)
+    val (s2, result1) = Project.extract(shimedState).runTask(test in Test, shimedState)
     val (s3, outcome) = removeTestListener(s2, ui)
-    (origState, makeResponseParams(protocol.TestResponse(outcome)))
+    (s3, makeResponseParams(protocol.TestResponse(outcome)))
   }
 
   private def commandHandler(command: String): RequestHandler = { (origState, ui, params) =>
     PoorManDebug.debug("Invoking the comamnd [" + command + "]")
     val shimedState = installShims(origState, ui, tracePort = None)
-    runCommand(command, shimedState, Some(ui)) -> Params("application/json", "{}")
+    runCommand(command, shimedState) -> Params("application/json", "{}")
   }
 
   /** This installs all of our shim hooks into the project. */
@@ -147,7 +154,8 @@ object DefaultsShim {
     val s1 = addTestListener(origState, ui)
     val s2 = PlaySupport.installPlaySupport(s1, ui)
     val s3 = EchoSupport.installEchoSupport(s2, tracePort)
-    s3
+    val s4 = reloadWithUiContext(s3, ui)
+    s4
   }
 
   // TODO - this whole mechanism needs work.  We should just have generic:

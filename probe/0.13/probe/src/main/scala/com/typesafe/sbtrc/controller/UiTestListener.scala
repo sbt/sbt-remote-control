@@ -7,11 +7,6 @@ import sbt.Keys._
 import sbt.Defaults._
 import org.scalatools.testing._
 import sbt.testing.{ Status => TStatus }
-import SbtUtil.extract
-import SbtUtil.extractWithRef
-import SbtUtil.makeAppendSettings
-import SbtUtil.reloadWithAppended
-import SbtUtil.runInputTask
 import protocol.TaskNames
 import ParamsHelper.p2Helper
 import com.typesafe.sbt.ui.{ Context => UIContext }
