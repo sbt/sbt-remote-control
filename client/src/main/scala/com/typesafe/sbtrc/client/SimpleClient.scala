@@ -55,6 +55,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     requestHandler.register(client.sendJson(KeyExecutionRequest(key)), interaction).received
   }
+  def cancelExecution(id: Long): Future[Boolean] =
+    cancelRequestManager.register(client.sendJson(CancelExecutionRequest(id)))
+
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
 
@@ -135,6 +138,25 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     override def close(): Unit = completePromisesOnClose(handlers)
   }
 
+  private object cancelRequestManager extends Closeable {
+    private var handlers: Map[Long, Promise[Boolean]] = Map.empty
+
+    def register(id: Long): Future[Boolean] = synchronized {
+      val p = concurrent.promise[Boolean]
+      handlers += (id -> p)
+      p.future
+    }
+    def fire(id: Long, result: Boolean) = synchronized {
+      handlers get id match {
+        case Some(promise) =>
+          promise.success(result)
+          handlers -= id
+        case None => //ignore
+      }
+    }
+    def close(): Unit = completePromisesOnClose(handlers)
+  }
+
   private object keyLookupRequestManager extends Closeable {
     private var handlers: Map[Long, Promise[Seq[ScopedKey]]] = Map.empty
     def register(id: Long, listener: Promise[Seq[ScopedKey]]): Unit = synchronized {
@@ -171,6 +193,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       requestHandler.close()
       completionsManager.close()
       keyLookupRequestManager.close()
+      cancelRequestManager.close()
       closeHandler()
     }
     def handleNextEvent(): Unit =
@@ -188,6 +211,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>
           requestHandler.executionDone(e.id)
           eventManager.sendEvent(e)
+        case protocol.Envelope(_, replyTo, protocol.CancelExecutionResponse(result)) =>
+          cancelRequestManager.fire(replyTo, result)
         case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
           requestHandler.executionFailed(e.id, s"execution failed")
           eventManager.sendEvent(e)

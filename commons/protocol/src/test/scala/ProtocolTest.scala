@@ -38,8 +38,10 @@ class ProtocolTest {
       protocol.ListenToBuildChange(),
       protocol.ExecutionRequest("test command string"),
       protocol.ListenToValue(scopedKey),
+      protocol.CancelExecutionRequest(1),
       // Responses
       protocol.ErrorResponse("ZOMG"),
+      protocol.CancelExecutionResponse(false),
       // Events
       // TODO - CompilationFailure
       protocol.TaskStarted(47, 1, Some(scopedKey)),

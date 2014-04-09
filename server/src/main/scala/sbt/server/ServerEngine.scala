@@ -13,118 +13,36 @@ import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
+import scala.concurrent.{ Future, Promise }
 
 final case class ExecutionId(id: Long) {
   require(id != 0L)
 }
 
-sealed trait ServerEngineWork
+sealed trait ServerEngineWork {
+  def isCancelled: Boolean
+}
 
 // If you find yourself adding stuff from sbt.protocol such as the reply serial
 // to this, you are doing it wrong because from here on out MULTIPLE clients
 // not just the requester care about this work, so we don't want to special-case
 // the original request anymore. We also combine requests into one of these
 // chunks of work, thus allRequesters not a single requester.
-case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
-
-// this is the read-only face of TaskIdRecorder which is used outside of ServerExecuteProgress
-trait TaskIdFinder {
-  // guess task ID from the key and/or the current thread.
-  // this returns 0 (invalid task ID) if we can't come up with any guess;
-  // doesn't return an Option because normally we want to just send the event
-  // anyway with a 0 task ID.
-  def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long
-
-  // just look up the task ID by key, don't use any thread info.
-  def taskId(task: Task[_]): Option[Long]
-}
-
-class TaskIdRecorder extends TaskIdFinder {
-  // This is always modified from the engine thread, and we will
-  // add the ID for each task in register() before
-  // the corresponding task runs. So while a task thread might
-  // get an old map that's missing a newly-registered ID, that
-  // task thread should not care about or need to access said
-  // newly-registered ID. The thread which needs a task ID
-  // should run post-register. In theory, of course. If this
-  // theory is wrong not sure what we'll have to do.
-  //
-  // Note:  This is a single-producer of changed values, with multiple thread consumers.
-  //        If that assumption ever changes, this will have to change
-  //        from a volatile into an Atomic Reference and use CAS operations
-  //        for writing.
-  @volatile private var taskIds: Map[Task[_], Long] = Map.empty
-  private var nextTaskId = 1L // start with 1 so 0 is invalid
-
-  // this one is used from the task threads and thus we have to synchronize
-  private var runningTasks: Set[Task[_]] = Set.empty
-
-  private object taskIdThreadLocal extends ThreadLocal[Long] {
-    override def initialValue(): Long = 0
-  }
-
-  // This is only ever called from one thread at a time (we assume).
-  // NOTE: We should validate this is the case even in the presence of
-  //       custom commands.
-  def register(task: Task[_]): Unit = {
-    if (taskIds.contains(task))
-      throw new RuntimeException(s"registered more than once? ${task}")
-    taskIds += (task -> nextTaskId)
-    nextTaskId += 1
-  }
-
-  def clear(): Unit = {
-    taskIds = Map.empty
-  }
-
-  // TODO we want to replace this with *requiring* all event senders
-  // to know their key, which means we need to pass the task key
-  // through to the UIContext and the EventLogger. This can probably
-  // be done with a streamsManager plus somehow relating UIContext to
-  // the streams, or handling UIContext in a similar way to streams
-  // where it's a dummy value replaced by sbt before invoking each
-  // task. Exact details TBD and may require sbt ABI break.
-  // The problem with this hack is that if a task spawns its
-  // own threads, we won't have the task ID.
-  def setThreadTask(task: Task[_]): Unit =
-    taskId(task) match {
-      case Some(id) =>
-        taskIdThreadLocal.set(id)
-        synchronized {
-          runningTasks += task
-        }
-      case None =>
-        throw new RuntimeException(s"Running a task which was never ExecuteProgress#registered? ${task}")
-    }
-
-  def clearThreadTask(task: Task[_]): Unit = {
-    taskIdThreadLocal.remove()
-    synchronized {
-      runningTasks -= task
-    }
-  }
-
-  override def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long = {
-    taskIfKnown flatMap { key =>
-      taskIds.get(key)
-    } getOrElse {
-      taskIdThreadLocal.get match {
-        // if we don't have anything in the thread local, if we have
-        // only one task running we can guess that one.
-        case 0L => synchronized {
-          if (runningTasks.size == 1)
-            taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?"))
-          else
-            0L
-        }
-        case other => other
-      }
-    }
-  }
-
-  override def taskId(task: Task[_]): Option[Long] = {
-    taskIds.get(task)
-  }
+/**
+ * A case class representing a request for work to be performed.
+ *
+ * @param id - The id given to this request for execution.
+ * @param command - The sbt command that is requested to be run
+ * @param allRequesters - All clients associated with this request for work.
+ * @param cancelRequest - A promise that will complete if cancel is requested.
+ *                        If a cancel is never received, the future never completes.
+ */
+case class CommandExecutionWork(
+  id: ExecutionId,
+  command: String,
+  allRequesters: Set[LiveClient],
+  cancelRequest: Future[Unit]) extends ServerEngineWork {
+  def isCancelled: Boolean = cancelRequest.isCompleted
 }
 
 /**
@@ -135,7 +53,7 @@ class TaskIdRecorder extends TaskIdFinder {
  *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
  *  @param queue - The queue we consume server requests from.
  */
-class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
+class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State], cancelRegistry: TaskCancellationRegistry) {
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new EventLogger(taskIdRecorder)
@@ -161,12 +79,24 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       previouslyBroadcastWorkQueue match {
         case Some(old) =>
           val oldSet = old.collect({ case command: CommandExecutionWork => command }).toSet
-          val newSet = workQueue.collect({ case command: CommandExecutionWork => command }).toSet
+          val (cancelled, ready) = workQueue partition (_.isCancelled)
+          // TODO - Should we mutate here? What the hell, the logic already is fun.
+          workQueue = ready
+          val newSet = ready.collect({ case command: CommandExecutionWork => command }).toSet
           val added = newSet -- oldSet
           val removed = oldSet -- newSet
 
+          // Notify on new tasks
           for (waiting <- added)
             state.eventListeners.send(protocol.ExecutionWaiting(waiting.id.id, waiting.command))
+          // Notify on cancelled tasks as "start + fail"
+          cancelled foreach {
+            case command: CommandExecutionWork =>
+              state.eventListeners.send(protocol.ExecutionStarting(command.id.id))
+              state.eventListeners.send(protocol.ExecutionFailure(command.id.id))
+            case _ => // Ignore
+          }
+          // Notify on missing tasks that they have started.
           for (started <- removed)
             state.eventListeners.send(protocol.ExecutionStarting(started.id.id))
 
@@ -190,12 +120,13 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
             })
 
             oldOption match {
+              // Note: This pattern match fails if we get something which isn't CommandExecutionWork
               case Some(old: CommandExecutionWork) =>
                 old.copy(allRequesters = old.allRequesters + request.client)
               case None =>
                 val id = ExecutionId(nextExecutionId)
                 nextExecutionId += 1
-                CommandExecutionWork(id, command.command, Set(request.client))
+                CommandExecutionWork(id, command.command, Set(request.client), cancelRegistry.registerExecution(id.id))
             }
           }
 
@@ -307,6 +238,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val nextState = serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
+        cancelRegistry.doneExecution(command.command.id.id)
         BuildStructureCache.update(state)
       case None => state
     }
@@ -318,6 +250,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
+        cancelRegistry.doneExecution(command.id.id)
         lastState.eventListeners.send(ExecutionFailure(command.id.id))
       case None => ()
     }
@@ -415,7 +348,8 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder) ++
         UIShims.makeShims(state, taskIdRecorder) ++
-        loggingShims(state)
+        loggingShims(state) ++
+        ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.
     val extracted = Project.extract(state)
     val settings =

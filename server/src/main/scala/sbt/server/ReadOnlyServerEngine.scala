@@ -25,7 +25,8 @@ case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Req
  */
 class ReadOnlyServerEngine(
   queue: BlockingQueue[ServerRequest],
-  nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
+  nextStateRef: AtomicReference[State],
+  cancelRegistry: TaskCancellationRegistry) extends Thread("read-only-sbt-event-loop") {
   // TODO - We should have a log somewhere to store events.
   private var serverStateRef = new AtomicReference[ServerState](ServerState())
   def serverState = serverStateRef.get()
@@ -192,6 +193,8 @@ class ReadOnlyServerEngine(
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
         workRequestsQueue.add(ServerRequest(client, serial, request))
+      case CancelExecutionRequest(id) =>
+        client.reply(serial, CancelExecutionResponse(cancelRegistry.cancelExecution(id)))
       // don't client.reply to ExecutionRequest here - it's done in the work queue
       case keyRequest: KeyExecutionRequest =>
         // translate to a regular ExecutionRequest
