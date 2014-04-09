@@ -23,17 +23,26 @@ case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.emp
       // Now we look at our class....
       erasureClass match {
         // TODO - Special casing classes...
-        case "Boolean" => Some(ManifestFactory.Boolean)
+        case "boolean" => Some(ManifestFactory.Boolean)
+        case "short" => Some(ManifestFactory.Short)
+        case "int" => Some(ManifestFactory.Int)
+        case "long" => Some(ManifestFactory.Long)
+        case "float" => Some(ManifestFactory.Float)
+        case "double" => Some(ManifestFactory.Double)
         case "Unit" => Some(ManifestFactory.Unit)
-        case default =>
+        case default => try {
           val ourClass = cl.loadClass(erasureClass)
-          val mf = 
-            if(realArgs.isEmpty) {
+          val mf =
+            if (realArgs.isEmpty) {
               ManifestFactory.classType(ourClass)
             } else {
-              ManifestFactory.classType(ourClass, realArgs.head, realArgs.tail:_*)
+              ManifestFactory.classType(ourClass, realArgs.head, realArgs.tail: _*)
             }
           Some(mf.asInstanceOf[Manifest[_]])
+        } catch {
+          case _: ClassNotFoundException =>
+            None
+        }
       }
     } else None
   }

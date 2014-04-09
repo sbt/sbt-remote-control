@@ -51,6 +51,13 @@ class ProtocolTest {
       protocol.BuildStructureChanged(buildStructure),
       protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES")),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true))),
+      // TODO make Unit work ?
+      // protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(()))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))),
       protocol.LogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.TestEvent(4, "name", None, protocol.TestOutcome("passed"), None),
       protocol.ExecutionWaiting(41, "foo"),

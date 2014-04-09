@@ -90,7 +90,8 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
       }
       for {
         kl <- state.keyListeners
-        if kl.key == key
+        // these explicit types may look paranoid but I got it wrong twice!
+        if (kl.key: sbt.Def.ScopedKey[_]) == (key.scopedKey: sbt.Def.ScopedKey[_])
       } kl.client.send(event)
     }
     state

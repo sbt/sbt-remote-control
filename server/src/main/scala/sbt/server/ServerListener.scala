@@ -14,6 +14,9 @@ sealed trait SbtClient {
 
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
+    case (NullSbtClient, NullSbtClient) => NullSbtClient
+    case (NullSbtClient, client) => client
+    case (client, NullSbtClient) => client
     case (JoinedSbtClient(clients), JoinedSbtClient(clients2)) => JoinedSbtClient(clients ++ clients2)
     case (JoinedSbtClient(clients), other) => JoinedSbtClient(clients + other)
     case (other, JoinedSbtClient(clients2)) => JoinedSbtClient(clients2 + other)
