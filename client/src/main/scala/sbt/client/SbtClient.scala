@@ -12,18 +12,29 @@ trait SbtClient extends Closeable {
   def humanReadableName: String
 
   /**
-   * This is our mechanism of watching the build structure to see when it changes,
-   * and update our information about the build.
+   * Watch the build structure, receiving notification when it changes.
+   * When initially calling watchBuild(), at least one initial notification
+   * is guaranteed to be sent (asynchronously) with the latest build structure.
    *
-   * @param listener -  A listener that is notified on build structure changes.
-   * @param ex - The context in which we should execute the listener.
+   * @param listener listener that is notified on build structure changes.
+   * @param ex The context in which we should execute the listener.
    *
    * @return
    *      A subscription which can be used to unsubscribe to notifications.
-   *
-   * Note: This will load the entire build structure and pass it too us.
    */
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * like watchBuild() but it does NOT guarantee an initial notification; we will only be
+   * notified if the build structure actually changes.
+   *
+   * @param listener listener that is notified on build structure changes.
+   * @param ex The context in which we should execute the listener.
+   *
+   * @return
+   *      A subscription which can be used to unsubscribe to notifications.
+   */
+  def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription
 
   // TODO - A mechanism to dynamically load key-dependencies, which are too expensive to compute up front.
   // Possibly via watching a project and pulling configuration off of it.
@@ -86,7 +97,8 @@ trait SbtClient extends Closeable {
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription
   /**
    * Adds a listener to a particular setting.  If this setting changes, the event listener
-   *  will be notified with the new value (and sent the initial value).
+   *  will be notified with the new value. In addition, the current value of the
+   *  setting will immediately (asynchronously) be sent to this listener.
    *
    *  @param key  The setting to listen to changes on.
    *  @param listener  A function that is called when the setting value changes.
@@ -94,15 +106,36 @@ trait SbtClient extends Closeable {
    */
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
   /**
-   * Adds a listener for the value of a particular task.  If the evaluated task result changes, the event
-   *  listener will be notified of the new value.
+   * Adds a listener to a particular setting as with watch(), but does not receive immediate
+   * notification of the current setting value.
    *
-   *  Since tasks read their state from the filesystem, it is not guaranteed that an event will be fired upon change *unless* some
-   *  task in the dependency of the specified one is run, requiring the value of the current task to be re-evaluated.
+   *  @param key  The setting to listen to changes on.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   */
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  /**
+   * Adds a listener for the value of a particular task.  If the evaluated task result changes, the event
+   *  listener will be notified of the new value. In addition, the task will be evaluated IMMEDIATELY
+   *  and the listener asynchronously notified of the task's latest value.
+   *
+   *  Since tasks read their state from the filesystem, it is not guaranteed that an event will be fired if
+   *  filesystem changes mean that a task _would_ change if we were to run it. Watching a task just means
+   *  that _when_ it runs, we are notified of new results; it does not mean that we auto-run it
+   *  as the filesystem changes.
    *
    *  @param key       The task to listen to changes for.
    *  @param listener  A function that is called when the setting value changes.
    *  @param ex        The execution context on which to call the listener.
    */
   def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  /**
+   * Like watch() except that it does NOT kick off an immediate task evaluation; it just listens
+   * to any new values that result if the task is evaluated in the future.
+   *
+   *  @param key       The task to listen to changes for.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   */
+  def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
 }

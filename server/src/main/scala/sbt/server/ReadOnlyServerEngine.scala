@@ -113,11 +113,12 @@ class ReadOnlyServerEngine(
         client.reply(serial, ReceivedResponse())
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
-        BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
         client.reply(serial, ReceivedResponse())
       case UnlistenToBuildChange() =>
         updateState(_.removeBuildListener(client))
         client.reply(serial, ReceivedResponse())
+      case SendSyntheticBuildChanged() =>
+        BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
@@ -145,9 +146,6 @@ class ReadOnlyServerEngine(
             } else {
               // Schedule the key to run as well as registering the key listener.
               updateState(_.addKeyListener(client, scopedKey))
-              // we set serial=0 because we don't want to generate a reply for the
-              // synthetic ExecutionRequest generated in this call
-              syntheticExecuteRequest(client, serial = 0L, scopedKey, buildState)
             }
             client.reply(serial, ReceivedResponse())
 
@@ -159,6 +157,35 @@ class ReadOnlyServerEngine(
           case Some(scopedKey) =>
             updateState(_.removeKeyListener(client, scopedKey))
             client.reply(serial, ReceivedResponse())
+          case None => // Issue a no such key error
+            client.reply(serial, KeyNotFound(key))
+        }
+      case SendSyntheticValueChanged(key) =>
+        SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
+          case Some(scopedKey) =>
+            val extracted = Project.extract(buildState)
+
+            if (SettingCompletions.isSetting(scopedKey.key)) {
+              // get the value of the setting key from the build state, and send it to the client
+              val settingKey = SettingKey(scopedKey.key.asInstanceOf[sbt.AttributeKey[Any]]) in scopedKey.scope
+              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, extracted)
+              client.send(ValueChanged(key, change))
+            } else {
+              // for tasks, we have to run the task to generate the change event.
+              // we set serial=0 because we don't want to generate a reply for the
+              // synthetic ExecutionRequest generated in this call.
+
+              // FIXME TODO BROKEN this should guarantee a ValueChanged EVEN IF the
+              // value has not really changed, and should send it ONLY to this
+              // client requesting a synthetic change if it hasn't actually changed.
+              // Right now this will generate a ValueChanged even on no change only
+              // because we are broken and always send it when we run the task...
+              // but if we fix that, then this won't be guaranteed to send an event
+              // at all.
+              syntheticExecuteRequest(client, serial = 0L, scopedKey, buildState)
+            }
+            client.reply(serial, ReceivedResponse())
+
           case None => // Issue a no such key error
             client.reply(serial, KeyNotFound(key))
         }

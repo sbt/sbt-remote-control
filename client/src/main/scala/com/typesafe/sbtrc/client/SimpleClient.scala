@@ -25,7 +25,16 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   override val humanReadableName: String,
   client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
-  def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
+  def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
+    val sub = buildEventManager.watch(listener)(ex)
+    // TODO this is really busted; we need to have a local cache of the latest build and provide
+    // that local cache ONLY to the new listener, rather than reloading remotely and sending
+    // it to ALL existing listeners.
+    client.sendJson(SendSyntheticBuildChanged())
+    sub
+  }
+
+  def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
@@ -48,10 +57,31 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   }
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
+    val sub = lazyWatch(key)(listener)
+    // TODO this is really busted; we need to have a local cache of the latest value and provide
+    // that local cache ONLY to the new listener, rather than reloading remotely and sending
+    // it to ALL existing listeners.
+    client.sendJson(SendSyntheticValueChanged(key.key))
+    sub
+  }
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
     valueEventManager[T](key.key).watch(listener)(ex)
+
   // TODO - Some mechanisms of listening to interaction here...
-  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
+    val sub = lazyWatch(key)(listener)
+    // TODO this is really busted; we need to have a local cache of the latest value and provide
+    // that local cache ONLY to the new listener, rather than reloading remotely and sending
+    // it to ALL existing listeners.
+    // Right now, anytime we add a listener to a task we re-run that task (!!!)
+    // Combined with the issue of adding interaction handlers, having watch() on tasks
+    // do a notification right away may simply be a bad idea?
+    client.sendJson(SendSyntheticValueChanged(key.key))
+    sub
+  }
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
     valueEventManager[T](key.key).watch(listener)(ex)
 
   // TODO - Implement
