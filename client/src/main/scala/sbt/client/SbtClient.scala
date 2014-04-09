@@ -21,6 +21,9 @@ trait SbtClient extends Closeable {
    *
    * @return
    *      A subscription which can be used to unsubscribe to notifications.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
    */
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription
 
@@ -33,6 +36,9 @@ trait SbtClient extends Closeable {
    *
    * @return
    *      A subscription which can be used to unsubscribe to notifications.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
    */
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription
 
@@ -93,6 +99,8 @@ trait SbtClient extends Closeable {
    *
    *  @param listener  A function that is called when events are fired from sbt.
    *  @param ex        The execution context on which to call the listener.
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
    */
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription
   /**
@@ -103,6 +111,9 @@ trait SbtClient extends Closeable {
    *  @param key  The setting to listen to changes on.
    *  @param listener  A function that is called when the setting value changes.
    *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
    */
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
   /**
@@ -112,6 +123,9 @@ trait SbtClient extends Closeable {
    *  @param key  The setting to listen to changes on.
    *  @param listener  A function that is called when the setting value changes.
    *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
    */
   def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
   /**
@@ -127,6 +141,9 @@ trait SbtClient extends Closeable {
    *  @param key       The task to listen to changes for.
    *  @param listener  A function that is called when the setting value changes.
    *  @param ex        The execution context on which to call the listener.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
    */
   def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
   /**
@@ -136,6 +153,9 @@ trait SbtClient extends Closeable {
    *  @param key       The task to listen to changes for.
    *  @param listener  A function that is called when the setting value changes.
    *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
    */
   def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
 }
