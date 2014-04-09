@@ -92,6 +92,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
           // Notify on cancelled tasks as "start + fail"
           cancelled foreach {
             case command: CommandExecutionWork =>
+              if (oldSet(command)) state.eventListeners.send(protocol.ExecutionWaiting(command.id.id, command.command))
               state.eventListeners.send(protocol.ExecutionStarting(command.id.id))
               state.eventListeners.send(protocol.ExecutionFailure(command.id.id))
             case _ => // Ignore
