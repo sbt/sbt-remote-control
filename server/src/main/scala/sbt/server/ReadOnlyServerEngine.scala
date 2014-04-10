@@ -157,18 +157,19 @@ class ReadOnlyServerEngine(
             serverState.eventListeners.send(protocol.ExecutionFailure(id))
             // mark it as cancelled (this removes it from our store)
             item.cancelStatus.cancel()
+            removeCancelStore(id)
           case _ =>
             cancelStore get id match {
-              case Some(value) => value.cancel()
+              case Some(value) =>
+                value.cancel()
+                removeCancelStore(id)
               case _ => false
             }
         }
       }
 
     private def removeCancelStore(id: Long): Unit =
-      synchronized {
-        cancelStore -= id
-      }
+      cancelStore -= id
   }
 
   override def run() {
