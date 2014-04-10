@@ -28,7 +28,6 @@ class CanCancelTasks extends SbtClientTest {
   withSbt(dummy) { client =>
     val executorService = Executors.newSingleThreadExecutor()
     implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
-    //import concurrent.ExecutionContext.Implicits.global
     case class ExecutionRecord(loopCancelled: Boolean, compileCancelled: Boolean, events: Seq[Event])
 
     def recordExecution(): concurrent.Future[ExecutionRecord] = {
@@ -66,8 +65,8 @@ class CanCancelTasks extends SbtClientTest {
 
     def await[T](f: concurrent.Future[T]): T = Await.result(f, defaultTimeout)
     val ExecutionRecord(l, c, events) = await(recordExecution())
-    //assert(l, "Failed to cancel infinite loop task!")
-    //assert(c, "Failed to cancel a work item in the queue.")
+    assert(l, "Failed to cancel infinite loop task!")
+    assert(c, "Failed to cancel a work item in the queue.")
     // Check the ordering of events int he sequence.
     // sequence must match expected items in order, but may have other items too
     @tailrec
