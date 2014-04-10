@@ -13,7 +13,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import annotation.tailrec
 
 class CanCancelTasks extends SbtClientTest {
-  // TODO - Don't hardcode sbt versions, unless we have to...
   val dummy = utils.makeDummySbtProject("test")
 
   sbt.IO.write(new java.io.File(dummy, "looper.sbt"),
@@ -75,15 +74,11 @@ class CanCancelTasks extends SbtClientTest {
         case head :: tail =>
           if (expected.isDefinedAt(head)) {
             expected.apply(head)
-            // uncomment this to find failures
-            //System.err.println("Matched: " + head)
             tail
           } else {
             verifyOne(tail, expected)
           }
         case Nil =>
-          // not that PartialFunction.toString is useful... uncomment
-          // above println which logs each match to see where we stop
           System.err.println("-- Sequence did not match expected --")
           items map (" * ".+) foreach System.err.println
           throw new AssertionError(s"No items matching ${expected}")
@@ -111,17 +106,13 @@ class CanCancelTasks extends SbtClientTest {
         NamedPf("infiniteLoopStarted", {
           case ExecutionStarting(id) => assert(id == loopId)
         }),
-        // Note: This generally happens before the loop starts because the build is booting.
         NamedPf("compileWaiting", {
           case ExecutionWaiting(id, command) if ((command: String) == "compile") => compileId = id
         }),
-
         NamedPf("compileStarted", {
           case ExecutionStarting(id) => assert(id == compileId)
         }),
         NamedPf("compileFailed", { case ExecutionFailure(id) => assert(id == compileId) }),
-
-        // Here we canceled the main task.
         NamedPf("loopFailed", { case ExecutionFailure(id) => assert(id == loopId) })))
 
   }

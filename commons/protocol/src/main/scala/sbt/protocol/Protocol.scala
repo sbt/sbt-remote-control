@@ -41,7 +41,7 @@ sealed trait Event extends Message
 case class RegisterClientRequest(uuid: String, configName: String, humanReadableName: String) extends Request
 
 case class CancelExecutionRequest(id: Long) extends Request
-case class CancelExecutionResponse(attempted: Boolean) extends Request
+case class CancelExecutionResponse(attempted: Boolean) extends Response
 
 case class ExecutionRequest(command: String) extends Request
 case class KeyExecutionRequest(key: ScopedKey) extends Request
