@@ -156,13 +156,14 @@ class ReadOnlyServerEngine(
             serverState.eventListeners.send(protocol.ExecutionStarting(id))
             serverState.eventListeners.send(protocol.ExecutionFailure(id))
             // mark it as cancelled (this removes it from our store)
-            item.cancelStatus.cancel()
             removeCancelStore(id)
+            item.cancelStatus.cancel()
+
           case _ =>
             cancelStore get id match {
               case Some(value) =>
-                value.cancel()
                 removeCancelStore(id)
+                value.cancel()
               case _ => false
             }
         }
