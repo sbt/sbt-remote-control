@@ -15,36 +15,6 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.{ Future, Promise }
 
-final case class ExecutionId(id: Long) {
-  require(id != 0L)
-}
-
-sealed trait ServerEngineWork {
-  def isCancelled: Boolean
-}
-
-// If you find yourself adding stuff from sbt.protocol such as the reply serial
-// to this, you are doing it wrong because from here on out MULTIPLE clients
-// not just the requester care about this work, so we don't want to special-case
-// the original request anymore. We also combine requests into one of these
-// chunks of work, thus allRequesters not a single requester.
-/**
- * A case class representing a request for work to be performed.
- *
- * @param id - The id given to this request for execution.
- * @param command - The sbt command that is requested to be run
- * @param allRequesters - All clients associated with this request for work.
- * @param cancelRequest - A promise that will complete if cancel is requested.
- *                        If a cancel is never received, the future never completes.
- */
-case class CommandExecutionWork(
-  id: ExecutionId,
-  command: String,
-  allRequesters: Set[LiveClient],
-  cancelRequest: Future[Unit]) extends ServerEngineWork {
-  def isCancelled: Boolean = cancelRequest.isCompleted
-}
-
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
  *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
@@ -53,161 +23,10 @@ case class CommandExecutionWork(
  *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
  *  @param queue - The queue we consume server requests from.
  */
-class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State], cancelRegistry: TaskCancellationRegistry) {
+class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new EventLogger(taskIdRecorder)
-
-  private object workQueue {
-
-    private var nextExecutionId = 1L // 1 so 0 is our invalid flag
-    // as we coalesce ExecutionRequest into commands for the sbt engine
-    // (combining duplicates), we store them here.
-    private var workQueue: List[ServerEngineWork] = Nil
-    // if we have modified workQueue since our last changed event,
-    // then the value just before the first modification is here
-    private var previouslyBroadcastWorkQueue: Option[List[ServerEngineWork]] = Some(Nil)
-
-    private def savePreviousWorkQueue(): Unit = {
-      previouslyBroadcastWorkQueue match {
-        case Some(_) => // keep the oldest
-        case None => previouslyBroadcastWorkQueue = Some(workQueue)
-      }
-    }
-
-    private def emitWorkQueueChanged(state: ServerState): Unit = {
-      previouslyBroadcastWorkQueue match {
-        case Some(old) =>
-          val oldSet = old.collect({ case command: CommandExecutionWork => command }).toSet
-          val (cancelled, ready) = workQueue partition (_.isCancelled)
-          // TODO - Should we mutate here? What the hell, the logic already is fun.
-          workQueue = ready
-          val newSet = ready.collect({ case command: CommandExecutionWork => command }).toSet
-          val added = newSet -- oldSet
-          val removed = oldSet -- newSet
-
-          // Notify on new tasks
-          for (waiting <- added)
-            state.eventListeners.send(protocol.ExecutionWaiting(waiting.id.id, waiting.command))
-          // Notify on cancelled tasks as "start + fail"
-          cancelled foreach {
-            case command: CommandExecutionWork =>
-              if (oldSet(command)) state.eventListeners.send(protocol.ExecutionWaiting(command.id.id, command.command))
-              state.eventListeners.send(protocol.ExecutionStarting(command.id.id))
-              state.eventListeners.send(protocol.ExecutionFailure(command.id.id))
-            case _ => // Ignore
-          }
-          // Notify on missing tasks that they have started.
-          for (started <- removed)
-            state.eventListeners.send(protocol.ExecutionStarting(started.id.id))
-
-          // reset to nothing
-          previouslyBroadcastWorkQueue = None
-        case None => // we haven't made any changes
-      }
-    }
-
-    private def queueNextRequest(request: ServerRequest): Unit = {
-      savePreviousWorkQueue()
-
-      workQueue = request match {
-        case ServerRequest(client, serial, command: ExecutionRequest) =>
-          val work: CommandExecutionWork = {
-            val oldOption: Option[ServerEngineWork] = workQueue.find({
-              case old: CommandExecutionWork if old.command == command.command =>
-                true
-              case _ =>
-                false
-            })
-
-            oldOption match {
-              // Note: This pattern match fails if we get something which isn't CommandExecutionWork
-              case Some(old: CommandExecutionWork) =>
-                old.copy(allRequesters = old.allRequesters + request.client)
-              case None =>
-                val id = ExecutionId(nextExecutionId)
-                nextExecutionId += 1
-                CommandExecutionWork(id, command.command, Set(request.client), cancelRegistry.registerExecution(id.id))
-            }
-          }
-
-          // serial of 0 means a synthetic request with nobody who cares
-          // about the reply.
-          if (request.serial != 0L) {
-            import sbt.protocol.executionReceivedFormat
-            request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
-          }
-
-          workQueue :+ work
-        case wtf =>
-          throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
-      }
-    }
-
-    @tailrec
-    def takeNextWork: (ServerState, ServerEngineWork) = {
-
-      // OVERVIEW of this method.
-      // 1. DO NOT BLOCK but do see if we have ServerEngineWork
-      //    which can be coalesced into our workQueue.
-      // 2. If workQueue has changed, send change notification
-      //    events.
-      // 3. If we have no workQueue after pulling off all
-      //    the requests, BLOCK for the next request.
-      // 4. If we DO have workQueue after pulling off all requests,
-      //    pop ONE work item. Send change notification for pendingExecutions
-      //    being one shorter. Return work item.
-
-      @tailrec
-      def pollRequests(): ServerState = {
-        requestQueue.pollNextRequest match {
-          case Right(request) =>
-            queueNextRequest(request)
-            pollRequests()
-          case Left(state) =>
-            state
-        }
-      }
-
-      // NONBLOCKING scan of requests
-      val serverState = pollRequests()
-
-      // get the latest listeners before we send out the
-      // work changed events; we'll also use these listeners
-      // during execution of the next work item.
-      eventLogger.updateClient(serverState.eventListeners)
-
-      // Emit work queue changed here before we pop, so that
-      // all work items appear in the queue once before we remove
-      // them. We don't want to compress across removal.
-      emitWorkQueueChanged(serverState)
-
-      val work =
-        workQueue match {
-          case head :: tail =>
-            savePreviousWorkQueue()
-            workQueue = tail
-            // then immediately notify that we've removed a queue item,
-            // this way we say we've removed before we start to execute,
-            // or we notify that we've emptied the queue before we block
-            emitWorkQueueChanged(serverState)
-            Some(head)
-          case Nil =>
-            None
-        }
-
-      work match {
-        case Some(work) =>
-          (serverState, work)
-        case None =>
-          // BLOCK
-          val request = requestQueue.takeNextRequest
-          queueNextRequest(request)
-          // recurse to process the workQueue
-          takeNextWork
-      }
-    }
-  }
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -221,7 +40,9 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
 
   final val HandleNextServerRequest = "server-handle-next-server-request"
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
-    val (serverState, work) = workQueue.takeNextWork
+    val (serverState, work) = requestQueue.blockAndTakeNext
+    // Update server state on stdout/logger for this request.
+    eventLogger.updateClient(serverState.eventListeners)
     // here we inject the current serverState into the State object.
     val next = handleWork(work, ServerState.update(state, serverState))
     // make sure we always read another server request after this one
@@ -239,7 +60,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val nextState = serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
-        cancelRegistry.doneExecution(command.command.id.id)
+        command.command.cancelStatus.complete()
         BuildStructureCache.update(state)
       case None => state
     }
@@ -251,7 +72,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
-        cancelRegistry.doneExecution(command.id.id)
+        command.cancelStatus.complete()
         lastState.eventListeners.send(ExecutionFailure(command.id.id))
       case None => ()
     }

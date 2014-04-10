@@ -25,21 +25,151 @@ case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Req
  */
 class ReadOnlyServerEngine(
   queue: BlockingQueue[ServerRequest],
-  nextStateRef: AtomicReference[State],
-  cancelRegistry: TaskCancellationRegistry) extends Thread("read-only-sbt-event-loop") {
+  nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
   // TODO - We should have a log somewhere to store events.
   private var serverStateRef = new AtomicReference[ServerState](ServerState())
   def serverState = serverStateRef.get()
   private val running = new AtomicBoolean(true)
-  // IPC protocol requests which turn into ServerEngineWork go in here
-  private val workRequestsQueue: BlockingQueue[ServerRequest] =
-    new java.util.concurrent.ArrayBlockingQueue[ServerRequest](10) // TODO - this should limit the number of queued requests for now
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
 
   // TODO - This only works because it is called from a single thread.
   private def updateState(f: ServerState => ServerState): Unit =
     serverStateRef.lazySet(f(serverStateRef.get))
+
+  /**
+   * Object we use to synch work between the read-only "fast" event loop and
+   *  the ServerEngine.
+   *
+   *  This is an ugly synchronized animal living between two threads.  There are
+   *  two method called from the ReadOnlySide:
+   *     - enqueueWork:  Push a new client request into the queue, joining with existing requests
+   *     - cancelRequest: Attempt to cancel a request in the queue, or notify non-blocking to the ServerEngine.
+   *  And one method called from the ServerEngine side
+   *     - blockAndTakeNext: Block the current thread until some work is ready to run, and give me the latest state.
+   *
+   */
+  final object engineWorkQueue extends ServerEngineQueue {
+
+    private var nextExecutionId: Long = 1L // 1 is first, because 0 is invalid flag.
+    private def getAndIncrementExecutionId: Long = {
+      val prev = nextExecutionId
+      nextExecutionId += 1
+      prev
+    }
+    private var workQueue: List[ServerEngineWork] = Nil
+    private var cancelStore: Map[Long, WorkCancellationStatus] = Map.empty
+    /**
+     * Called by the ServerEngine thread.  This should block that thread
+     *  until work is ready, then notify that the work is starting and
+     *  grab the current serverState.
+     */
+    override def blockAndTakeNext: (ServerState, ServerEngineWork) =
+      synchronized {
+        // Block until we have work ready
+        def blockUntilWork(): ServerEngineWork =
+          workQueue match {
+            case hd :: tail =>
+              workQueue = tail
+              hd
+            case _ =>
+              // Here we need to block until we have more work
+              this.wait() // Note: waiting on this, means the queue has more data.
+              blockUntilWork()
+          }
+        val work = blockUntilWork()
+        val state = serverState
+        state.eventListeners.send(protocol.ExecutionStarting(work.id.id))
+        (state, work)
+      }
+
+    /**
+     * Called from the ReadOnlyEngine thread.
+     *
+     *  This is responsible for minimizing work on the way in,
+     *  handling cancellations, etc.
+     */
+    def enqueueWork(work: ServerRequest): Unit =
+      synchronized {
+        // Check to see if something similar is on the queue
+        // -  If so, merge the two together
+        // -  If not:
+        //       Notify current listeners that work is pending
+        //       Add to the queue
+        work match {
+          case ServerRequest(client, serial, command: ExecutionRequest) =>
+            val (work, isNew) =
+              workQueue find {
+                case old: CommandExecutionWork => old.command == command.command
+                case _ => false
+              } match {
+                case Some(previous: CommandExecutionWork) =>
+                  previous.withNewRequester(client) -> false
+                case None =>
+                  // Make a new work item
+                  val id = ExecutionId(getAndIncrementExecutionId)
+                  // Register cancellation notifications.
+                  val cancel = WorkCancellationStatus()
+                  cancelStore += (id.id -> cancel)
+                  // Create work item
+                  val newItem = CommandExecutionWork(id, command.command, Set(client), cancel)
+                  newItem -> true
+              }
+            // Always notify the current client of his work
+            if (serial != 0L) {
+              import sbt.protocol.executionReceivedFormat
+              client.reply(serial, ExecutionRequestReceived(id = work.id.id))
+              if (isNew) {
+                // If this is a new item in the queue, tell all clients about it.
+                serverState.eventListeners.send(protocol.ExecutionWaiting(work.id.id, work.command))
+              }
+            }
+            // Now, we insert the work either at the end, or where it belongs.
+            def insertWork(remaining: List[ServerEngineWork]): List[ServerEngineWork] =
+              remaining match {
+                case hd :: tail if hd.id == work.id => work :: tail
+                case hd :: tail => hd :: insertWork(remaining)
+                case Nil => work :: Nil
+              }
+            workQueue = insertWork(workQueue)
+            // Here we should notify the server about the new work!
+            notify()
+          case wtf =>
+            // TODO - Server/Logic error
+            throw new Error(s"Square peg in round hole!  Is not a workRequest item: $wtf")
+        }
+      }
+    def cancelRequest(id: Long): Boolean =
+      synchronized {
+        // Find out if we have a work item with the given id.
+        // - If so, mark it as starting/failed in two events, and remove it. return true
+        // - If not, try to cancel something in the store
+        // - otherwise, fail.
+        val found = workQueue collect {
+          case old: CommandExecutionWork if old.id.id == id => old
+        }
+        found match {
+          case item :: Nil =>
+            // Remove the item from the queue
+            workQueue = workQueue filterNot (_.id.id == id)
+            // Tell everyone that this request is dead.
+            serverState.eventListeners.send(protocol.ExecutionStarting(id))
+            serverState.eventListeners.send(protocol.ExecutionFailure(id))
+            // mark it as cancelled (this removes it from our store)
+            item.cancelStatus.cancel()
+          case _ =>
+            cancelStore get id match {
+              case Some(value) => value.cancel()
+              case _ => false
+            }
+        }
+      }
+
+    private def removeCancelStore(id: Long): Unit =
+      synchronized {
+        cancelStore -= id
+      }
+  }
 
   override def run() {
     while (running.get && nextStateRef.get == null) {
@@ -71,20 +201,6 @@ class ReadOnlyServerEngine(
           // TODO - Fatal exceptions?
           client.reply(serial, protocol.ErrorResponse(e.getMessage))
       }
-    }
-  }
-
-  /** Object we use to synch requests/state between event loop + command loop. */
-  final object engineQueue extends ServerEngineQueue {
-    override def pollNextRequest(): Either[ServerState, ServerRequest] = {
-      Option(workRequestsQueue.poll()) match {
-        case Some(req) => Right(req)
-        case None => Left(serverState)
-      }
-    }
-
-    override def takeNextRequest(): ServerRequest = {
-      workRequestsQueue.take()
     }
   }
 
@@ -192,9 +308,9 @@ class ReadOnlyServerEngine(
         }
       case req: ExecutionRequest =>
         // TODO - Handle "queue is full" issues.
-        workRequestsQueue.add(ServerRequest(client, serial, request))
+        engineWorkQueue.enqueueWork(ServerRequest(client, serial, request))
       case CancelExecutionRequest(id) =>
-        client.reply(serial, CancelExecutionResponse(cancelRegistry.cancelExecution(id)))
+        client.reply(serial, CancelExecutionResponse(engineWorkQueue.cancelRequest(id)))
       // don't client.reply to ExecutionRequest here - it's done in the work queue
       case keyRequest: KeyExecutionRequest =>
         // translate to a regular ExecutionRequest

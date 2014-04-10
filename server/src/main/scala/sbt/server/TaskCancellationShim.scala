@@ -1,13 +1,6 @@
 package sbt
 package server
 
-// TODO - share this somewhere...
-object SameThreadExecutionContext extends concurrent.ExecutionContext {
-  def execute(runnable: Runnable): Unit = runnable.run()
-  // TODO - throw this?
-  def reportFailure(t: Throwable): Unit = throw t
-}
-
 /**
  * This is a strategy which can cancel tasks when their associated cancellation `Future[_]`
  * is completed.
@@ -24,9 +17,9 @@ class ServerTaskCancellation(serverState: ServerState) extends TaskCancellationS
     val state = new State(canceller)
     serverState.lastCommand match {
       case Some(command) =>
-        command.command.cancelRequest.onSuccess({
-          case _ => state.cancel()
-        })(SameThreadExecutionContext)
+        command.command.cancelStatus.onCancel { () =>
+          state.cancel()
+        }
       case None => // TODO - This is probably an error, but we'll ignore it for now, just in case
       // This is hooked *before* the server is initialized.
     }
