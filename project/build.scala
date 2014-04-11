@@ -137,6 +137,7 @@ object TheBuild extends Build {
       Keys.publishLocal := {},
       Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
+      localRepoArtifacts += "org.fusesource.jansi" % "jansi" % "1.11",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.3",
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.1",
       localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % "2.2.1",
