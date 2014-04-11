@@ -20,6 +20,7 @@ class ExecutionContextsTest {
       execute(items :+= v)
     val latch = new java.util.concurrent.CountDownLatch(1)
     execute(latch.countDown())
+    latch.await()
     assertEquals(100, items.size)
     for (v <- 1 to 100)
       assertEquals(v, items(v - 1))
