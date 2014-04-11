@@ -8,6 +8,33 @@ import sbt.protocol._
 import scala.util.control.NonFatal
 import scala.util.{ Try, Success, Failure }
 import java.io.Closeable
+import java.util.concurrent.{ LinkedBlockingQueue, ThreadFactory, ThreadPoolExecutor, TimeUnit }
+
+// Move this somewhere shared as soon as we want to use it elsewhere
+// and thus know where it would go and what package it would be private to.
+private[client] object ExecutionContexts {
+  /**
+   * An ExecutionContext which runs only one thing at a time,
+   * and runs things in the order they are received. It uses at most
+   * one thread but shuts the thread down if not used lately.
+   */
+  implicit val serializedCachedExecutionContext: ExecutionContext = {
+    val factory = new ThreadFactory {
+      override def newThread(runnable: Runnable): Thread = {
+        new Thread(runnable, "serializedCachedExecutionContext")
+      }
+    }
+    // we don't worry about ever shutting down this executor because
+    // it can go down to 0 threads anyway
+    val service = new ThreadPoolExecutor(
+      0, // corePoolSize of 0 means we can time out threads all the way back down to 0
+      1, // maxPoolSize of 1 means we only ever run one thread (i.e. we serialize everything)
+      5L, TimeUnit.SECONDS, // how long to keep around a thread we aren't using
+      new LinkedBlockingQueue[Runnable](), // buffer any number of items
+      factory)
+    ExecutionContext.fromExecutorService(service)
+  }
+}
 
 // This thread is responsible for ONE attempt to connect, then we drop
 // the thread (don't want to keep it around when it's typically needed
@@ -17,7 +44,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
   closeHandler: () => Unit,
   sleepMilliseconds: Long, configName: String, humanReadableName: String,
   directory: File, locator: SbtServerLocator) extends Thread with Closeable {
-  import scala.concurrent.ExecutionContext.Implicits.global
+  import ExecutionContexts.serializedCachedExecutionContext
   val sleepRemaining = new java.util.concurrent.atomic.AtomicLong(sleepMilliseconds)
   @volatile var closed = false
 
