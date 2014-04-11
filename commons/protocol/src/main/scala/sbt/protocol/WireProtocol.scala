@@ -17,6 +17,8 @@ import language.existentials
 object WireProtocol {
 
   private val messages: Map[Class[_], (String, Format[_])] = Map(
+    msg[CancelExecutionRequest],
+    msg[CancelExecutionResponse],
     msg[RegisterClientRequest],
     msg[RequestCompleted],
     msg[RequestFailed],

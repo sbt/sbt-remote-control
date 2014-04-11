@@ -28,7 +28,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
-  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineQueue, stateRef)
+  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef)
   // TODO - Maybe the command engine should extend thread too?
   private val commandEngineThread = new Thread("sbt-server-command-loop") {
     override def run(): Unit = {

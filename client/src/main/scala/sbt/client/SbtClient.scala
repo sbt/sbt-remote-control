@@ -94,6 +94,18 @@ trait SbtClient extends Closeable {
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long]
 
   /**
+   * Attempts to cancel the exeuction of some command/task.
+   *
+   * @param The execution ID we want to cancel
+   *
+   * @return  A future that is either true/false,
+   *           depending on the assumed sucess of cancelling the task.
+   *          True means the task was able to receive a cancel notificatoin.
+   *          False means the task was already finished *or* already cancelled.
+   */
+  def cancelExecution(id: Long): Future[Boolean]
+
+  /**
    * Adds a listener to general events which are fired from this sbt server.  These can be things like
    *  "TaskStarted, TaskCanceled, or even custom events from plugins (via GenericEvent).
    *

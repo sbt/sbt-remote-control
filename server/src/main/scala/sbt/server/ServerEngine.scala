@@ -13,119 +13,7 @@ import sbt.MainLoop
 import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
-
-final case class ExecutionId(id: Long) {
-  require(id != 0L)
-}
-
-sealed trait ServerEngineWork
-
-// If you find yourself adding stuff from sbt.protocol such as the reply serial
-// to this, you are doing it wrong because from here on out MULTIPLE clients
-// not just the requester care about this work, so we don't want to special-case
-// the original request anymore. We also combine requests into one of these
-// chunks of work, thus allRequesters not a single requester.
-case class CommandExecutionWork(id: ExecutionId, command: String, allRequesters: Set[LiveClient]) extends ServerEngineWork
-
-// this is the read-only face of TaskIdRecorder which is used outside of ServerExecuteProgress
-trait TaskIdFinder {
-  // guess task ID from the key and/or the current thread.
-  // this returns 0 (invalid task ID) if we can't come up with any guess;
-  // doesn't return an Option because normally we want to just send the event
-  // anyway with a 0 task ID.
-  def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long
-
-  // just look up the task ID by key, don't use any thread info.
-  def taskId(task: Task[_]): Option[Long]
-}
-
-class TaskIdRecorder extends TaskIdFinder {
-  // This is always modified from the engine thread, and we will
-  // add the ID for each task in register() before
-  // the corresponding task runs. So while a task thread might
-  // get an old map that's missing a newly-registered ID, that
-  // task thread should not care about or need to access said
-  // newly-registered ID. The thread which needs a task ID
-  // should run post-register. In theory, of course. If this
-  // theory is wrong not sure what we'll have to do.
-  //
-  // Note:  This is a single-producer of changed values, with multiple thread consumers.
-  //        If that assumption ever changes, this will have to change
-  //        from a volatile into an Atomic Reference and use CAS operations
-  //        for writing.
-  @volatile private var taskIds: Map[Task[_], Long] = Map.empty
-  private var nextTaskId = 1L // start with 1 so 0 is invalid
-
-  // this one is used from the task threads and thus we have to synchronize
-  private var runningTasks: Set[Task[_]] = Set.empty
-
-  private object taskIdThreadLocal extends ThreadLocal[Long] {
-    override def initialValue(): Long = 0
-  }
-
-  // This is only ever called from one thread at a time (we assume).
-  // NOTE: We should validate this is the case even in the presence of
-  //       custom commands.
-  def register(task: Task[_]): Unit = {
-    if (taskIds.contains(task))
-      throw new RuntimeException(s"registered more than once? ${task}")
-    taskIds += (task -> nextTaskId)
-    nextTaskId += 1
-  }
-
-  def clear(): Unit = {
-    taskIds = Map.empty
-  }
-
-  // TODO we want to replace this with *requiring* all event senders
-  // to know their key, which means we need to pass the task key
-  // through to the UIContext and the EventLogger. This can probably
-  // be done with a streamsManager plus somehow relating UIContext to
-  // the streams, or handling UIContext in a similar way to streams
-  // where it's a dummy value replaced by sbt before invoking each
-  // task. Exact details TBD and may require sbt ABI break.
-  // The problem with this hack is that if a task spawns its
-  // own threads, we won't have the task ID.
-  def setThreadTask(task: Task[_]): Unit =
-    taskId(task) match {
-      case Some(id) =>
-        taskIdThreadLocal.set(id)
-        synchronized {
-          runningTasks += task
-        }
-      case None =>
-        throw new RuntimeException(s"Running a task which was never ExecuteProgress#registered? ${task}")
-    }
-
-  def clearThreadTask(task: Task[_]): Unit = {
-    taskIdThreadLocal.remove()
-    synchronized {
-      runningTasks -= task
-    }
-  }
-
-  override def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long = {
-    taskIfKnown flatMap { key =>
-      taskIds.get(key)
-    } getOrElse {
-      taskIdThreadLocal.get match {
-        // if we don't have anything in the thread local, if we have
-        // only one task running we can guess that one.
-        case 0L => synchronized {
-          if (runningTasks.size == 1)
-            taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?"))
-          else
-            0L
-        }
-        case other => other
-      }
-    }
-  }
-
-  override def taskId(task: Task[_]): Option[Long] = {
-    taskIds.get(task)
-  }
-}
+import scala.concurrent.{ Future, Promise }
 
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
@@ -140,143 +28,6 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new EventLogger(taskIdRecorder)
 
-  private object workQueue {
-
-    private var nextExecutionId = 1L // 1 so 0 is our invalid flag
-    // as we coalesce ExecutionRequest into commands for the sbt engine
-    // (combining duplicates), we store them here.
-    private var workQueue: List[ServerEngineWork] = Nil
-    // if we have modified workQueue since our last changed event,
-    // then the value just before the first modification is here
-    private var previouslyBroadcastWorkQueue: Option[List[ServerEngineWork]] = Some(Nil)
-
-    private def savePreviousWorkQueue(): Unit = {
-      previouslyBroadcastWorkQueue match {
-        case Some(_) => // keep the oldest
-        case None => previouslyBroadcastWorkQueue = Some(workQueue)
-      }
-    }
-
-    private def emitWorkQueueChanged(state: ServerState): Unit = {
-      previouslyBroadcastWorkQueue match {
-        case Some(old) =>
-          val oldSet = old.collect({ case command: CommandExecutionWork => command }).toSet
-          val newSet = workQueue.collect({ case command: CommandExecutionWork => command }).toSet
-          val added = newSet -- oldSet
-          val removed = oldSet -- newSet
-
-          for (waiting <- added)
-            state.eventListeners.send(protocol.ExecutionWaiting(waiting.id.id, waiting.command))
-          for (started <- removed)
-            state.eventListeners.send(protocol.ExecutionStarting(started.id.id))
-
-          // reset to nothing
-          previouslyBroadcastWorkQueue = None
-        case None => // we haven't made any changes
-      }
-    }
-
-    private def queueNextRequest(request: ServerRequest): Unit = {
-      savePreviousWorkQueue()
-
-      workQueue = request match {
-        case ServerRequest(client, serial, command: ExecutionRequest) =>
-          val work: CommandExecutionWork = {
-            val oldOption: Option[ServerEngineWork] = workQueue.find({
-              case old: CommandExecutionWork if old.command == command.command =>
-                true
-              case _ =>
-                false
-            })
-
-            oldOption match {
-              case Some(old: CommandExecutionWork) =>
-                old.copy(allRequesters = old.allRequesters + request.client)
-              case None =>
-                val id = ExecutionId(nextExecutionId)
-                nextExecutionId += 1
-                CommandExecutionWork(id, command.command, Set(request.client))
-            }
-          }
-
-          // serial of 0 means a synthetic request with nobody who cares
-          // about the reply.
-          if (request.serial != 0L) {
-            import sbt.protocol.executionReceivedFormat
-            request.client.reply(request.serial, ExecutionRequestReceived(id = work.id.id))
-          }
-
-          workQueue :+ work
-        case wtf =>
-          throw new Error(s"we put the wrong thing in workRequestsQueue: $wtf")
-      }
-    }
-
-    @tailrec
-    def takeNextWork: (ServerState, ServerEngineWork) = {
-
-      // OVERVIEW of this method.
-      // 1. DO NOT BLOCK but do see if we have ServerEngineWork
-      //    which can be coalesced into our workQueue.
-      // 2. If workQueue has changed, send change notification
-      //    events.
-      // 3. If we have no workQueue after pulling off all
-      //    the requests, BLOCK for the next request.
-      // 4. If we DO have workQueue after pulling off all requests,
-      //    pop ONE work item. Send change notification for pendingExecutions
-      //    being one shorter. Return work item.
-
-      @tailrec
-      def pollRequests(): ServerState = {
-        requestQueue.pollNextRequest match {
-          case Right(request) =>
-            queueNextRequest(request)
-            pollRequests()
-          case Left(state) =>
-            state
-        }
-      }
-
-      // NONBLOCKING scan of requests
-      val serverState = pollRequests()
-
-      // get the latest listeners before we send out the
-      // work changed events; we'll also use these listeners
-      // during execution of the next work item.
-      eventLogger.updateClient(serverState.eventListeners)
-
-      // Emit work queue changed here before we pop, so that
-      // all work items appear in the queue once before we remove
-      // them. We don't want to compress across removal.
-      emitWorkQueueChanged(serverState)
-
-      val work =
-        workQueue match {
-          case head :: tail =>
-            savePreviousWorkQueue()
-            workQueue = tail
-            // then immediately notify that we've removed a queue item,
-            // this way we say we've removed before we start to execute,
-            // or we notify that we've emptied the queue before we block
-            emitWorkQueueChanged(serverState)
-            Some(head)
-          case Nil =>
-            None
-        }
-
-      work match {
-        case Some(work) =>
-          (serverState, work)
-        case None =>
-          // BLOCK
-          val request = requestQueue.takeNextRequest
-          queueNextRequest(request)
-          // recurse to process the workQueue
-          takeNextWork
-      }
-    }
-  }
-
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
@@ -289,7 +40,9 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
 
   final val HandleNextServerRequest = "server-handle-next-server-request"
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
-    val (serverState, work) = workQueue.takeNextWork
+    val (serverState, work) = requestQueue.blockAndTakeNext
+    // Update server state on stdout/logger for this request.
+    eventLogger.updateClient(serverState.eventListeners)
     // here we inject the current serverState into the State object.
     val next = handleWork(work, ServerState.update(state, serverState))
     // make sure we always read another server request after this one
@@ -307,6 +60,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val nextState = serverState.lastCommand match {
       case Some(command) =>
         serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
+        command.command.cancelStatus.complete()
         BuildStructureCache.update(state)
       case None => state
     }
@@ -318,6 +72,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     val lastState = ServerState.extract(state)
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
+        command.cancelStatus.complete()
         lastState.eventListeners.send(ExecutionFailure(command.id.id))
       case None => ()
     }
@@ -415,7 +170,8 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder) ++
         UIShims.makeShims(state, taskIdRecorder) ++
-        loggingShims(state)
+        loggingShims(state) ++
+        ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.
     val extracted = Project.extract(state)
     val settings =

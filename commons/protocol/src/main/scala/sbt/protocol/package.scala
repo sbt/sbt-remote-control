@@ -179,6 +179,8 @@ package object protocol {
     def reads(value: JsValue): JsResult[TestOutcome] =
       JsSuccess(TestOutcome(value.as[String]))
   }
+  implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
+  implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
   implicit val registerClientRequestFormat = Json.format[RegisterClientRequest]
   implicit val testEventFormat = Json.format[TestEvent]     
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
