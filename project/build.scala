@@ -141,7 +141,7 @@ object TheBuild extends Build {
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.1",
       localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % "2.2.1",
       localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
-      localRepoArtifacts += "org.scala-sbt" % "sbt" % "0.13.5-M2",
+      localRepoArtifacts += "org.scala-sbt" % "sbt" % Dependencies.sbt13Version,
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
       localRepoArtifacts += Dependencies.playSbtPlugin12,
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
