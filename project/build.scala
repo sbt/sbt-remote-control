@@ -118,13 +118,16 @@ object TheBuild extends Build {
   // Set up a repository that has all our dependencies.
   import Project.Initialize
 
+  // right now we publish this project because Activator
+  // is using TestUtil; but we should probably clean it
+  // up later so we only publish a test framework
+  // and not the whole thing.
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
     dependsOnRemote(sbtLauncherInterface, sbtIo)
     dependsOn(client)
     settings(
-      //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
-      Keys.publish := {}
+      //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true
     )
   )
 
