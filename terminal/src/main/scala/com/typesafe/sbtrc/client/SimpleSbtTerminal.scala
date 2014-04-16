@@ -6,6 +6,7 @@ import scala.concurrent.ExecutionContext
 import sbt.client.{
   Interaction,
   SbtClient,
+  SbtConnector,
   RemoteKeys,
   RemoteConfigurations
 }
@@ -96,8 +97,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   case class Exit(code: Int) extends xsbti.Exit
   override def run(configuration: AppConfiguration): xsbti.Exit = {
     System.out.println("Connecting to sbt...")
-    val connector = new SimpleConnector("terminal", "Command Line Terminal",
-      configuration.baseDirectory, SimpleLocator)
+    val connector = SbtConnector("terminal", "Command Line Terminal", configuration.baseDirectory)
 
     def onConnect(client: SbtClient): Unit = {
       import concurrent.ExecutionContext.global
