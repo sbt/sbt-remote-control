@@ -48,13 +48,22 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
   val sleepRemaining = new java.util.concurrent.atomic.AtomicLong(sleepMilliseconds)
   @volatile var closed = false
 
-  // This is a little trick to ensure that the closeHandler
-  // is always called only AFTER the doneHandler
+  // we want to ALWAYS call doneHandler first and then closeHandler only if
+  // we successfully opened the client and it's now been closed.
   val donePromise = Promise[SbtClient]()
   val closedPromise = Promise[Unit]()
-  donePromise.future.onComplete(doneHandler)
-  // BOTH promises are needed to run the closeHandler
-  Future.sequence(Seq(donePromise.future, closedPromise.future)).onComplete(whatever => closeHandler())
+  donePromise.future.onComplete { maybeClient =>
+    doneHandler(maybeClient)
+    if (maybeClient.isSuccess) {
+      // wait on the client to complete closePromise. Note that it
+      // may have ALREADY completed.
+      closedPromise.future.onComplete(_ => closeHandler())
+    } else {
+      // fail closePromise since it will never happen, but it should have no listeners,
+      // so this is just to be be tidy
+      closedPromise.tryFailure(new RuntimeException("never opened client so not going to close"))
+    }
+  }
 
   private def adjustRemaining(block: Long => Long): Unit = {
     while (!{
