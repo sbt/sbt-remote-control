@@ -6,6 +6,8 @@ import java.net.{ URI, URL }
 import xsbti.AppConfiguration
 import scala.util.control.NonFatal
 import sbt.client._
+import java.net.URISyntaxException
+import scala.annotation.tailrec
 
 /**
  * This class is responsible for determining where the sbt server is located.
@@ -31,22 +33,34 @@ abstract class AbstractSbtServerLocator extends SbtServerLocator {
       pb.directory(directory)
       val process = pb.start()
       process.getOutputStream.close()
-      val input = process.getInputStream
-      process.getErrorStream.close()
-      readUntilSynch(new java.io.BufferedReader(new java.io.InputStreamReader(input))) match {
-        case Some(uri) => uri
-        case _ => sys.error("Failed to start server!")
+      val input = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream))
+      val error = new java.io.BufferedReader(new java.io.InputStreamReader(process.getErrorStream))
+
+      try {
+        readUntilSynch(input) match {
+          case Some(uri) =>
+            uri
+          case _ =>
+            // readLines should get EOF since we got EOF on stdout...
+            val errors = sbt.IO.readLines(error)
+            sys.error(s"Failed to start server, error output was: '${errors.mkString("\n")}'")
+        }
+      } finally {
+        try input.close()
+        finally error.close()
       }
     }
   }
-  private def readUntilSynch(in: java.io.BufferedReader): Option[URI] = {
-    def read(): Option[URI] = in.readLine match {
-      case null => None
-      // TODO - Just keep reading lines until one parses.
-      case uri => Some(new java.net.URI(uri))
+  @tailrec
+  private def readUntilSynch(in: java.io.BufferedReader): Option[URI] = in.readLine match {
+    case null => None
+    case uri => try Some(new java.net.URI(uri))
+    catch {
+      case e: URISyntaxException =>
+        // TODO should there be some limit on number of "bad" lines we parse?
+        // TODO should we include "bad" lines in the error log on eventual failure?
+        readUntilSynch(in)
     }
-    try read()
-    finally in.close()
   }
 }
 
