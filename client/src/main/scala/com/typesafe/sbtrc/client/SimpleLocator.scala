@@ -6,7 +6,7 @@ import java.net.URL
 
 object SimpleLocator extends LaunchedSbtServerLocator {
   def sbtProperties(directory: File): URL = {
-    // TODO - Pull from a resource....
+    // TODO - Check sbt binary/full version first!
     getClass.getClassLoader.getResource("sbt-server.properties")
   }
 }

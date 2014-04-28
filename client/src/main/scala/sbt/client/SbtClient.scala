@@ -170,4 +170,13 @@ trait SbtClient extends Closeable {
    *        for all listeners on the same SbtClient.
    */
   def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * Kills the running instance of the sbt server (by attempting to issue a kill message), and then
+   * attempts to reconnect to a new instance.
+   */
+  def attemptToReboot(): Unit
+
+  /** Returns true if the client is closed. */
+  def isClosed: Boolean
 }

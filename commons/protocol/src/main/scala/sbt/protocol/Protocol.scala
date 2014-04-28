@@ -58,6 +58,12 @@ case class ExecutionSuccess(id: Long) extends Event
 case class ExecutionFailure(id: Long) extends Event
 
 /**
+ * Request for the server to completely shut down.  No response expected,
+ * as this is equivalent to issuing a kill -9.
+ */
+case object KillServerRequest extends Request
+
+/**
  * @param in The (partial) command we'd like possible completions for.
  * @param level  The interpretation of `level` is up to parser definitions, but 0 is the default by convention,
  * with increasing positive numbers corresponding to increasing verbosity.  Typically no more than

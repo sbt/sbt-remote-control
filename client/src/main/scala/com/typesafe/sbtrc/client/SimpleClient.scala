@@ -87,6 +87,10 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
     valueEventManager[T](key.key).watch(listener)(ex)
 
+  // TODO - Maybe we should try a bit harder here to `kill` the server.
+  def attemptToReboot(): Unit =
+    client.sendJson(KillServerRequest)
+
   // TODO - Implement
   def close(): Unit = {
     running = false
@@ -243,6 +247,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   thread.start()
 
   private val requestHandler = new RequestHandler()
+
+  override def isClosed: Boolean = client.isClosed
 
 }
 

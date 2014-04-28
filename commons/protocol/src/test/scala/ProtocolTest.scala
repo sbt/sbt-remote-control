@@ -26,6 +26,7 @@ class ProtocolTest {
     )
     val specifics = Seq(
       // Requests
+      protocol.KillServerRequest,
       protocol.ReadLineRequest(42, "HI", true),
       protocol.ReadLineResponse(Some("line")),
       protocol.ConfirmRequest(43, "msg"),
