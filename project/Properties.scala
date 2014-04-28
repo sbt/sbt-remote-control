@@ -31,6 +31,12 @@ object Properties {
     val times = analysis.apis.internal.values map (_.compilation.startTime)
     if(times.isEmpty) 0L else times.max
   }
+
+  def makeDefaultSbtVersionFile(sbtVersion: String, resourceManagedDir: File): Seq[File] = {
+    val file = resourceManagedDir / "default.sbt.version"
+    IO.write(file, s"sbt.version=${sbtVersion}")
+    Seq(file)
+  }
   
 
   def makeJavaPropertiesString(version: String, sbtVersion: String, scalaVersion: String): String =

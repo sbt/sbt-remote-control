@@ -45,6 +45,11 @@ object TheBuild extends Build {
     )
     dependsOnRemote(playJson, brokenJoda)
     settings(noCrossVersioning:_*)
+    settings(
+      Keys.resourceGenerators in Compile += (Def.task {
+        Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
+      }).taskValue
+    )
   )
 
   // ================= Remote Controler main project ==========================

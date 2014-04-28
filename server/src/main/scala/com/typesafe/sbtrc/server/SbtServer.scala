@@ -18,7 +18,6 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     val addr = socket.getInetAddress.getHostAddress
     new java.net.URI(s"http://${addr}:${port}")
   }
-  private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   // The queue where requests go before we fullfill them.
   private val queue = new java.util.concurrent.LinkedBlockingDeque[ServerRequest]
   // External API to run queue.
@@ -46,12 +45,10 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
       socketHandler.join()
     }
   }
-  // TODO - just start automatically?
-  def start(): Unit = {
+  override def awaitTermination(): xsbti.MainResult = {
+    // Here we actually start.
     eventEngine.start()
     commandEngineThread.start()
-  }
-  override def awaitTermination(): xsbti.MainResult = {
     // Wait for the server to stop, then exit.
     commandEngineThread.join()
     // TODO - We should allow the server to tell us to reboot.
