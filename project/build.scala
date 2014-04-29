@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(client, terminal) ++ sbt13ProbeProjects
+  lazy val publishedProjects: Seq[Project] = Seq(client, terminal, clientAll) ++ sbt13ProbeProjects
 
 
 
@@ -114,7 +114,38 @@ object TheBuild extends Build {
                     sbtIo, sbtCollections)
   )
 
- lazy val terminal: Project = (
+  // TODO - OSGi settings for this guy...
+  lazy val clientAll: Project = (
+    SbtRemoteControlRepackagedProject("client-all")
+    dependsOn(client % s"${RepackageDep.name}")
+    settings(
+      libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+      // TODO - maybe this belongs in the helper. It's needed because
+      // the helper doesn't correctly pull in the local project dep, thanks to how
+      // sbt hooks ivy.
+      managedClasspath in RepackageDep += {
+        Attributed.blank((packageBin in Compile in client).value).put(Keys.moduleID.key, (Keys.projectID in client).value)
+      },
+      // Remove all dependencies on any local project, only keep the scala ones.
+      // TODO - Why is makePom pulling in configurations it can't handle?
+      pomPostProcess := { pom: scala.xml.Node =>
+        (new scala.xml.transform.RewriteRule {
+          private def isBadDep(n: scala.xml.Node): Boolean =
+            // TODO - Don't hardcode the org.
+            ((n \ "groupId").text == "com.typesafe.sbtrc") ||
+            ((n \ "artifactId").text == "junit-interface")
+          override def transform(n: scala.xml.Node): Seq[scala.xml.Node] =
+            n match {
+              case dep: scala.xml.Elem if isBadDep(dep) => Nil
+              case elem: scala.xml.Elem => elem copy (child = elem.child flatMap (this transform))
+              case other => other
+            }
+        } transform pom).head
+      }
+    )
+  )
+
+  lazy val terminal: Project = (
     SbtRemoteControlProject("terminal")
     dependsOn(client)
     dependsOnRemote(sbtCompletion)
