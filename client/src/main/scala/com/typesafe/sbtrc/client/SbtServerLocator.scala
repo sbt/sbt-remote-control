@@ -74,14 +74,27 @@ object LaunchedSbtServerLocator {
   // Attempts to grab the JAR for the sbt launcher reflectively from
   // the classloader of launcher classes.
   def findLauncherReflectively: Option[File] =
+    // First check the classloader we're currently running in. This works for launched applicatons.
+    findLauncherClassloader(getClass.getClassLoader) orElse
+      // Now check to see if we're running in an isolated classloader BUT from a launched applciation.
+      findLauncherClassloader(ClassLoader.getSystemClassLoader)
+  // TODO - Now we should look for an embedded launcher we can extract somewhere.
+  def findLauncherClassloader(cl: ClassLoader): Option[File] = {
     try {
-      val classInLauncher = classOf[AppConfiguration]
+      // TODO - Maybe we shouldn't hardcode the launcher class...
+      // "xsbt.boot.Boot"
+      val classInLauncher = cl.loadClass("xsbti.AppConfiguration")
       for {
         domain <- Option(classInLauncher.getProtectionDomain)
         source <- Option(domain.getCodeSource)
         location = source.getLocation
-      } yield new java.io.File(location.toURI)
+        // Ignore the launcher interface itself.
+        file = new java.io.File(location.toURI)
+        if !(file.getName contains "launcher-interface.jar")
+      } yield file
     } catch {
       case NonFatal(e) => None
     }
+  }
+
 }
