@@ -69,7 +69,9 @@ abstract class LaunchedSbtServerLocator extends AbstractSbtServerLocator {
 }
 object LaunchedSbtServerLocator {
   def defaultLauncherLookup: File =
-    findLauncherReflectively getOrElse sys.error("Unable to find sbt launcher.jar file.")
+    // Now we should look for an embedded launcher we can extract somewhere.
+    dumpLauncherFromJar orElse
+      findLauncherReflectively getOrElse sys.error("Unable to find sbt launcher.jar file.")
 
   // Attempts to grab the JAR for the sbt launcher reflectively from
   // the classloader of launcher classes.
@@ -77,9 +79,7 @@ object LaunchedSbtServerLocator {
     // First check the classloader we're currently running in. This works for launched applicatons.
     findLauncherClassloader(getClass.getClassLoader) orElse
       // Now check to see if we're running in an isolated classloader BUT from a launched applciation.
-      findLauncherClassloader(ClassLoader.getSystemClassLoader) orElse
-      // Now we should look for an embedded launcher we can extract somewhere.
-      dumpLauncherFromJar
+      findLauncherClassloader(ClassLoader.getSystemClassLoader)
 
   def findLauncherClassloader(cl: ClassLoader): Option[File] = {
     try {
@@ -99,20 +99,60 @@ object LaunchedSbtServerLocator {
     }
   }
 
-  def dumpLauncherFromJar: Option[File] = {
+  private def openNestedLauncherStream: Option[java.io.InputStream] =
+    Option(getClass.getClassLoader.getResourceAsStream("sbt-launch.jar"))
+  // TODO - maybe we have the build run this and store it in a property somewhere.
+  lazy val nestedLauncherSha: Option[String] = openNestedLauncherStream flatMap { in =>
+    try Some(sha1(in))
+    catch {
+      case NonFatal(e) => None
+    }
+  }
+
+  def dumpLauncherFromJar: Option[File] = nestedLauncherSha flatMap { sha =>
     val userHome = new File(sys.props("user.home"))
-    val rcHome = new File(userHome, ".sbtrc")
-    // TODO - Autoupdate this guy
-    val launcher = new File(rcHome, "sbt-launch.jar")
+    val sbtHome = sys.props.get("sbt.global.base") map (new File(_)) getOrElse new File(userHome, ".sbt")
+    val launchHome = new File(sbtHome, "launchers")
+    // TODO - maybe we need to clean old launchers...
+    val launcher = new File(launchHome, s"sbt-launch-${sha}.jar")
     if (launcher.exists) Some(launcher)
     else try {
       for {
-        stream <- Option(getClass.getClassLoader.getResourceAsStream("sbt-launch.jar"))
+        stream <- openNestedLauncherStream
         _ = sbt.IO.transfer(stream, launcher)
       } yield launcher
     } catch {
       case NonFatal(e) => None
     }
+  }
+
+  // TODO - move this HASHING stuff somewhere useful
+
+  // This should calculate the SHA sum of a file the same as the linux process.
+  private def sha1(in: java.io.InputStream): String =
+    digest(java.security.MessageDigest.getInstance("SHA-1"))(in)
+  private def digest(digest: java.security.MessageDigest)(in: java.io.InputStream): String = {
+    val buffer = new Array[Byte](8192)
+    try {
+      def read(): Unit = in.read(buffer) match {
+        case x if x <= 0 => ()
+        case size => digest.update(buffer, 0, size); read()
+      }
+      read()
+    } finally in.close()
+    val sha = convertToHex(digest.digest())
+    sha
+  }
+  private def convertToHex(data: Array[Byte]): String = {
+    val buf = new StringBuffer
+    def byteToHex(b: Int) =
+      if ((0 <= b) && (b <= 9)) ('0' + b).toChar
+      else ('a' + (b - 10)).toChar
+    for (i <- 0 until data.length) {
+      buf append byteToHex((data(i) >>> 4) & 0x0F)
+      buf append byteToHex(data(i) & 0x0F)
+    }
+    buf.toString
   }
 
 }
