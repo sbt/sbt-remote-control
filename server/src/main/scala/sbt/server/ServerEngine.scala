@@ -178,34 +178,5 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
       SettingUtil.makeAppendSettings(rawSettings, extracted.currentRef, extracted)
     SettingUtil.reloadWithAppended(state, settings)
   }
-
 }
 
-// TODO - move into its own file.
-// TODO - make this less hacky
-// TODO - Don't hard-code all this. It should be somewhat flexible....
-import xsbti._
-case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = "0.13.5-M3") extends AppConfiguration {
-  final val arguments: Array[String] = Array.empty
-  final def baseDirectory: File = original.baseDirectory
-  private def origAp = original.provider
-  object provider extends xsbti.AppProvider {
-    override def scalaProvider = origAp.scalaProvider
-    object id extends ApplicationID {
-      override val groupID = "org.scala-sbt"
-      override val name = "sbt"
-      override val version = sbtVersion
-      override val mainClass = "sbt.xMain"
-      override val mainComponents = origAp.id.mainComponents
-      override val crossVersioned = origAp.id.crossVersioned
-      override val crossVersionedValue = origAp.id.crossVersionedValue
-      override val classpathExtra = origAp.id.classpathExtra
-    }
-    override def loader: ClassLoader = origAp.loader
-    override def mainClass: Class[T] forSome { type T <: AppMain } = origAp.mainClass
-    override def entryPoint: Class[_] = origAp.entryPoint
-    override def newMain: AppMain = origAp.newMain
-    override def mainClasspath: Array[File] = origAp.mainClasspath
-    override def components: ComponentProvider = origAp.components
-  }
-}

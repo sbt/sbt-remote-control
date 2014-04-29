@@ -171,6 +171,7 @@ package object protocol {
 
   implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
   implicit val requestFailedFormat = emptyObjectFormat(RequestFailed())
+  implicit val killRequestFormat = emptyObjectFormat(KillServerRequest())
   
   implicit object outcomeFormat extends Format[TestOutcome] {
     def writes(outcome: TestOutcome): JsValue =

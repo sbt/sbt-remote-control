@@ -224,6 +224,9 @@ class ReadOnlyServerEngine(
     }
   private def handleRequestsWithBuildState(client: LiveClient, serial: Long, request: Request, buildState: State): Unit =
     request match {
+      case KillServerRequest() =>
+        // TODO - Is killing completely the right thing?
+        System.exit(0)
       case ListenToEvents() =>
         updateState(_.addEventListener(client))
         client.reply(serial, ReceivedResponse())

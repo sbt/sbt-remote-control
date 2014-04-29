@@ -59,9 +59,9 @@ trait SbtClientTest extends IntegrationTest {
           val pattern = Option(ivy.ivyPattern).map(",".+).getOrElse("")
           val aPattern = Option(ivy.artifactPattern).map(",".+).getOrElse("")
           val mvnCompat = if (ivy.mavenCompatible) ", mavenCompatible" else ""
-          ivy.id + ": " + ivy.url + pattern + aPattern + mvnCompat
-        case mvn: MavenRepository => mvn.id + ": " + mvn.url
-        case predef: PredefinedRepository => predef.id.toString
+          "  " + ivy.id + ": " + ivy.url + pattern + aPattern + mvnCompat
+        case mvn: MavenRepository => "  " + mvn.id + ": " + mvn.url
+        case predef: PredefinedRepository => "  " + predef.id.toString
       }
     }
 
@@ -73,7 +73,8 @@ trait SbtClientTest extends IntegrationTest {
         case x if x contains "directory:" => s"  directory: ${configuration.provider.scalaProvider.launcher.bootDirectory.toString}"
         case x if x contains "ivy-home:" => s"  ivy-home: ${configuration.provider.scalaProvider.launcher.ivyHome.toString}"
         case x if x contains "override-build-repos:" => "override-build-repos: true"
-        case x if x contains "jvmprops:" => s"jvmprops: ${propsFile.toString}"
+        case x if x contains "repository-config:" => ""
+        case x if x contains "jvmprops:" => s"  jvmprops: ${propsFile.toString}"
         case x => x
       }
       header ++ ("[repositories]" :: repositories) ++ List("") ++ tail
@@ -83,30 +84,38 @@ trait SbtClientTest extends IntegrationTest {
   /**
    * Allows running tests against sbt.  Will block until sbt server is loaded against
    * a given directory...
+   *
+   * @return the number of connects
    */
-  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
+  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Int = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
       projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
+
+    val numConnects = new java.util.concurrent.atomic.AtomicInteger(0)
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
+        // We track the number of times our registered connect handler is called here,
+        // as we never execute any other future.
+        numConnects.getAndIncrement
         // we typically get two runnables; the first one is "newHandler"
         // below and the second is "errorHandler" when the connector is
         // closed. We just drop "errorHandler" on the floor.
         if (task.isCompleted)
-          System.out.println(s"Not executing runnable because we only run one thing: ${runnable}")
+          System.err.println(s"Not executing runnable because we only run one thing: ${runnable}")
         else
           task.success(runnable)
       }
       // TODO - Test failure...
       def reportFailure(t: Throwable): Unit = task.failure(t)
 
-      def runWhenReady(): Unit =
-        // TODO - This is the wait time for us to connect to an sbt client....
-        concurrent.Await.result(task.future, defaultTimeout).run()
+      def runWhenReady(): Unit = {
+        val result = concurrent.Await.result(task.future, defaultTimeout)
+        result.run
+      }
     }
     val newHandler: SbtClient => Unit = { client =>
       // TODO - better error reporting than everything.
@@ -114,22 +123,26 @@ trait SbtClientTest extends IntegrationTest {
         msg => System.out.println(msg)
       })(concurrent.ExecutionContext.global)
       try f(client)
-      finally client.requestExecution("exit", None) // TODO - Will this shut down the server?
+      finally {
+        if (!client.isClosed) client.requestExecution("exit", None) // TODO - Should we use the shutdown hook?
+      }
     }
     val errorHandler: (Boolean, String) => Unit = { (reconnecting, error) =>
       // don't retry forever just close. But print those errors.
-      if (reconnecting)
+      if (reconnecting) {
+        // Only increment here, since we're only doing one thing at a time..
         connector.close()
-      else
+      } else
         System.err.println(s"sbt connection closed, reconnecting=${reconnecting} error=${error}")
     }
 
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
     val subscription = (connector.open(newHandler, errorHandler))(runOneThingExecutor)
-
     // Block current thread until we can run the test.
     try runOneThingExecutor.runWhenReady()
     finally connector.close()
+    if (numConnects.get <= 0) sys.error("Never connected to sbt server!")
+    numConnects.get
   }
 
   lazy val utils = new TestUtil(new java.io.File("scratch"))
