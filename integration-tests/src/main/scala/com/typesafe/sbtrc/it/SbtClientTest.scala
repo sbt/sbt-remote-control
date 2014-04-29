@@ -92,10 +92,15 @@ trait SbtClientTest extends IntegrationTest {
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
       projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
+
+    val numConnects = new java.util.concurrent.atomic.AtomicInteger(0)
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
+        // We track the number of times our registered connect handler is called here,
+        // as we never execute any other future.
+        numConnects.getAndIncrement
         // we typically get two runnables; the first one is "newHandler"
         // below and the second is "errorHandler" when the connector is
         // closed. We just drop "errorHandler" on the floor.
@@ -112,11 +117,7 @@ trait SbtClientTest extends IntegrationTest {
         result.run
       }
     }
-    val hasConnectedEver = new java.util.concurrent.atomic.AtomicBoolean(false)
-    val numConnects = new java.util.concurrent.atomic.AtomicInteger(0)
     val newHandler: SbtClient => Unit = { client =>
-      numConnects.getAndIncrement()
-      hasConnectedEver.set(true)
       // TODO - better error reporting than everything.
       (client handleEvents {
         msg => System.out.println(msg)
@@ -129,6 +130,7 @@ trait SbtClientTest extends IntegrationTest {
     val errorHandler: (Boolean, String) => Unit = { (reconnecting, error) =>
       // don't retry forever just close. But print those errors.
       if (reconnecting) {
+        // Only increment here, since we're only doing one thing at a time..
         connector.close()
       } else
         System.err.println(s"sbt connection closed, reconnecting=${reconnecting} error=${error}")
@@ -139,7 +141,7 @@ trait SbtClientTest extends IntegrationTest {
     // Block current thread until we can run the test.
     try runOneThingExecutor.runWhenReady()
     finally connector.close()
-    if (!hasConnectedEver.get) sys.error("Never connected to sbt server!")
+    if (numConnects.get <= 0) sys.error("Never connected to sbt server!")
     numConnects.get
   }
 

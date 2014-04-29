@@ -61,7 +61,7 @@ case class ExecutionFailure(id: Long) extends Event
  * Request for the server to completely shut down.  No response expected,
  * as this is equivalent to issuing a kill -9.
  */
-case object KillServerRequest extends Request
+case class KillServerRequest() extends Request
 
 /**
  * @param in The (partial) command we'd like possible completions for.

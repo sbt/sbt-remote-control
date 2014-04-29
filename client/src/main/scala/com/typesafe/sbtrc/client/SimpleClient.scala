@@ -88,8 +88,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     valueEventManager[T](key.key).watch(listener)(ex)
 
   // TODO - Maybe we should try a bit harder here to `kill` the server.
-  def attemptToReboot(): Unit =
-    client.sendJson(KillServerRequest)
+  override def requestSelfDestruct(): Unit =
+    client.sendJson(KillServerRequest())
 
   // TODO - Implement
   def close(): Unit = {

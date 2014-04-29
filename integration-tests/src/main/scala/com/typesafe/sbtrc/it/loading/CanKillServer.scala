@@ -14,14 +14,13 @@ import annotation.tailrec
 
 class CanKillServer extends SbtClientTest {
   val dummy = utils.makeDummySbtProject("test")
-  withSbt(dummy) { client =>
+  val connects = withSbt(dummy) { client =>
     import concurrent.ExecutionContext.Implicits.global
     client.watchBuild { build =>
       System.err.println("Telling sbt to die.")
-      client.attemptToReboot()
+      client.requestSelfDestruct()
     }
     Thread.sleep(30 * 1000L)
-    // TODO - Check to ensure this client Was closed...
-
   }
+  assert(connects > 1, s"Failed to kill sbt in the middle of a connection, connects: ${connects}")
 }
