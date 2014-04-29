@@ -20,7 +20,9 @@ class CanKillServer extends SbtClientTest {
       System.err.println("Telling sbt to die.")
       client.requestSelfDestruct()
     }
-    Thread.sleep(30 * 1000L)
+    while(!client.isClosed) {
+      Thread.sleep(30 * 1000L)
+    }
   }
   assert(connects > 1, s"Failed to kill sbt in the middle of a connection, connects: ${connects}")
 }
