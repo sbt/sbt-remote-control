@@ -77,8 +77,10 @@ object LaunchedSbtServerLocator {
     // First check the classloader we're currently running in. This works for launched applicatons.
     findLauncherClassloader(getClass.getClassLoader) orElse
       // Now check to see if we're running in an isolated classloader BUT from a launched applciation.
-      findLauncherClassloader(ClassLoader.getSystemClassLoader)
-  // TODO - Now we should look for an embedded launcher we can extract somewhere.
+      findLauncherClassloader(ClassLoader.getSystemClassLoader) orElse
+      // Now we should look for an embedded launcher we can extract somewhere.
+      dumpLauncherFromJar
+
   def findLauncherClassloader(cl: ClassLoader): Option[File] = {
     try {
       // TODO - Maybe we shouldn't hardcode the launcher class...
@@ -92,6 +94,22 @@ object LaunchedSbtServerLocator {
         file = new java.io.File(location.toURI)
         if !(file.getName contains "launcher-interface.jar")
       } yield file
+    } catch {
+      case NonFatal(e) => None
+    }
+  }
+
+  def dumpLauncherFromJar: Option[File] = {
+    val userHome = new File(sys.props("user.home"))
+    val rcHome = new File(userHome, ".sbtrc")
+    // TODO - Autoupdate this guy
+    val launcher = new File(rcHome, "sbt-launch.jar")
+    if (launcher.exists) Some(launcher)
+    else try {
+      for {
+        stream <- Option(getClass.getClassLoader.getResourceAsStream("sbt-launch.jar"))
+        _ = sbt.IO.transfer(stream, launcher)
+      } yield launcher
     } catch {
       case NonFatal(e) => None
     }

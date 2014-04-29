@@ -102,7 +102,10 @@ object TheBuild extends Build {
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
     settings(
       Keys.publishArtifact in (Test, Keys.packageBin) := true,
-      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver"))
+      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver")),
+      resourceGenerators in Compile += Def.task {
+        Seq(SbtSupport.sbtLaunchJar.value)
+      }.taskValue      
     )
     dependsOnSource("commons/protocol")
     dependsOnRemote(playJson, brokenJoda)
