@@ -68,54 +68,16 @@ object BuildValue {
   
   // Here we need to reflectively look up the serialization of things...
   def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] = 
-    defaultSerializers(mf) map { serializer =>
+    DynamicSerializaton.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
     } getOrElse UnserializedValue(o.toString)
 
     
-  // TODO - This should be a registration system and not so hacky...
-  /**
-   * This represents the generic way in which we can serialize sbt settings over the network.
-   * 
-   * This is the ONLY list we use when attempting to inspect unknown types.  If we don't
-   * have a mechanism here, we can't serialize (on either side) and we wind up with a
-   * None representing the semantic value, but the "toString" will still make it across.
-   */
-  def defaultSerializers[T](mf: Manifest[T]): Option[Format[T]] = {
-    (mf.erasure match {
-      case Classes.StringClass => Some(implicitly[Format[String]])
-      case Classes.FileClass => Some(implicitly[Format[java.io.File]])
-      case Classes.BooleanClass => Some(implicitly[Format[Boolean]])
-      case Classes.ShortClass => Some(implicitly[Format[Short]])
-      case Classes.IntClass => Some(implicitly[Format[Int]])
-      case Classes.LongClass => Some(implicitly[Format[Long]])
-      case Classes.FloatClass => Some(implicitly[Format[Float]])
-      case Classes.DoubleClass => Some(implicitly[Format[Double]])
-      // TODO - polymorphism?
-      case Classes.SeqSubClass() =>
-        // Now we need to find the first type arguments structure:
-        import collection.generic.CanBuildFrom
-        for {
-          child <- defaultSerializers(mf.typeArguments(0))
-        } yield {
-          val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
-          val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-          Format(reads,writes)
-        }
-      case Classes.AttributedSubClass() =>
-        for {
-          child <- defaultSerializers(mf.typeArguments(0))
-        } yield attributedFormat(child)
-      case _ =>
-        System.err.println("DEBUGME - Error:  No way to serialize: " + mf)
-        None
-    }).asInstanceOf[Option[Format[T]]]
-  }
   
   private def deserialize(value: JsValue, mf: TypeInfo): Option[BuildValue[Any]] =
     for {
       realMf <- mf.toManifest()
-      serializer <- defaultSerializers(realMf)
+      serializer <- DynamicSerializaton.lookup(realMf)
       realValue <- serializer.reads(value).asOpt
     } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[Format[Any]], mf)
   
