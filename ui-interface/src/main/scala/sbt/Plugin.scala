@@ -11,7 +11,8 @@ import play.api.libs.json._
 object SbtUiPlugin extends Plugin {
 
   override val buildSettings: Seq[Setting[_]] = Seq(
-    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext)
+    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext,
+    UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil)
 }
 
 private[sbt] object CommandLineUiContext extends AbstractUIContext {
@@ -32,6 +33,7 @@ private[sbt] object CommandLineUiContext extends AbstractUIContext {
     }
   }
   override def sendEvent[T: Format](event: T): Unit = ()
+  override def sendRawEvent[T: Manifest](event: T): Unit = ()
   override def sendGenericEvent(data: JsValue): Unit = ()
   override def taskId: Long = 0L
 }
