@@ -25,6 +25,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   override val humanReadableName: String,
   client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
+  // For now, use the global object.
+  override def dynamicSerialization: DynamicSerialization = DynamicSerializaton
+
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
     // TODO this is really busted; we need to have a local cache of the latest build and provide

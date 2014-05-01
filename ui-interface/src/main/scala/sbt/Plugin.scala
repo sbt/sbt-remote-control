@@ -15,9 +15,9 @@ object SbtUiPlugin extends Plugin {
     UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil)
 
   def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisterFormat(format)(mf)
+    UIContext.registeredFormats in Global += RegisteredFormat(format)(mf)
   def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisterFormat(format)(key.key.manifest)
+    UIContext.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
 
 }
 
@@ -39,7 +39,6 @@ private[sbt] object CommandLineUiContext extends AbstractUIContext {
     }
   }
   override def sendEvent[T: Format](event: T): Unit = ()
-  override def sendRawEvent[T: Manifest](event: T): Unit = ()
   override def sendGenericEvent(data: JsValue): Unit = ()
   override def taskId: Long = 0L
 }

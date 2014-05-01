@@ -9,14 +9,6 @@ import concurrent.Await
 import scala.collection.JavaConverters._
 import play.api.libs.json.Json
 
-case class TestThing(name: String, value: Int)
-object TestThing {
-  implicit val format = Json.format[TestThing]
-
-  // This runs on initialization
-  def registerSerialization(): Unit = DynamicSerializaton.register(format)
-}
-
 // Tests using interaction...
 class CanUseUiInteractionPlugin extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -36,18 +28,18 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import sbt.SbtUiPlugin._
        |import sbt._
        | 
-       |case class TestThing(name: String, value: Int)
-       |object TestThing {
-       |  implicit val format = Json.format[TestThing]
+       |case class SerializedThing(name: String, value: Int)
+       |object SerializedThing {
+       |  implicit val format = Json.format[SerializedThing]
        |}
        |
        |
        |object TestThingPlugin {
-       |   val makeTestThing = taskKey[TestThing]("makes a test thing")
+       |   val makeTestThing = taskKey[SerializedThing]("makes a test thing")
        |   def settings: Seq[Setting[_]] =
        |     Seq(
        |       registerTaskSerialization(makeTestThing),
-       |       makeTestThing := TestThing("Hello, it's a test!", 10)
+       |       makeTestThing := SerializedThing("Hello, it's a test!", 10)
        |     )
        |}
        |""".stripMargin)
@@ -108,11 +100,12 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")
 
     // Now we try to grab the value of maketestThing 
-    TestThing.registerSerialization() // TODO - Maybe make this less ugly...
-    val testThingValuePromise = concurrent.promise[sbt.protocol.TaskResult[TestThing]]
+    // We must explicitly register the mechanism of deserializing the custom message.
+    client.dynamicSerialization.register(SerializedThing.format)
+    val testThingValuePromise = concurrent.promise[sbt.protocol.TaskResult[SerializedThing]]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>
-        client.watch(TaskKey[TestThing](key)) { (key, value) =>
+        client.watch(TaskKey[SerializedThing](key)) { (key, value) =>
           testThingValuePromise.trySuccess(value)
         }(global)
     }(global)
@@ -123,7 +116,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
       case sbt.protocol.SerializableBuildValue(value, _, _) =>
         assert(value.name == "Hello, it's a test!", "Failed to serialize custom name attribute")
         assert(value.value == 10, "Failed to serialize custom value attribute")
-      case _ => sys.error(s"Failed to serialize TestThing: ${buildValue}")
+      case _ => sys.error(s"Failed to serialize SerializedThing: ${buildValue}")
     }
   }
 

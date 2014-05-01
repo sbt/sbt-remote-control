@@ -12,13 +12,6 @@ sealed trait UIContext {
 
   /** Sends an event out to all registered event listeners. */
   def sendEvent[T: Format](event: T): Unit
-  /**
-   * Sends an evnet out to all registered listenres.
-   * 
-   * Note:  Requires the appropriate format to be registered
-   *        via `registeredFormats` key.
-   */
-  def sendRawEvent[T: Manifest](event: T): Unit
   def sendGenericEvent(data: JsValue): Unit
 
   // obtain the task ID that should be included in events
@@ -27,14 +20,14 @@ sealed trait UIContext {
 /** Represents a Manifest/Format pair we can use
  *  to serialize task values + events later.
  */
-sealed trait RegisterFormat {
+sealed trait RegisteredFormat {
   type T
   def manifest: Manifest[T]
   def format: Format[T]
 }
-object RegisterFormat {
-  def apply[U](f: Format[U])(implicit mf: Manifest[U]):  RegisterFormat =
-    new RegisterFormat {
+object RegisteredFormat {
+  def apply[U](f: Format[U])(implicit mf: Manifest[U]):  RegisteredFormat =
+    new RegisteredFormat {
        type T = U
        override val format = f
        override val manifest = mf
@@ -42,6 +35,6 @@ object RegisterFormat {
 }
 object UIContext {
   val uiContext = TaskKey[UIContext]("ui-context", "The context used to communicate to a user interface running sbt.")
-  val registeredFormats = settingKey[Seq[RegisterFormat]]("All the formats needed to serialize events/messages to the client.")
+  val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
 }
 private[sbt] abstract class AbstractUIContext extends UIContext

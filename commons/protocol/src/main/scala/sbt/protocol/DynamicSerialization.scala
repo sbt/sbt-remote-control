@@ -17,11 +17,14 @@ trait DynamicSerialization {
  * A registry for serialization mechanisms.  Sbt plugins/builds can
  * use this to define a mechanism to serialize/deserialize their
  * values between the sbt-server and consumers.
+ *
+ * NOTE: Users should NOT use this directly
  */
+@deprecated("Users should not use this object directly")
 object DynamicSerializaton extends DynamicSerialization {
   // Here we store erased types
-  type RawManifest = Manifest[_]
-  type RawFormat = Format[_]
+  private type RawManifest = Manifest[_]
+  private type RawFormat = Format[_]
   private val registered = 
     scala.collection.concurrent.TrieMap[RawManifest, RawFormat]()
         
