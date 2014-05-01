@@ -13,7 +13,7 @@ sealed trait BuildValue[T] {
   /** Result of calling toString on the value. */
   def stringValue: String
 }
-/** Represents a value we can send over the wire. */
+/** Represents a value we can send over the wire, both serializing + deserializing. */
 case class SerializableBuildValue[T](
   rawValue: T,
   serializer: Format[T],
@@ -27,14 +27,16 @@ case class SerializableBuildValue[T](
     o match {
       case x: SerializableBuildValue[_] => x.rawValue == rawValue
       case _ => false
-    }
-  
-  override def hashCode: Int = rawValue.hashCode
-  
+    }  
+  override def hashCode: Int = rawValue.hashCode  
   override def toString = "Serialized(with=" + serializer + ", toString=" + stringValue +")"
 }
-/** Represents a value we cannot send over the wire. */
-case class UnserializedValue[T](stringValue: String) extends BuildValue[T] {
+/** Represents a value we could not fully serialize over the wire.
+ *  @param stringValue   The `toString` of the object we were trying to send.
+ *  @param rawJson  If not None, this means the server knew how to serialize the value but we were
+ *                  unable to decode it.   This JSON could still be used to introspect the data.  
+ */
+case class UnserializedValue[T](stringValue: String, rawJson: Option[JsValue]) extends BuildValue[T] {
   def value = None
 }
 
@@ -70,7 +72,7 @@ object BuildValue {
   def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] = 
     DynamicSerializaton.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
-    } getOrElse UnserializedValue(o.toString)
+    } getOrElse UnserializedValue(o.toString, None)
 
     
   
@@ -87,7 +89,7 @@ object BuildValue {
   private object MyRawFormat extends Format[BuildValue[Any]] {
     def writes(t: BuildValue[Any]): JsValue =
        t match {
-         case UnserializedValue(string) =>
+         case UnserializedValue(string, _) =>
            JsObject(Seq("stringValue" -> JsString(string)))
          case SerializableBuildValue(value, serializer, mf) =>
            JsObject(Seq(
@@ -103,7 +105,7 @@ object BuildValue {
              mf <- (map \ "manifest").asOpt[TypeInfo]
              result <- deserialize((map \ "value"), mf)
            } yield result
-         fullOpt orElse Some(UnserializedValue(stringValue.toString))
+         fullOpt orElse Some(UnserializedValue(stringValue.toString, Some(map \ "value")))
        } match {
         case Some(result) => JsSuccess(result.asInstanceOf[BuildValue[Any]])
         case None => JsError("Could not resolve build value!")

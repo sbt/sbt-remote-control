@@ -13,6 +13,12 @@ object SbtUiPlugin extends Plugin {
   override val buildSettings: Seq[Setting[_]] = Seq(
     UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext,
     UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil)
+
+  def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
+    UIContext.registeredFormats in Global += RegisterFormat(format)(mf)
+  def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
+    UIContext.registeredFormats in Global += RegisterFormat(format)(key.key.manifest)
+
 }
 
 private[sbt] object CommandLineUiContext extends AbstractUIContext {
