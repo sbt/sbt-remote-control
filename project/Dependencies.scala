@@ -47,7 +47,8 @@ object Dependencies {
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
   val playJson             = ("com.typesafe.play" % "play-json_2.10" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
-  val brokenJoda           = "org.joda" % "joda-convert" % "1.2" % "provided"
+  val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"
+  val brokenJoda           = brokenJodaRaw % "provided"
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
   val akkaSlf4j            = "com.typesafe.akka" % "akka-slf4j_2.10" % akkaVersion
   val akkaTestkit          = "com.typesafe.akka" % "akka-testkit_2.10" % akkaVersion

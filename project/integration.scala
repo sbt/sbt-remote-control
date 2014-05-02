@@ -125,11 +125,7 @@ case class IntegrationContext(launchJar: File,
     val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 
         // TODO - Just pass this through...
-        "-Dsbt.probe.trace=true",
-        "-Dakka.loglevel=DEBUG",
-            "-Dakka.actor.debug.autoreceive=on",
-            "-Dakka.actor.debug.receive=on",
-            "-Dakka.actor.debug.lifecycle=on",
+        "-Dproject.version=" + version,
         "-jar", 
         launchJar.getAbsolutePath,
         "@"+props.toURI.toASCIIString)

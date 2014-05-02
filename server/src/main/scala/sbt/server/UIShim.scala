@@ -2,6 +2,7 @@ package sbt
 package server
 
 import play.api.libs.json.{ Format, JsValue }
+import sbt.protocol.DynamicSerializaton
 
 private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder) extends AbstractUIContext {
 
@@ -31,6 +32,15 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
 
   def sendEvent[T: Format](event: T): Unit =
     state.eventListeners.send(event)
+
+  def sendRawEvent[T](event: T)(implicit mf: Manifest[T]): Unit = {
+    DynamicSerializaton.lookup(mf) match {
+      case Some(format) => state.eventListeners.send(event)(format)
+      case None => throw new java.io.IOException(s"Unable to find serialization for ${mf}.\n" +
+        "Please register a format with the `registeredFormats` key.")
+    }
+
+  }
   def sendGenericEvent(data: JsValue): Unit =
     state.eventListeners.send(data)
 
@@ -48,8 +58,16 @@ object UIShims {
   private def uiContextSetting(taskIdFinder: TaskIdFinder): Setting[_] =
     UIContext.uiContext in Global := {
       val state = sbt.Keys.state.value
+      // TODO - Maybe we don't need to register these everytime, but only
+      // `onLoad` of a build?
+      val formats = UIContext.registeredFormats.value
+      formats foreach { x =>
+        DynamicSerializaton.register(x.format)(x.manifest)
+      }
       new ServerUIContext(ServerState.extract(state), taskIdFinder)
     }
   def makeShims(state: State, taskIdFinder: TaskIdFinder): Seq[Setting[_]] =
-    Seq(uiContextSetting(taskIdFinder))
+    Seq(
+      UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil,
+      uiContextSetting(taskIdFinder))
 }

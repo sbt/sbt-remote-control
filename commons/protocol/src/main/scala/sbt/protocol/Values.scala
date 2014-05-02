@@ -13,7 +13,7 @@ sealed trait BuildValue[T] {
   /** Result of calling toString on the value. */
   def stringValue: String
 }
-/** Represents a value we can send over the wire. */
+/** Represents a value we can send over the wire, both serializing + deserializing. */
 case class SerializableBuildValue[T](
   rawValue: T,
   serializer: Format[T],
@@ -27,14 +27,16 @@ case class SerializableBuildValue[T](
     o match {
       case x: SerializableBuildValue[_] => x.rawValue == rawValue
       case _ => false
-    }
-  
-  override def hashCode: Int = rawValue.hashCode
-  
+    }  
+  override def hashCode: Int = rawValue.hashCode  
   override def toString = "Serialized(with=" + serializer + ", toString=" + stringValue +")"
 }
-/** Represents a value we cannot send over the wire. */
-case class UnserializedValue[T](stringValue: String) extends BuildValue[T] {
+/** Represents a value we could not fully serialize over the wire.
+ *  @param stringValue   The `toString` of the object we were trying to send.
+ *  @param rawJson  If not None, this means the server knew how to serialize the value but we were
+ *                  unable to decode it.   This JSON could still be used to introspect the data.  
+ */
+case class UnserializedValue[T](stringValue: String, rawJson: Option[JsValue]) extends BuildValue[T] {
   def value = None
 }
 
@@ -68,54 +70,16 @@ object BuildValue {
   
   // Here we need to reflectively look up the serialization of things...
   def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] = 
-    defaultSerializers(mf) map { serializer =>
+    DynamicSerializaton.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
-    } getOrElse UnserializedValue(o.toString)
+    } getOrElse UnserializedValue(o.toString, None)
 
     
-  // TODO - This should be a registration system and not so hacky...
-  /**
-   * This represents the generic way in which we can serialize sbt settings over the network.
-   * 
-   * This is the ONLY list we use when attempting to inspect unknown types.  If we don't
-   * have a mechanism here, we can't serialize (on either side) and we wind up with a
-   * None representing the semantic value, but the "toString" will still make it across.
-   */
-  def defaultSerializers[T](mf: Manifest[T]): Option[Format[T]] = {
-    (mf.erasure match {
-      case Classes.StringClass => Some(implicitly[Format[String]])
-      case Classes.FileClass => Some(implicitly[Format[java.io.File]])
-      case Classes.BooleanClass => Some(implicitly[Format[Boolean]])
-      case Classes.ShortClass => Some(implicitly[Format[Short]])
-      case Classes.IntClass => Some(implicitly[Format[Int]])
-      case Classes.LongClass => Some(implicitly[Format[Long]])
-      case Classes.FloatClass => Some(implicitly[Format[Float]])
-      case Classes.DoubleClass => Some(implicitly[Format[Double]])
-      // TODO - polymorphism?
-      case Classes.SeqSubClass() =>
-        // Now we need to find the first type arguments structure:
-        import collection.generic.CanBuildFrom
-        for {
-          child <- defaultSerializers(mf.typeArguments(0))
-        } yield {
-          val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
-          val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-          Format(reads,writes)
-        }
-      case Classes.AttributedSubClass() =>
-        for {
-          child <- defaultSerializers(mf.typeArguments(0))
-        } yield attributedFormat(child)
-      case _ =>
-        System.err.println("DEBUGME - Error:  No way to serialize: " + mf)
-        None
-    }).asInstanceOf[Option[Format[T]]]
-  }
   
   private def deserialize(value: JsValue, mf: TypeInfo): Option[BuildValue[Any]] =
     for {
       realMf <- mf.toManifest()
-      serializer <- defaultSerializers(realMf)
+      serializer <- DynamicSerializaton.lookup(realMf)
       realValue <- serializer.reads(value).asOpt
     } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[Format[Any]], mf)
   
@@ -125,7 +89,7 @@ object BuildValue {
   private object MyRawFormat extends Format[BuildValue[Any]] {
     def writes(t: BuildValue[Any]): JsValue =
        t match {
-         case UnserializedValue(string) =>
+         case UnserializedValue(string, _) =>
            JsObject(Seq("stringValue" -> JsString(string)))
          case SerializableBuildValue(value, serializer, mf) =>
            JsObject(Seq(
@@ -141,7 +105,7 @@ object BuildValue {
              mf <- (map \ "manifest").asOpt[TypeInfo]
              result <- deserialize((map \ "value"), mf)
            } yield result
-         fullOpt orElse Some(UnserializedValue(stringValue.toString))
+         fullOpt orElse Some(UnserializedValue(stringValue.toString, Some(map \ "value")))
        } match {
         case Some(result) => JsSuccess(result.asInstanceOf[BuildValue[Any]])
         case None => JsError("Could not resolve build value!")

@@ -33,7 +33,7 @@ object TheBuild extends Build {
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
       dependsOnSource("commons/ui-interface")
-      dependsOnRemote(playJson)
+      dependsOnRemote(playJson, brokenJodaRaw)
   )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
@@ -129,7 +129,7 @@ object TheBuild extends Build {
   // and not the whole thing.
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
-    dependsOnRemote(sbtLauncherInterface, sbtIo)
+    dependsOnRemote(sbtLauncherInterface, sbtIo, brokenJoda)
     dependsOn(client)
     settings(
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true

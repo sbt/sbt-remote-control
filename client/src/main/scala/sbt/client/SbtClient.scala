@@ -12,6 +12,14 @@ trait SbtClient extends Closeable {
   def humanReadableName: String
 
   /**
+   * A registry of custom serializers that are used when
+   * non-standard messages are sent between the build and this cient.
+   * e.g. this can be used to register a specific handler for task
+   * values coming out of custom sbt plugins.
+   */
+  def dynamicSerialization: protocol.DynamicSerialization
+
+  /**
    * Watch the build structure, receiving notification when it changes.
    * When initially calling watchBuild(), at least one initial notification
    * is guaranteed to be sent (asynchronously) with the latest build structure.
