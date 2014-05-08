@@ -30,9 +30,9 @@ object Dependencies {
   val sbt013EchoSupportedPlayVersion = "2.2.2"
 
   // Here are the versions used for the core project
-  val scalaVersion = "2.10.1"
+  val scalaVersion = "2.10.4"
   val sbtMainVersion = sbt13Version
-  val akkaVersion = "2.2.0"
+  val akkaVersion = "2.3.2"
 
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
