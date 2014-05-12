@@ -134,14 +134,13 @@ object TheBuild extends Build {
   lazy val sbtRemoteController = (
     SbtRemoteControlProject("remote-controller")
     settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
-    settings(
-      Keys.publishArtifact in (Test, Keys.packageBin) := true
-    )
+    settings(Keys.publishArtifact in (Test, Keys.packageBin) := true)
     dependsOnSource("commons/protocol")
     dependsOn(props)
     dependsOnRemote(akkaActor,
                     sbtLauncherInterface,
-                    sbtIo)
+                    sbtIo,
+                    scalaParserCombinators)
     settings(configureSbtTest(Keys.test): _*)
     settings(configureSbtTest(Keys.testOnly): _*)
   )
@@ -170,9 +169,12 @@ object TheBuild extends Build {
       Keys.publishLocal := {},
       Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.1",
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.2",
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.9.2",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.4",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.11.0",   
+      localRepoArtifacts += "com.typesafe.akka" % "akka-actor_2.11" % "2.3.2",         
       localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.0",
       localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
       localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
