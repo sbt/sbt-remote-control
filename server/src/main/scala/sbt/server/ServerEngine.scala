@@ -134,8 +134,12 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
   def initializeLoggers(serverLogFile: File): GlobalLogging = {
     // First override all logging.
     serverLogFile.getParentFile.mkdirs()
-    val output = new java.io.PrintWriter(new java.io.FileWriter(serverLogFile))
-    eventLogger.updatePeer({ msg => output.println(msg); output.flush })
+    val rollingLogger = com.typesafe.sbtrc.server.FileLogger(serverLogFile)
+    // TODO - We don't want this to be synchronized or blocking if we can help it.
+    // However, for now we also want to avoid overflowing our filesystem with logs.
+    eventLogger.updatePeer({ msg =>
+      rollingLogger.synchronized(rollingLogger.log(msg))
+    })
     def handleStdOut(line: String): Unit = eventLogger.send(LogStdOut(line))
     def handleStdErr(line: String): Unit = eventLogger.send(LogStdErr(line))
     SystemShims.replaceOutput(handleStdOut, handleStdErr)
