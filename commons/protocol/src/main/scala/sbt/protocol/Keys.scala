@@ -1,6 +1,5 @@
 package sbt.protocol
 
-import scala.util.parsing.json._
 import java.net.URI
 import ScalaShims.ManifestFactory
 import play.api.libs.json._

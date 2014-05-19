@@ -23,8 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(client, terminal, clientAll) ++ sbt13ProbeProjects
-
+  lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll) ++ sbt13ProbeProjects
 
 
   // ================= 0.13 projects ==========================
@@ -96,23 +95,42 @@ object TheBuild extends Build {
        Seq(file)
     }
 
-  // This project is used to drive sbt processes, installing the controller.
-  lazy val client: Project = (
-    SbtRemoteControlProject("client")
-    settings(Keys.libraryDependencies <+= (Keys.scalaVersion) { v => "org.scala-lang" % "scala-reflect" % v })
-    settings(
-      Keys.publishArtifact in (Test, Keys.packageBin) := true,
-      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-server.properties", "com.typesafe.sbtrc.server.SbtServerMain", Some(sbtServer13), Some("${user.dir}/project/.sbtserver")),
-      resourceGenerators in Compile += Def.task {
-        Seq(SbtSupport.sbtLaunchJar.value)
-      }.taskValue      
+  def makeClientProject(name: String, scalaVersion: String): Project = {
+    val crossVersionedSbtLibs = Seq(
+      sbtIo,
+      sbtCollections
     )
-    dependsOnSource("commons/protocol")
-    dependsOnRemote(playJson, brokenJoda)
-    dependsOnRemote(sbtLauncherInterface,
-                    sbtCompilerInterface,
-                    sbtIo, sbtCollections)
-  )
+    SbtRemoteControlProject(name).
+    settings(
+       Keys.scalaVersion := scalaVersion,
+       Keys.publishArtifact in (Test, Keys.packageBin) := true,
+       resourceGenerators in Compile <+= 
+         makeSbtLaunchProperties(
+          "sbt-server.properties", 
+          "com.typesafe.sbtrc.server.SbtServerMain", 
+          Some(sbtServer13), 
+          Some("${user.dir}/project/.sbtserver")),
+       Keys.libraryDependencies ++= 
+         Seq(
+               "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
+               playJson,
+               brokenJoda,
+               sbtLauncherInterface,
+               sbtCompilerInterface
+         ),
+       Keys.libraryDependencies ++= (Keys.scalaBinaryVersion.value match {
+          case "2.10" => crossVersionedSbtLibs
+          case "2.11" => crossVersionedSbtLibs map (_ cross CrossVersion.binary)
+          case v => sys.error(s"Unsupported scalaBinary version: $v")
+       })
+    ).
+    dependsOnSource("commons/protocol").
+    dependsOnSource("client")
+  }
+
+  // We load the client code from the client directory and build both a Scala 2.10 and Scala 2.11 variant.
+  lazy val client: Project = makeClientProject("client-2-10", "2.10.4")
+  lazy val client211: Project = makeClientProject("client-2-11", "2.11.0")
 
   // TODO - OSGi settings for this guy...
   lazy val clientAll: Project = (
@@ -144,6 +162,7 @@ object TheBuild extends Build {
       }
     )
   )
+
 
   lazy val terminal: Project = (
     SbtRemoteControlProject("terminal")
@@ -179,18 +198,12 @@ object TheBuild extends Build {
       Keys.publishLocal := {},
       Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
-      localRepoArtifacts += "org.fusesource.jansi" % "jansi" % "1.11",
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.3",
-      localRepoArtifacts += "com.typesafe.play" % "play_2.10" % "2.2.1",
-      localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % "2.2.1",
-      localRepoArtifacts += "play" % "play_2.10" % "2.1.5",
+      localRepoArtifacts += jansi,
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.4",
+      // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
+      localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % Dependencies.playVersion,
       localRepoArtifacts += "org.scala-sbt" % "sbt" % Dependencies.sbt13Version,
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.play" % "sbt-plugin" % "2.2.0", "0.13", "2.10"),
-      localRepoArtifacts += Dependencies.playSbtPlugin12,
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbt" % "sbt-atmos" % "0.3.1", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", "0.13", "2.10"),
-      localRepoArtifacts += Defaults.sbtPluginExtra("com.github.mpeltonen" % "sbt-idea" % "1.5.2", "0.13", "2.10"),
-      localRepoArtifacts += "com.novocode" % "junit-interface" % "0.7" % "test",
+      localRepoArtifacts += junitInterface % "test",
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
   )
