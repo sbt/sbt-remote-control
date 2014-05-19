@@ -17,7 +17,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000
   // TODO - This should be configurable.
-  private val log = new FileLogger(new java.io.File(".sbtserver/connections/master.log"))
+  private val log = FileLogger(new java.io.File(".sbtserver/connections/master.log"))
 
   private val clientLock = new AnyRef {}
   private val clients = collection.mutable.ArrayBuffer.empty[SbtClientHandler]

@@ -24,7 +24,7 @@ class SbtClientHandler(
 
   // TODO - Configure this location.
   // TODO - Is this thread safe-ish?
-  private val log = new FileLogger(new java.io.File(s".sbtserver/connections/${configName}-${uuid}.log"))
+  private val log = FileLogger(new java.io.File(s".sbtserver/connections/${configName}-${uuid}.log"))
 
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   def isAlive: Boolean = clientThread.isAlive && running.get
