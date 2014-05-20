@@ -18,7 +18,7 @@ object EchoSupport {
     } yield setting.key).headOption
 
   def setTracePort(state: State, port: Int): State = {
-    System.err.println("Setting echo trace port.")
+    PoorManDebug.trace("Setting echo trace port.")
     val (extracted, ref) = SbtUtil.extractWithRef(state)
     val settings = extracted.session.mergeSettings
     val tracePortKey = findEchoKey(EchoTracePort, settings).getOrElse(
