@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll) ++ sbt13ProbeProjects
+  lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll, clientAll211) ++ sbt13ProbeProjects
 
 
   // ================= 0.13 projects ==========================
@@ -133,16 +133,17 @@ object TheBuild extends Build {
   lazy val client211: Project = makeClientProject("client-2-11", "2.11.0")
 
   // TODO - OSGi settings for this guy...
-  lazy val clientAll: Project = (
-    SbtRemoteControlRepackagedProject("client-all")
-    dependsOn(client % s"${RepackageDep.name}")
+  def makeClientAllProject(name: String, scalaVersion: String, clientProj: Project): Project = (
+    SbtRemoteControlRepackagedProject(name)
+    dependsOn(clientProj % s"${RepackageDep.name}")
     settings(
-      libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
+      Keys.scalaVersion := scalaVersion,
+      libraryDependencies += "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
       // TODO - maybe this belongs in the helper. It's needed because
       // the helper doesn't correctly pull in the local project dep, thanks to how
       // sbt hooks ivy.
       managedClasspath in RepackageDep += {
-        Attributed.blank((packageBin in Compile in client).value).put(Keys.moduleID.key, (Keys.projectID in client).value)
+        Attributed.blank((packageBin in Compile in clientProj).value).put(Keys.moduleID.key, (Keys.projectID in clientProj).value)
       },
       // Remove all dependencies on any local project, only keep the scala ones.
       // TODO - Why is makePom pulling in configurations it can't handle?
@@ -162,6 +163,8 @@ object TheBuild extends Build {
       }
     )
   )
+  lazy val clientAll = makeClientAllProject("client-all", "2.10.4", client)
+  lazy val clientAll211 = makeClientAllProject("client-all-2-11", "2.11.0", client211)
 
 
   lazy val terminal: Project = (
