@@ -16,6 +16,8 @@ import xsbti.{
   IvyRepository
 }
 import java.nio.charset.Charset.defaultCharset
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 trait SbtClientTest extends IntegrationTest {
   // TODO - load from config
@@ -94,6 +96,7 @@ trait SbtClientTest extends IntegrationTest {
       projectDirectory, testingLocator(new File(projectDirectory, "../sbt-global")))
 
     val numConnects = new java.util.concurrent.atomic.AtomicInteger(0)
+    val clientCloseLatch = new CountDownLatch(1)
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = concurrent.promise[Runnable]
@@ -120,7 +123,13 @@ trait SbtClientTest extends IntegrationTest {
     val newHandler: SbtClient => Unit = { client =>
       // TODO - better error reporting than everything.
       (client handleEvents {
-        msg => System.out.println(msg)
+        msg =>
+          System.out.println(msg)
+          msg match {
+            case e: sbt.protocol.ClosedEvent =>
+              clientCloseLatch.countDown()
+            case _ =>
+          }
       })(concurrent.ExecutionContext.global)
       try f(client)
       finally {
@@ -142,6 +151,7 @@ trait SbtClientTest extends IntegrationTest {
     try runOneThingExecutor.runWhenReady()
     finally connector.close()
     if (numConnects.get <= 0) sys.error("Never connected to sbt server!")
+    clientCloseLatch.await(10, TimeUnit.SECONDS)
     numConnects.get
   }
 

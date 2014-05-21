@@ -104,15 +104,20 @@ case class SendSyntheticValueChanged(key: ScopedKey) extends Request
 // This is issued if a request for a key value fails.
 case class KeyNotFound(key: ScopedKey) extends Response
 
-/** This is a local internal message fired when a client connection is detected
- * to be closed.
+/**
+ * This is fired as an implementation detail on server side when a client connection is detected
+ * to be closed. TODO having this in public API is sort of terrible.
  */
 case class ClientClosedRequest() extends Request
 
+/**
+ * This is synthesized client-side when a client connection closes. It
+ *  purposely has no Format since it doesn't go over the wire.
+ */
+case class ClosedEvent() extends Event
 
 case class KeyLookupRequest(name: String) extends Request
 case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
-
 
 // -----------------------------------------
 //                  Events

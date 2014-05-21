@@ -196,7 +196,14 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         }
       }
       // Here we think sbt connection has closed.
+
+      // make sure it's marked as closed on client side
       client.close()
+
+      // notify
+      eventManager.sendEvent(ClosedEvent())
+
+      // shut 'er down.
       requestHandler.close()
       completionsManager.close()
       keyLookupRequestManager.close()
