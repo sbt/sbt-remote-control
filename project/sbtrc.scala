@@ -14,14 +14,19 @@ object SbtRcBuild {
     FormattingPreferences()
       .setPreference(IndentSpaces, 2)
   }
-
+  val typesafeMvnReleases = "typesafe-mvn-private-releases" at "http://private-repo.typesafe.com/typesafe/mvn-releases/"
   val typesafeIvyReleases = Resolver.url("typesafe-ivy-private-releases", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases/"))(Resolver.ivyStylePatterns)
   // TODO - When SBT 0.13 is out we won't need this...
   val typesafeIvySnapshots = Resolver.url("typesafe-ivy-private-snapshots", new URL("http://private-repo.typesafe.com/typesafe/ivy-snapshots/"))(Resolver.ivyStylePatterns)
 
+  import sbtassembly.Plugin._
+  import sbtassembly.Plugin.AssemblyKeys._
+  lazy val RepackageDep = config("repackage-dep")
+
   def sbtrcDefaults: Seq[Setting[_]] =
     SbtScalariform.scalariformSettings ++
     Seq(
+      // TODO - Move everything ot com.typesafe.sbt
       organization := "com.typesafe.sbtrc",
       version <<= version in ThisBuild,
       crossPaths := false,
@@ -49,6 +54,27 @@ object SbtRcBuild {
       ScalariformKeys.preferences in Compile := formatPrefs,
       ScalariformKeys.preferences in Test    := formatPrefs
     )
+  def sbtrcRepackagedDefaults: Seq[Setting[_]] =
+    Seq(
+      organization := "com.typesafe.sbt",
+      publishMavenStyle := true,
+      publishTo := Some(typesafeMvnReleases),
+      pomIncludeRepository := { _ => false },
+      managedClasspath in RepackageDep := {
+        // TODO - Anything else we don't include?
+        def isExcluded(m: ModuleID): Boolean =
+          (m.organization == "org.scala-lang")
+        Classpaths.managedJars(RepackageDep, classpathTypes.value, update.value) filterNot { data =>
+          // TODO - Here we're filtering out scala things, although we want them as dependencies...
+          data get Keys.moduleID.key map isExcluded getOrElse false
+        }
+      },
+      assembleArtifact in packageScala := false,
+      fullClasspath in assembly <<= managedClasspath in RepackageDep,
+      packageBin in Compile <<= (assembly, artifactPath in packageBin in Compile) map {
+        (assembled, packaged) => IO.copyFile(assembled, packaged, false); packaged
+      }
+    )
 
   def sbtProbeSettings(sbtVersion: String): Seq[Setting[_]] =
     Seq(
@@ -68,6 +94,13 @@ object SbtRcBuild {
   def SbtRemoteControlProject(name: String): Project = (
     Project(name, file(name))
     settings(sbtrcDefaults:_*)
+  )
+
+  def SbtRemoteControlRepackagedProject(name: String): Project = (
+    SbtRemoteControlProject(name)
+    settings((assemblySettings) :_*)
+    settings(sbtrcRepackagedDefaults:_*)
+    configs(RepackageDep)
   )
 
   def SbtProbeProject(name: String, sbtVersion: String): Project = {
