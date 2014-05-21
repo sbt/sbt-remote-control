@@ -3,7 +3,8 @@ package server
 
 import java.io._
 
-/** An interface of a "safe-ish" logger which can dump information to a file.
+/**
+ * An interface of a "safe-ish" logger which can dump information to a file.
  *
  *  Implementations are expected to be safe for running inside the sbt-server,
  *  conforming to these expectations:
