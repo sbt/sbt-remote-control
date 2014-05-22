@@ -127,7 +127,14 @@ trait SbtClientTest extends IntegrationTest {
           System.out.println(msg)
           msg match {
             case e: sbt.protocol.ClosedEvent =>
-              clientCloseLatch.countDown()
+              // Check that adding a new handler gets us ANOTHER ClosedEvent immediately.
+              // Woo-hoo rube goldberg. The point here is that if you add a handler
+              // after close, you should still get ClosedEvent.
+              (client handleEvents {
+                case e: sbt.protocol.ClosedEvent =>
+                  clientCloseLatch.countDown()
+                case _ =>
+              })(concurrent.ExecutionContext.global)
             case _ =>
           }
       })(concurrent.ExecutionContext.global)
