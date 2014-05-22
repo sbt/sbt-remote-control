@@ -33,6 +33,10 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // or ignore it. We never want to report it synchronously
   // because that makes it super annoying for users of SbtClient to
   // deal with closed clients.
+
+  // sendJson and wrap the failure or serial in a Future
+  // (this is actually a synchronous operation but we want to
+  // make it look async so we don't synchronously throw)
   private def sendJson[T: Format](message: T): Future[Long] = {
     try Future.successful(client.sendJson(message))
     catch {
@@ -41,15 +45,11 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
 
-  private def sendJsonWithSerial[T: Format, R](message: T)(registration: Long => Future[R]): Future[R] = {
-    val serialFuture = sendJson(message)
-    serialFuture flatMap { serial =>
-      registration(serial)
-    }
-  }
-
+  // sendJson, get the serial and a promise that needs fulfilling to get the result.
+  // when the reply arrives you'd identify it with the serial and then complete
+  // the promise.
   private def sendJsonWithResult[T: Format, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
-    sendJsonWithSerial(message) { serial =>
+    sendJson(message) flatMap { serial =>
       val result = Promise[R]()
       registration(serial, result)
       result.future
@@ -83,17 +83,17 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    sendJsonWithSerial(ExecutionRequest(commandOrTask)) { serial =>
+    sendJson(ExecutionRequest(commandOrTask)) flatMap { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    sendJsonWithSerial(KeyExecutionRequest(key)) { serial =>
+    sendJson(KeyExecutionRequest(key)) flatMap { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
   def cancelExecution(id: Long): Future[Boolean] =
-    sendJsonWithSerial(CancelExecutionRequest(id)) { serial =>
+    sendJson(CancelExecutionRequest(id)) flatMap { serial =>
       cancelRequestManager.register(serial)
     }
 
