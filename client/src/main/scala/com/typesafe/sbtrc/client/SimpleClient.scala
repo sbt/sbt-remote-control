@@ -11,6 +11,7 @@ import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
 import java.io.Closeable
+import play.api.libs.json.Format
 
 /**
  * Very terrible implementation of the sbt client.
@@ -25,6 +26,36 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   override val humanReadableName: String,
   client: ipc.Client, closeHandler: () => Unit) extends SbtClient {
 
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  // We have two things we want to do with the sendJson error:
+  // either report it in the Future if we are going to return a Future,
+  // or ignore it. We never want to report it synchronously
+  // because that makes it super annoying for users of SbtClient to
+  // deal with closed clients.
+
+  // sendJson and wrap the failure or serial in a Future
+  // (this is actually a synchronous operation but we want to
+  // make it look async so we don't synchronously throw)
+  private def sendJson[T: Format](message: T): Future[Long] = {
+    try Future.successful(client.sendJson(message))
+    catch {
+      case NonFatal(e) =>
+        Future.failed(e)
+    }
+  }
+
+  // sendJson, get the serial and a promise that needs fulfilling to get the result.
+  // when the reply arrives you'd identify it with the serial and then complete
+  // the promise.
+  private def sendJsonWithResult[T: Format, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
+    sendJson(message) flatMap { serial =>
+      val result = Promise[R]()
+      registration(serial, result)
+      result.future
+    }
+  }
+
   // For now, use the global object.
   override def dynamicSerialization: DynamicSerialization = DynamicSerializaton
 
@@ -33,7 +64,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     // TODO this is really busted; we need to have a local cache of the latest build and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
-    client.sendJson(SendSyntheticBuildChanged())
+    sendJson(SendSyntheticBuildChanged())
     sub
   }
 
@@ -41,25 +72,30 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     buildEventManager.watch(listener)(ex)
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
-    val result = Promise[Set[Completion]]
-    completionsManager.register(client.sendJson(CommandCompletionsRequest(partialCommand, detailLevel)), result)
-    result.future
-  }
-  def lookupScopedKey(name: String): Future[Seq[ScopedKey]] = {
-    val result = Promise[Seq[ScopedKey]]
-    println("Sending key lookup request: " + name)
-    keyLookupRequestManager.register(client.sendJson(KeyLookupRequest(name)), result)
-    result.future
+    sendJsonWithResult(CommandCompletionsRequest(partialCommand, detailLevel)) { (serial: Long, result: Promise[Set[Completion]]) =>
+      completionsManager.register(serial, result)
+    }
   }
 
+  def lookupScopedKey(name: String): Future[Seq[ScopedKey]] = {
+    sendJsonWithResult(KeyLookupRequest(name)) { (serial: Long, result: Promise[Seq[ScopedKey]]) =>
+      keyLookupRequestManager.register(serial, result)
+    }
+  }
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    requestHandler.register(client.sendJson(ExecutionRequest(commandOrTask)), interaction).received
+    sendJson(ExecutionRequest(commandOrTask)) flatMap { serial =>
+      requestHandler.register(serial, interaction).received
+    }
   }
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    requestHandler.register(client.sendJson(KeyExecutionRequest(key)), interaction).received
+    sendJson(KeyExecutionRequest(key)) flatMap { serial =>
+      requestHandler.register(serial, interaction).received
+    }
   }
   def cancelExecution(id: Long): Future[Boolean] =
-    cancelRequestManager.register(client.sendJson(CancelExecutionRequest(id)))
+    sendJson(CancelExecutionRequest(id)) flatMap { serial =>
+      cancelRequestManager.register(serial)
+    }
 
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
@@ -69,7 +105,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     // TODO this is really busted; we need to have a local cache of the latest value and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
-    client.sendJson(SendSyntheticValueChanged(key.key))
+    sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
   def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
@@ -84,7 +120,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     // Right now, anytime we add a listener to a task we re-run that task (!!!)
     // Combined with the issue of adding interaction handlers, having watch() on tasks
     // do a notification right away may simply be a bad idea?
-    client.sendJson(SendSyntheticValueChanged(key.key))
+    sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
   def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
@@ -92,7 +128,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
 
   // TODO - Maybe we should try a bit harder here to `kill` the server.
   override def requestSelfDestruct(): Unit =
-    client.sendJson(KillServerRequest())
+    sendJson(KillServerRequest())
 
   // TODO - Implement
   def close(): Unit = {
@@ -268,6 +304,13 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private val listeningToEvents = new AtomicBoolean(false)
   private var listeners: Set[ListenerType[Event]] = Set.empty
 
+  private def sendJson[T: Format](message: T): Unit =
+    try client.sendJson(message)
+    catch {
+      case e: SocketException =>
+      // if the socket is closed, just ignore it
+    }
+
   def watch(listener: Listener)(implicit ex: ExecutionContext): Subscription = {
     val helper = wrapListener(listener, ex)
     addEventListener(helper)
@@ -281,13 +324,13 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private def addEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners += l
     if (listeningToEvents.compareAndSet(false, true)) {
-      client.sendJson(requestEventsMsg)
+      sendJson(requestEventsMsg)
     }
   }
   private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners -= l
     if (listeners.isEmpty && listeningToEvents.compareAndSet(true, false)) {
-      client.sendJson(requestUnlistenMsg)
+      sendJson(requestUnlistenMsg)
     }
   }
   def sendEvent(e: Event): Unit = synchronized {
