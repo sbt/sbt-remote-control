@@ -119,8 +119,8 @@ case class IntegrationContext(launchJar: File,
     IO.write(props, makePropertiesString(name, cwd))
     IO createDirectory (cwd / "project")
     // TODO - Is this needed?
-    IO.write(cwd / "project" / "build.properties", "sbt.version=" +
-        Dependencies.sbt12Version)
+    //IO.write(cwd / "project" / "build.properties", "sbt.version=" +
+    //    Dependencies.sbt13Version)
     val boot = cwd / "boot"
     val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 

@@ -11,9 +11,9 @@ object Dependencies {
   def getScalaVersionForSbtVersion(sbt: String) =
     crossSbtVersion(sbt) match {
       case "0.12" => "2.9.2"
-      case "0.13" => "2.10.3"
-      case _ => "2.10.3"
-      case _ => sys.error("Unsupported sbt version: " + sbt)
+      case "0.13" => "2.10.4"
+      case _ => "2.10.4"
+      //case _ => sys.error("Unsupported sbt version: " + sbt)
     }
 
   def makeSbtPlugin(m: ModuleID, sbtVersion: String): ModuleID = {
@@ -24,17 +24,15 @@ object Dependencies {
   }
 
   // Reference versions
-  val sbt12Version = "0.12.4"
-  val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
-  val sbt13Version = "0.13.5-M4"
+  val sbt13Version = "0.13.6-MSERVER-1"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
   // Here are the versions used for the core project
-  val scalaVersion = "2.10.3"
+  val scalaVersion = "2.10.4"
   val sbtMainVersion = sbt13Version
-  val akkaVersion = "2.2.0"
-  val playVersion = "2.2.1"
+  val akkaVersion = "2.2.1"
+  val playVersion = "2.3.0-RC1"
 
 
   // Here we declare our dependencies normally
@@ -46,7 +44,9 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
-  val playJson             = ("com.typesafe.play" % "play-json_2.10" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
+  val playJson             = ("com.typesafe.play" %% "play-json" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
+  
+  val jansi                = "org.fusesource.jansi" % "jansi" % "1.11"
   val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"
   val brokenJoda           = brokenJodaRaw % "provided"
   val akkaActor            = "com.typesafe.akka" % "akka-actor_2.10" % akkaVersion
@@ -72,9 +72,6 @@ object Dependencies {
       sbtOrg % "sbt" % sbtVersion
     )
   }
-  val playSbtPlugin12        =  makeSbtPlugin("play" % "sbt-plugin" % "2.1.5", sbt12Version)
-  val eclipseSbtPlugin12     =  makeSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.2.0", sbt12Version)
-  val ideaSbtPlugin12        =  makeSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.5.2", sbt12Version)
 
 
   // Mini DSL
