@@ -20,8 +20,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 trait SbtClientTest extends IntegrationTest {
-  // TODO - load from config
-  def defaultTimeout = concurrent.duration.Duration(60, java.util.concurrent.TimeUnit.SECONDS)
+  // TODO - load from config - this timeout is long because travis is slow
+  def defaultTimeout = concurrent.duration.Duration(180, java.util.concurrent.TimeUnit.SECONDS)
 
   /** helper to add error messages when waiting for results and timeouts occur. */
   def waitWithError[T](awaitable: scala.concurrent.Awaitable[T], msg: String): T = {
