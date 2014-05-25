@@ -146,7 +146,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   private object buildEventManager extends ListenerManager[MinimalBuildStructure, BuildStructureListener, ListenToBuildChange, UnlistenToBuildChange](ListenToBuildChange(), UnlistenToBuildChange(), client) {
     override def wrapListener(l: BuildStructureListener, ex: ExecutionContext) = new BuildListenerHelper(l, ex)
   }
-  private object valueEventManager {
+  private object valueEventManager extends Closeable {
     private var valueListeners = collection.mutable.Map.empty[ScopedKey, ValueChangeManager[_]]
 
     def apply[T](key: ScopedKey): ValueChangeManager[T] = synchronized {
@@ -159,6 +159,9 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
           valueListeners.put(key, mgr)
           mgr
       }
+    }
+    override def close(): Unit = {
+      valueListeners.values.foreach(_.close())
     }
   }
   def completePromisesOnClose(handlers: Map[_, Promise[_]]): Unit = {
@@ -236,10 +239,10 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       // make sure it's marked as closed on client side
       client.close()
 
-      // notify
-      eventManager.sendEvent(ClosedEvent())
-
       // shut 'er down.
+      eventManager.close() // sends ClosedEvent so do this first
+      valueEventManager.close()
+      buildEventManager.close()
       requestHandler.close()
       completionsManager.close()
       keyLookupRequestManager.close()
@@ -302,20 +305,28 @@ class RequestException(msg: String) extends Exception
 /** Abstracted mechanism of sending events. */
 trait ListenerType[Event] {
   def send(e: Event): Unit
+  def onClose(): Unit = {}
 }
 /** Helper to manage registering events and telling the server we want them. */
-private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, UnlistenMsg <: Request](requestEventsMsg: RequestMsg, requestUnlistenMsg: UnlistenMsg, client: ipc.Peer)(implicit format1: play.api.libs.json.Format[RequestMsg], format2: play.api.libs.json.Format[UnlistenMsg]) {
+private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, UnlistenMsg <: Request](requestEventsMsg: RequestMsg, requestUnlistenMsg: UnlistenMsg, client: ipc.Peer)(implicit format1: play.api.libs.json.Format[RequestMsg], format2: play.api.libs.json.Format[UnlistenMsg])
+  extends Closeable {
 
   def wrapListener(l: Listener, ex: ExecutionContext): ListenerType[Event]
 
   private val listeningToEvents = new AtomicBoolean(false)
   private var listeners: Set[ListenerType[Event]] = Set.empty
+  private var closed = false
 
   private def sendJson[T: Format](message: T): Unit =
+    // don't check the closed flag here, would be a race
     try client.sendJson(message)
     catch {
       case e: SocketException =>
-      // if the socket is closed, just ignore it
+      // if the socket is closed, just ignore it... close()
+      // will be called by the client to clear out
+      // and notify our listeners.
+      // Note that we may be INSIDE a call to close()
+      // right now since close() removes listeners
     }
 
   def watch(listener: Listener)(implicit ex: ExecutionContext): Subscription = {
@@ -329,9 +340,14 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   }
 
   private def addEventListener(l: ListenerType[Event]): Unit = synchronized {
-    listeners += l
-    if (listeningToEvents.compareAndSet(false, true)) {
-      sendJson(requestEventsMsg)
+    if (closed) {
+      // guarantee that listeners always get a ClosedEvent
+      l.onClose()
+    } else {
+      listeners += l
+      if (listeningToEvents.compareAndSet(false, true)) {
+        sendJson(requestEventsMsg)
+      }
     }
   }
   private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
@@ -348,6 +364,20 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
       }
     }
   }
+
+  override def close(): Unit = synchronized {
+    if (!closed) {
+      closed = true
+      listeners foreach { l =>
+        try l.onClose()
+        catch {
+          case NonFatal(_) => // Ignore non fatal exceptions from callbacks
+        }
+      }
+      while (listeners.nonEmpty)
+        removeEventListener(listeners.head)
+    }
+  }
 }
 
 /** A wrapped event listener that ensures events are fired on the desired execution context. */
@@ -360,6 +390,9 @@ private[client] class EventListenerHelper(listener: EventListener, ex: Execution
         listener(e)
       }
     })
+  }
+  override def onClose(): Unit = {
+    send(ClosedEvent())
   }
   override def hashCode = id.hashCode
   override def equals(o: Any): Boolean = o match {
