@@ -41,9 +41,10 @@ abstract class AbstractSbtServerLocator extends SbtServerLocator {
           case Some(uri) =>
             uri
           case _ =>
+            import scala.collection.JavaConverters._
             // readLines should get EOF since we got EOF on stdout...
             val errors = sbt.IO.readLines(error)
-            sys.error(s"Failed to start server, error output was: '${errors.mkString("\n")}'")
+            sys.error(s"Failed to start server, error output was: '${errors.mkString("\n")}' directory '${pb.directory}' command '${pb.command.asScala.mkString(" ")}'")
         }
       } finally {
         try input.close()
