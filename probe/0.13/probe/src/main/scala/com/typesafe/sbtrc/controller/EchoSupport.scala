@@ -43,9 +43,11 @@ object EchoSupport {
 
   import io.{ ShimWriter, GenericShimWriter }
   import ShimWriter.{
-    echoPlayPluginShim,
+    echoPlayPluginSbt132Shim,
+    echoPlayPluginSbt135Shim,
     echoPlayBuildShim,
-    echoPluginShim,
+    echoPluginSbt132Shim,
+    echoPluginSbt135Shim,
     echoAkkaBuildShim,
     echoPluginDeleteShim,
     echoAkkaBuildDeleteShim,
@@ -54,15 +56,24 @@ object EchoSupport {
   }
 
   def getEchoShims(state: State): Seq[ShimWriter] = {
-    // TODO - Detect play/akka by project.
-    val playSupported = PlaySupport.playVersion(state) map { version =>
-      val ok = VersionCompare(version, BuildInfo.supportedPlayVersionSbt013) <= 0
-      PoorManDebug.trace("Play version " + version + " required for Atmos " + BuildInfo.supportedPlayVersionSbt013 + " supported=" + ok)
+    val playVersion = PlaySupport.playVersion(state)
+    val akkaVersion = AkkaSupport.akkaVersion(state)
+
+    val useSbt135 = playVersion.map(_.startsWith("2.3."))
+      .getOrElse(akkaVersion.map(_.startsWith("2.3."))
+        .getOrElse(false))
+
+    val playSupported = playVersion map { version =>
+      val required = if (useSbt135) BuildInfo.supportedPlayVersionSbt135 else BuildInfo.supportedPlayVersionSbt132
+      val ok = VersionCompare(version, required) <= 0
+
+      PoorManDebug.trace("Play version " + version + " required for Atmos " + required + " supported=" + ok)
       ok
     } getOrElse false
-    val akkaSupported = AkkaSupport.akkaVersion(state) map { version =>
-      val ok = VersionCompare(version, BuildInfo.supportedAkkaVersionSbt013) <= 0
-      PoorManDebug.trace("Akka version " + version + " required for Atmos " + BuildInfo.supportedAkkaVersionSbt013 + " supported=" + ok)
+    val akkaSupported = akkaVersion map { version =>
+      val required = if (useSbt135) BuildInfo.supportedAkkaVersionSbt135 else BuildInfo.supportedAkkaVersionSbt132
+      val ok = VersionCompare(version, required) <= 0
+      PoorManDebug.trace("Akka version " + version + " required for Atmos " + required + " supported=" + ok)
       ok
     } getOrElse false
 
@@ -70,7 +81,8 @@ object EchoSupport {
     // TODO - We need a shim to turn off the echoBuildShim if an akka project migrates to play...
     if (playSupported && akkaSupported) {
       PoorManDebug.trace("Play+Echo hooks are needed.")
-      Seq(echoPlayPluginShim, echoPlayBuildShim,
+      Seq(if (useSbt135) echoPlayPluginSbt135Shim else echoPlayPluginSbt132Shim,
+        echoPlayBuildShim,
         // When installing Play support, make sure we delete Akka support,
         // or things get wonky.
         echoAkkaBuildDeleteShim, echoPluginDeleteShim)
@@ -78,7 +90,8 @@ object EchoSupport {
       PoorManDebug.trace("Akka+Echo hooks are needed.")
       // We have to also delete Play echo support if migrating from
       // play -> just akka.
-      Seq(echoPluginShim, echoAkkaBuildShim,
+      Seq(if (useSbt135) echoPluginSbt135Shim else echoPluginSbt132Shim,
+        echoAkkaBuildShim,
         echoPlayPluginDeleteShim, echoPlayBuildDeleteShim)
     } else {
       PoorManDebug.trace("No Echo hooks are needed.")

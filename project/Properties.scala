@@ -40,8 +40,9 @@ object Properties {
        |app.scala.version=%s
        |sbt.Xmx=512M
        |sbt.PermSize=128M
-       |sbt.echo.default.version=%s
-       |""".stripMargin format (version, sbtVersion, sbtScalaVersion(sbtVersion), scalaVersion, Dependencies.sbtEchoDefaultVersion)
+       |sbt.echo.sbt132.version=%s
+       |sbt.echo.sbt135.version=%s
+       |""".stripMargin format (version, sbtVersion, sbtScalaVersion(sbtVersion), scalaVersion, Dependencies.sbtEcho132Version, Dependencies.sbtEcho135Version)
   
   
   def sbtScalaVersion(sbtVersion: String): String =
