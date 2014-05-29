@@ -85,5 +85,5 @@ libraryDependencies += "com.typesafe.akka" %% "akka-actor" % "${akkaVersion}"
   }
 }
 
-class CanTraceAkka22 extends CanTraceAkkaProjects(akkaVersion = BuildInfo.supportedAkkaVersionSbt013, sbtVersionString = TestUtil.sbt13TestVersion, shouldAddEcho = true)
-class CannotTraceAkka23 extends CanTraceAkkaProjects(akkaVersion = "2.3.0-RC2", sbtVersionString = TestUtil.sbt13TestVersion, shouldAddEcho = false)
+class CanTraceAkka22 extends CanTraceAkkaProjects(akkaVersion = BuildInfo.supportedAkkaVersionSbt132, sbtVersionString = TestUtil.sbt13TestVersion, shouldAddEcho = true)
+class CanTraceAkka23 extends CanTraceAkkaProjects(akkaVersion = BuildInfo.supportedAkkaVersionSbt135, sbtVersionString = TestUtil.sbt135TestVersion, shouldAddEcho = true)

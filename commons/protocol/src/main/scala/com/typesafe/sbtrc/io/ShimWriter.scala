@@ -173,30 +173,41 @@ object ShimWriter {
       contents = """echoPlaySettings""",
       relativeLocation = "")
   lazy val echoPlayBuildDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-echo-play",relativeLocation="") 
-      
-  lazy val echoPluginShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo-play", relativeLocation = "")
+
+  lazy val echoPluginSbt132Shim =
     GenericShimWriter(
       name = "sbt-echo",
-      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_DEFAULT_VERSION + "\")",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_SBT_13_2_VERSION + "\")",
       relativeLocation = "project")
-  lazy val echoPluginDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-echo")
 
-  lazy val echoPlayPluginShim =
+  lazy val echoPlayPluginSbt132Shim =
     GenericShimWriter(
       name = "sbt-echo-play",
-      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_DEFAULT_VERSION + "\")",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_SBT_13_2_VERSION + "\")",
       relativeLocation = "project")
+
+  lazy val echoPluginSbt135Shim =
+    GenericShimWriter(
+      name = "sbt-echo",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_SBT_13_5_VERSION + "\")",
+      relativeLocation = "project")
+
+  lazy val echoPlayPluginSbt135Shim =
+    GenericShimWriter(
+      name = "sbt-echo-play",
+      contents = """addSbtPlugin("com.typesafe.sbt" % "sbt-echo-play" % """ + '"' + com.typesafe.sbtrc.properties.SbtRcProperties.SBT_ECHO_SBT_13_5_VERSION + "\")",
+      relativeLocation = "project")
+
+  lazy val echoPluginDeleteShim =
+    DeleteShimIfExistsWriter(name = "sbt-echo")
   lazy val echoPlayPluginDeleteShim =
-    DeleteShimIfExistsWriter(name = "sbt-echo-play")      
+    DeleteShimIfExistsWriter(name = "sbt-echo-play")
 
   def allEchoShims = Seq(
-    echoPlayPluginShim,
     echoPlayBuildShim,
-    echoPluginShim,
     echoAkkaBuildShim)
-   
+
   // Note - Right now, we aren't shiming echo into sbt 0.12 projects.
   // They have to already have echo configured for support to be enabled.
   def sbt12Shims(version: String): Seq[ShimWriter] = Seq(
@@ -231,6 +242,9 @@ object ShimWriter {
   
   def sbt13ideShims: Seq[ShimWriter] = Seq(eclipsePluginShim, ideaPluginShim)
 
+  // Danger: currently we call this for 0.12 and 0.13 before launching
+  // the sbt child, but for 0.13 we don't use this method to get the
+  // shim list after launching the child. I think.
   def knownShims(version: String, sbtVersion: String = "0.12"): Seq[ShimWriter] =
     sbtVersion match {
       case "0.12" => sbt12Shims(version)

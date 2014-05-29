@@ -55,8 +55,10 @@ object SbtRcBuild {
     buildInfoSettings ++
     Seq(sourceGenerators in Compile <+= buildInfo,
         buildInfoKeys ++= Seq[BuildInfoKey](
-          "supportedAkkaVersionSbt013" -> Dependencies.sbt013EchoSupportedAkkaVersion,
-          "supportedPlayVersionSbt013" -> Dependencies.sbt013EchoSupportedPlayVersion),
+          "supportedAkkaVersionSbt132" -> Dependencies.sbt132EchoSupportedAkkaVersion,
+          "supportedPlayVersionSbt132" -> Dependencies.sbt132EchoSupportedPlayVersion,
+          "supportedAkkaVersionSbt135" -> Dependencies.sbt135EchoSupportedAkkaVersion,
+          "supportedPlayVersionSbt135" -> Dependencies.sbt135EchoSupportedPlayVersion),
         buildInfoPackage := "com.typesafe.sbtrc")
   }
 

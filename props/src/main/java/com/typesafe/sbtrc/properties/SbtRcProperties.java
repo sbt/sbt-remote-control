@@ -81,7 +81,11 @@ public final class SbtRcProperties {
 		return lookupOr("sbt.PermSize", "128M");
 	}
 	
-	public static String SBT_ECHO_DEFAULT_VERSION() {
-		return getProperty("sbt.echo.default.version");
-	}
+        public static String SBT_ECHO_SBT_13_2_VERSION() {
+                return getProperty("sbt.echo.sbt132.version");
+        }
+
+        public static String SBT_ECHO_SBT_13_5_VERSION() {
+                return getProperty("sbt.echo.sbt135.version");
+        }
 }
