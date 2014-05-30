@@ -72,7 +72,10 @@ object EchoSupport {
     } getOrElse false
     val akkaSupported = akkaVersion map { version =>
       val required = if (useSbt135) BuildInfo.supportedAkkaVersionSbt135 else BuildInfo.supportedAkkaVersionSbt132
-      val ok = VersionCompare(version, required) <= 0
+      val ok = if (useSbt135)
+        VersionCompare(version, required) == 0 // we only support EXACTLY akka 2.3.3
+      else
+        VersionCompare(version, required) <= 0 // we support a range of akkas (for now)
       PoorManDebug.trace("Akka version " + version + " required for Atmos " + required + " supported=" + ok)
       ok
     } getOrElse false
