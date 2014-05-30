@@ -21,26 +21,26 @@ object Dependencies {
   // Reference versions
   val sbt12Version = "0.12.4"
   val sbt12ScalaVersion = getScalaVersionForSbtVersion(sbt12Version)
-  val sbt13Version = "0.13.0"
+  val sbt13Version = "0.13.5"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
 
   // Make sure to update supported versions if Echo plugin version is changed
   val sbtEcho12Version = "0.1.1"
   val sbtEcho132Version = "0.1.1"
-  val sbtEcho135Version = "0.1.2-RC1"
+  val sbtEcho135Version = "0.1.3"
   val sbt132EchoSupportedAkkaVersion = "2.2.4"
   val sbt132EchoSupportedPlayVersion = "2.2.2"
   val sbt135EchoSupportedAkkaVersion = "2.3.3"
   val sbt135EchoSupportedPlayVersion = "2.3.0"
 
   // Here are the versions used for the core project
-  val scalaVersion = "2.11.0"
+  val scalaVersion = "2.11.1"
   val sbtMainVersion = sbt13Version
-  val akkaVersion = "2.3.2"
+  val akkaVersion = "2.3.3"
 
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
-  val sbtIo                = sbtOrg % "io" % "0.13.6-MSERVER-1"
+  val sbtIo                = sbtOrg % "io" % sbtMainVersion
   // We use an old version here, so we're compatible...
   val sbtLauncherInterface    = "org.scala-sbt" % "launcher-interface" % sbtMainVersion
   val sbtCompletion           = "org.scala-sbt" % "completion" % sbtMainVersion
