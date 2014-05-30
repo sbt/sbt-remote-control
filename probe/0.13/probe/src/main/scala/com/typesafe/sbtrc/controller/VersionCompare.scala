@@ -20,11 +20,22 @@ object VersionCompare {
     // todo: could be optimized
     val abCompared = abParts.map {
       case (aV, bV) =>
-        try {
-          aV.toInt compare bV.toInt
-        } catch {
-          // if we can't compare because it's not an int then just set this one to 1
-          case e: NumberFormatException => 1
+        def parse(s: String): Either[Int, String] =
+          try Left(s.toInt)
+          catch {
+            case _: NumberFormatException => Right(s)
+          }
+        (parse(aV), parse(bV)) match {
+          case (Left(aI), Left(bI)) =>
+            aI compare bI
+          case (Right(aS), Right(bS)) =>
+            aS compare bS
+          // alphanumerics like "RC" are lower than 0
+          // so that RCs and betas sort before final releases
+          case (Left(aI), _) =>
+            1
+          case (_, Left(bI)) =>
+            -1
         }
     }
 
