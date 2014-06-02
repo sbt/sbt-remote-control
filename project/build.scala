@@ -108,7 +108,7 @@ object TheBuild extends Build {
          makeSbtLaunchProperties(
           "sbt-server.properties", 
           "com.typesafe.sbtrc.server.SbtServerMain", 
-          Some(sbtServer13), 
+          Some(sbtServer13),
           Some("${user.dir}/project/.sbtserver")),
        Keys.libraryDependencies ++= 
          Seq(
@@ -130,7 +130,7 @@ object TheBuild extends Build {
 
   // We load the client code from the client directory and build both a Scala 2.10 and Scala 2.11 variant.
   lazy val client: Project = makeClientProject("client-2-10", "2.10.4")
-  lazy val client211: Project = makeClientProject("client-2-11", "2.11.0")
+  lazy val client211: Project = makeClientProject("client-2-11", "2.11.1")
 
   // TODO - OSGi settings for this guy...
   def makeClientAllProject(name: String, scalaVersion: String, clientProj: Project): Project = (
@@ -164,7 +164,7 @@ object TheBuild extends Build {
     )
   )
   lazy val clientAll = makeClientAllProject("client-all", "2.10.4", client)
-  lazy val clientAll211 = makeClientAllProject("client-all-2-11", "2.11.0", client211)
+  lazy val clientAll211 = makeClientAllProject("client-all-2-11", "2.11.1", client211)
 
 
   lazy val terminal: Project = (
@@ -185,9 +185,10 @@ object TheBuild extends Build {
   // and not the whole thing.
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
-    dependsOnRemote(sbtLauncherInterface, sbtIo, brokenJoda)
-    dependsOn(client)
+    dependsOnRemote(sbtLauncherInterface, sbtIo cross CrossVersion.binary, brokenJoda)
+    dependsOn(client211)
     settings(
+      Keys.scalaVersion := "2.11.1"
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true
     )
   )
@@ -196,6 +197,7 @@ object TheBuild extends Build {
     SbtRemoteControlProject("it-runner")
     settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
     settings(
+      Keys.scalaVersion := "2.11.1",
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
