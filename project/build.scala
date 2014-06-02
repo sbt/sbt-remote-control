@@ -110,6 +110,9 @@ object TheBuild extends Build {
           "com.typesafe.sbtrc.server.SbtServerMain", 
           Some(sbtServer13), 
           Some("${user.dir}/project/.sbtserver")),
+       resourceGenerators in Compile += Def.task {
+         Seq(SbtSupport.sbtLaunchJar.value)
+       }.taskValue,
        Keys.libraryDependencies ++= 
          Seq(
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
