@@ -30,6 +30,7 @@ object Dependencies {
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.4"
+  val scala211Version = "2.11.1"
   val sbtMainVersion = sbt13Version
   val playVersion = "2.3.0"
 

@@ -129,8 +129,8 @@ object TheBuild extends Build {
   }
 
   // We load the client code from the client directory and build both a Scala 2.10 and Scala 2.11 variant.
-  lazy val client: Project = makeClientProject("client-2-10", "2.10.4")
-  lazy val client211: Project = makeClientProject("client-2-11", "2.11.1")
+  lazy val client: Project = makeClientProject("client-2-10", Dependencies.scalaVersion)
+  lazy val client211: Project = makeClientProject("client-2-11", Dependencies.scala211Version)
 
   // TODO - OSGi settings for this guy...
   def makeClientAllProject(name: String, scalaVersion: String, clientProj: Project): Project = (
@@ -163,8 +163,8 @@ object TheBuild extends Build {
       }
     )
   )
-  lazy val clientAll = makeClientAllProject("client-all", "2.10.4", client)
-  lazy val clientAll211 = makeClientAllProject("client-all-2-11", "2.11.1", client211)
+  lazy val clientAll = makeClientAllProject("client-all", Dependencies.scalaVersion, client)
+  lazy val clientAll211 = makeClientAllProject("client-all-2-11", Dependencies.scala211Version, client211)
 
 
   lazy val terminal: Project = (
@@ -185,11 +185,15 @@ object TheBuild extends Build {
   // and not the whole thing.
   lazy val itTests: Project = (
     SbtRemoteControlProject("integration-tests")
-    dependsOnRemote(sbtLauncherInterface, sbtIo cross CrossVersion.binary, brokenJoda)
-    dependsOn(client211)
+    dependsOn(clientAll211)
     settings(
-      Keys.scalaVersion := "2.11.1"
+      Keys.scalaVersion := Dependencies.scala211Version,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true
+      // We have to expose the jar here, because the normal exportJars value
+      // causes a circular task dependency with sbt-assembly
+      Keys.managedClasspath in Compile += {
+        Attributed.blank((packageBin in Compile in clientAll211).value)
+      }
     )
   )
 
@@ -197,17 +201,22 @@ object TheBuild extends Build {
     SbtRemoteControlProject("it-runner")
     settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
     settings(
-      Keys.scalaVersion := "2.11.1",
+      Keys.scalaVersion := Dependencies.scala211Version,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
       Keys.resolvers += Resolver.url("typesafe-ivy-private-releases", new URL("http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/"))(Resolver.ivyStylePatterns),
       // Additional dependencies required to run tests (so we don't re-resolve them):
       localRepoArtifacts += jansi,
-      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % "2.10.4",
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
+      localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
       localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % Dependencies.playVersion,
+
       localRepoArtifacts += "org.scala-sbt" % "sbt" % Dependencies.sbt13Version,
+      //localRepoArtifacts += "org.scala-sbt" % "io_2.11" % Dependencies.sbt13Version,
+      //localRepoArtifacts += "org.scala-sbt" % "collections_2.11" % Dependencies.sbt13Version,
+      //localRepoArtifacts += "com.typesafe.play" % "play-json_2.11" % Dependencies.playVersion,
       localRepoArtifacts += junitInterface % "test",
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
