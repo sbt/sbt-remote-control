@@ -18,11 +18,18 @@ object SbtSupport {
 
   def downloadFile(uri: String, file: File): File = {
     import dispatch.classic._
-    if(!file.exists) {
+    // nonexistent files have length 0 according to java.io.File
+    if(file.length <= 0) {
        // oddly, some places require us to create the file before writing...
        IO.touch(file)
        val writer = new java.io.BufferedOutputStream(new java.io.FileOutputStream(file))
        try Http(url(uri) >>> writer)
+       catch {
+         case e: Exception =>
+           // if download fails, attempt to get rid of the empty file
+           file.delete()
+           throw e
+       }
        finally writer.close()
     }
     // TODO - GPG Trust validation.
