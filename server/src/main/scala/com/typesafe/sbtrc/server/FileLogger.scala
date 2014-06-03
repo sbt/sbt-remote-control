@@ -97,6 +97,7 @@ class SimpleRollingFileLogger(
         // spewed out to clients.
         ()
       case ex: NullPointerException =>
+        // WORKAROUND for JDK6 bug.
         // If someone calls `write` on a closed resource, we get a null pointer exception.
         // This is thrown by the piece of code which OVERRIDES System.out/System.err, so it's
         // unsafe to do anything here.  We'll just limp along at this point.
