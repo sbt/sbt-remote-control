@@ -34,7 +34,10 @@ object FileLogger {
  * @param maxFileSize - The (soft) maximum size we allow a file to grow before we roll
  * @param numFiles  - The number of files to keep, when rolling.
  */
-class SimpleRollingFileLogger(file: File, maxFileSize: Long = 5 * 1024 * 1024, numFiles: Long = 10) extends FileLogger {
+class SimpleRollingFileLogger(
+  file: File,
+  maxFileSize: Long = 5 * 1024 * 1024,
+  numFiles: Long = 10) extends FileLogger {
   // Ensure the directory exists.
   sbt.IO.createDirectory(file.getParentFile)
   private var count = 1L
@@ -92,6 +95,14 @@ class SimpleRollingFileLogger(file: File, maxFileSize: Long = 5 * 1024 * 1024, n
         // the network socket and we are run in a hidden process.
         // SO, we try to limp along and see if information will get
         // spewed out to clients.
+        ()
+      case ex: NullPointerException =>
+        // WORKAROUND for JDK6 bug.
+        // If someone calls `write` on a closed resource, we get a null pointer exception.
+        // This is thrown by the piece of code which OVERRIDES System.out/System.err, so it's
+        // unsafe to do anything here.  We'll just limp along at this point.
+        // This happens if, e.g. the server is asked to die/quit and some stdout/stderr is written
+        // after that point.
         ()
     }
 }
