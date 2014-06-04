@@ -10,6 +10,8 @@ object SbtSupport {
   def currentDownloadUrl(v: String) = "http://repo.typesafe.com/typesafe/ivy-releases/org.scala-sbt/sbt-launch/"+v+"/sbt-launch.jar"
   def oldDownloadUrl(v: String) = "http://repo.typesafe.com/typesafe/ivy-releases/org.scala-tools.sbt/sbt-launch/"+v+"/sbt-launch.jar"
 
+  def localFile(v: String): File = new File(System.getProperty("user.home") + "/.ivy2/local/org.scala-sbt/sbt-launch/"+v+"/jars/sbt-launch.jar")
+
   def downloadUrlForVersion(v: String) = (v split "[^\\d]" filter (_ matches "[\\d]+") map (_.toInt)) match {
     case Array(0, 11, x, _*) if x >= 3 => currentDownloadUrl(v)
     case Array(0, y, _*) if y >= 12    => currentDownloadUrl(v)
@@ -18,20 +20,17 @@ object SbtSupport {
 
   def downloadFile(uri: String, file: File): File = {
     import dispatch.classic._
-    // nonexistent files have length 0 according to java.io.File
-    if(file.length <= 0) {
-       // oddly, some places require us to create the file before writing...
-       IO.touch(file)
-       val writer = new java.io.BufferedOutputStream(new java.io.FileOutputStream(file))
-       try Http(url(uri) >>> writer)
-       catch {
-         case e: Exception =>
-           // if download fails, attempt to get rid of the empty file
-           file.delete()
-           throw e
-       }
-       finally writer.close()
-    }
+     // oddly, some places require us to create the file before writing...
+     IO.touch(file)
+     val writer = new java.io.BufferedOutputStream(new java.io.FileOutputStream(file))
+     try Http(url(uri) >>> writer)
+     catch {
+       case e: Exception =>
+         // if download fails, attempt to get rid of the empty file
+         file.delete()
+         throw e
+     }
+     finally writer.close()
     // TODO - GPG Trust validation.
     file
   }
@@ -42,7 +41,21 @@ object SbtSupport {
     // TODO - We use a milestone launcher for now...
     sbtLaunchJarUrl := currentDownloadUrl(Dependencies.sbtMainVersion),
     sbtLaunchJarLocation <<= baseDirectory (_ / "target" / "sbt" / "sbt-launch.jar"),
-    sbtLaunchJar <<= (sbtLaunchJarUrl, sbtLaunchJarLocation) map downloadFile
+    sbtLaunchJar := {
+      val dest = sbtLaunchJarLocation.value
+      // nonexistent file returns 0 length
+      if (dest.length == 0) {
+        val local = localFile(Dependencies.sbtMainVersion)
+        if (local.length > 0) {
+          IO.copyFile(local, dest)
+          dest
+        } else {
+          downloadFile(sbtLaunchJarUrl.value, dest)
+        }
+      } else {
+        dest
+      }
+    }
   )
 
   val settings: Seq[Setting[_]] = Seq(
