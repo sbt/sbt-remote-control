@@ -21,9 +21,18 @@ abstract class AbstractSbtServerLocator extends SbtServerLocator {
   def sbtLaunchJar: File
   def sbtProperties(directory: File): URL
 
+  private def withTemporaryFileSavingTemps[T](prefix: String, postfix: String)(action: File => T): T = {
+    val file = File.createTempFile(prefix, postfix)
+    try { action(file) }
+    finally {
+      if (System.getenv("SBT_SERVER_SAVE_TEMPS") eq null)
+        file.delete()
+    }
+  }
+
   final override def locate(directory: File): URI = {
     // TODO - Windows friendly.
-    sbt.IO.withTemporaryFile("boot", "properties") { propsFile =>
+    withTemporaryFileSavingTemps("boot", "properties") { propsFile =>
       sbt.IO.download(sbtProperties(directory), propsFile)
       // TODO - Friendly java lookup and such
       val pb = new ProcessBuilder(
