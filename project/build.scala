@@ -73,7 +73,8 @@ object TheBuild extends Build {
                     |[repositories]
                     |  local
                     |  maven-central
-                    |
+                    |  typesafe-releases: http://repo.typesafe.com/typesafe/releases
+                    |  typesafe-ivy-releasez: http://repo.typesafe.com/typesafe/ivy-releases, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
                     |[boot]
                     |  directory: ${sbt.boot.directory-${sbt.global.base-${user.home}/.sbt}/boot/}
                     |
