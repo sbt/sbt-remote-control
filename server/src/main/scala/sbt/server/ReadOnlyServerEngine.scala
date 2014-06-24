@@ -121,7 +121,8 @@ class ReadOnlyServerEngine(
               client.reply(serial, ExecutionRequestReceived(id = work.id.id))
               if (isNew) {
                 // If this is a new item in the queue, tell all clients about it.
-                serverState.eventListeners.send(protocol.ExecutionWaiting(work.id.id, work.command))
+                serverState.eventListeners.send(protocol.ExecutionWaiting(work.id.id, work.command,
+                  client.info))
               }
             }
             // Now, we insert the work either at the end, or where it belongs.

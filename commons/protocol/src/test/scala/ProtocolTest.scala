@@ -63,7 +63,7 @@ class ProtocolTest {
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))),
       protocol.LogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.TestEvent(4, "name", None, protocol.TestOutcome("passed"), None),
-      protocol.ExecutionWaiting(41, "foo"),
+      protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO")),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
       protocol.ExecutionSuccess(44),

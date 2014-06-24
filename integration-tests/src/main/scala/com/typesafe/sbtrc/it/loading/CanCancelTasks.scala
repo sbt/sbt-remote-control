@@ -36,7 +36,7 @@ class CanCancelTasks extends SbtClientTest {
       val allDone = concurrent.promise[Unit]
       def handleEvent(event: Event): Unit = {
         event match {
-          case ExecutionWaiting(id, "infiniteLoop") => loopIdValue = id
+          case ExecutionWaiting(id, "infiniteLoop", client) => loopIdValue = id
           case ExecutionFailure(id) => if (id == loopIdValue) allDone.success(())
           case _ =>
         }
@@ -101,13 +101,13 @@ class CanCancelTasks extends SbtClientTest {
     verifySequence(events,
       Seq(
         NamedPf("infiniteLoopWaiting", {
-          case ExecutionWaiting(id, command) if ((command: String) == "infiniteLoop") => loopId = id
+          case ExecutionWaiting(id, command, client) if ((command: String) == "infiniteLoop") => loopId = id
         }),
         NamedPf("infiniteLoopStarted", {
           case ExecutionStarting(id) => assert(id == loopId)
         }),
         NamedPf("compileWaiting", {
-          case ExecutionWaiting(id, command) if ((command: String) == "compile") => compileId = id
+          case ExecutionWaiting(id, command, client) if ((command: String) == "compile") => compileId = id
         }),
         NamedPf("compileStarted", {
           case ExecutionStarting(id) => assert(id == compileId)

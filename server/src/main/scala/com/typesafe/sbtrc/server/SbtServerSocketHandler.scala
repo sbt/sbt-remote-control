@@ -48,20 +48,20 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
                 // list. But we aren't really worried about evil/hostile clients just
                 // detecting buggy clients so don't worry about it. Can't happen unless
                 // clients are badly broken (hardcoded fixed uuid?) or malicious.
-                if (clients.exists(_.uuid == req.uuid))
-                  throw replyAndException(s"UUID already in use: ${req.uuid}")
+                if (clients.exists(_.uuid == req.info.uuid))
+                  throw replyAndException(s"UUID already in use: ${req.info.uuid}")
               }
 
-              if (!req.configName.matches("^[-a-zA-Z0-9]+$"))
-                throw replyAndException(s"configName '${req.configName}' must be non-empty and ASCII alphanumeric only")
+              if (!req.info.configName.matches("^[-a-zA-Z0-9]+$"))
+                throw replyAndException(s"configName '${req.info.configName}' must be non-empty and ASCII alphanumeric only")
 
-              if (req.humanReadableName.isEmpty())
+              if (req.info.humanReadableName.isEmpty())
                 throw replyAndException(s"humanReadableName must not be empty")
 
-              try { (java.util.UUID.fromString(req.uuid), req, serial) }
+              try { (java.util.UUID.fromString(req.info.uuid), req.info, serial) }
               catch {
                 case e: IllegalArgumentException =>
-                  throw replyAndException(s"Invalid UUID format: '${req.uuid}'")
+                  throw replyAndException(s"Invalid UUID format: '${req.info.uuid}'")
               }
             case Envelope(serial, _, wtf) =>
               server.replyJson(serial, ErrorResponse("First message must be a RegisterClientRequest"))
