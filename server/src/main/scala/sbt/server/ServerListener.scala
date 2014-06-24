@@ -47,6 +47,9 @@ abstract class LiveClient extends SbtClient {
   def configName: String
   def humanReadableName: String
 
+  def info: protocol.ClientInfo =
+    protocol.ClientInfo(uuid = uuid.toString, configName = configName, humanReadableName = humanReadableName)
+
   /** requests a line of input from the client.  This will return sometime in the future. */
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */

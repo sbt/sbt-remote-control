@@ -103,7 +103,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
     val rawClient = new ipc.Client(socket)
     val uuid = java.util.UUID.randomUUID()
-    val registerSerial = rawClient.sendJson(RegisterClientRequest(uuid.toString, configName, humanReadableName))
+    val registerSerial = rawClient.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)))
     Envelope(rawClient.receive()) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")

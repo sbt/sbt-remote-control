@@ -182,8 +182,9 @@ package object protocol {
   }
   implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
   implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
+  implicit val clientInfoFormat = Json.format[ClientInfo]
   implicit val registerClientRequestFormat = Json.format[RegisterClientRequest]
-  implicit val testEventFormat = Json.format[TestEvent]     
+  implicit val testEventFormat = Json.format[TestEvent]
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
   implicit val keyExecutionRequestFormat = Json.format[KeyExecutionRequest]
   implicit val executionReceivedFormat = Json.format[ExecutionRequestReceived]

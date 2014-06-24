@@ -33,12 +33,13 @@ sealed trait Response extends Message
 /** Events that get sent during requests to sbt. */
 sealed trait Event extends Message
 
-
 // ------------------------------------------
 //              Requests (Reactive API)
 // ------------------------------------------
 
-case class RegisterClientRequest(uuid: String, configName: String, humanReadableName: String) extends Request
+case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
+
+case class RegisterClientRequest(info: ClientInfo) extends Request
 
 case class CancelExecutionRequest(id: Long) extends Request
 case class CancelExecutionResponse(attempted: Boolean) extends Response
@@ -49,7 +50,7 @@ case class KeyExecutionRequest(key: ScopedKey) extends Request
 // then the id will be the same for the combined requests.
 case class ExecutionRequestReceived(id: Long) extends Response
 // execution queued up
-case class ExecutionWaiting(id: Long, command: String) extends Event
+case class ExecutionWaiting(id: Long, command: String, client: ClientInfo) extends Event
 // about to execute this one (popped off the queue)
 case class ExecutionStarting(id: Long) extends Event
 // finished executing successfully

@@ -177,8 +177,11 @@ class TestExecution extends SbtClientTest {
         var dep1TaskId = -1L
         verifySequence(recordedDep1.events, Seq(
           {
-            case ExecutionWaiting(id, command) if ((command: String) == "dep1") =>
+            case ExecutionWaiting(id, command, clientInfo) if ((command: String) == "dep1") =>
               executionId = id
+              assert(clientInfo.uuid == client.uuid.toString)
+              assert(clientInfo.configName == client.configName)
+              assert(clientInfo.humanReadableName == client.humanReadableName)
           },
           {
             case ExecutionStarting(id) =>
@@ -226,8 +229,11 @@ class TestExecution extends SbtClientTest {
         var end1TaskId = -1L
         verifySequence(recordedEnd1.events, Seq(
           {
-            case ExecutionWaiting(id, command) if ((command: String) == "end1") =>
+            case ExecutionWaiting(id, command, clientInfo) if ((command: String) == "end1") =>
               executionId = id
+              assert(clientInfo.uuid == client.uuid.toString)
+              assert(clientInfo.configName == client.configName)
+              assert(clientInfo.humanReadableName == client.humanReadableName)
           },
           {
             case ExecutionStarting(id) =>
@@ -277,8 +283,11 @@ class TestExecution extends SbtClientTest {
         var end1TaskId = -1L
         verifySequence(recordedEnd1End2.events, Seq(
           {
-            case ExecutionWaiting(id, command) if ((command: String) == ";end1;end2") =>
+            case ExecutionWaiting(id, command, clientInfo) if ((command: String) == ";end1;end2") =>
               executionId = id
+              assert(clientInfo.uuid == client.uuid.toString)
+              assert(clientInfo.configName == client.configName)
+              assert(clientInfo.humanReadableName == client.humanReadableName)
           },
           {
             case ExecutionStarting(id) =>
