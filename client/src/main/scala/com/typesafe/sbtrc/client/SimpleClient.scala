@@ -301,7 +301,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
 
 }
 
-class RequestException(msg: String) extends Exception
+class RequestException(msg: String) extends Exception(msg)
 /** Abstracted mechanism of sending events. */
 trait ListenerType[Event] {
   def send(e: Event): Unit
