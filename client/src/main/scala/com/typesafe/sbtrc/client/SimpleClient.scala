@@ -37,19 +37,34 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // sendJson and wrap the failure or serial in a Future
   // (this is actually a synchronous operation but we want to
   // make it look async so we don't synchronously throw)
-  private def sendJson[T: Format](message: T): Future[Long] = {
-    try Future.successful(client.sendJson(message))
+  private def sendJson[T: Format](message: T, serial: Long): Future[Unit] = {
+    try Future.successful(client.sendJson(message, serial))
     catch {
       case NonFatal(e) =>
         Future.failed(e)
     }
   }
 
-  // sendJson, get the serial and a promise that needs fulfilling to get the result.
-  // when the reply arrives you'd identify it with the serial and then complete
-  // the promise.
+  private def sendJson[T: Format](message: T): Future[Unit] =
+    sendJson(message, client.serialGetAndIncrement())
+
+  // sendJson, providing a registration function which provides a future
+  // representing the reply. The registration function would complete its
+  // future by finding a reply with the serial passed to the registration
+  // function.
+  private def sendJsonWithRegistration[T: Format, R](message: T)(registration: Long => Future[R]): Future[R] = {
+    val serial = client.serialGetAndIncrement()
+    val result = registration(serial)
+    // TODO we should probably arrange for this to time out and to get an error
+    // on client close, right now the future can remain incomplete indefinitely
+    // unless the registration function avoids that (some of ours do though by
+    // completing the future when the client is closed).
+    sendJson(message, serial) flatMap { _ => result }
+  }
+
+  // like sendJsonWithRegistration but provides a prebuilt promise
   private def sendJsonWithResult[T: Format, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
-    sendJson(message) flatMap { serial =>
+    sendJsonWithRegistration(message) { serial =>
       val result = Promise[R]()
       registration(serial, result)
       result.future
@@ -83,17 +98,17 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    sendJson(ExecutionRequest(commandOrTask)) flatMap { serial =>
+    sendJsonWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    sendJson(KeyExecutionRequest(key)) flatMap { serial =>
+    sendJsonWithRegistration(KeyExecutionRequest(key)) { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
   def cancelExecution(id: Long): Future[Boolean] =
-    sendJson(CancelExecutionRequest(id)) flatMap { serial =>
+    sendJsonWithRegistration(CancelExecutionRequest(id)) { serial =>
       cancelRequestManager.register(serial)
     }
 
@@ -178,7 +193,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         case Some(handler) =>
           handler.success(completions)
           handlers -= serial
-        case None => // ignore
+        case None =>
+          System.err.println(s"Received an unexpected reply to serial ${serial}")
       }
     }
     override def close(): Unit = completePromisesOnClose(handlers)
@@ -188,7 +204,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     private var handlers: Map[Long, Promise[Boolean]] = Map.empty
 
     def register(id: Long): Future[Boolean] = synchronized {
-      val p = concurrent.promise[Boolean]
+      val p = Promise[Boolean]()
       handlers += (id -> p)
       p.future
     }
@@ -319,7 +335,7 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
 
   private def sendJson[T: Format](message: T): Unit =
     // don't check the closed flag here, would be a race
-    try client.sendJson(message)
+    try client.sendJson(message, client.serialGetAndIncrement())
     catch {
       case e: SocketException =>
       // if the socket is closed, just ignore it... close()

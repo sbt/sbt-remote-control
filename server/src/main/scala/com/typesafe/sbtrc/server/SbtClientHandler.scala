@@ -118,9 +118,10 @@ class SbtClientHandler(
     }
     def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
       synchronized {
-        val result = promise[Option[String]]
-        val newSerial = ipc.sendJson(ReadLineRequest(executionId.id, prompt, mask))
+        val result = Promise[Option[String]]()
+        val newSerial = ipc.serialGetAndIncrement()
         readLineRequests += newSerial -> result
+        ipc.sendJson(ReadLineRequest(executionId.id, prompt, mask), newSerial)
         result.future
       }
     def lineRead(serial: Long, line: Option[String]): Unit =
@@ -135,9 +136,10 @@ class SbtClientHandler(
       }
     def confirm(executionId: ExecutionId, msg: String): concurrent.Future[Boolean] =
       synchronized {
-        val result = promise[Boolean]
-        val newSerial = ipc.sendJson(ConfirmRequest(executionId.id, msg))
+        val result = Promise[Boolean]()
+        val newSerial = ipc.serialGetAndIncrement()
         confirmRequests += newSerial -> result
+        ipc.sendJson(ConfirmRequest(executionId.id, msg), newSerial)
         result.future
       }
 
