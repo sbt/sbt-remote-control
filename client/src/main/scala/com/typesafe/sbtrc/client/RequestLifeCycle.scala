@@ -7,7 +7,7 @@ import java.io.Closeable
 
 /** Handles events during a request's lifecycle. */
 private[client] class RequestLifecycle(val serial: Long, val interaction: Interaction) {
-  private val receivedPromise = concurrent.promise[Long]
+  private val receivedPromise = concurrent.Promise[Long]
   val received = receivedPromise.future
   def error(msg: String): Unit =
     receivedPromise.failure(new RequestException(msg))

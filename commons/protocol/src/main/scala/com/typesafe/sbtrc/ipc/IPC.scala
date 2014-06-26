@@ -44,7 +44,7 @@ abstract class Peer(protected val socket: Socket) {
   private val nextSerial = new AtomicInteger(1)
 
   protected def handshake(toSend: String, toExpect: String): Unit = try {
-    sendString(toSend)
+    sendString(toSend, serialGetAndIncrement())
 
     val m = receive()
     if (m.serial != 1L) {
@@ -63,7 +63,13 @@ abstract class Peer(protected val socket: Socket) {
 
   def isClosed = socket.isClosed()
 
+  // this is not automatic because if you want to use the serial you need
+  // to be sure to record it BEFORE you send the message with that serial.
+  def serialGetAndIncrement(): Long =
+    nextSerial.getAndIncrement()
+
   def send(message: WireEnvelope): Unit = out.synchronized {
+    require(message.serial < nextSerial.get)
     if (isClosed)
       throw new SocketException("socket is closed")
     out.writeInt(message.length)
@@ -73,15 +79,13 @@ abstract class Peer(protected val socket: Socket) {
     out.flush()
   }
 
-  def send(message: Array[Byte]): Long = {
-    reply(0L, message)
-  }
+  def send(message: Array[Byte], serial: Long): Unit =
+    send(WireEnvelope(length = message.length, serial = serial,
+      replyTo = 0L, content = message))
 
-  def reply(replyTo: Long, message: Array[Byte]): Long = {
-    val serial = nextSerial.getAndIncrement()
-    send(WireEnvelope(message.length, serial, replyTo, message))
-    serial
-  }
+  def reply(replyTo: Long, message: Array[Byte]): Unit =
+    send(WireEnvelope(length = message.length, serial = serialGetAndIncrement(),
+      replyTo = replyTo, content = message))
 
   def receive(): WireEnvelope = in.synchronized {
     if (isClosed)
@@ -96,24 +100,21 @@ abstract class Peer(protected val socket: Socket) {
     WireEnvelope(length, serial, replyTo, bytes)
   }
 
-  def sendString(message: String): Long = {
-    send(message.getBytes(utf8))
-  }
+  def sendString(message: String, serial: Long): Unit =
+    send(message.getBytes(utf8), serial)
 
-  def replyString(replyTo: Long, message: String): Long = {
+  def replyString(replyTo: Long, message: String): Unit =
     reply(replyTo, message.getBytes(utf8))
-  }
 
-  def sendJson[T: Format](message: T): Long = {
+  def sendJson[T: Format](message: T, serial: Long): Unit =
     replyJson(0L, message)
-  }
 
-  def replyJson[T: Format](replyTo: Long, message: T): Long = {
-   val json = message match {
+  def replyJson[T: Format](replyTo: Long, message: T): Unit = {
+    val json = message match {
       // TODO - This is our hack to add the event identifications.
       case m: sbt.protocol.Message => sbt.protocol.WireProtocol.toRaw(m)
       case _ => // TODO - Is raw message ok?
-              Json.toJson(message)
+        Json.toJson(message)
     }
     replyString(replyTo, json.toString)
   }

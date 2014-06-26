@@ -13,7 +13,8 @@ object DebugClient {
     val uuid = java.util.UUID.randomUUID()
     val configName = "debug-client"
     val humanReadableName = "Debug Client"
-    client.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)))
+    client.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)),
+      client.serialGetAndIncrement())
     new SimpleSbtClient(uuid, configName, humanReadableName, client, closeHandler = () => ())
   }
 }
