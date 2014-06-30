@@ -6,6 +6,7 @@ import sbt.client._
 import sbt.protocol._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
+import concurrent.Promise
 import java.io.File
 import sbt.client.ScopedKey
 
@@ -29,7 +30,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     """object Foo(x: String)""".stripMargin)
 
   withSbt(dummy) { client =>
-    val build = concurrent.promise[MinimalBuildStructure]
+    val build = Promise[MinimalBuildStructure]
     import concurrent.ExecutionContext.Implicits.global
     client watchBuild build.trySuccess
     val result = waitWithError(build.future, "Never got build structure.")
@@ -44,9 +45,9 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     def testTask(requestExecution: => concurrent.Future[Long]): Unit = {
       // Attempt to call a custom task and ensure we get our stdout events.
-      val stdoutCaptured = concurrent.promise[Unit]
-      val logInfoCaptured = concurrent.promise[Unit]
-      val stderrCaptured = concurrent.promise[Unit]
+      val stdoutCaptured = Promise[Unit]
+      val logInfoCaptured = Promise[Unit]
+      val stderrCaptured = Promise[Unit]
       val stdoutSub = (client handleEvents {
         case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
           if (taskId != 0)
@@ -78,7 +79,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     // Now we check compilation failure messages
-    val compileErrorCaptured = concurrent.promise[CompilationFailure]
+    val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
       case x: CompilationFailure =>
         compileErrorCaptured.success(x)

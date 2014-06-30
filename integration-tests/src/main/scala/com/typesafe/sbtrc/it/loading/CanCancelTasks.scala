@@ -6,7 +6,7 @@ import sbt.client._
 import sbt.protocol._
 import java.util.concurrent.Executors
 import concurrent.duration.Duration.Inf
-import concurrent.{ Await, ExecutionContext }
+import concurrent.{ Await, ExecutionContext, Promise }
 import java.io.File
 import sbt.client.ScopedKey
 import java.util.concurrent.LinkedBlockingQueue
@@ -33,7 +33,7 @@ class CanCancelTasks extends SbtClientTest {
       val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_])]()
       val events = new LinkedBlockingQueue[Event]()
       var loopIdValue = 0L
-      val allDone = concurrent.promise[Unit]
+      val allDone = Promise[Unit]
       def handleEvent(event: Event): Unit = {
         event match {
           case ExecutionWaiting(id, "infiniteLoop", client) => loopIdValue = id

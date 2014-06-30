@@ -2,7 +2,7 @@ package sbt
 package server
 
 import sbt.protocol._
-import concurrent.Future
+import concurrent.{ Future, Promise }
 
 final case class ExecutionId(id: Long) {
   require(id != 0L)
@@ -38,7 +38,7 @@ object WorkCancellationStatus {
   /** constructs a new handler for cancel/complete notifications internally. */
   def apply(): WorkCancellationStatus =
     new WorkCancellationStatus {
-      private val completer = concurrent.promise[Unit]
+      private val completer = Promise[Unit]
       override def onCancel(f: () => Unit): Unit =
         completer.future.foreach(_ => f())(SameThreadExecutionContext)
       override def isCancelled: Boolean = completer.isCompleted

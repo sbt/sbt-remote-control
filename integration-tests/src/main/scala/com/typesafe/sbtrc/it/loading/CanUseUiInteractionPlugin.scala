@@ -6,6 +6,7 @@ import sbt.client._
 import sbt.protocol._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
+import concurrent.Promise
 import scala.collection.JavaConverters._
 import play.api.libs.json.Json
 
@@ -78,8 +79,8 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
       }
     }
     val events = new java.util.concurrent.ConcurrentLinkedQueue[Event]
-    val taskResult = concurrent.promise[Boolean]
-    val executionResult = concurrent.promise[Boolean]
+    val taskResult = Promise[Boolean]
+    val executionResult = Promise[Boolean]
     (client handleEvents {
       case TaskFinished(executionId, taskId, key, result) =>
         if (key.map(_.key.name) == Some("readInput")) {
@@ -102,7 +103,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     // Now we try to grab the value of maketestThing 
     // We must explicitly register the mechanism of deserializing the custom message.
     client.dynamicSerialization.register(SerializedThing.format)
-    val testThingValuePromise = concurrent.promise[sbt.protocol.TaskResult[SerializedThing]]
+    val testThingValuePromise = Promise[sbt.protocol.TaskResult[SerializedThing]]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>
         client.watch(TaskKey[SerializedThing](key)) { (key, value) =>
