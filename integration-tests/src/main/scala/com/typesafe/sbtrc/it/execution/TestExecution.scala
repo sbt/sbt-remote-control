@@ -5,13 +5,12 @@ package execution
 import sbt.client._
 import sbt.protocol._
 import concurrent.duration.Duration.Inf
-import concurrent.Await
+import concurrent.{ Await, ExecutionContext, Promise }
 import collection.JavaConversions
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import scala.annotation.tailrec
 import java.util.concurrent.Executors
-import scala.concurrent.ExecutionContext
 
 class TestExecution extends SbtClientTest {
   val dummy = utils.makeDummySbtProject("execution")
@@ -67,7 +66,7 @@ class TestExecution extends SbtClientTest {
     val executorService = Executors.newSingleThreadExecutor()
     implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
     try {
-      val build = concurrent.promise[MinimalBuildStructure]
+      val build = Promise[MinimalBuildStructure]
 
       client watchBuild build.trySuccess
       val result = waitWithError(build.future, "Never got build structure.")

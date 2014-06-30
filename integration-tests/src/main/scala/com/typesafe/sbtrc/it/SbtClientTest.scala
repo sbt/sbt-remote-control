@@ -18,6 +18,7 @@ import xsbti.{
 import java.nio.charset.Charset.defaultCharset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import concurrent.Promise
 
 trait SbtClientTest extends IntegrationTest {
   // TODO - load from config - this timeout is long because travis is slow
@@ -99,7 +100,7 @@ trait SbtClientTest extends IntegrationTest {
     val clientCloseLatch = new CountDownLatch(1)
     // TODO - Executor for this thread....
     object runOneThingExecutor extends concurrent.ExecutionContext {
-      private var task = concurrent.promise[Runnable]
+      private var task = Promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
         // We track the number of times our registered connect handler is called here,
         // as we never execute any other future.

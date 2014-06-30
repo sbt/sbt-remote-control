@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package client
 
 import xsbti.{ AppMain, AppConfiguration }
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, Promise }
 import sbt.client.{
   Interaction,
   SbtClient,
@@ -64,7 +64,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
           // Here we wait for the result of both starting (or failure) and the completion of the command.
           val executionFuture = (started flatMap { executionId =>
             // Register for when the execution is done.
-            val executionDone = concurrent.promise[Unit]
+            val executionDone = Promise[Unit]
             // TODO this is broken because we add the event handler
             // AFTER we request execution, which means we might miss
             // the events. We need to add the event handler first
