@@ -18,6 +18,7 @@ import java.io._
 trait FileLogger {
   def log(msg: String): Unit
   def error(msg: String, e: Throwable): Unit
+  def file: File
 }
 object FileLogger {
   def apply(f: File): FileLogger = new SimpleRollingFileLogger(f)
@@ -35,7 +36,7 @@ object FileLogger {
  * @param numFiles  - The number of files to keep, when rolling.
  */
 class SimpleRollingFileLogger(
-  file: File,
+  val file: File,
   maxFileSize: Long = 5 * 1024 * 1024,
   numFiles: Long = 10) extends FileLogger {
   // Ensure the directory exists.
