@@ -90,7 +90,7 @@ trait SbtClientTest extends IntegrationTest {
    *
    * @return the number of connects
    */
-  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Int = {
+  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
@@ -189,7 +189,6 @@ trait SbtClientTest extends IntegrationTest {
     } finally connector.close()
 
     clientCloseLatch.await(15, TimeUnit.SECONDS)
-    numConnects.get
   }
 
   lazy val utils = new TestUtil(new java.io.File("scratch"))
