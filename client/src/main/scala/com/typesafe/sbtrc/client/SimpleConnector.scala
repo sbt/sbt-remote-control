@@ -146,12 +146,14 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     ctx: ExecutionContext) {
     def emitConnected(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
+        override def toString = s"Runnable(onConnect(${client.configName} ${client.uuid}))"
         override def run(): Unit = {
           onConnect(client)
         }
       })
     def emitError(reconnecting: Boolean, message: String): Unit =
       ctx.prepare.execute(new Runnable() {
+        override def toString = s"Runnable(onError(reconnecting=${reconnecting}, ${message}))"
         override def run(): Unit = {
           onError(reconnecting, message)
         }
