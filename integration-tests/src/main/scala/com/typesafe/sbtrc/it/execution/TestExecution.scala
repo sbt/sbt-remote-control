@@ -13,11 +13,107 @@ import scala.annotation.tailrec
 import java.util.concurrent.Executors
 
 class TestExecution extends SbtClientTest {
-  val dummy = utils.makeDummySbtProject("execution")
 
-  sbt.IO.write(new java.io.File(dummy, "execution.sbt"),
+  val executorService = Executors.newSingleThreadExecutor()
+  implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
+  try {
 
-    """| val dep1 = taskKey[Int]("A dependency 1.")
+    case class ExecutionRecord(results: Map[ScopedKey, sbt.client.TaskResult[_]], events: Seq[Event])
+
+    def recordExecution(client: SbtClient, command: String): concurrent.Future[ExecutionRecord] = {
+      val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_])]()
+      val events = new LinkedBlockingQueue[Event]()
+      val executionDone = concurrent.Promise[Unit]()
+      val futureWatches = for {
+        dep1 <- client.lookupScopedKey("dep1").map(_.head)
+        dep2 <- client.lookupScopedKey("dep2").map(_.head)
+        end1 <- client.lookupScopedKey("end1").map(_.head)
+        end2 <- client.lookupScopedKey("end2").map(_.head)
+        trigger1 <- client.lookupScopedKey("trigger1").map(_.head)
+      } yield {
+        def saveResult[T]: ValueListener[T] = { (key, result) =>
+          results.add(key -> result)
+        }
+        Seq(client.lazyWatch(TaskKey[Int](dep1))(saveResult),
+          client.lazyWatch(TaskKey[String](dep2))(saveResult),
+          client.lazyWatch(TaskKey[Int](end1))(saveResult),
+          client.lazyWatch(TaskKey[String](end2))(saveResult),
+          client.lazyWatch(TaskKey[Int](trigger1))(saveResult))
+      }
+      def handleEvent(event: Event): Unit = {
+        events.add(event)
+        event match {
+          case _: ExecutionFailure | _: ExecutionSuccess =>
+            executionDone.success(())
+          case _ =>
+        }
+      }
+      val eventHandler = client.handleEvents(handleEvent)
+      val futureTestDone = for {
+        watches <- futureWatches
+        executionId <- client.requestExecution(command, interaction = None)
+        _ <- executionDone.future // wait for complete
+      } yield {
+        var resultsMap = Map.empty[ScopedKey, sbt.client.TaskResult[_]]
+        while (!results.isEmpty())
+          resultsMap += results.take()
+        var eventsList = List.empty[Event]
+        while (!events.isEmpty())
+          eventsList ::= events.take()
+        ExecutionRecord(resultsMap, eventsList.reverse)
+      }
+      futureTestDone.onComplete { _ =>
+        futureWatches.map(_.map(_.cancel()))
+        eventHandler.cancel()
+      }
+      futureTestDone
+    }
+
+    // sequence must match expected items in order, but may have other items too
+    @tailrec
+    def verifySequence(items: Seq[_], expecteds: Seq[PartialFunction[Any, Unit]]): Unit = {
+      def verifyOne(items: List[_], expected: PartialFunction[Any, Unit]): List[_] = items match {
+        case head :: tail =>
+          if (expected.isDefinedAt(head)) {
+            expected.apply(head)
+            // uncomment this to find failures
+            //System.err.println("Matched: " + head)
+            tail
+          } else {
+            verifyOne(tail, expected)
+          }
+        case Nil =>
+          // not that PartialFunction.toString is useful... uncomment
+          // above println which logs each match to see where we stop
+          throw new AssertionError(s"No items matching ${expected}")
+      }
+
+      expecteds.toList match {
+        case head :: tail =>
+          val remaining = verifyOne(items.toList, head)
+          verifySequence(remaining, tail)
+        case Nil =>
+      }
+    }
+
+    def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T): Unit = {
+      record.results.collect({
+        case (key, result) if key.key.name == taskName =>
+          result
+      }).headOption match {
+        case Some(TaskSuccess(value)) if ((value.value: Option[_]) == Some(expected)) => // ok!
+        case Some(TaskSuccess(value)) =>
+          throw new AssertionError(s"Value of ${taskName} was was ${value}, expected Some(${expected})")
+        case wrong =>
+          throw new AssertionError(s"Result of ${taskName} was was ${wrong}, expected Some(TaskSuccess(${expected}))")
+      }
+    }
+
+    val dummy = utils.makeDummySbtProject("execution")
+
+    sbt.IO.write(new java.io.File(dummy, "execution.sbt"),
+
+      """| val dep1 = taskKey[Int]("A dependency 1.")
        |
        | dep1 := {
        |   System.out.println("dep1-stdout")
@@ -60,12 +156,10 @@ class TestExecution extends SbtClientTest {
        |
        | // TODO is there a better way to write this?
        | trigger1 <<= trigger1 triggeredBy end1
+       |
        |""".stripMargin)
 
-  withSbt(dummy) { client =>
-    val executorService = Executors.newSingleThreadExecutor()
-    implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
-    try {
+    withSbt(dummy) { client =>
       val build = Promise[MinimalBuildStructure]
 
       client watchBuild build.trySuccess
@@ -75,100 +169,9 @@ class TestExecution extends SbtClientTest {
       assert(project.id.name == "execution", "failed to discover project name == file name.")
       assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
 
-      case class ExecutionRecord(results: Map[ScopedKey, sbt.client.TaskResult[_]], events: Seq[Event])
-
-      def recordExecution(command: String): concurrent.Future[ExecutionRecord] = {
-        val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_])]()
-        val events = new LinkedBlockingQueue[Event]()
-        val executionDone = concurrent.Promise[Unit]()
-        val futureWatches = for {
-          dep1 <- client.lookupScopedKey("dep1").map(_.head)
-          dep2 <- client.lookupScopedKey("dep2").map(_.head)
-          end1 <- client.lookupScopedKey("end1").map(_.head)
-          end2 <- client.lookupScopedKey("end2").map(_.head)
-          trigger1 <- client.lookupScopedKey("trigger1").map(_.head)
-        } yield {
-          def saveResult[T]: ValueListener[T] = { (key, result) =>
-            results.add(key -> result)
-          }
-          Seq(client.lazyWatch(TaskKey[Int](dep1))(saveResult),
-            client.lazyWatch(TaskKey[String](dep2))(saveResult),
-            client.lazyWatch(TaskKey[Int](end1))(saveResult),
-            client.lazyWatch(TaskKey[String](end2))(saveResult),
-            client.lazyWatch(TaskKey[Int](trigger1))(saveResult))
-        }
-        def handleEvent(event: Event): Unit = {
-          events.add(event)
-          event match {
-            case _: ExecutionFailure | _: ExecutionSuccess =>
-              executionDone.success()
-            case _ =>
-          }
-        }
-        val eventHandler = client.handleEvents(handleEvent)
-        val futureTestDone = for {
-          watches <- futureWatches
-          executionId <- client.requestExecution(command, interaction = None)
-          _ <- executionDone.future // wait for complete
-        } yield {
-          var resultsMap = Map.empty[ScopedKey, sbt.client.TaskResult[_]]
-          while (!results.isEmpty())
-            resultsMap += results.take()
-          var eventsList = List.empty[Event]
-          while (!events.isEmpty())
-            eventsList ::= events.take()
-          ExecutionRecord(resultsMap, eventsList.reverse)
-        }
-        futureTestDone.onComplete { _ =>
-          futureWatches.map(_.map(_.cancel()))
-          eventHandler.cancel()
-        }
-        futureTestDone
-      }
-
-      // sequence must match expected items in order, but may have other items too
-      @tailrec
-      def verifySequence(items: Seq[_], expecteds: Seq[PartialFunction[Any, Unit]]): Unit = {
-        def verifyOne(items: List[_], expected: PartialFunction[Any, Unit]): List[_] = items match {
-          case head :: tail =>
-            if (expected.isDefinedAt(head)) {
-              expected.apply(head)
-              // uncomment this to find failures
-              //System.err.println("Matched: " + head)
-              tail
-            } else {
-              verifyOne(tail, expected)
-            }
-          case Nil =>
-            // not that PartialFunction.toString is useful... uncomment
-            // above println which logs each match to see where we stop
-            throw new AssertionError(s"No items matching ${expected}")
-        }
-
-        expecteds.toList match {
-          case head :: tail =>
-            val remaining = verifyOne(items.toList, head)
-            verifySequence(remaining, tail)
-          case Nil =>
-        }
-      }
-
-      def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T): Unit = {
-        record.results.collect({
-          case (key, result) if key.key.name == taskName =>
-            result
-        }).headOption match {
-          case Some(TaskSuccess(value)) if ((value.value: Option[_]) == Some(expected)) => // ok!
-          case Some(TaskSuccess(value)) =>
-            throw new AssertionError(s"Value of ${taskName} was was ${value}, expected Some(${expected})")
-          case wrong =>
-            throw new AssertionError(s"Result of ${taskName} was was ${wrong}, expected Some(TaskSuccess(${expected}))")
-        }
-      }
-
       // TEST 1: Try a single task with no dependencies
       {
-        val recordedDep1 = waitWithError(recordExecution("dep1"), "didn't get dep1 result")
+        val recordedDep1 = waitWithError(recordExecution(client, "dep1"), "didn't get dep1 result")
 
         checkSuccess(recordedDep1, "dep1", 1)
 
@@ -217,7 +220,7 @@ class TestExecution extends SbtClientTest {
 
       // TEST 2: Task 'end1' with deps 'dep1' and 'dep2' which triggers 'trigger1'
       {
-        val recordedEnd1 = waitWithError(recordExecution("end1"), "didn't get end1 result")
+        val recordedEnd1 = waitWithError(recordExecution(client, "end1"), "didn't get end1 result")
 
         checkSuccess(recordedEnd1, "dep1", 1)
         checkSuccess(recordedEnd1, "dep2", "2")
@@ -269,7 +272,7 @@ class TestExecution extends SbtClientTest {
 
       // TEST 3: Task ';end1;end2' (multiple end-nodes in the task graph)
       {
-        val recordedEnd1End2 = waitWithError(recordExecution(";end1;end2"), "didn't get ;end1;end2 result")
+        val recordedEnd1End2 = waitWithError(recordExecution(client, ";end1;end2"), "didn't get ;end1;end2 result")
 
         // the main thing to check here is that both end1 and end2 are going to run
         checkSuccess(recordedEnd1End2, "dep1", 1)
@@ -312,9 +315,8 @@ class TestExecution extends SbtClientTest {
               assert(id == executionId)
           }))
       }
-
-    } finally {
-      executorService.shutdown()
     }
+  } finally {
+    executorService.shutdown()
   }
 }
