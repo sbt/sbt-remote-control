@@ -28,9 +28,6 @@ object FileLogger {
  * This is meant to be a rotating file log that can auto-squash its contents if they get too
  * big.  Right now we just dump a ton of information for debugging purposes.
  *
- *
- * Note: This is SINGLE THREADED access, so no cheating.
- *
  * @param file  - The base file to write to.  Rolling files will show up with a similar name to this one.
  * @param maxFileSize - The (soft) maximum size we allow a file to grow before we roll
  * @param numFiles  - The number of files to keep, when rolling.
@@ -44,22 +41,25 @@ class SimpleRollingFileLogger(
   private var count = 1L
   private var written = 0L
   // Returns the next location to dump our current logs.
-  private def dumpFile: File =
+  private def dumpFile: File = synchronized {
     new File(file.getParentFile, f"${file.getName}.${count % numFiles}%02d")
+  }
 
-  private def openStream() = new PrintWriter(new FileWriter(file))
+  private def openStream() = synchronized {
+    new PrintWriter(new FileWriter(file))
+  }
 
   // make sure we can write to the file.
   file.getParentFile.mkdirs()
   private var stream = openStream()
 
-  def log(msg: String): Unit = silentlyHandle {
+  def log(msg: String): Unit = silentlyHandleSynchronized {
     stream.write(msg)
     stream.write("\n")
     checkRotate(msg.length + 1)
   }
 
-  def error(msg: String, e: Throwable): Unit = silentlyHandle {
+  def error(msg: String, e: Throwable): Unit = silentlyHandleSynchronized {
     stream.write(msg)
     stream.write("\n")
     e.printStackTrace(stream)
@@ -68,7 +68,7 @@ class SimpleRollingFileLogger(
   }
 
   /** Checks and rotates if we need to. */
-  private def checkRotate(charsWritten: Long): Unit = silentlyHandle {
+  private def checkRotate(charsWritten: Long): Unit = silentlyHandleSynchronized {
     written += charsWritten
     if (written > maxFileSize) {
       stream.flush()
@@ -77,7 +77,7 @@ class SimpleRollingFileLogger(
       // If a renameTo is unsucessfull, a slow move will occur.
       // We also allow rotating logs to fail, and we just reopen and continue
       // writing to the same file if we're unable to move the existing one.
-      silentlyHandle(sbt.IO.move(file, dumpFile))
+      silentlyHandleSynchronized(sbt.IO.move(file, dumpFile))
       // Bump the count of how many times we've rolled and reset.
       count += 1
       written = 0
@@ -85,9 +85,9 @@ class SimpleRollingFileLogger(
     }
   }
 
-  def close(): Unit = silentlyHandle(stream.close())
+  def close(): Unit = silentlyHandleSynchronized(stream.close())
 
-  final def silentlyHandle[A](f: => A): Unit =
+  final def silentlyHandleSynchronized[A](f: => A): Unit = synchronized {
     try f catch {
       case ex: IOException =>
         // Here we explicitly ignore issues with writing to the log files.
@@ -106,5 +106,6 @@ class SimpleRollingFileLogger(
         // after that point.
         ()
     }
+  }
 }
 
