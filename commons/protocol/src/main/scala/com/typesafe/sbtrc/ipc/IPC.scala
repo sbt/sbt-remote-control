@@ -83,9 +83,11 @@ abstract class Peer(protected val socket: Socket) {
     send(WireEnvelope(length = message.length, serial = serial,
       replyTo = 0L, content = message))
 
-  def reply(replyTo: Long, message: Array[Byte]): Unit =
+  def reply(replyTo: Long, message: Array[Byte]): Unit = {
+    require(replyTo != 0L)
     send(WireEnvelope(length = message.length, serial = serialGetAndIncrement(),
       replyTo = replyTo, content = message))
+  }
 
   def receive(): WireEnvelope = in.synchronized {
     if (isClosed)
@@ -100,23 +102,32 @@ abstract class Peer(protected val socket: Socket) {
     WireEnvelope(length, serial, replyTo, bytes)
   }
 
-  def sendString(message: String, serial: Long): Unit =
+  def sendString(message: String, serial: Long): Unit = {
     send(message.getBytes(utf8), serial)
+  }
 
-  def replyString(replyTo: Long, message: String): Unit =
+  def replyString(replyTo: Long, message: String): Unit = {
+    require(replyTo != 0L)
     reply(replyTo, message.getBytes(utf8))
+  }
 
-  def sendJson[T: Format](message: T, serial: Long): Unit =
-    replyJson(0L, message)
-
-  def replyJson[T: Format](replyTo: Long, message: T): Unit = {
+  private def jsonString[T: Format](message: T): String = {
     val json = message match {
       // TODO - This is our hack to add the event identifications.
       case m: sbt.protocol.Message => sbt.protocol.WireProtocol.toRaw(m)
       case _ => // TODO - Is raw message ok?
         Json.toJson(message)
     }
-    replyString(replyTo, json.toString)
+    json.toString
+  }
+
+  def sendJson[T: Format](message: T, serial: Long): Unit = {
+    sendString(jsonString(message), serial)
+  }
+
+  def replyJson[T: Format](replyTo: Long, message: T): Unit = {
+    require(replyTo != 0L)
+    replyString(replyTo, jsonString(message))
   }
 
   def close(): Unit = {

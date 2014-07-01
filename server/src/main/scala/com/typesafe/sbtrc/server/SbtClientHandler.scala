@@ -89,8 +89,12 @@ class SbtClientHandler(
   // ipc is synchronized, so this is ok.
   def send[T: Format](msg: T): Unit = {
     // For now we start ignoring the routing...
-    log.log(s"Sending msg to client $configName-$uuid: $msg")
-    if (isAlive) ipc.replyJson(0L, msg)
+    if (isAlive) {
+      log.log(s"Sending msg to client $configName-$uuid: $msg")
+      ipc.sendJson(msg, ipc.serialGetAndIncrement())
+    } else {
+      log.log(s"Dropping msg to dead client $configName-$uuid: $msg")
+    }
   }
   // ipc is synchronized, so this is ok.
   def reply[T: Format](serial: Long, msg: T): Unit = {

@@ -111,7 +111,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
       case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>
       case wtf => {
         rawClient.close()
-        throw new RuntimeException(s"unexpected initial message from server was not a register client reply: ${wtf}")
+        throw new RuntimeException(s"unexpected initial message from server was not a reply to ${registerSerial}: ${wtf}")
       }
     }
     new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
