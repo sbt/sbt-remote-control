@@ -102,14 +102,11 @@ trait SbtClientTest extends IntegrationTest {
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = Promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
-        // We track the number of times our registered connect handler is called here,
-        // as we never execute any other future.
-        numConnects.getAndIncrement
         // we typically get two runnables; the first one is "newHandler"
         // below and the second is "errorHandler" when the connector is
         // closed. We just drop "errorHandler" on the floor.
         if (task.isCompleted)
-          System.err.println(s"Not executing runnable because we only run one thing: ${runnable}")
+          System.out.println(s"Not executing runnable because we only run one thing: ${runnable}")
         else
           task.success(runnable)
       }
@@ -122,6 +119,7 @@ trait SbtClientTest extends IntegrationTest {
       }
     }
     val newHandler: SbtClient => Unit = { client =>
+      numConnects.getAndIncrement
       // TODO - better error reporting than everything.
       (client handleEvents {
         msg =>
@@ -159,7 +157,7 @@ trait SbtClientTest extends IntegrationTest {
     try runOneThingExecutor.runWhenReady()
     finally connector.close()
     if (numConnects.get <= 0) sys.error("Never connected to sbt server!")
-    clientCloseLatch.await(10, TimeUnit.SECONDS)
+    clientCloseLatch.await(15, TimeUnit.SECONDS)
     numConnects.get
   }
 
