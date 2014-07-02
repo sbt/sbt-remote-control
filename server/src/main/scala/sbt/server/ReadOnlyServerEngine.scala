@@ -140,6 +140,30 @@ class ReadOnlyServerEngine(
             throw new Error(s"Square peg in round hole!  Is not a workRequest item: $wtf")
         }
       }
+
+    /**
+     *  This is responsible for dumping the current queue state to a
+     *  newly-connected client.
+     */
+    def syncNewClient(client: LiveClient): Unit =
+      synchronized {
+        def dumpWork(remaining: List[ServerEngineWork]): Unit =
+          remaining match {
+            case unknown :: tail =>
+              unknown match {
+                case work: CommandExecutionWork =>
+                  val event = protocol.ExecutionWaiting(work.id.id, work.command,
+                    work.allRequesters.head.info)
+                  client.send(event)
+                case other =>
+              }
+              dumpWork(tail)
+            case Nil =>
+          }
+
+        dumpWork(workQueue)
+      }
+
     def cancelRequest(id: Long): Boolean =
       synchronized {
         // Find out if we have a work item with the given id.
@@ -231,6 +255,7 @@ class ReadOnlyServerEngine(
       case ListenToEvents() =>
         updateState(_.addEventListener(client))
         client.reply(serial, ReceivedResponse())
+        engineWorkQueue.syncNewClient(client)
       case UnlistenToEvents() =>
         updateState(_.removeEventListener(client))
         client.reply(serial, ReceivedResponse())
