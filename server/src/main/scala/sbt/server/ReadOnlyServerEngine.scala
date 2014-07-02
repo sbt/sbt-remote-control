@@ -129,7 +129,7 @@ class ReadOnlyServerEngine(
             def insertWork(remaining: List[ServerEngineWork]): List[ServerEngineWork] =
               remaining match {
                 case hd :: tail if hd.id == work.id => work :: tail
-                case hd :: tail => hd :: insertWork(remaining)
+                case hd :: tail => hd :: insertWork(tail)
                 case Nil => work :: Nil
               }
             workQueue = insertWork(workQueue)
