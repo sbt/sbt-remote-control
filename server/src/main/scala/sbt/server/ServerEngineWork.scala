@@ -69,6 +69,7 @@ case class CommandExecutionWork(
   // TODO - Cancel handler thing should allow
   // saying that work is done as well as cancelling.
   cancelStatus: WorkCancellationStatus) extends ServerEngineWork {
+  require(allRequesters.nonEmpty)
   /** Whether or not the work was cancelled. */
   def isCancelled: Boolean = cancelStatus.isCancelled
   /** Creates a new copy of this work, but with an additional client. */
