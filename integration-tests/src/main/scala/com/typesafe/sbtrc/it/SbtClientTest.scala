@@ -88,9 +88,8 @@ trait SbtClientTest extends IntegrationTest {
    * Allows running tests against sbt.  Will block until sbt server is loaded against
    * a given directory...
    *
-   * @return the number of connects
    */
-  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Int = {
+  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
@@ -102,14 +101,11 @@ trait SbtClientTest extends IntegrationTest {
     object runOneThingExecutor extends concurrent.ExecutionContext {
       private var task = Promise[Runnable]
       def execute(runnable: Runnable): Unit = synchronized {
-        // We track the number of times our registered connect handler is called here,
-        // as we never execute any other future.
-        numConnects.getAndIncrement
         // we typically get two runnables; the first one is "newHandler"
         // below and the second is "errorHandler" when the connector is
         // closed. We just drop "errorHandler" on the floor.
         if (task.isCompleted)
-          System.err.println(s"Not executing runnable because we only run one thing: ${runnable}")
+          System.out.println(s"Not executing runnable because we only run one thing: ${runnable}")
         else
           task.success(runnable)
       }
@@ -121,7 +117,24 @@ trait SbtClientTest extends IntegrationTest {
         result.run
       }
     }
+
+    def dumpLogFile(logfile: File): Unit = {
+      if (logfile.exists) {
+        System.out.println(s"log file ${logfile}:")
+        scala.io.Source.fromFile(logfile).getLines().foreach { System.out.println(_) }
+        System.out.println(s"end of ${logfile}")
+      } else {
+        System.err.println(s"No log file ${logfile} found")
+      }
+    }
+
     val newHandler: SbtClient => Unit = { client =>
+      numConnects.getAndIncrement
+
+      val logfile = new File(projectDirectory, s".sbtserver/connections/${client.configName}-${client.uuid}.log").getAbsoluteFile
+      if (!logfile.exists)
+        System.err.println(s"Warning: no log file for client ${logfile}")
+
       // TODO - better error reporting than everything.
       (client handleEvents {
         msg =>
@@ -140,27 +153,41 @@ trait SbtClientTest extends IntegrationTest {
           }
       })(concurrent.ExecutionContext.global)
       try f(client)
-      finally {
+      catch {
+        case e: Throwable =>
+          // unfortunately, if the server restarts it deletes all logs so this will be gone
+          dumpLogFile(logfile)
+          throw e
+      } finally {
         if (!client.isClosed) client.requestExecution("exit", None) // TODO - Should we use the shutdown hook?
       }
     }
+    // due to the run one thing executor, this is only called
+    // if newHandler is NEVER called.
     val errorHandler: (Boolean, String) => Unit = { (reconnecting, error) =>
       // don't retry forever just close. But print those errors.
-      if (reconnecting) {
-        // Only increment here, since we're only doing one thing at a time..
+      System.out.println(s"sbt connection closed, reconnecting=${reconnecting} error=${error}")
+      if (reconnecting)
         connector.close()
-      } else
-        System.err.println(s"sbt connection closed, reconnecting=${reconnecting} error=${error}")
     }
 
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
     val subscription = (connector.open(newHandler, errorHandler))(runOneThingExecutor)
     // Block current thread until we can run the test.
-    try runOneThingExecutor.runWhenReady()
-    finally connector.close()
-    if (numConnects.get <= 0) sys.error("Never connected to sbt server!")
-    clientCloseLatch.await(10, TimeUnit.SECONDS)
-    numConnects.get
+    try {
+      runOneThingExecutor.runWhenReady()
+      if (numConnects.get <= 0)
+        throw new Exception("Never connected to sbt server!")
+    } catch {
+      case e: Throwable =>
+        System.err.println(s"Test failed: ${e.getClass.getName}: ${e.getMessage}")
+        // unfortunately, if the server restarts it deletes all logs so this will
+        // probably be the wrong log file (for new instead of old server)
+        dumpLogFile(new File(projectDirectory, ".sbtserver/master.log").getAbsoluteFile)
+        throw e
+    } finally connector.close()
+
+    clientCloseLatch.await(15, TimeUnit.SECONDS)
   }
 
   lazy val utils = new TestUtil(new java.io.File("scratch"))

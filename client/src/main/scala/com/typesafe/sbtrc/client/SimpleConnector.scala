@@ -111,7 +111,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
       case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>
       case wtf => {
         rawClient.close()
-        throw new RuntimeException(s"unexpected initial message from server was not a register client reply: ${wtf}")
+        throw new RuntimeException(s"unexpected initial message from server was not a reply to ${registerSerial}: ${wtf}")
       }
     }
     new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
@@ -146,12 +146,14 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     ctx: ExecutionContext) {
     def emitConnected(client: SbtClient): Unit =
       ctx.prepare.execute(new Runnable() {
+        override def toString = s"Runnable(onConnect(${client.configName} ${client.uuid}))"
         override def run(): Unit = {
           onConnect(client)
         }
       })
     def emitError(reconnecting: Boolean, message: String): Unit =
       ctx.prepare.execute(new Runnable() {
+        override def toString = s"Runnable(onError(reconnecting=${reconnecting}, ${message}))"
         override def run(): Unit = {
           onError(reconnecting, message)
         }
