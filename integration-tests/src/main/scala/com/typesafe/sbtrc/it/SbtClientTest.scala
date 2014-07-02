@@ -88,7 +88,6 @@ trait SbtClientTest extends IntegrationTest {
    * Allows running tests against sbt.  Will block until sbt server is loaded against
    * a given directory...
    *
-   * @return the number of connects
    */
   final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
