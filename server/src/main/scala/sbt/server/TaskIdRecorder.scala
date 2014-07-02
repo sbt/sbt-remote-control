@@ -50,11 +50,21 @@ class TaskIdRecorder extends TaskIdFinder {
   def register(task: Task[_]): Unit = {
     if (taskIds.contains(task))
       throw new RuntimeException(s"registered more than once? ${task}")
+    // clear system streams of anything which isn't from the new task
+    flushSystemStreams()
     taskIds += (task -> nextTaskId)
     nextTaskId += 1
   }
 
+  def unregister(task: Task[_]): Unit = {
+    // clear system streams of anything which is from the previous tasks
+    flushSystemStreams()
+    taskIds -= task
+  }
+
   def clear(): Unit = {
+    // clear system streams of anything which is from the previous tasks
+    flushSystemStreams()
     taskIds = Map.empty
   }
 
@@ -70,6 +80,8 @@ class TaskIdRecorder extends TaskIdFinder {
   def setThreadTask(task: Task[_]): Unit =
     taskId(task) match {
       case Some(id) =>
+        // clear system streams of anything which isn't from the new task
+        flushSystemStreams()
         taskIdThreadLocal.set(id)
         synchronized {
           runningTasks += task
@@ -79,6 +91,8 @@ class TaskIdRecorder extends TaskIdFinder {
     }
 
   def clearThreadTask(task: Task[_]): Unit = {
+    // clear system streams of anything which is from the new task
+    flushSystemStreams()
     taskIdThreadLocal.remove()
     synchronized {
       runningTasks -= task
@@ -101,6 +115,14 @@ class TaskIdRecorder extends TaskIdFinder {
         case other => other
       }
     }
+  }
+
+  // because these are buffered and then forwarded to log events
+  // that get task IDs, we want to flush whenever our bestGuessTaskId
+  // might change.
+  private def flushSystemStreams(): Unit = {
+    System.out.flush()
+    System.err.flush()
   }
 
   override def taskId(task: Task[_]): Option[Long] = {
