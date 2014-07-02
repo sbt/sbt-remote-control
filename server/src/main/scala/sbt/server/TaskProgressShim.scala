@@ -80,6 +80,8 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
       taskId(task),
       protocolKeyOption(task), result.toEither.isRight))
 
+    taskIdRecorder.unregister(task)
+
     withKeyAndProtocolKey(task) { (key, protocolKey) =>
       // we want to serialize the value only once, iff there's
       // a listener at all...
