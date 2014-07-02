@@ -13,7 +13,8 @@ import sbt.protocol._
  *
  * TODO - We should use netty for this rather than spawning so many threads.
  */
-class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerRequest => Unit) {
+class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerRequest => Unit,
+  serverEngineLogFile: java.io.File) {
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000
   // TODO - This should be configurable.
@@ -81,7 +82,8 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
           }
           val client = new SbtClientHandler(uuid, register.configName, register.humanReadableName,
             server, msgHandler, onClose)
-          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt server logs are in: ${log.file.getAbsolutePath}")))
+          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
+          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
           clientLock.synchronized {
             clients.append(client)
             log.log(s"Connected Clients: ${clients map (c => s"${c.configName}-${c.uuid}") mkString ", "}")

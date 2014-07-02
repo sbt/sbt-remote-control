@@ -22,8 +22,11 @@ import scala.concurrent.{ Future, Promise }
  *
  *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
  *  @param queue - The queue we consume server requests from.
+ *  @param serverEngineLogFile - log file to point our file logger at
  */
-class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReference[State]) {
+class ServerEngine(requestQueue: ServerEngineQueue,
+  nextStateRef: AtomicReference[State],
+  serverEngineLogFile: File) {
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new EventLogger(taskIdRecorder)
@@ -103,7 +106,7 @@ class ServerEngine(requestQueue: ServerEngineQueue, nextStateRef: AtomicReferenc
     import CommandStrings.{ BootCommand, DefaultsCommand, InitCommand }
 
     // TODO - can this be part of a command?
-    val globalLogging = initializeLoggers(new File(configuration.baseDirectory, ".sbtserver/master.log"))
+    val globalLogging = initializeLoggers(serverEngineLogFile)
     // TODO - This is copied from StandardMain so we can override globalLogging
     def initialState(configuration: xsbti.AppConfiguration, initialDefinitions: Seq[Command], preCommands: Seq[String]): State =
       {

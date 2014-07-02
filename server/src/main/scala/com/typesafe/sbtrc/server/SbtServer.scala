@@ -18,16 +18,21 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     val addr = socket.getInetAddress.getHostAddress
     new java.net.URI(s"http://${addr}:${port}")
   }
+
+  val serverEngineLogFile = new java.io.File(configuration.baseDirectory, ".sbtserver/master.log")
+
   // The queue where requests go before we fullfill them.
   private val queue = new java.util.concurrent.LinkedBlockingDeque[ServerRequest]
-  // External API to run queue.
-  def queueClientRequest(request: ServerRequest): Unit = queue.add(request)
-  // Create the helper which will handle socket requests.
-  private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest)
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
-  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef)
+  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, serverEngineLogFile)
+
+  // External API to run queue.
+  def queueClientRequest(request: ServerRequest): Unit = queue.add(request)
+  // Create the helper which will handle socket requests.
+  private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest, serverEngineLogFile)
+
   // TODO - Maybe the command engine should extend thread too?
   private val commandEngineThread = new Thread("sbt-server-command-loop") {
     override def run(): Unit = {
