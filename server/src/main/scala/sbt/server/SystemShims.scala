@@ -12,9 +12,11 @@ private[sbt] class LoggedOutputStream(logger: String => Unit, charset: Charset =
   private val buf = new collection.mutable.ArrayBuffer[Byte]
   override def write(b: Int): Unit = buf.append(b.toByte)
   override def flush(): Unit = {
-    val array = buf.toArray
-    logger(new String(array, charset))
-    buf.clear()
+    if (buf.nonEmpty) {
+      val array = buf.toArray
+      logger(new String(array, charset))
+      buf.clear()
+    }
   }
   // TODO - Do something useful on close...
   override def close(): Unit = {}
