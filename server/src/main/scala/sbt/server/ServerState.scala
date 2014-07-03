@@ -11,7 +11,6 @@ case class ServerState(
   eventListeners: SbtClient = NullSbtClient,
   buildListeners: SbtClient = NullSbtClient,
   keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
-
   lastCommand: Option[LastCommand] = None) {
 
   /** Remove a client from any registered listeners. */
