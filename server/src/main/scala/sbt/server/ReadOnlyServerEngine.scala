@@ -65,6 +65,7 @@ class ReadOnlyServerEngine(
           case None =>
         }
       }
+      drainAnother()
     }
 
     override def send[T: Format](msg: T): Unit = msg match {
