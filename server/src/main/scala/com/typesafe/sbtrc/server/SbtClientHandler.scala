@@ -8,6 +8,8 @@ import sbt.server.ServerRequest
 import sbt.server.ExecutionId
 import concurrent.{ Promise, promise }
 import java.io.EOFException
+import java.net.SocketException
+import scala.util.control.NonFatal
 
 /**
  * This class represents an external client into the sbt server.
@@ -38,7 +40,10 @@ class SbtClientHandler(
         try readNextMessage()
         catch {
           case e: EOFException =>
-            log.log("Client closed!, shutting down.")
+            log.log(s"Client $configName-$uuid closed!, shutting down.")
+            running.set(false)
+          case e: SocketException =>
+            log.log(s"Client $configName-$uuid closed, ${e.getClass.getName}: ${e.getMessage}, shutting down")
             running.set(false)
           case e: Throwable =>
             // On any throwable, we'll shut down this connection as bad.
@@ -86,21 +91,28 @@ class SbtClientHandler(
   // Automatically start listening for client events.
   clientThread.start()
 
-  // ipc is synchronized, so this is ok.
-  def send[T: Format](msg: T): Unit = {
-    // For now we start ignoring the routing...
+  private def wrappedSend(msg: Any)(block: => Unit): Unit = {
     if (isAlive) {
       log.log(s"Sending msg to client $configName-$uuid: $msg")
-      ipc.sendJson(msg, ipc.serialGetAndIncrement())
+      try block
+      catch {
+        case NonFatal(e) =>
+          log.log(s"Dropping message ${msg} because client $configName-$uuid appears to be closed ${e.getClass.getName}: ${e.getMessage}")
+          // double-ensure close, in case Java wants to be annoying and not terminate our read()
+          ipc.close()
+      }
     } else {
-      log.log(s"Dropping msg to dead client $configName-$uuid: $msg")
+      log.log(s"Dropping message ${msg} to dead client $configName-$uuid")
     }
+  }
+
+  // ipc is synchronized, so this is ok.
+  def send[T: Format](msg: T): Unit = {
+    wrappedSend(msg) { ipc.sendJson(msg, ipc.serialGetAndIncrement()) }
   }
   // ipc is synchronized, so this is ok.
   def reply[T: Format](serial: Long, msg: T): Unit = {
-    // For now we start ignoring the routing...
-    log.log(s"Sending reply to client $configName-$uuid: $msg")
-    if (isAlive) ipc.replyJson(serial, msg)
+    wrappedSend(serial -> msg) { ipc.replyJson(serial, msg) }
   }
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
     interactionManager.readLine(executionId, prompt, mask)
