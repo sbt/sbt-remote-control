@@ -9,6 +9,8 @@ package server
 object BuildStructureCache {
   private val buildStructureCache = AttributeKey[protocol.MinimalBuildStructure]("Sbt's server cache")
 
+  // TODO - ideally we use this mechanism to also track Setting listeners.
+
   def extract(state: State): Option[protocol.MinimalBuildStructure] = state get buildStructureCache
   private def updateImpl(state: State, cache: protocol.MinimalBuildStructure): State = state.put(buildStructureCache, cache)
 
