@@ -3,7 +3,7 @@ package server
 
 import ipc.{ MultiClientServer => IpcServer }
 import sbt.protocol.{ Envelope, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
-import play.api.libs.json.Format
+import play.api.libs.json.Writes
 import sbt.server.ServerRequest
 import sbt.server.ExecutionId
 import concurrent.{ Promise, promise }
@@ -107,11 +107,11 @@ class SbtClientHandler(
   }
 
   // ipc is synchronized, so this is ok.
-  def send[T: Format](msg: T): Unit = {
+  override def send[T: Writes](msg: T): Unit = {
     wrappedSend(msg) { ipc.sendJson(msg, ipc.serialGetAndIncrement()) }
   }
   // ipc is synchronized, so this is ok.
-  def reply[T: Format](serial: Long, msg: T): Unit = {
+  override def reply[T: Writes](serial: Long, msg: T): Unit = {
     wrappedSend(serial -> msg) { ipc.replyJson(serial, msg) }
   }
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =

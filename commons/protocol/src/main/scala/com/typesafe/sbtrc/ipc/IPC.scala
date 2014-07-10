@@ -111,7 +111,7 @@ abstract class Peer(protected val socket: Socket) {
     reply(replyTo, message.getBytes(utf8))
   }
 
-  private def jsonString[T: Format](message: T): String = {
+  private def jsonString[T: Writes](message: T): String = {
     val json = message match {
       // TODO - This is our hack to add the event identifications.
       case m: sbt.protocol.Message => sbt.protocol.WireProtocol.toRaw(m)
@@ -121,11 +121,11 @@ abstract class Peer(protected val socket: Socket) {
     json.toString
   }
 
-  def sendJson[T: Format](message: T, serial: Long): Unit = {
+  def sendJson[T: Writes](message: T, serial: Long): Unit = {
     sendString(jsonString(message), serial)
   }
 
-  def replyJson[T: Format](replyTo: Long, message: T): Unit = {
+  def replyJson[T: Writes](replyTo: Long, message: T): Unit = {
     require(replyTo != 0L)
     replyString(replyTo, jsonString(message))
   }

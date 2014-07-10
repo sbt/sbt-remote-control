@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
 import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.Format
+import play.api.libs.json.Writes
 
 // a little wrapper around protocol.request to keep the client/serial with it
 case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
@@ -68,7 +68,7 @@ class ReadOnlyServerEngine(
       drainAnother()
     }
 
-    override def send[T: Format](msg: T): Unit = msg match {
+    override def send[T: Writes](msg: T): Unit = msg match {
       case event: LogEvent =>
         serverState.eventListeners match {
           case NullSbtClient =>
