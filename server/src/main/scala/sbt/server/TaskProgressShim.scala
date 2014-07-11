@@ -11,7 +11,7 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder, eventSink: SbtEventSink) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
@@ -55,7 +55,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * ready to run.  The task has not been scheduled on a thread yet.
    */
   def ready(state: S, task: Task[_]): S = {
-    state.eventListeners.send(TaskStarted(state.requiredExecutionId.id,
+    eventSink.send(TaskStarted(state.requiredExecutionId.id,
       taskId(task),
       protocolKeyOption(task)))
     state
@@ -76,7 +76,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
    * Any tasks called by `task` have completed.
    */
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
-    state.eventListeners.send(TaskFinished(state.requiredExecutionId.id,
+    eventSink.send(TaskFinished(state.requiredExecutionId.id,
       taskId(task),
       protocolKeyOption(task), result.toEither.isRight))
 
@@ -120,11 +120,11 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
   }
 }
 object ServerExecuteProgress {
-  def getShims(state: State, taskIdRecorder: TaskIdRecorder): Seq[Setting[_]] = {
+  def getShims(state: State, taskIdRecorder: TaskIdRecorder, eventSink: SbtEventSink): Seq[Setting[_]] = {
     Seq(
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)
-        new Keys.TaskProgress(new ServerExecuteProgress(sstate, taskIdRecorder))
+        new Keys.TaskProgress(new ServerExecuteProgress(sstate, taskIdRecorder, eventSink))
       })
 
   }

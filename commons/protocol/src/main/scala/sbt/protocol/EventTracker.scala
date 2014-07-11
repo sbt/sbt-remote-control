@@ -1,5 +1,6 @@
 package sbt.protocol
 import scala.collection.immutable
+import play.api.libs.json.Writes
 
 /**
  * Utilities to track the state implied by a series of events, allowing the events
@@ -9,7 +10,13 @@ import scala.collection.immutable
  *  the events to "catch up" new clients to the current state.
  */
 
+case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
+
 object ImpliedState {
+  import scala.language.implicitConversions
+
+  private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
+    EventWithWrites(event, implicitly[Writes[E]])
 
   case class Task(id: Long, key: Option[ScopedKey])
   case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])
@@ -73,26 +80,30 @@ object ImpliedState {
   def processEvents(engine: ExecutionEngine, events: immutable.Seq[Event]): ExecutionEngine =
     events.foldLeft(engine) { (sofar, event) => processEvent(sofar, event) }
 
-  private def eventToStartTask(executionId: Long, task: Task): TaskStarted =
+  private def eventToStartTask(executionId: Long, task: Task): EventWithWrites[TaskStarted] =
     TaskStarted(executionId = executionId, taskId = task.id, key = task.key)
 
-  private def eventToFinishTask(executionId: Long, task: Task, success: Boolean): TaskFinished =
+  private def eventToFinishTask(executionId: Long, task: Task, success: Boolean): EventWithWrites[TaskFinished] =
     TaskFinished(executionId = executionId, taskId = task.id, key = task.key, success = success)
 
-  private def eventsToStartExecution(execution: Execution): immutable.Seq[Event] = {
-    val startExecution =
-      Seq(ExecutionWaiting(execution.id, execution.command, execution.client),
-        ExecutionStarting(execution.id))
+  private def eventsToStartExecution(execution: Execution): immutable.Seq[EventWithWrites[_ <: Event]] = {
+    val startExecution: Seq[EventWithWrites[_ <: Event]] =
+      Seq(writes(ExecutionWaiting(execution.id, execution.command, execution.client)),
+        writes(ExecutionStarting(execution.id)))
     val startTasks = for (task <- execution.tasks.values)
       yield eventToStartTask(execution.id, task)
 
     (startExecution ++ startTasks).toList
   }
 
-  private def eventsToFinishExecution(execution: Execution, success: Boolean): immutable.Seq[Event] = {
+  private def eventsToFinishExecution(execution: Execution, success: Boolean): immutable.Seq[EventWithWrites[_ <: Event]] = {
     val finishTasks = for (task <- execution.tasks.values)
       yield eventToFinishTask(execution.id, task, success)
-    val finishExecution = (if (success) ExecutionSuccess.apply(_) else ExecutionFailure.apply(_))(execution.id)
+    val finishExecution: EventWithWrites[_ <: Event] =
+      if (success)
+        writes(ExecutionSuccess(execution.id))
+      else
+        writes(ExecutionFailure(execution.id))
     (finishTasks ++ Iterable(finishExecution)).toList
   }
 
@@ -100,10 +111,10 @@ object ImpliedState {
    * Compute a list of events which will create the provided engine state
    * if processed in order from first to last.
    */
-  def eventsToReachEngineState(engine: ExecutionEngine): immutable.Seq[Event] = {
+  def eventsToReachEngineState(engine: ExecutionEngine): immutable.Seq[EventWithWrites[_ <: Event]] = {
     val starting = engine.started.values.flatMap { execution => eventsToStartExecution(execution) }
     val waiting = for (execution <- engine.waiting.values)
-      yield ExecutionWaiting(execution.id, execution.command, execution.client)
+      yield writes(ExecutionWaiting(execution.id, execution.command, execution.client))
     (starting ++ waiting).toList
   }
 
@@ -111,7 +122,7 @@ object ImpliedState {
    * Compute a list of events which will empty the provided engine state and
    * ifi processed in order from first to last.
    */
-  def eventsToEmptyEngineState(engine: ExecutionEngine, success: Boolean): immutable.Seq[Event] = {
+  def eventsToEmptyEngineState(engine: ExecutionEngine, success: Boolean): immutable.Seq[EventWithWrites[_ <: Event]] = {
     val starting = engine.started.values.flatMap { execution => eventsToFinishExecution(execution, success) }
     val waiting =
       engine.waiting.values.flatMap { execution =>

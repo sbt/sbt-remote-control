@@ -8,7 +8,6 @@ case class LastCommand(command: CommandExecutionWork)
  * events/handle client requests.
  */
 case class ServerState(
-  eventListeners: SbtClient = NullSbtClient,
   buildListeners: SbtClient = NullSbtClient,
   keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
   lastCommand: Option[LastCommand] = None) {
@@ -16,21 +15,12 @@ case class ServerState(
   /** Remove a client from any registered listeners. */
   def disconnect(client: SbtClient): ServerState =
     copy(
-      eventListeners = eventListeners without client,
       buildListeners = buildListeners without client,
       keyListeners = keyListeners map (_ remove client))
 
-  def addEventListener(l: SbtClient): ServerState = {
-    val next = eventListeners zip l
-    copy(eventListeners = next)
-  }
   def addBuildListener(l: SbtClient): ServerState = {
     val next = buildListeners zip l
     copy(buildListeners = next)
-  }
-  def removeEventListener(l: SbtClient): ServerState = {
-    val next = eventListeners without l
-    copy(eventListeners = next)
   }
   def removeBuildListener(l: SbtClient): ServerState = {
     val next = buildListeners without l

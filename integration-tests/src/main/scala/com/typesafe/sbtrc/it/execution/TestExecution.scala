@@ -447,7 +447,7 @@ class TestExecution extends SbtClientTest {
             val recorded = event match {
               case ExecutionWaiting(id, command, clientInfo) =>
                 if (sofar.get(command).map(_.nonEmpty).getOrElse(false))
-                  throw new Exception(s"Got something else before ExecutionWaiting ${event} ${sofar}")
+                  throw new Exception(s"Got something else before ExecutionWaiting for ${command} already had: ${sofar.get(command)} just got: ${event}")
                 sofar + (command -> (event :: Nil))
               case ExecutionStarting(id) => append(id)
               case ExecutionFailure(id) => append(id)

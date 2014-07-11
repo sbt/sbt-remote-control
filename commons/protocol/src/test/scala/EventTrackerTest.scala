@@ -39,11 +39,11 @@ class EventTrackerTest {
     assertEquals(1, engine.started.values.head.tasks.size)
     assertEquals("frobulate", engine.started.values.head.command)
 
-    val toReach = ImpliedState.eventsToReachEngineState(engine)
+    val toReach = ImpliedState.eventsToReachEngineState(engine).map(_.event)
     val recreated = ImpliedState.processEvents(ImpliedState.ExecutionEngine.empty, toReach)
     assertEquals(engine, recreated)
 
-    val toEmpty = ImpliedState.eventsToEmptyEngineState(engine, success = false)
+    val toEmpty = ImpliedState.eventsToEmptyEngineState(engine, success = false).map(_.event)
     val emptied = ImpliedState.processEvents(engine, toEmpty)
     assertEquals(0, emptied.waiting.size)
     assertEquals(0, emptied.started.size)
