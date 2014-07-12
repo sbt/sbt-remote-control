@@ -2,6 +2,7 @@ package sbt
 package server
 
 import protocol.{
+  Event,
   TaskStarted,
   TaskFinished,
   ValueChanged,
@@ -11,7 +12,7 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder, eventSink: SbtEventSink) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[Event]) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
@@ -120,7 +121,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
   }
 }
 object ServerExecuteProgress {
-  def getShims(state: State, taskIdRecorder: TaskIdRecorder, eventSink: SbtEventSink): Seq[Setting[_]] = {
+  def getShims(state: State, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[Event]): Seq[Setting[_]] = {
     Seq(
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)

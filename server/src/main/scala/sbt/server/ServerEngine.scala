@@ -27,10 +27,12 @@ import scala.concurrent.{ Future, Promise }
 class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
   serverEngineLogFile: File,
-  eventSink: SbtEventSink) {
+  jsonSink: JsonSink[Any],
+  eventSink: JsonSink[Event],
+  logSink: JsonSink[LogEvent]) {
 
   private val taskIdRecorder = new TaskIdRecorder
-  private val eventLogger = new EventLogger(taskIdRecorder, eventSink)
+  private val eventLogger = new EventLogger(taskIdRecorder, logSink)
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -176,7 +178,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
-        UIShims.makeShims(state, taskIdRecorder, eventSink) ++
+        UIShims.makeShims(state, taskIdRecorder, jsonSink) ++
         loggingShims(state) ++
         ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.

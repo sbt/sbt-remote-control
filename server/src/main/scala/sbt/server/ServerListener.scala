@@ -3,10 +3,11 @@ package server
 
 import play.api.libs.json.Writes
 import concurrent.Future
+import play.api.libs.json.JsValue
 
-trait SbtEventSink {
+trait JsonSink[-J] {
   /** Sends a message out.  This should be a safe call (doens't throw on bad client for example.) */
-  def send[T: Writes](msg: T): Unit
+  def send[T <: J: Writes](msg: T): Unit
 }
 
 /**
@@ -14,7 +15,7 @@ trait SbtEventSink {
  *
  * TODO - better name!
  */
-sealed trait SbtClient extends SbtEventSink {
+sealed trait SbtClient extends JsonSink[Any] {
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (NullSbtClient, NullSbtClient) => NullSbtClient
@@ -36,12 +37,12 @@ sealed trait SbtClient extends SbtEventSink {
 }
 
 object NullSbtClient extends SbtClient {
-  override def send[T: Writes](msg: T): Unit = ()
+  override final def send[T: Writes](msg: T): Unit = ()
   override def toString = "NullSbtClient"
 }
 case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   // TODO - ignore individual failures?
-  final def send[T: Writes](msg: T): Unit =
+  override final def send[T: Writes](msg: T): Unit =
     clients foreach (_ send msg)
   override def toString = clients.mkString("Joined(", ",", ")")
 }

@@ -12,11 +12,16 @@ import play.api.libs.json.Writes
 
 case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
 
+object EventWithWrites {
+  def withWrites[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
+    EventWithWrites(event, implicitly[Writes[E]])
+}
+
 object ImpliedState {
   import scala.language.implicitConversions
 
   private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
-    EventWithWrites(event, implicitly[Writes[E]])
+    EventWithWrites.withWrites(event)
 
   case class Task(id: Long, key: Option[ScopedKey])
   case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])

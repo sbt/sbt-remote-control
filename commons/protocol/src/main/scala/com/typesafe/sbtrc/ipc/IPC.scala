@@ -30,7 +30,7 @@ class HandshakeException(msg: String, cause: Exception, val socket: Socket) exte
 // This is thread-safe in that it should send/receive each message atomically,
 // but multiple threads will have to be careful that they don't send messages
 // in a nonsensical sequence.
-abstract class Peer(protected val socket: Socket) {
+abstract class Peer(protected val socket: Socket, private val sendJsonFilter: (Any, JsValue) => JsValue) {
   require(!socket.isClosed())
   require(socket.getInputStream() ne null)
   require(socket.getOutputStream() ne null)
@@ -112,13 +112,7 @@ abstract class Peer(protected val socket: Socket) {
   }
 
   private def jsonString[T: Writes](message: T): String = {
-    val json = message match {
-      // TODO - This is our hack to add the event identifications.
-      case m: sbt.protocol.Message => sbt.protocol.WireProtocol.toRaw(m)
-      case _ => // TODO - Is raw message ok?
-        Json.toJson(message)
-    }
-    json.toString
+    sendJsonFilter(message, Json.toJson(message)).toString
   }
 
   def sendJson[T: Writes](message: T, serial: Long): Unit = {
@@ -140,7 +134,11 @@ abstract class Peer(protected val socket: Socket) {
   }
 }
 
-class Server(private val serverSocket: ServerSocket) extends MultiClientServer(serverSocket.accept()) {
+object Peer {
+  val identitySendJsonFilter: (Any, JsValue) => JsValue = { (msg: Any, json: JsValue) => json }
+}
+
+class Server(private val serverSocket: ServerSocket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends MultiClientServer(serverSocket.accept(), sendJsonFilter) {
 
   handshake(ServerGreeting, ClientGreeting)
 
@@ -152,10 +150,10 @@ class Server(private val serverSocket: ServerSocket) extends MultiClientServer(s
   }
 }
 
-class MultiClientServer(socket: Socket) extends Peer(socket) {
+class MultiClientServer(socket: Socket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends Peer(socket, sendJsonFilter) {
   handshake(ServerGreeting, ClientGreeting)
 }
 
-class Client(socket: Socket) extends Peer(socket) {
+class Client(socket: Socket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends Peer(socket, sendJsonFilter) {
   handshake(ClientGreeting, ServerGreeting)
 }

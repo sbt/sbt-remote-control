@@ -7,7 +7,7 @@ import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicReference
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
-private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, eventSink: SbtEventSink) extends BasicLogger {
+private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent]) extends BasicLogger {
   private val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
 
   def updatePeer(f: String => Unit): Unit = peer.lazySet(Some(f))
@@ -17,7 +17,7 @@ private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, eventSink: SbtEventSi
     // a custom stream for each task which records the task's key.
     // That will eliminate the need for heuristic BS based on which thread we are in.
     // But for now we don't have the taskIfKnown ever.
-    eventSink.send(protocol.LogEvent(taskIdFinder.bestGuessTaskId(taskIfKnown = None), entry))
+    logSink.send(protocol.LogEvent(taskIdFinder.bestGuessTaskId(taskIfKnown = None), entry))
     peer.get match {
       case Some(f) => f(entry.message)
       case None => ()

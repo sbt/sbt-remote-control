@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
 import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.Writes
+import play.api.libs.json.{ JsValue, Writes }
 
 // a little wrapper around protocol.request to keep the client/serial with it
 case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
@@ -50,17 +50,23 @@ class ReadOnlyServerEngine(
    *  any client connects, or execution status events,
    *  for example.
    */
-  final object eventSink extends SbtEventSink {
+  final object eventSink extends JsonSink[Any] {
+    // Create ambiguity to keep us from using any accidental implicit
+    // formatters; we need to always use the formatter we are given,
+    // not replace it with our own.
+    implicit def ambiguousWrites: Writes[Any] = ???
+    implicit def ambiguousWrites2 = ambiguousWrites
+
     // the idea of this buffer is to just hold on to logs
     // whenever we have no clients at all, so we make a best
     // effort to ensure at least one client gets each log event.
-    private val bufferedLogs = new LinkedBlockingQueue[protocol.LogEvent]()
+    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.LogEvent]]()
     private def drainBufferedLogs(client: SbtClient): Unit = {
       @tailrec
       def drainAnother(): Unit = {
         Option(bufferedLogs.poll()) match {
           case Some(event) =>
-            client.send(event)
+            clientSendWithWrites(client, event)
             drainAnother()
           case None =>
         }
@@ -76,36 +82,34 @@ class ReadOnlyServerEngine(
       ImpliedState.ExecutionEngine.empty
     private var eventListeners: SbtClient = NullSbtClient
 
-    override def send[T: Writes](msg: T): Unit = synchronized {
+    override def send[T](msg: T)(implicit writes: Writes[T]): Unit = {
       msg match {
         case event: LogEvent if event.taskId == 0L =>
           eventListeners match {
             case NullSbtClient =>
-              bufferedLogs.add(event)
+              bufferedLogs.add(EventWithWrites.withWrites(event.asInstanceOf[T with LogEvent]))
             case client: SbtClient =>
               drainBufferedLogs(client)
-              client.send(event)
+              client.send(msg)(writes)
           }
         case event: Event =>
-          try executionEngineState = ImpliedState.processEvent(executionEngineState, event)
-          catch {
-            case t: Throwable =>
-              System.err.println(s"FAIL ${t.getClass.getName} ${t.getMessage}")
-              t.printStackTrace(System.err)
-              throw t
-          }
-          eventListeners.send(msg)
-        case _ =>
-          throw new RuntimeException("Trying to send a non-Event " + msg)
+          executionEngineState = ImpliedState.processEvent(executionEngineState, event)
+          eventListeners.send(msg)(writes)
+        case other =>
+          eventListeners.send(msg)(writes)
       }
+    }
+
+    private def clientSendWithWrites(client: SbtClient, withWrites: EventWithWrites[_]): Unit = {
+      // alternative to asInstanceOf hacks here? please fix if you know how...
+      val event = withWrites.asInstanceOf[EventWithWrites[Event]].event
+      val writes = withWrites.asInstanceOf[EventWithWrites[Event]].writes
+      client.send(event)(writes)
     }
 
     private def sendActiveExecutionState(client: LiveClient): Unit = synchronized {
       val events = ImpliedState.eventsToReachEngineState(executionEngineState)
-      events.foreach { withWrites =>
-        // alternative to asInstanceOf hack here? why can't compiler figure this out?
-        client.send(withWrites.asInstanceOf[EventWithWrites[Event]].event)(withWrites.asInstanceOf[EventWithWrites[Event]].writes)
-      }
+      events foreach { withWrites => clientSendWithWrites(client, withWrites) }
     }
 
     def addEventListener(l: LiveClient): Unit = synchronized {
