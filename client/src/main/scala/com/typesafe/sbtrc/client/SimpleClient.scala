@@ -11,7 +11,7 @@ import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
 import java.io.Closeable
-import play.api.libs.json.Format
+import play.api.libs.json.Writes
 
 /**
  * Very terrible implementation of the sbt client.
@@ -37,7 +37,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // sendJson and wrap the failure or serial in a Future
   // (this is actually a synchronous operation but we want to
   // make it look async so we don't synchronously throw)
-  private def sendJson[T: Format](message: T, serial: Long): Future[Unit] = {
+  private def sendJson[T: Writes](message: T, serial: Long): Future[Unit] = {
     try Future.successful(client.sendJson(message, serial))
     catch {
       case NonFatal(e) =>
@@ -45,14 +45,14 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
 
-  private def sendJson[T: Format](message: T): Future[Unit] =
+  private def sendJson[T: Writes](message: T): Future[Unit] =
     sendJson(message, client.serialGetAndIncrement())
 
   // sendJson, providing a registration function which provides a future
   // representing the reply. The registration function would complete its
   // future by finding a reply with the serial passed to the registration
   // function.
-  private def sendJsonWithRegistration[T: Format, R](message: T)(registration: Long => Future[R]): Future[R] = {
+  private def sendJsonWithRegistration[T: Writes, R](message: T)(registration: Long => Future[R]): Future[R] = {
     val serial = client.serialGetAndIncrement()
     val result = registration(serial)
     // TODO we should probably arrange for this to time out and to get an error
@@ -63,7 +63,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   }
 
   // like sendJsonWithRegistration but provides a prebuilt promise
-  private def sendJsonWithResult[T: Format, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
+  private def sendJsonWithResult[T: Writes, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
     sendJsonWithRegistration(message) { serial =>
       val result = Promise[R]()
       registration(serial, result)
@@ -333,7 +333,7 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private var listeners: Set[ListenerType[Event]] = Set.empty
   private var closed = false
 
-  private def sendJson[T: Format](message: T): Unit =
+  private def sendJson[T: Writes](message: T): Unit =
     // don't check the closed flag here, would be a race
     try client.sendJson(message, client.serialGetAndIncrement())
     catch {
