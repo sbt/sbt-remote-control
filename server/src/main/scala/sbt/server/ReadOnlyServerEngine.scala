@@ -6,6 +6,9 @@ import java.util.concurrent.BlockingQueue
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
+import scala.annotation.tailrec
+import java.util.concurrent.LinkedBlockingQueue
+import play.api.libs.json.Format
 
 // a little wrapper around protocol.request to keep the client/serial with it
 case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
@@ -36,6 +39,55 @@ class ReadOnlyServerEngine(
   // TODO - This only works because it is called from a single thread.
   private def updateState(f: ServerState => ServerState): Unit =
     serverStateRef.lazySet(f(serverStateRef.get))
+
+  /**
+   * This object is used by the ServerEngine to send
+   *  out events. Methods can be called from any thread.
+   *  The reason we need this abstraction vs. using
+   *  serverState.eventListeners directly is that we
+   *  want to "catch up" clients who were not connected
+   *  and missed key events, including boot logs before
+   *  any client connects, or execution status events,
+   *  for example.
+   */
+  final object eventSink extends SbtEventSink {
+    // the idea of this buffer is to just hold on to logs
+    // whenever we have no clients at all, so we make a best
+    // effort to ensure at least one client gets each log event.
+    private val bufferedLogs = new LinkedBlockingQueue[protocol.LogEvent]()
+    def drainBufferedLogs(client: SbtClient): Unit = {
+      @tailrec
+      def drainAnother(): Unit = {
+        Option(bufferedLogs.poll()) match {
+          case Some(event) =>
+            client.send(event)
+            drainAnother()
+          case None =>
+        }
+      }
+      drainAnother()
+    }
+
+    override def send[T: Format](msg: T): Unit = msg match {
+      case event: LogEvent =>
+        serverState.eventListeners match {
+          case NullSbtClient =>
+            bufferedLogs.add(event)
+          case client: SbtClient =>
+            drainBufferedLogs(client)
+            client.send(event)
+        }
+    }
+
+    def sendActiveExecutionState(client: LiveClient): Unit = {
+      // TODO 1) make ServerEngine and our own code always use eventSink
+      //         not eventListeners directly
+      // TODO 2) record ExecutionStarting / TaskStarting and finish events,
+      //         so we always know what's active
+      // TODO 3) implement this method to send Starting events to newly-connected
+      //         clients if the finish events are still pending.
+    }
+  }
 
   /**
    * Object we use to synch work between the read-only "fast" event loop and
@@ -234,12 +286,15 @@ class ReadOnlyServerEngine(
   private def syntheticExecuteRequest(client: LiveClient, serial: Long, scopedKey: sbt.ScopedKey[_], buildState: State): Unit = {
     handleRequestsWithBuildState(client, serial, ExecutionRequest(Def.showFullKey(scopedKey)), buildState)
   }
+  private def listenToEvents(client: LiveClient, serial: Long): Unit = {
+    updateState(_.addEventListener(client))
+    eventSink.drainBufferedLogs(serverState.eventListeners)
+    client.reply(serial, ReceivedResponse())
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
       case ListenToEvents() =>
-        // We do not send a listening message, because we aren't yet.
-        updateState(_.addEventListener(client))
-        client.reply(serial, ReceivedResponse())
+        listenToEvents(client, serial)
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
@@ -253,9 +308,9 @@ class ReadOnlyServerEngine(
         // TODO - Is killing completely the right thing?
         System.exit(0)
       case ListenToEvents() =>
-        updateState(_.addEventListener(client))
-        client.reply(serial, ReceivedResponse())
+        listenToEvents(client, serial)
         engineWorkQueue.syncNewClient(client)
+      // TODO send active execution info as recorded by eventSink
       case UnlistenToEvents() =>
         updateState(_.removeEventListener(client))
         client.reply(serial, ReceivedResponse())

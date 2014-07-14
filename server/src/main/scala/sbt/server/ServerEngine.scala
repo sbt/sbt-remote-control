@@ -26,10 +26,11 @@ import scala.concurrent.{ Future, Promise }
  */
 class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
-  serverEngineLogFile: File) {
+  serverEngineLogFile: File,
+  eventSink: SbtEventSink) {
 
   private val taskIdRecorder = new TaskIdRecorder
-  private val eventLogger = new EventLogger(taskIdRecorder)
+  private val eventLogger = new EventLogger(taskIdRecorder, eventSink)
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -44,8 +45,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   final val HandleNextServerRequest = "server-handle-next-server-request"
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
     val (serverState, work) = requestQueue.blockAndTakeNext
-    // Update server state on stdout/logger for this request.
-    eventLogger.updateClient(serverState.eventListeners)
+
     // here we inject the current serverState into the State object.
     val next = handleWork(work, ServerState.update(state, serverState))
     // make sure we always read another server request after this one

@@ -3,15 +3,18 @@ package server
 
 import play.api.libs.json.Format
 import concurrent.Future
+
+trait SbtEventSink {
+  /** Sends a message out.  This should be a safe call (doens't throw on bad client for example.) */
+  def send[T: Format](msg: T): Unit
+}
+
 /**
  * An interface we can use to send messages to an sbt client.
  *
  * TODO - better name!
  */
-sealed trait SbtClient {
-  /** Sends a message out to an sbt client.  This should be a safe call (doens't throw on bad client.) */
-  def send[T: Format](msg: T): Unit
-
+sealed trait SbtClient extends SbtEventSink {
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (NullSbtClient, NullSbtClient) => NullSbtClient
@@ -31,8 +34,9 @@ sealed trait SbtClient {
       case other => other
     }
 }
+
 object NullSbtClient extends SbtClient {
-  def send[T: Format](msg: T): Unit = ()
+  override def send[T: Format](msg: T): Unit = ()
   override def toString = "NullSbtClient"
 }
 case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
@@ -41,6 +45,7 @@ case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
     clients foreach (_ send msg)
   override def toString = clients.mkString("Joined(", ",", ")")
 }
+
 // This is what concrete implementations implement.
 abstract class LiveClient extends SbtClient {
   def uuid: java.util.UUID
