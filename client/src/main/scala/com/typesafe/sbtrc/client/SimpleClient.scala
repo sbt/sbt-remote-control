@@ -71,8 +71,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
 
-  // For now, use the global object.
-  override def dynamicSerialization: DynamicSerialization = DynamicSerialization
+  override def buildValueSerialization: DynamicSerialization = DynamicSerialization
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)

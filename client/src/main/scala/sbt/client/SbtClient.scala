@@ -16,7 +16,7 @@ trait SbtClient extends Closeable {
    * results ("build values"). This allows interpreting task
    * results from custom sbt plugins.
    */
-  def dynamicSerialization: protocol.DynamicSerialization
+  def buildValueSerialization: protocol.DynamicSerialization
 
   /**
    * Watch the build structure, receiving notification when it changes.

@@ -102,7 +102,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
     // Now we try to grab the value of maketestThing 
     // We must explicitly register the mechanism of deserializing the custom message.
-    client.dynamicSerialization.register(SerializedThing.format)
+    client.buildValueSerialization.register(SerializedThing.format)
     val testThingValuePromise = Promise[sbt.protocol.TaskResult[SerializedThing]]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>
