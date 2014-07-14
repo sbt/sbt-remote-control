@@ -28,7 +28,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
   serverEngineLogFile: File,
   jsonSink: JsonSink[Any],
-  eventSink: JsonSink[Event],
+  eventSink: JsonSink[ExecutionEngineEvent],
   logSink: JsonSink[LogEvent]) {
 
   private val taskIdRecorder = new TaskIdRecorder

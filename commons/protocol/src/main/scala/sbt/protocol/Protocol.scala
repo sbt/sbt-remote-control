@@ -3,7 +3,8 @@ package sbt.protocol
 // Note:  All the serialization mechanisms for this protocol is in the
 // package.scala file.
 
-/** A marker trait for *any* message that is passed back/forth from
+/**
+ * A marker trait for *any* message that is passed back/forth from
  *  sbt into a client.
  */
 sealed trait Message {
@@ -32,6 +33,8 @@ sealed trait Request extends Message
 sealed trait Response extends Message
 /** Events that get sent during requests to sbt. */
 sealed trait Event extends Message
+/** Events sent by the execution engine */
+sealed trait ExecutionEngineEvent extends Event
 
 // ------------------------------------------
 //              Requests (Reactive API)
@@ -52,11 +55,11 @@ case class ExecutionRequestReceived(id: Long) extends Response
 // execution queued up
 case class ExecutionWaiting(id: Long, command: String, client: ClientInfo) extends Event
 // about to execute this one (popped off the queue)
-case class ExecutionStarting(id: Long) extends Event
+case class ExecutionStarting(id: Long) extends ExecutionEngineEvent
 // finished executing successfully
-case class ExecutionSuccess(id: Long) extends Event
+case class ExecutionSuccess(id: Long) extends ExecutionEngineEvent
 // finished executing unsuccessfully
-case class ExecutionFailure(id: Long) extends Event
+case class ExecutionFailure(id: Long) extends ExecutionEngineEvent
 
 /**
  * Request for the server to completely shut down.  No response expected,
@@ -68,24 +71,24 @@ case class KillServerRequest() extends Request
  * @param in The (partial) command we'd like possible completions for.
  * @param level  The interpretation of `level` is up to parser definitions, but 0 is the default by convention,
  * with increasing positive numbers corresponding to increasing verbosity.  Typically no more than
- * a few levels are defined. 
+ * a few levels are defined.
  */
 case class CommandCompletionsRequest(in: String, level: Int) extends Request
 /**
-* Represents a completion.
-* The abstract members `display` and `append` are best explained with an example. 
-*
-* Assuming space-delimited tokens, processing this:
-*   am is are w<TAB>
-* could produce these Completions:
-*   Completion { display = "was"; append = "as" }
-*   Completion { display = "were"; append = "ere" }
-* to suggest the tokens "was" and "were".
-*
-* In this way, two pieces of information are preserved:
-*  1) what needs to be appended to the current input if a completion is selected
-*  2) the full token being completed, which is useful for presenting a user with choices to select
-*/
+ * Represents a completion.
+ * The abstract members `display` and `append` are best explained with an example.
+ *
+ * Assuming space-delimited tokens, processing this:
+ *   am is are w<TAB>
+ * could produce these Completions:
+ *   Completion { display = "was"; append = "as" }
+ *   Completion { display = "were"; append = "ere" }
+ * to suggest the tokens "was" and "were".
+ *
+ * In this way, two pieces of information are preserved:
+ *  1) what needs to be appended to the current input if a completion is selected
+ *  2) the full token being completed, which is useful for presenting a user with choices to select
+ */
 case class Completion(append: String, display: String, isEmpty: Boolean)
 case class CommandCompletionsResponse(results: Set[Completion]) extends Response
 
@@ -166,12 +169,10 @@ case class ReceivedResponse() extends Response
 case class RequestCompleted() extends Response
 case class RequestFailed() extends Response
 
-
 case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) extends Request
 case class ReadLineResponse(line: Option[String]) extends Response
 case class ConfirmRequest(executionId: Long, message: String) extends Request
 case class ConfirmResponse(confirmed: Boolean) extends Response
-
 
 sealed trait TestOutcome {
   final def success: Boolean = {
@@ -215,18 +216,17 @@ case object TestSkipped extends TestOutcome {
 
 /** A compilation issue from the compiler. */
 case class CompilationFailure(
-    taskId: Long,
-    project: ProjectReference,
-    position: xsbti.Position,
-    severity: xsbti.Severity,
-    msg: String
-) extends Event
+  taskId: Long,
+  project: ProjectReference,
+  position: xsbti.Position,
+  severity: xsbti.Severity,
+  msg: String) extends Event
 
 // the taskId is provided here (tying it to an executionId and key),
 // and then in further events from the task we only provide taskId
 // since the exeuctionId and key can be deduced from that.
-case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends Event
+case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
 // we really could provide taskId ONLY here, but we throw the executionId and key
 // in just for convenience so clients don't have to hash taskId if their
 // only interest is in the key and executionId
-case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends Event
+case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent

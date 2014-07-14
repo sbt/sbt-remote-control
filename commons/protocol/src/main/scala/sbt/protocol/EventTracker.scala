@@ -39,16 +39,17 @@ object ImpliedState {
       throw new RuntimeException(s"Received end of execution event on execution which wasn't started")
   }
 
+  def processEvent(engine: ExecutionEngine, event: ExecutionWaiting): ExecutionEngine =
+    engine.copy(waiting = engine.waiting + (event.id ->
+      Execution(id = event.id, command = event.command, client = event.client, tasks = Map.empty)))
+
   /**
    * Modify the engine state according to the provided event.
    *  It is a bug to provide an event in the wrong sequence or
    *  with unknown IDs (the events must be correct and in the
    *  correct order).
    */
-  def processEvent(engine: ExecutionEngine, event: Event): ExecutionEngine = event match {
-    case ExecutionWaiting(id, command, client) =>
-      engine.copy(waiting = engine.waiting + (id ->
-        Execution(id = id, command = command, client = client, tasks = Map.empty)))
+  def processEvent(engine: ExecutionEngine, event: ExecutionEngineEvent): ExecutionEngine = event match {
     case ExecutionStarting(id) =>
       if (engine.waiting.contains(id))
         engine.copy(waiting = engine.waiting - id, started = engine.started + (id -> engine.waiting(id)))
@@ -83,7 +84,13 @@ object ImpliedState {
   }
 
   def processEvents(engine: ExecutionEngine, events: immutable.Seq[Event]): ExecutionEngine =
-    events.foldLeft(engine) { (sofar, event) => processEvent(sofar, event) }
+    events.foldLeft(engine) { (sofar, event) =>
+      event match {
+        case e: ExecutionWaiting => processEvent(sofar, e)
+        case e: ExecutionEngineEvent => processEvent(sofar, e)
+        case other => sofar
+      }
+    }
 
   private def eventToStartTask(executionId: Long, task: Task): EventWithWrites[TaskStarted] =
     TaskStarted(executionId = executionId, taskId = task.id, key = task.key)

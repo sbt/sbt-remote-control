@@ -92,7 +92,10 @@ class ReadOnlyServerEngine(
               drainBufferedLogs(client)
               client.send(msg)(writes)
           }
-        case event: Event =>
+        case event: ExecutionEngineEvent =>
+          executionEngineState = ImpliedState.processEvent(executionEngineState, event)
+          eventListeners.send(msg)(writes)
+        case event: ExecutionWaiting =>
           executionEngineState = ImpliedState.processEvent(executionEngineState, event)
           eventListeners.send(msg)(writes)
         case other =>
