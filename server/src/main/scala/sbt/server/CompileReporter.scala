@@ -21,7 +21,6 @@ class CompileReporter(
     val newPos = sourcePositionMapper(pos)
     val errorMessage =
       protocol.CompilationFailure(
-        context.taskId,
         project,
         pos,
         severity,

@@ -45,17 +45,16 @@ object WireProtocol {
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
     msg[LogEvent],
-    msg[TestEvent],
     msg[BuildStructureChanged],
     msg[ValueChanged[Any]],
     msg[ErrorResponse],
-    msg[CompilationFailure],
     msg[TaskStarted],
     msg[TaskFinished],
     msg[CommandCompletionsRequest],
     msg[CommandCompletionsResponse],
     msg[KeyLookupResponse],
-    msg[KeyLookupRequest])
+    msg[KeyLookupRequest],
+    msg[TaskEvent])
   private val lookUpIndex: Map[String, Format[_]] =
     (for {
       (_, (name, format)) <- messages
@@ -123,7 +122,7 @@ object WireProtocol {
         }
         addType(json, name)
       case other =>
-        json
+        throw new RuntimeException("you can only send a Message, not " + msg)
     }
   }
 

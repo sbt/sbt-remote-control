@@ -8,6 +8,10 @@ package sbt.protocol
  *  sbt into a client.
  */
 sealed trait Message {
+  def simpleName: String = Message.makeSimpleName(getClass)
+}
+
+object Message {
   // this makes it prettier when writing json by hand e.g. in JavaScript
   private def removeDollar(s: String) = {
     val i = s.lastIndexOf('$')
@@ -25,8 +29,10 @@ sealed trait Message {
     else
       s
   }
-  def simpleName = removeDollar(lastChunk(getClass.getName))
+  private[protocol] def makeSimpleName(klass: Class[_]): String =
+    removeDollar(lastChunk(klass.getName))
 }
+
 /** Represents requests that go down into sbt. */
 sealed trait Request extends Message
 /** Responses that come back from sbt. */
@@ -154,10 +160,35 @@ object LogMessage {
 /** We have a new log to display. taskId is 0 if the task is unknown. */
 case class LogEvent(taskId: Long, entry: LogEntry) extends Event
 
-/** A build test has done something useful and we're being notified of it. */
-case class TestEvent(taskId: Long, name: String, description: Option[String], outcome: TestOutcome, error: Option[String]) extends Event
-/** A generic mechanism to send events. */
-//case class GenericEvent(value: play.api.libs.json.JsValue) extends Event
+/** A custom event from a task. "name" is conventionally the simplified class name. */
+case class TaskEvent(taskId: Long, name: String, serialized: String) extends Event
+
+object TaskEvent {
+  // TODO these convenience methods apply/fromEvent make this file depend on play json.
+  // would we rather move these elsewhere?
+  import play.api.libs.json.Writes
+  import play.api.libs.json.Reads
+  import scala.reflect.ClassTag
+  import play.api.libs.json.Json
+
+  def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
+    val json = implicitly[Writes[T]].writes(event).toString
+    TaskEvent(taskId, Message.makeSimpleName(event.getClass), json)
+  }
+
+  // this can't be an unapply() since it needs the type parameter
+  def fromEvent[T: Reads: ClassTag](event: Event): Option[(Long, T)] = event match {
+    case taskEvent: TaskEvent =>
+      val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
+      if (name != taskEvent.name) {
+        None
+      } else {
+        Json.fromJson[T](Json.parse(taskEvent.serialized)).asOpt map { result => taskEvent.taskId -> result }
+      }
+    case other => None
+  }
+}
+
 /** The build has been changed in some fashion. */
 case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event
@@ -173,6 +204,20 @@ case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) ext
 case class ReadLineResponse(line: Option[String]) extends Response
 case class ConfirmRequest(executionId: Long, message: String) extends Request
 case class ConfirmResponse(confirmed: Boolean) extends Response
+
+// the taskId is provided here (tying it to an executionId and key),
+// and then in further events from the task we only provide taskId
+// since the exeuctionId and key can be deduced from that.
+case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
+// we really could provide taskId ONLY here, but we throw the executionId and key
+// in just for convenience so clients don't have to hash taskId if their
+// only interest is in the key and executionId
+case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+
+///// Events below here are intended to go inside a TaskEvent
+
+/** A build test has done something useful and we're being notified of it. */
+case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String])
 
 sealed trait TestOutcome {
   final def success: Boolean = {
@@ -216,17 +261,7 @@ case object TestSkipped extends TestOutcome {
 
 /** A compilation issue from the compiler. */
 case class CompilationFailure(
-  taskId: Long,
   project: ProjectReference,
   position: xsbti.Position,
   severity: xsbti.Severity,
-  msg: String) extends Event
-
-// the taskId is provided here (tying it to an executionId and key),
-// and then in further events from the task we only provide taskId
-// since the exeuctionId and key can be deduced from that.
-case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
-// we really could provide taskId ONLY here, but we throw the executionId and key
-// in just for convenience so clients don't have to hash taskId if their
-// only interest is in the key and executionId
-case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+  msg: String)

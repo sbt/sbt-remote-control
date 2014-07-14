@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
+import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Writes
 import sbt.server.ServerRequest
 import sbt.server.ExecutionId
@@ -107,7 +107,7 @@ class SbtClientHandler(
   }
 
   // ipc is synchronized, so this is ok.
-  override def send[T: Writes](msg: T): Unit = {
+  override def send[T <: Message: Writes](msg: T): Unit = {
     wrappedSend(msg) { ipc.sendJson(msg, ipc.serialGetAndIncrement()) }
   }
   // ipc is synchronized, so this is ok.

@@ -70,16 +70,16 @@ object BuildValue {
   
   // Here we need to reflectively look up the serialization of things...
   def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] = 
-    DynamicSerializaton.lookup(mf) map { serializer =>
+    DynamicSerialization.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
     } getOrElse UnserializedValue(o.toString, None)
 
-    
-  
+
+
   private def deserialize(value: JsValue, mf: TypeInfo): Option[BuildValue[Any]] =
     for {
       realMf <- mf.toManifest()
-      serializer <- DynamicSerializaton.lookup(realMf)
+      serializer <- DynamicSerialization.lookup(realMf)
       realValue <- serializer.reads(value).asOpt
     } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[Format[Any]], mf)
   

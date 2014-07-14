@@ -12,10 +12,9 @@ trait SbtClient extends Closeable {
   def humanReadableName: String
 
   /**
-   * A registry of custom serializers that are used when
-   * non-standard messages are sent between the build and this cient.
-   * e.g. this can be used to register a specific handler for task
-   * values coming out of custom sbt plugins.
+   * A registry of custom serializers that are used for task
+   * results ("build values"). This allows interpreting task
+   * results from custom sbt plugins.
    */
   def dynamicSerialization: protocol.DynamicSerialization
 

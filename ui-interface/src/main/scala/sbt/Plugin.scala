@@ -39,7 +39,5 @@ private[sbt] object CommandLineUiContext extends AbstractUIContext {
     }
   }
   override def sendEvent[T: Writes](event: T): Unit = ()
-  override def sendGenericEvent(data: JsValue): Unit = ()
-  override def taskId: Long = 0L
 }
 

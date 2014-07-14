@@ -1,11 +1,12 @@
 package sbt
 package protocol
 
-import play.api.libs.json.{Format, Reads, Writes}
+import play.api.libs.json.{ Format, Reads, Writes }
 
-/** An interface representing a mechanism to register and
+/**
+ * An interface representing a mechanism to register and
  *  retrieve serialization for specific types at runtime.
- *  
+ *
  *  This suffers from all the same limitations as scala.Manifest for
  *  handling types.
  */
@@ -21,13 +22,13 @@ trait DynamicSerialization {
  * NOTE: Users should NOT use this directly
  */
 @deprecated("Users should not use this object directly")
-object DynamicSerializaton extends DynamicSerialization {
+object DynamicSerialization extends DynamicSerialization {
   // Here we store erased types
   private type RawManifest = Manifest[_]
   private type RawFormat = Format[_]
-  private val registered = 
+  private val registered =
     scala.collection.concurrent.TrieMap[RawManifest, RawFormat]()
-        
+
   override def register[T](serializer: Format[T])(implicit mf: Manifest[T]): Unit =
     // Here we erase the original type when storing
     registered.put(mf, serializer)
@@ -36,21 +37,20 @@ object DynamicSerializaton extends DynamicSerialization {
     // When looking up, given the interface, it's safe to return to
     // the original type.
     (registered get mf).asInstanceOf[Option[Format[T]]] orElse
-    // TODO - When generating a default serializer, we should probably also memoize it.
-    memoizedDefaultSerializer(mf)
-  
-  
+      // TODO - When generating a default serializer, we should probably also memoize it.
+      memoizedDefaultSerializer(mf)
+
   // TODO - This should be a registration system and not so hacky...
   private def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[Format[T]] =
     defaultSerializer(mf) match {
-      case Some(s) => 
+      case Some(s) =>
         register(s)(mf)
         Some(s)
       case None => None
     }
   /**
    * This represents the generic way in which we can serialize sbt settings over the network.
-   * 
+   *
    * This is the ONLY list we use when attempting to inspect unknown types.  If we don't
    * have a mechanism here, we can't serialize (on either side) and we wind up with a
    * None representing the semantic value, but the "toString" will still make it across.
@@ -74,7 +74,7 @@ object DynamicSerializaton extends DynamicSerialization {
         } yield {
           val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
           val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-          Format(reads,writes)
+          Format(reads, writes)
         }
       case Classes.AttributedSubClass() =>
         for {
@@ -85,6 +85,5 @@ object DynamicSerializaton extends DynamicSerialization {
         None
     }).asInstanceOf[Option[Format[T]]]
   }
-  
-  
+
 }

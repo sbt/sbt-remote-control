@@ -12,10 +12,6 @@ sealed trait UIContext {
 
   /** Sends an event out to all registered event listeners. */
   def sendEvent[T: Writes](event: T): Unit
-  def sendGenericEvent(data: JsValue): Unit
-
-  // obtain the task ID that should be included in events
-  def taskId: Long
 }
 /**
  * Represents a Manifest/Format pair we can use

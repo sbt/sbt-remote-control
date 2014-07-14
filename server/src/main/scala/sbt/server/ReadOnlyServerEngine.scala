@@ -50,7 +50,7 @@ class ReadOnlyServerEngine(
    *  any client connects, or execution status events,
    *  for example.
    */
-  final object eventSink extends JsonSink[Any] {
+  final object eventSink extends JsonSink[Event] {
     // Create ambiguity to keep us from using any accidental implicit
     // formatters; we need to always use the formatter we are given,
     // not replace it with our own.
@@ -82,7 +82,7 @@ class ReadOnlyServerEngine(
       ImpliedState.ExecutionEngine.empty
     private var eventListeners: SbtClient = NullSbtClient
 
-    override def send[T](msg: T)(implicit writes: Writes[T]): Unit = {
+    override def send[T <: Event](msg: T)(implicit writes: Writes[T]): Unit = {
       msg match {
         case event: LogEvent if event.taskId == 0L =>
           eventListeners match {

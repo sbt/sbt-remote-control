@@ -184,7 +184,6 @@ package object protocol {
   implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
   implicit val clientInfoFormat = Json.format[ClientInfo]
   implicit val registerClientRequestFormat = Json.format[RegisterClientRequest]
-  implicit val testEventFormat = Json.format[TestEvent]
   implicit val executionRequestFormat = Json.format[ExecutionRequest]
   implicit val keyExecutionRequestFormat = Json.format[KeyExecutionRequest]
   implicit val executionReceivedFormat = Json.format[ExecutionRequestReceived]
@@ -202,7 +201,6 @@ package object protocol {
   implicit val unlistenToValueFormat = Json.format[UnlistenToValue]
   implicit val sendSyntheticValueChangedFormat = Json.format[SendSyntheticValueChanged]
   implicit val keyNotFoundFormat = Json.format[KeyNotFound]
-  implicit val compilationFailureFormat = Json.format[CompilationFailure]
   implicit val taskStartedFormat = Json.format[TaskStarted]
   implicit val taskFinishedFormat = Json.format[TaskFinished]
   implicit val readLineRequestFormat = Json.format[ReadLineRequest]
@@ -211,7 +209,22 @@ package object protocol {
   implicit val confirmResponseFormat = Json.format[ConfirmResponse]
   implicit val keyLookupRequestFormat = Json.format[KeyLookupRequest]
   implicit val keyLookupResponseFormat = Json.format[KeyLookupResponse]
-  
+
+  // This needs a custom formatter because it has a custom apply/unapply
+  // which confuses the auto-formatter macro
+  implicit val taskEventFormat: Format[TaskEvent] = new Format[TaskEvent] {
+    override def writes(event: TaskEvent): JsValue = {
+      Json.obj("taskId" -> event.taskId, "name" -> event.name, "serialized" -> event.serialized)
+    }
+
+    override def reads(v: JsValue): JsResult[TaskEvent] = {
+      for {
+        taskId <- (v \ "taskId").validate[Long]
+        name <- (v \ "name").validate[String]
+        serialized <- (v \ "serialized").validate[String]
+      } yield TaskEvent(taskId = taskId, name = name, serialized = serialized)
+    }
+  }
 
   // TODO - This needs an explicit format... yay.
   implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = 
@@ -232,4 +245,8 @@ package object protocol {
   implicit val completionFormat = Json.format[Completion]
   implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]
   implicit val commandCompletionsResponseFormat = Json.format[CommandCompletionsResponse]
+
+  // task events (do not extend protocol.Message)
+  implicit val testEventFormat = Json.format[TestEvent]
+  implicit val compilationFailureFormat = Json.format[CompilationFailure]
 }

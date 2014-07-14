@@ -42,7 +42,7 @@ class ServerTestListener(val context: UIContext) extends TestReportListener {
         case TStatus.Pending => protocol.TestSkipped
       }
       context.sendEvent(
-        protocol.TestEvent(context.taskId,
+        protocol.TestEvent(
           detail.fullyQualifiedName,
           None, // No descriptions in new interface?
           outcome,
