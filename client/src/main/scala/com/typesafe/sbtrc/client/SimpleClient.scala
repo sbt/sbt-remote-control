@@ -238,7 +238,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   object thread extends Thread {
     override def run(): Unit = {
       while (running) {
-        try handleNextEvent()
+        try handleNextMessage()
         catch {
           case e @ (_: SocketException | _: EOFException | _: IOException) =>
             // don't print anything here, this is a normal occurrence when server
@@ -264,50 +264,62 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       cancelRequestManager.close()
       closeHandler()
     }
-    def handleNextEvent(): Unit =
-      protocol.Envelope(client.receive()) match {
-        case protocol.Envelope(_, _, e: ValueChanged[_]) =>
-          valueEventManager(e.key).sendEvent(e)
-        case protocol.Envelope(_, _, e: BuildStructureChanged) =>
-          buildEventManager.sendEvent(e.structure)
-        case protocol.Envelope(_, replyTo, KeyLookupResponse(key, result)) =>
-          keyLookupRequestManager.fire(replyTo, result)
-        case protocol.Envelope(_, replyTo, protocol.CommandCompletionsResponse(completions)) =>
-          completionsManager.fire(replyTo, completions)
-        case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
-          requestHandler.executionReceived(requestSerial, executionId)
-        case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>
-          requestHandler.executionDone(e.id)
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, replyTo, protocol.CancelExecutionResponse(result)) =>
-          cancelRequestManager.fire(replyTo, result)
-        case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
-          requestHandler.executionFailed(e.id, s"execution failed")
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, _, e: Event) =>
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
-          requestHandler.protocolError(requestSerial, msg)
-        case protocol.Envelope(request, _, protocol.ReadLineRequest(executionId, prompt, mask)) =>
-          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
-          catch {
-            case NoInteractionException =>
-              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
-          }
-        case protocol.Envelope(request, _, protocol.ConfirmRequest(executionId, msg)) =>
-          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
-          catch {
-            case NoInteractionException =>
-              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
-          }
-        case protocol.Envelope(_, requestSerial, r: protocol.Request) =>
-          client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: " + r.simpleName))
-        // TODO - Deal with other responses...
-        case stuff =>
-        // TODO - Do something here.
-        //System.err.println("Received gunk from the server!: " + stuff)
-      }
+    private def handleEvent(event: Event): Unit = event match {
+      case e: ValueChanged[_] =>
+        valueEventManager(e.key).sendEvent(e)
+      case e: BuildStructureChanged =>
+        buildEventManager.sendEvent(e.structure)
+      case e: protocol.ExecutionSuccess =>
+        requestHandler.executionDone(e.id)
+        eventManager.sendEvent(e)
+      case e: protocol.ExecutionFailure =>
+        requestHandler.executionFailed(e.id, s"execution failed")
+        eventManager.sendEvent(e)
+      case other =>
+        eventManager.sendEvent(other)
+    }
+    private def handleResponse(replyTo: Long, response: Response): Unit = response match {
+      case KeyLookupResponse(key, result) =>
+        keyLookupRequestManager.fire(replyTo, result)
+      case protocol.CommandCompletionsResponse(completions) =>
+        completionsManager.fire(replyTo, completions)
+      case protocol.ExecutionRequestReceived(executionId) =>
+        requestHandler.executionReceived(replyTo, executionId)
+      case protocol.CancelExecutionResponse(result) =>
+        cancelRequestManager.fire(replyTo, result)
+      case protocol.ErrorResponse(msg) =>
+        requestHandler.protocolError(replyTo, msg)
+      case other =>
+      // do nothing, we don't understand it
+    }
+    private def handleRequest(serial: Long, request: Request): Unit = request match {
+      case protocol.ReadLineRequest(executionId, prompt, mask) =>
+        try client.replyJson(serial, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
+        catch {
+          case NoInteractionException =>
+            client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+        }
+      case protocol.ConfirmRequest(executionId, msg) =>
+        try client.replyJson(serial, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
+        catch {
+          case NoInteractionException =>
+            client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+        }
+      case other =>
+        client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.simpleName))
+    }
+    private def handleEnvelope(envelope: protocol.Envelope): Unit = envelope match {
+      case protocol.Envelope(_, _, event: Event) =>
+        handleEvent(event)
+      case protocol.Envelope(_, replyTo, response: Response) =>
+        handleResponse(replyTo, response)
+      case protocol.Envelope(serial, _, request: Request) =>
+        handleRequest(serial, request)
+    }
+    private def handleNextMessage(): Unit =
+      handleEnvelope(protocol.Envelope(client.receive()))
   }
+
   thread.start()
 
   private val requestHandler = new RequestHandler()
