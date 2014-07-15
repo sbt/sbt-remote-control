@@ -39,9 +39,12 @@ object ImpliedState {
       throw new RuntimeException(s"Received end of execution event on execution which wasn't started")
   }
 
-  def processEvent(engine: ExecutionEngine, event: ExecutionWaiting): ExecutionEngine =
+  def processEvent(engine: ExecutionEngine, event: ExecutionWaiting): ExecutionEngine = {
+    if (engine.waiting.contains(event.id))
+      throw new RuntimeException("got multiple execution creations " + event)
     engine.copy(waiting = engine.waiting + (event.id ->
       Execution(id = event.id, command = event.command, client = event.client, tasks = Map.empty)))
+  }
 
   /**
    * Modify the engine state according to the provided event.
@@ -98,14 +101,18 @@ object ImpliedState {
   private def eventToFinishTask(executionId: Long, task: Task, success: Boolean): EventWithWrites[TaskFinished] =
     TaskFinished(executionId = executionId, taskId = task.id, key = task.key, success = success)
 
+  private def eventToCreateExecution(execution: Execution): EventWithWrites[ExecutionWaiting] =
+    ExecutionWaiting(execution.id, execution.command, execution.client)
+
   private def eventsToStartExecution(execution: Execution): immutable.Seq[EventWithWrites[_ <: Event]] = {
-    val startExecution: Seq[EventWithWrites[_ <: Event]] =
-      Seq(writes(ExecutionWaiting(execution.id, execution.command, execution.client)),
-        writes(ExecutionStarting(execution.id)))
     val startTasks = for (task <- execution.tasks.values)
       yield eventToStartTask(execution.id, task)
 
-    (startExecution ++ startTasks).toList
+    (Iterable(writes(ExecutionStarting(execution.id))) ++ startTasks).toList
+  }
+
+  private def eventsToCreateAndStartExecution(execution: Execution): immutable.Seq[EventWithWrites[_ <: Event]] = {
+    (Iterable(eventToCreateExecution(execution)) ++ eventsToStartExecution(execution)).toList
   }
 
   private def eventsToFinishExecution(execution: Execution, success: Boolean): immutable.Seq[EventWithWrites[_ <: Event]] = {
@@ -124,7 +131,7 @@ object ImpliedState {
    * if processed in order from first to last.
    */
   def eventsToReachEngineState(engine: ExecutionEngine): immutable.Seq[EventWithWrites[_ <: Event]] = {
-    val starting = engine.started.values.flatMap { execution => eventsToStartExecution(execution) }
+    val starting = engine.started.values.flatMap { execution => eventsToCreateAndStartExecution(execution) }
     val waiting = for (execution <- engine.waiting.values)
       yield writes(ExecutionWaiting(execution.id, execution.command, execution.client))
     (starting ++ waiting).toList
