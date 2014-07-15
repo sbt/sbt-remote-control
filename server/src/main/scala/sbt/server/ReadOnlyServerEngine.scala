@@ -103,11 +103,8 @@ class ReadOnlyServerEngine(
       }
     }
 
-    private def clientSendWithWrites(client: SbtClient, withWrites: EventWithWrites[_]): Unit = {
-      // alternative to asInstanceOf hacks here? please fix if you know how...
-      val event = withWrites.asInstanceOf[EventWithWrites[Event]].event
-      val writes = withWrites.asInstanceOf[EventWithWrites[Event]].writes
-      client.send(event)(writes)
+    private def clientSendWithWrites[E <: Event](client: SbtClient, withWrites: EventWithWrites[E]): Unit = {
+      client.send(withWrites.event)(withWrites.writes)
     }
 
     private def sendActiveExecutionState(client: LiveClient): Unit = synchronized {
