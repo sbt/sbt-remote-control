@@ -227,26 +227,57 @@ package object protocol {
   }
 
   // TODO - This needs an explicit format... yay.
-  implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = 
+  implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] =
     new Format[ValueChanged[A]] {
       def writes(v: ValueChanged[A]): JsValue =
         JsObject(Seq(
           "key" -> Json.toJson(v.key),
-          "value" -> result.writes(v.value)
-        ))
+          "value" -> result.writes(v.value)))
       def reads(v: JsValue): JsResult[ValueChanged[A]] = {
         for {
           key <- Json.fromJson[ScopedKey](v \ "key")
           result <- result.reads(v \ "value")
-        } yield ValueChanged(key,result)
+        } yield ValueChanged(key, result)
       }
     }
-  
+
   implicit val completionFormat = Json.format[Completion]
   implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]
   implicit val commandCompletionsResponseFormat = Json.format[CommandCompletionsResponse]
 
-  // task events (do not extend protocol.Message)
-  implicit val testEventFormat = Json.format[TestEvent]
-  implicit val compilationFailureFormat = Json.format[CompilationFailure]
+  ///// task events (do not extend protocol.Message)
+  // these formatters are hand-coded because they have an unapply()
+  // that confuses play-json
+
+  implicit val testEventFormat: Format[TestEvent] = new Format[TestEvent] {
+    override def writes(event: TestEvent): JsValue = {
+      Json.obj("name" -> event.name, "description" -> event.description,
+        "outcome" -> event.outcome, "error" -> event.error)
+    }
+
+    override def reads(v: JsValue): JsResult[TestEvent] = {
+      for {
+        name <- (v \ "name").validate[String]
+        description <- (v \ "description").validate[Option[String]]
+        outcome <- (v \ "outcome").validate[TestOutcome]
+        error <- (v \ "error").validate[Option[String]]
+      } yield TestEvent(name = name, description = description, outcome = outcome, error = error)
+    }
+  }
+
+  implicit val compilationFailureFormat = new Format[CompilationFailure] {
+    override def writes(event: CompilationFailure): JsValue = {
+      Json.obj("project" -> event.project, "position" -> event.position,
+        "severity" -> event.severity, "message" -> event.message)
+    }
+
+    override def reads(v: JsValue): JsResult[CompilationFailure] = {
+      for {
+        project <- (v \ "project").validate[ProjectReference]
+        position <- (v \ "position").validate[xsbti.Position]
+        severity <- (v \ "severity").validate[xsbti.Severity]
+        message <- (v \ "message").validate[String]
+      } yield CompilationFailure(project = project, position = position, severity = severity, message = message)
+    }
+  }
 }

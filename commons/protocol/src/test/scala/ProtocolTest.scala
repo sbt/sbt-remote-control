@@ -86,6 +86,14 @@ class ProtocolTest {
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
+    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestOutcome("passed"), Some("bar"))) match {
+      case protocol.TestEvent(taskId, test) =>
+        assertEquals(4, taskId)
+        assertEquals("name", test.name)
+        assertEquals(Some("foo"), test.description)
+        assertEquals(Some("bar"), test.error)
+    }
+
     // check TaskEvent unpacking... not using any nice extractors here
     // because custom unapply() confuses Play's json macros
     protocol.TaskEvent(8, PlayStartedEvent(port = 10)) match {

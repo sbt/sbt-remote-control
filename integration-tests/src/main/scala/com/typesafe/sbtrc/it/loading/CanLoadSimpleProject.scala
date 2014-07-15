@@ -81,9 +81,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // Now we check compilation failure messages
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
-      case e: TaskEvent if e.name == "CompilationFailure" => TaskEvent.fromEvent[CompilationFailure](e) match {
-        case Some((taskId, x)) => compileErrorCaptured.success(x)
-      }
+      case CompilationFailure(taskId, failure) => compileErrorCaptured.success(failure)
       case _ =>
     })(global)
     client.requestExecution("compile", None)

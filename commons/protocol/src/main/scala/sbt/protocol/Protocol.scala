@@ -219,6 +219,10 @@ case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey],
 /** A build test has done something useful and we're being notified of it. */
 case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String])
 
+object TestEvent {
+  def unapply(event: Event): Option[(Long, TestEvent)] = TaskEvent.fromEvent[TestEvent](event)
+}
+
 sealed trait TestOutcome {
   final def success: Boolean = {
     this != TestError && this != TestFailed
@@ -264,4 +268,8 @@ case class CompilationFailure(
   project: ProjectReference,
   position: xsbti.Position,
   severity: xsbti.Severity,
-  msg: String)
+  message: String)
+
+object CompilationFailure {
+  def unapply(event: Event): Option[(Long, CompilationFailure)] = TaskEvent.fromEvent[CompilationFailure](event)
+}
