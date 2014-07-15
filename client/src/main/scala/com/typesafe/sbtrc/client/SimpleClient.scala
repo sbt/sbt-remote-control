@@ -237,9 +237,11 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // TODO - Error handling!
   object thread extends Thread {
     override def run(): Unit = {
+      var executionState: ImpliedState.ExecutionEngine = ImpliedState.ExecutionEngine.empty
       while (running) {
-        try handleNextMessage()
-        catch {
+        try {
+          executionState = handleNextMessage(executionState)
+        } catch {
           case e @ (_: SocketException | _: EOFException | _: IOException) =>
             // don't print anything here, this is a normal occurrence when server
             // restarts or the socket otherwise closes for some reason.
@@ -250,6 +252,16 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         }
       }
       // Here we think sbt connection has closed.
+
+      // generate events to terminate any tasks and executions
+      for {
+        withWrites <- ImpliedState.eventsToEmptyEngineState(executionState, success = false)
+        event = withWrites.event
+      } {
+        System.err.println(s"Synthesizing execution event: ${event}")
+        executionState = handleEvent(executionState, event)
+        ()
+      }
 
       // make sure it's marked as closed on client side
       client.close()
@@ -264,19 +276,30 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       cancelRequestManager.close()
       closeHandler()
     }
-    private def handleEvent(event: Event): Unit = event match {
+    private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
       case e: ValueChanged[_] =>
         valueEventManager(e.key).sendEvent(e)
+        executionState
       case e: BuildStructureChanged =>
         buildEventManager.sendEvent(e.structure)
+        executionState
       case e: protocol.ExecutionSuccess =>
         requestHandler.executionDone(e.id)
         eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
       case e: protocol.ExecutionFailure =>
         requestHandler.executionFailed(e.id, s"execution failed")
         eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case e: protocol.ExecutionEngineEvent =>
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case e: protocol.ExecutionWaiting =>
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
       case other =>
         eventManager.sendEvent(other)
+        executionState
     }
     private def handleResponse(replyTo: Long, response: Response): Unit = response match {
       case KeyLookupResponse(key, result) =>
@@ -308,16 +331,18 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       case other =>
         client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.simpleName))
     }
-    private def handleEnvelope(envelope: protocol.Envelope): Unit = envelope match {
+    private def handleEnvelope(executionState: ImpliedState.ExecutionEngine, envelope: protocol.Envelope): ImpliedState.ExecutionEngine = envelope match {
       case protocol.Envelope(_, _, event: Event) =>
-        handleEvent(event)
+        handleEvent(executionState, event)
       case protocol.Envelope(_, replyTo, response: Response) =>
         handleResponse(replyTo, response)
+        executionState
       case protocol.Envelope(serial, _, request: Request) =>
         handleRequest(serial, request)
+        executionState
     }
-    private def handleNextMessage(): Unit =
-      handleEnvelope(protocol.Envelope(client.receive()))
+    private def handleNextMessage(executionState: ImpliedState.ExecutionEngine): ImpliedState.ExecutionEngine =
+      handleEnvelope(executionState, protocol.Envelope(client.receive()))
   }
 
   thread.start()
