@@ -40,7 +40,7 @@ package object protocol {
         }
       def reads(v: JsValue): JsResult[Option[A]] =
         v match {
-          case JsNull =>  JsSuccess(None)
+          case JsNull => JsSuccess(None)
           case value => other.reads(value).map(Some(_))
         }
     }
@@ -48,19 +48,19 @@ package object protocol {
     new Format[sbt.Attributed[T]] {
       override def writes(t: sbt.Attributed[T]): JsValue =
         JsObject(Seq("attributed" -> JsBoolean(true),
-                     "data" -> format.writes(t.data)))
+          "data" -> format.writes(t.data)))
       override def reads(obj: JsValue): JsResult[sbt.Attributed[T]] =
         (obj \ "attributed") match {
-          case JsBoolean(true) => 
-             format.reads(obj \ "data").map(sbt.Attributed.blank)
+          case JsBoolean(true) =>
+            format.reads(obj \ "data").map(sbt.Attributed.blank)
           case _ => JsError("not a valid attributed.")
         }
-      override def toString = "Format[Attributed["+format+"]"
+      override def toString = "Format[Attributed[" + format + "]"
     }
   implicit object SeverityFormat extends Format[xsbti.Severity] {
     override def writes(in: xsbti.Severity): JsValue =
       JsString(in.toString)
-    override def reads(in: JsValue): JsResult[xsbti.Severity] = 
+    override def reads(in: JsValue): JsResult[xsbti.Severity] =
       in match {
         case JsString(s) => JsSuccess(xsbti.Severity.valueOf(s))
         case _ => JsError("Could not find severity: " + in)
@@ -69,22 +69,22 @@ package object protocol {
   implicit object PositionFormat extends Format[xsbti.Position] {
     override def writes(in: xsbti.Position): JsObject = {
       def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
-        if(value.isDefined) Seq(name -> format.writes(value.get)) else Nil
+        if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
       val line = defineIf(in.line, "line")
       val offset = defineIf(in.offset, "offset")
       val pointer = defineIf(in.pointer, "pointer")
       val pointerSpace = defineIf(in.pointerSpace, "pointerSpace")
       val sourcePath = defineIf(in.sourcePath, "sourcePath")
       val sourceFile = defineIf(in.sourceFile, "sourceFile")
-      JsObject(Seq("lineContent" -> JsString(in.lineContent)) ++ 
-        line ++ 
-        offset ++ 
-        pointer ++ 
+      JsObject(Seq("lineContent" -> JsString(in.lineContent)) ++
+        line ++
+        offset ++
+        pointer ++
         pointerSpace ++
         sourcePath ++
         sourceFile)
     }
-    private def convert[T](o: Option[T]): xsbti.Maybe[T] = 
+    private def convert[T](o: Option[T]): xsbti.Maybe[T] =
       o match {
         case Some(value) => xsbti.Maybe.just(value)
         case None => xsbti.Maybe.nothing()
@@ -96,8 +96,7 @@ package object protocol {
       p: Option[Int],
       ps: Option[String],
       sp: Option[String],
-      sf: Option[java.io.File]
-    ) extends xsbti.Position {
+      sf: Option[java.io.File]) extends xsbti.Position {
       override def line = convert(l.map(Integer.valueOf))
       override def offset = convert(o.map(Integer.valueOf))
       override def pointer = convert(p.map(Integer.valueOf))
@@ -107,7 +106,7 @@ package object protocol {
     }
     override def reads(in: JsValue): JsResult[xsbti.Position] = {
       (in \ "lineContent") match {
-        case JsString(lineContent) => 
+        case JsString(lineContent) =>
           val line = (in \ "line").asOpt[Int]
           val offset = (in \ "offset").asOpt[Int]
           val pointer = (in \ "pointer").asOpt[Int]
@@ -121,33 +120,33 @@ package object protocol {
   }
   // Protocol serializers...  
   implicit val errorResponseFormat = Json.format[ErrorResponse]
-    
+
   // EVENTS
-  
+
   implicit object logEntryFormat extends Format[LogEntry] {
-    def writes(entry: LogEntry): JsValue = 
+    def writes(entry: LogEntry): JsValue =
       entry match {
         case LogSuccess(message) =>
           JsObject(Seq(
-              "type" -> JsString("success"), 
-              "message" -> JsString(message)))
+            "type" -> JsString("success"),
+            "message" -> JsString(message)))
         case LogTrace(klass, message) =>
           JsObject(Seq(
-              "type" -> JsString("trace"), 
-              "class" -> JsString(klass), 
-              "message" -> JsString(message)))
+            "type" -> JsString("trace"),
+            "class" -> JsString(klass),
+            "message" -> JsString(message)))
         case LogMessage(level, message) =>
           JsObject(Seq(
-              "type" -> JsString("message"), 
-              "level" -> JsString(level), 
-              "message" -> JsString(message)))
+            "type" -> JsString("message"),
+            "level" -> JsString(level),
+            "message" -> JsString(message)))
         case LogStdOut(message) =>
           JsObject(Seq(
-              "type" -> JsString("stdout"),
-              "message" -> JsString(message)))
+            "type" -> JsString("stdout"),
+            "message" -> JsString(message)))
         case LogStdErr(message) =>
           JsObject(
-              Seq("type" -> JsString("stderr"),
+            Seq("type" -> JsString("stderr"),
               "message" -> JsString(message)))
 
       }
@@ -172,7 +171,7 @@ package object protocol {
   implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
   implicit val requestFailedFormat = emptyObjectFormat(RequestFailed())
   implicit val killRequestFormat = emptyObjectFormat(KillServerRequest())
-  
+
   implicit object outcomeFormat extends Format[TestOutcome] {
     def writes(outcome: TestOutcome): JsValue =
       JsString(outcome.toString)
