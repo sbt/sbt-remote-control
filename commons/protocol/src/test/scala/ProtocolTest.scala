@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 import play.api.libs.json.Json
 
 case class PlayStartedEvent(port: Int)
-object PlayStartedEvent {
+object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
   implicit val format = Json.format[PlayStartedEvent]
 }
 
@@ -94,18 +94,12 @@ class ProtocolTest {
         assertEquals(Some("bar"), test.error)
     }
 
-    // check TaskEvent unpacking... not using any nice extractors here
-    // because custom unapply() confuses Play's json macros
+    // check TaskEvent unpacking using TaskEventUnapply
     protocol.TaskEvent(8, PlayStartedEvent(port = 10)) match {
-      case event: protocol.TaskEvent if event.name == "PlayStartedEvent" => {
-        protocol.TaskEvent.fromEvent[PlayStartedEvent](event) match {
-          case Some((taskId, playStarted)) =>
-            assertEquals(8, taskId)
-            assertEquals(10, playStarted.port)
-          case other => throw new AssertionError("nobody expects PlayStartedEvent to be " + other)
-        }
-      }
-      case other => throw new AssertionError("nobody expects task event to be " + other)
+      case PlayStartedEvent(taskId, playStarted) =>
+        assertEquals(8, taskId)
+        assertEquals(10, playStarted.port)
+      case other => throw new AssertionError("nobody expects PlayStartedEvent to be " + other)
     }
   }
 

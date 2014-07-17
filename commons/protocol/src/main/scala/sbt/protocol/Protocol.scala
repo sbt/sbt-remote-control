@@ -3,6 +3,8 @@ package sbt.protocol
 // Note:  All the serialization mechanisms for this protocol is in the
 // package.scala file.
 
+import play.api.libs.json.JsValue
+
 /**
  * A marker trait for *any* message that is passed back/forth from
  *  sbt into a client.
@@ -161,29 +163,30 @@ object LogMessage {
 case class LogEvent(taskId: Long, entry: LogEntry) extends Event
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
-case class TaskEvent(taskId: Long, name: String, serialized: String) extends Event
+case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
 
 object TaskEvent {
-  // TODO these convenience methods apply/fromEvent make this file depend on play json.
-  // would we rather move these elsewhere?
   import play.api.libs.json.Writes
+
+  def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
+    val json = implicitly[Writes[T]].writes(event)
+    TaskEvent(taskId, Message.makeSimpleName(event.getClass), json)
+  }
+}
+
+/** Companion objects of events which can go in a task event extend this */
+trait TaskEventUnapply[T] {
   import play.api.libs.json.Reads
   import scala.reflect.ClassTag
   import play.api.libs.json.Json
 
-  def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
-    val json = implicitly[Writes[T]].writes(event).toString
-    TaskEvent(taskId, Message.makeSimpleName(event.getClass), json)
-  }
-
-  // this can't be an unapply() since it needs the type parameter
-  def fromEvent[T: Reads: ClassTag](event: Event): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
       val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != taskEvent.name) {
         None
       } else {
-        Json.fromJson[T](Json.parse(taskEvent.serialized)).asOpt map { result => taskEvent.taskId -> result }
+        Json.fromJson[T](taskEvent.serialized).asOpt map { result => taskEvent.taskId -> result }
       }
     case other => None
   }
@@ -219,9 +222,7 @@ case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey],
 /** A build test has done something useful and we're being notified of it. */
 case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String])
 
-object TestEvent {
-  def unapply(event: Event): Option[(Long, TestEvent)] = TaskEvent.fromEvent[TestEvent](event)
-}
+object TestEvent extends TaskEventUnapply[TestEvent]
 
 sealed trait TestOutcome {
   final def success: Boolean = {
@@ -270,6 +271,4 @@ case class CompilationFailure(
   severity: xsbti.Severity,
   message: String)
 
-object CompilationFailure {
-  def unapply(event: Event): Option[(Long, CompilationFailure)] = TaskEvent.fromEvent[CompilationFailure](event)
-}
+object CompilationFailure extends TaskEventUnapply[CompilationFailure]

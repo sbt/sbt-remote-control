@@ -220,7 +220,7 @@ package object protocol {
       for {
         taskId <- (v \ "taskId").validate[Long]
         name <- (v \ "name").validate[String]
-        serialized <- (v \ "serialized").validate[String]
+        serialized = (v \ "serialized")
       } yield TaskEvent(taskId = taskId, name = name, serialized = serialized)
     }
   }
