@@ -41,7 +41,7 @@ case class UnserializedValue[T](stringValue: String, rawJson: Option[JsValue]) e
 }
 
 /** Helper class lookups for serialization/deserialization. */
-object Classes {
+private[protocol] object Classes {
   val StringClass = classOf[String]
   val FileClass = classOf[java.io.File]
   val BooleanClass = classOf[Boolean]
