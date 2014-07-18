@@ -103,4 +103,65 @@ class ProtocolTest {
     }
   }
 
+  @Test
+  def testDynamicSerialization(): Unit = {
+    val ds = protocol.DynamicSerialization
+    def roundtrip[T: Manifest](t: T): Unit = {
+      val formatOption = ds.lookup(implicitly[Manifest[T]])
+      formatOption map { format =>
+        val json = format.writes(t)
+        //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
+        val parsed = format.reads(json).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
+        assertEquals("round trip of " + t, t, parsed)
+      } getOrElse { throw new AssertionError(s"No dynamic serialization for $t") }
+    }
+
+    roundtrip("Foo")
+    roundtrip(new java.io.File("/tmp"))
+    roundtrip(true)
+    roundtrip(false)
+    roundtrip(10: Short)
+    roundtrip(11)
+    roundtrip(12L)
+    roundtrip(13.0f)
+    roundtrip(14.0)
+    roundtrip(None: Option[String])
+    roundtrip(Some("Foo"))
+    roundtrip(Some(true))
+    roundtrip(Some(10))
+    roundtrip(Nil: Seq[String])
+    roundtrip(Seq("Bar", "Baz"))
+    roundtrip(Seq(1, 2, 3))
+    roundtrip(Seq(true, false, true, true, false))
+  }
+
+  @Test
+  def testBuildValueSerialization(): Unit = {
+    def roundtripBuildValue[T: Manifest](buildValue: protocol.BuildValue[T]): Unit = {
+      val json = Json.toJson(buildValue)
+      //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
+      val parsed = Json.fromJson[protocol.BuildValue[T]](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${buildValue} serialization ${json}"))
+      assertEquals(buildValue, parsed)
+    }
+    def roundtrip[T: Manifest](t: T): Unit = {
+      roundtripBuildValue(protocol.BuildValue(t))
+    }
+    roundtrip("Foo")
+    roundtrip(new java.io.File("/tmp"))
+    roundtrip(true)
+    roundtrip(false)
+    roundtrip(10: Short)
+    roundtrip(11)
+    roundtrip(12L)
+    roundtrip(13.0f)
+    roundtrip(14.0)
+    roundtrip(None: Option[String])
+    roundtrip(Some("Foo"))
+    roundtrip(Some(true))
+    roundtrip(Some(10))
+    roundtrip(Nil: Seq[String])
+    roundtrip(Seq("Bar", "Baz"))
+    roundtrip(Seq(1, 2, 3))
+    roundtrip(Seq(true, false, true, true, false))
+  }
 }

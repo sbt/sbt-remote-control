@@ -50,6 +50,7 @@ private[protocol] object Classes {
   val LongClass = classOf[Long]
   val FloatClass = classOf[Float]
   val DoubleClass = classOf[Double]
+  val OptionClass = classOf[Option[_]]
   val SeqClass = classOf[Seq[_]]
   val AttributedClass = classOf[sbt.Attributed[_]]
 
@@ -61,6 +62,7 @@ private[protocol] object Classes {
       cls.isAssignableFrom(ocls)
   }
 
+  object OptionSubClass extends SubClass(OptionClass)
   object SeqSubClass extends SubClass(SeqClass)
   object AttributedSubClass extends SubClass(AttributedClass)
 }
