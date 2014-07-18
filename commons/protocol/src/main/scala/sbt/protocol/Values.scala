@@ -142,12 +142,18 @@ object TaskResult {
       def writes(t: TaskResult[T]): JsValue =
         t match {
           case TaskFailure(msg) => JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg)))
-          case TaskSuccess(value) => JsObject(Seq("success" -> JsBoolean(true), "value" -> Json.toJson(value)))
+          case TaskSuccess(value) =>
+            val base = Json.obj("success" -> true)
+            val valueJson = Json.toJson(value) match {
+              case o: JsObject => o
+              case other => throw new RuntimeException("serialized a BuildValue to non-JsObject")
+            }
+            base ++ valueJson
         }
       def reads(m: JsValue): JsResult[TaskResult[T]] = {
         (m \ "success") match {
           case JsBoolean(true) =>
-            p.reads(m \ "value").map(TaskSuccess.apply)
+            p.reads(m).map(TaskSuccess.apply)
           case JsBoolean(false) =>
             JsSuccess(TaskFailure((m \ "message").as[String]))
           case _ =>
