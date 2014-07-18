@@ -11,7 +11,7 @@ import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
 import java.io.Closeable
-import play.api.libs.json.Format
+import play.api.libs.json.Writes
 
 /**
  * Very terrible implementation of the sbt client.
@@ -37,7 +37,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // sendJson and wrap the failure or serial in a Future
   // (this is actually a synchronous operation but we want to
   // make it look async so we don't synchronously throw)
-  private def sendJson[T: Format](message: T, serial: Long): Future[Unit] = {
+  private def sendJson[T: Writes](message: T, serial: Long): Future[Unit] = {
     try Future.successful(client.sendJson(message, serial))
     catch {
       case NonFatal(e) =>
@@ -45,14 +45,14 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
 
-  private def sendJson[T: Format](message: T): Future[Unit] =
+  private def sendJson[T: Writes](message: T): Future[Unit] =
     sendJson(message, client.serialGetAndIncrement())
 
   // sendJson, providing a registration function which provides a future
   // representing the reply. The registration function would complete its
   // future by finding a reply with the serial passed to the registration
   // function.
-  private def sendJsonWithRegistration[T: Format, R](message: T)(registration: Long => Future[R]): Future[R] = {
+  private def sendJsonWithRegistration[T: Writes, R](message: T)(registration: Long => Future[R]): Future[R] = {
     val serial = client.serialGetAndIncrement()
     val result = registration(serial)
     // TODO we should probably arrange for this to time out and to get an error
@@ -63,7 +63,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   }
 
   // like sendJsonWithRegistration but provides a prebuilt promise
-  private def sendJsonWithResult[T: Format, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
+  private def sendJsonWithResult[T: Writes, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
     sendJsonWithRegistration(message) { serial =>
       val result = Promise[R]()
       registration(serial, result)
@@ -71,8 +71,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
 
-  // For now, use the global object.
-  override def dynamicSerialization: DynamicSerialization = DynamicSerializaton
+  override def buildValueSerialization: DynamicSerialization = DynamicSerialization
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
@@ -238,9 +237,11 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   // TODO - Error handling!
   object thread extends Thread {
     override def run(): Unit = {
+      var executionState: ImpliedState.ExecutionEngine = ImpliedState.ExecutionEngine.empty
       while (running) {
-        try handleNextEvent()
-        catch {
+        try {
+          executionState = handleNextMessage(executionState)
+        } catch {
           case e @ (_: SocketException | _: EOFException | _: IOException) =>
             // don't print anything here, this is a normal occurrence when server
             // restarts or the socket otherwise closes for some reason.
@@ -251,6 +252,16 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         }
       }
       // Here we think sbt connection has closed.
+
+      // generate events to terminate any tasks and executions
+      for {
+        withWrites <- ImpliedState.eventsToEmptyEngineState(executionState, success = false)
+        event = withWrites.event
+      } {
+        System.err.println(s"Synthesizing execution event: ${event}")
+        executionState = handleEvent(executionState, event)
+        ()
+      }
 
       // make sure it's marked as closed on client side
       client.close()
@@ -265,50 +276,75 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       cancelRequestManager.close()
       closeHandler()
     }
-    def handleNextEvent(): Unit =
-      protocol.Envelope(client.receive()) match {
-        case protocol.Envelope(_, _, e: ValueChanged[_]) =>
-          valueEventManager(e.key).sendEvent(e)
-        case protocol.Envelope(_, _, e: BuildStructureChanged) =>
-          buildEventManager.sendEvent(e.structure)
-        case protocol.Envelope(_, replyTo, KeyLookupResponse(key, result)) =>
-          keyLookupRequestManager.fire(replyTo, result)
-        case protocol.Envelope(_, replyTo, protocol.CommandCompletionsResponse(completions)) =>
-          completionsManager.fire(replyTo, completions)
-        case protocol.Envelope(_, requestSerial, protocol.ExecutionRequestReceived(executionId)) =>
-          requestHandler.executionReceived(requestSerial, executionId)
-        case protocol.Envelope(_, _, e: protocol.ExecutionSuccess) =>
-          requestHandler.executionDone(e.id)
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, replyTo, protocol.CancelExecutionResponse(result)) =>
-          cancelRequestManager.fire(replyTo, result)
-        case protocol.Envelope(_, _, e: protocol.ExecutionFailure) =>
-          requestHandler.executionFailed(e.id, s"execution failed")
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, _, e: Event) =>
-          eventManager.sendEvent(e)
-        case protocol.Envelope(_, requestSerial, protocol.ErrorResponse(msg)) =>
-          requestHandler.protocolError(requestSerial, msg)
-        case protocol.Envelope(request, _, protocol.ReadLineRequest(executionId, prompt, mask)) =>
-          try client.replyJson(request, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
-          catch {
-            case NoInteractionException =>
-              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
-          }
-        case protocol.Envelope(request, _, protocol.ConfirmRequest(executionId, msg)) =>
-          try client.replyJson(request, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
-          catch {
-            case NoInteractionException =>
-              client.replyJson(request, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
-          }
-        case protocol.Envelope(_, requestSerial, r: protocol.Request) =>
-          client.replyJson(requestSerial, protocol.ErrorResponse("Unable to handle request: " + r.simpleName))
-        // TODO - Deal with other responses...
-        case stuff =>
-        // TODO - Do something here.
-        //System.err.println("Received gunk from the server!: " + stuff)
-      }
+    private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
+      case e: ValueChanged[_] =>
+        valueEventManager(e.key).sendEvent(e)
+        executionState
+      case e: BuildStructureChanged =>
+        buildEventManager.sendEvent(e.structure)
+        executionState
+      case e: protocol.ExecutionSuccess =>
+        requestHandler.executionDone(e.id)
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case e: protocol.ExecutionFailure =>
+        requestHandler.executionFailed(e.id, s"execution failed")
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case e: protocol.ExecutionEngineEvent =>
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case e: protocol.ExecutionWaiting =>
+        eventManager.sendEvent(e)
+        ImpliedState.processEvent(executionState, e)
+      case other =>
+        eventManager.sendEvent(other)
+        executionState
+    }
+    private def handleResponse(replyTo: Long, response: Response): Unit = response match {
+      case KeyLookupResponse(key, result) =>
+        keyLookupRequestManager.fire(replyTo, result)
+      case protocol.CommandCompletionsResponse(completions) =>
+        completionsManager.fire(replyTo, completions)
+      case protocol.ExecutionRequestReceived(executionId) =>
+        requestHandler.executionReceived(replyTo, executionId)
+      case protocol.CancelExecutionResponse(result) =>
+        cancelRequestManager.fire(replyTo, result)
+      case protocol.ErrorResponse(msg) =>
+        requestHandler.protocolError(replyTo, msg)
+      case other =>
+      // do nothing, we don't understand it
+    }
+    private def handleRequest(serial: Long, request: Request): Unit = request match {
+      case protocol.ReadLineRequest(executionId, prompt, mask) =>
+        try client.replyJson(serial, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
+        catch {
+          case NoInteractionException =>
+            client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+        }
+      case protocol.ConfirmRequest(executionId, msg) =>
+        try client.replyJson(serial, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
+        catch {
+          case NoInteractionException =>
+            client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+        }
+      case other =>
+        client.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.simpleName))
+    }
+    private def handleEnvelope(executionState: ImpliedState.ExecutionEngine, envelope: protocol.Envelope): ImpliedState.ExecutionEngine = envelope match {
+      case protocol.Envelope(_, _, event: Event) =>
+        handleEvent(executionState, event)
+      case protocol.Envelope(_, replyTo, response: Response) =>
+        handleResponse(replyTo, response)
+        executionState
+      case protocol.Envelope(serial, _, request: Request) =>
+        handleRequest(serial, request)
+        executionState
+    }
+    private def handleNextMessage(executionState: ImpliedState.ExecutionEngine): ImpliedState.ExecutionEngine =
+      handleEnvelope(executionState, protocol.Envelope(client.receive()))
   }
+
   thread.start()
 
   private val requestHandler = new RequestHandler()
@@ -333,7 +369,7 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private var listeners: Set[ListenerType[Event]] = Set.empty
   private var closed = false
 
-  private def sendJson[T: Format](message: T): Unit =
+  private def sendJson[T: Writes](message: T): Unit =
     // don't check the closed flag here, would be a race
     try client.sendJson(message, client.serialGetAndIncrement())
     catch {

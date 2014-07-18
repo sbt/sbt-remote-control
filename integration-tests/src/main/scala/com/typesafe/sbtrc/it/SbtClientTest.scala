@@ -159,7 +159,13 @@ trait SbtClientTest extends IntegrationTest {
           dumpLogFile(logfile)
           throw e
       } finally {
-        if (!client.isClosed) client.requestExecution("exit", None) // TODO - Should we use the shutdown hook?
+        if (!client.isClosed) {
+          client.requestSelfDestruct()
+          while (!client.isClosed) {
+            Thread.sleep(200)
+            System.out.println("Waiting for client to close")
+          }
+        }
       }
     }
     // due to the run one thing executor, this is only called

@@ -11,13 +11,10 @@ sealed trait UIContext {
   // TODO - Ask for input with autocomplete?
 
   /** Sends an event out to all registered event listeners. */
-  def sendEvent[T: Format](event: T): Unit
-  def sendGenericEvent(data: JsValue): Unit
-
-  // obtain the task ID that should be included in events
-  def taskId: Long
+  def sendEvent[T: Writes](event: T): Unit
 }
-/** Represents a Manifest/Format pair we can use
+/**
+ * Represents a Manifest/Format pair we can use
  *  to serialize task values + events later.
  */
 sealed trait RegisteredFormat {
@@ -26,11 +23,11 @@ sealed trait RegisteredFormat {
   def format: Format[T]
 }
 object RegisteredFormat {
-  def apply[U](f: Format[U])(implicit mf: Manifest[U]):  RegisteredFormat =
+  def apply[U](f: Format[U])(implicit mf: Manifest[U]): RegisteredFormat =
     new RegisteredFormat {
-       type T = U
-       override val format = f
-       override val manifest = mf
+      type T = U
+      override val format = f
+      override val manifest = mf
     }
 }
 object UIContext {

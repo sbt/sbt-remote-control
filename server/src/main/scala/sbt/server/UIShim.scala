@@ -1,10 +1,11 @@
 package sbt
 package server
 
-import play.api.libs.json.{ Format, JsValue }
-import sbt.protocol.DynamicSerializaton
+import play.api.libs.json.Writes
+import sbt.protocol.TaskEvent
+import sbt.protocol.DynamicSerialization
 
-private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder) extends AbstractUIContext {
+private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractUIContext {
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -30,21 +31,10 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 
-  def sendEvent[T: Format](event: T): Unit =
-    state.eventListeners.send(event)
+  def sendEvent[T: Writes](event: T): Unit =
+    eventSink.send(TaskEvent(taskId, event))
 
-  def sendRawEvent[T](event: T)(implicit mf: Manifest[T]): Unit = {
-    DynamicSerializaton.lookup(mf) match {
-      case Some(format) => state.eventListeners.send(event)(format)
-      case None => throw new java.io.IOException(s"Unable to find serialization for ${mf}.\n" +
-        "Please register a format with the `registeredFormats` key.")
-    }
-
-  }
-  def sendGenericEvent(data: JsValue): Unit =
-    state.eventListeners.send(data)
-
-  def taskId: Long = {
+  private def taskId: Long = {
     // TODO currently this depends on thread locals; we need to
     // set things up similar to how streams work now where we make
     // a per-task UIContext which knows that task's ID. This may
@@ -55,19 +45,19 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
 
 object UIShims {
 
-  private def uiContextSetting(taskIdFinder: TaskIdFinder): Setting[_] =
+  private def uiContextSetting(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Setting[_] =
     UIContext.uiContext in Global := {
       val state = sbt.Keys.state.value
       // TODO - Maybe we don't need to register these everytime, but only
       // `onLoad` of a build?
       val formats = UIContext.registeredFormats.value
       formats foreach { x =>
-        DynamicSerializaton.register(x.format)(x.manifest)
+        DynamicSerialization.register(x.format)(x.manifest)
       }
-      new ServerUIContext(ServerState.extract(state), taskIdFinder)
+      new ServerUIContext(ServerState.extract(state), taskIdFinder, eventSink)
     }
-  def makeShims(state: State, taskIdFinder: TaskIdFinder): Seq[Setting[_]] =
+  def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
     Seq(
       UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil,
-      uiContextSetting(taskIdFinder))
+      uiContextSetting(taskIdFinder, eventSink))
 }

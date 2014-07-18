@@ -26,7 +26,9 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
-  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, serverEngineLogFile, eventEngine.eventSink)
+  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, serverEngineLogFile,
+    // this is a little silly but keeping the ability to break them up later
+    eventEngine.eventSink, eventEngine.eventSink, eventEngine.eventSink)
 
   // External API to run queue.
   def queueClientRequest(request: ServerRequest): Unit = queue.add(request)

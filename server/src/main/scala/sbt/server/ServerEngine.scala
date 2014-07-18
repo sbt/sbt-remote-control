@@ -27,10 +27,12 @@ import scala.concurrent.{ Future, Promise }
 class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
   serverEngineLogFile: File,
-  eventSink: SbtEventSink) {
+  taskEventSink: JsonSink[TaskEvent],
+  eventSink: JsonSink[ExecutionEngineEvent],
+  logSink: JsonSink[LogEvent]) {
 
   private val taskIdRecorder = new TaskIdRecorder
-  private val eventLogger = new EventLogger(taskIdRecorder, eventSink)
+  private val eventLogger = new EventLogger(taskIdRecorder, logSink)
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -62,7 +64,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>
-        serverState.eventListeners.send(ExecutionSuccess(command.command.id.id))
+        eventSink.send(ExecutionSuccess(command.command.id.id))
         command.command.cancelStatus.complete()
         BuildStructureCache.update(state)
       case None => state
@@ -76,7 +78,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     lastState.lastCommand match {
       case Some(LastCommand(command)) =>
         command.cancelStatus.complete()
-        lastState.eventListeners.send(ExecutionFailure(command.id.id))
+        eventSink.send(ExecutionFailure(command.id.id))
       case None => ()
     }
     // NOTE - we always need to re-register ourselves as the error handler.
@@ -175,8 +177,8 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val rawSettings: Seq[Setting[_]] =
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
-        ServerExecuteProgress.getShims(state, taskIdRecorder) ++
-        UIShims.makeShims(state, taskIdRecorder) ++
+        ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
+        UIShims.makeShims(state, taskIdRecorder, taskEventSink) ++
         loggingShims(state) ++
         ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.

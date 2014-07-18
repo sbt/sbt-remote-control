@@ -101,7 +101,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
   private[this] def connectToSbt(): SbtClient = {
     val uri = locator.locate(directory)
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
-    val rawClient = new ipc.Client(socket)
+    val rawClient = new ipc.Client(socket, WireProtocol.sendJsonFilter)
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
     rawClient.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)), registerSerial)

@@ -7,10 +7,10 @@ import language.existentials
 
 /**
  * This object helps us serialize/deserialize messages into raw formats.
- * 
+ *
  * It contains all the logic about precedence and hard-coded knowledge of specific message types we can
  * serialize/deserialize.
- * 
+ *
  * TODO - Should you be able to register more messages to serialize here?
  * TODO - Should you register the BuildValue serializer/deserializers here?
  */
@@ -45,36 +45,31 @@ object WireProtocol {
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
     msg[LogEvent],
-    msg[TestEvent],
     msg[BuildStructureChanged],
     msg[ValueChanged[Any]],
     msg[ErrorResponse],
-    msg[CompilationFailure],
     msg[TaskStarted],
     msg[TaskFinished],
     msg[CommandCompletionsRequest],
     msg[CommandCompletionsResponse],
     msg[KeyLookupResponse],
-    msg[KeyLookupRequest]
-  )
+    msg[KeyLookupRequest],
+    msg[TaskEvent])
   private val lookUpIndex: Map[String, Format[_]] =
     (for {
       (_, (name, format)) <- messages
     } yield name -> format).toMap
-   // Here' we implement protocol deserialization using the RawStructure
+  // Here' we implement protocol deserialization using the RawStructure
   // typeclass....
   // TODO - Implement...
-  implicit object messageFormat extends Format[Message] {   
+  private object messageFormat extends Format[Message] {
     def writes(t: Message): JsValue = {
       val (name, out) = try messages(t.getClass) catch {
         case e: NoSuchElementException =>
           throw new RuntimeException(s"No message writer known for ${t.getClass.getName}")
       }
       // TODO - Should the message field be something like "event" or "request"?
-      out.asInstanceOf[Format[Message]].writes(t) match {
-        case x: JsObject => x + ("type" -> JsString(name))
-        case value => sys.error("Unable to serialize non-object message type!")
-      }
+      addType(out.asInstanceOf[Format[Message]].writes(t), name)
     }
     def reads(msg: JsValue): JsResult[Message] = {
       val name = (msg \ "type").as[String]
@@ -87,11 +82,13 @@ object WireProtocol {
 
   }
 
+  private def addType(json: JsValue, name: String): JsObject = json match {
+    case x: JsObject => x + ("type" -> JsString(name))
+    case value => sys.error("Unable to serialize non-object message type!")
+  }
 
-  
   private def msg[T <: Message](implicit f: Format[T], mf: ClassManifest[T]): (Class[T], (String, Format[T])) =
     mf.runtimeClass.asInstanceOf[Class[T]] -> (simpleName(mf.runtimeClass) -> f)
-
 
   private def removeDollar(s: String) = {
     val i = s.lastIndexOf('$')
@@ -109,17 +106,32 @@ object WireProtocol {
   }
   private def simpleName(c: Class[_]) = removeDollar(lastChunk(c.getName))
 
-
-  def fromRaw(msg: JsValue): Option[Message] = 
+  def fromRaw(msg: JsValue): Option[Message] =
     messageFormat.reads(msg).asOpt
-  def toRaw(msg: Message): JsValue = 
-    messageFormat.writes(msg)
-}
 
+  // just used by the test suite
+  def toRaw(msg: Message): JsValue =
+    messageFormat.writes(msg)
+
+  val sendJsonFilter: (Any, JsValue) => JsValue = { (msg: Any, json: JsValue) =>
+    msg match {
+      case m: Message =>
+        // try to avoid recomputing the name if it's a known class
+        val name = try messages(msg.getClass)._1 catch {
+          case e: NoSuchElementException => simpleName(msg.getClass)
+        }
+        addType(json, name)
+      case other =>
+        throw new RuntimeException("you can only send a Message, not " + msg)
+    }
+  }
+
+}
 
 case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
 
-/** This class is responsible for extracting from the wire protocol into
+/**
+ * This class is responsible for extracting from the wire protocol into
  *  the "class" protocol.  This may disappear at some point, as the duplication with ipc.Envelope may not be necessary.
  */
 object Envelope {
@@ -133,9 +145,9 @@ object Envelope {
         //System.err.println(e.getStackTraceString)
         // probably a JSON parse failure
         ErrorResponse("exception parsing json: " + e.getClass.getSimpleName + ": " + e.getMessage + "\n\nMsg: " + wire.asString)
-        // TODO - Mysetery message?
+      // TODO - Mysetery message?
     }
     new Envelope(wire.serial, wire.replyTo, message)
   }
-  
+
 }

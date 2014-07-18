@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
 import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.Format
+import play.api.libs.json.{ JsValue, Writes }
 
 // a little wrapper around protocol.request to keep the client/serial with it
 case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
@@ -50,17 +50,23 @@ class ReadOnlyServerEngine(
    *  any client connects, or execution status events,
    *  for example.
    */
-  final object eventSink extends SbtEventSink {
+  final object eventSink extends JsonSink[Event] {
+    // Create ambiguity to keep us from using any accidental implicit
+    // formatters; we need to always use the formatter we are given,
+    // not replace it with our own.
+    implicit def ambiguousWrites: Writes[Any] = ???
+    implicit def ambiguousWrites2 = ambiguousWrites
+
     // the idea of this buffer is to just hold on to logs
     // whenever we have no clients at all, so we make a best
     // effort to ensure at least one client gets each log event.
-    private val bufferedLogs = new LinkedBlockingQueue[protocol.LogEvent]()
-    def drainBufferedLogs(client: SbtClient): Unit = {
+    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.LogEvent]]()
+    private def drainBufferedLogs(client: SbtClient): Unit = {
       @tailrec
       def drainAnother(): Unit = {
         Option(bufferedLogs.poll()) match {
           case Some(event) =>
-            client.send(event)
+            clientSendWithWrites(client, event)
             drainAnother()
           case None =>
         }
@@ -68,24 +74,56 @@ class ReadOnlyServerEngine(
       drainAnother()
     }
 
-    override def send[T: Format](msg: T): Unit = msg match {
-      case event: LogEvent =>
-        serverState.eventListeners match {
-          case NullSbtClient =>
-            bufferedLogs.add(event)
-          case client: SbtClient =>
-            drainBufferedLogs(client)
-            client.send(event)
-        }
+    // these require synchronization together; if we add a listener,
+    // it needs to atomically 1) get current state and 2) be added to
+    // listeners, otherwise it could get the wrong state with respect
+    // to which events it gets.
+    private var executionEngineState: ImpliedState.ExecutionEngine =
+      ImpliedState.ExecutionEngine.empty
+    private var eventListeners: SbtClient = NullSbtClient
+
+    override def send[T <: Event](msg: T)(implicit writes: Writes[T]): Unit = {
+      msg match {
+        case event: LogEvent if event.taskId == 0L =>
+          eventListeners match {
+            case NullSbtClient =>
+              bufferedLogs.add(EventWithWrites.withWrites(event.asInstanceOf[T with LogEvent]))
+            case client: SbtClient =>
+              drainBufferedLogs(client)
+              client.send(msg)(writes)
+          }
+        case event: ExecutionEngineEvent =>
+          executionEngineState = ImpliedState.processEvent(executionEngineState, event)
+          eventListeners.send(msg)(writes)
+        case event: ExecutionWaiting =>
+          executionEngineState = ImpliedState.processEvent(executionEngineState, event)
+          eventListeners.send(msg)(writes)
+        case other =>
+          eventListeners.send(msg)(writes)
+      }
     }
 
-    def sendActiveExecutionState(client: LiveClient): Unit = {
-      // TODO 1) make ServerEngine and our own code always use eventSink
-      //         not eventListeners directly
-      // TODO 2) record ExecutionStarting / TaskStarting and finish events,
-      //         so we always know what's active
-      // TODO 3) implement this method to send Starting events to newly-connected
-      //         clients if the finish events are still pending.
+    private def clientSendWithWrites[E <: Event](client: SbtClient, withWrites: EventWithWrites[E]): Unit = {
+      client.send(withWrites.event)(withWrites.writes)
+    }
+
+    private def sendActiveExecutionState(client: LiveClient): Unit = synchronized {
+      val events = ImpliedState.eventsToReachEngineState(executionEngineState)
+      events foreach { withWrites => clientSendWithWrites(client, withWrites) }
+    }
+
+    def addEventListener(l: LiveClient): Unit = synchronized {
+      drainBufferedLogs(l)
+      sendActiveExecutionState(l)
+      val next = eventListeners zip l
+      eventListeners = next
+    }
+    def removeEventListener(l: LiveClient): Unit = synchronized {
+      val next = eventListeners without l
+      eventListeners = next
+    }
+    def disconnect(client: SbtClient): Unit = synchronized {
+      eventListeners = eventListeners without client
     }
   }
 
@@ -111,6 +149,11 @@ class ReadOnlyServerEngine(
     }
     private var workQueue: List[ServerEngineWork] = Nil
     private var cancelStore: Map[Long, WorkCancellationStatus] = Map.empty
+
+    override def toString = synchronized {
+      "engineWorkQueue(" + workQueue + ")"
+    }
+
     /**
      * Called by the ServerEngine thread.  This should block that thread
      *  until work is ready, then notify that the work is starting and
@@ -131,7 +174,7 @@ class ReadOnlyServerEngine(
           }
         val work = blockUntilWork()
         val state = serverState
-        state.eventListeners.send(protocol.ExecutionStarting(work.id.id))
+        eventSink.send(protocol.ExecutionStarting(work.id.id))
         (state, work)
       }
 
@@ -167,15 +210,15 @@ class ReadOnlyServerEngine(
                   val newItem = CommandExecutionWork(id, command.command, Set(client), cancel)
                   newItem -> true
               }
-            // Always notify the current client of his work
+            // Always notify the current client of his work. serial 0L means synthetic in-server
+            // execution request with no client originating it.
             if (serial != 0L) {
               import sbt.protocol.executionReceivedFormat
               client.reply(serial, ExecutionRequestReceived(id = work.id.id))
-              if (isNew) {
-                // If this is a new item in the queue, tell all clients about it.
-                serverState.eventListeners.send(protocol.ExecutionWaiting(work.id.id, work.command,
-                  client.info))
-              }
+            }
+            if (isNew) {
+              // If this is a new item in the queue, tell all clients about it.
+              eventSink.send(protocol.ExecutionWaiting(work.id.id, work.command, client.info))
             }
             // Now, we insert the work either at the end, or where it belongs.
             def insertWork(remaining: List[ServerEngineWork]): List[ServerEngineWork] =
@@ -193,29 +236,6 @@ class ReadOnlyServerEngine(
         }
       }
 
-    /**
-     *  This is responsible for dumping the current queue state to a
-     *  newly-connected client.
-     */
-    def syncNewClient(client: LiveClient): Unit =
-      synchronized {
-        def dumpWork(remaining: List[ServerEngineWork]): Unit =
-          remaining match {
-            case unknown :: tail =>
-              unknown match {
-                case work: CommandExecutionWork =>
-                  val event = protocol.ExecutionWaiting(work.id.id, work.command,
-                    work.allRequesters.head.info)
-                  client.send(event)
-                case other =>
-              }
-              dumpWork(tail)
-            case Nil =>
-          }
-
-        dumpWork(workQueue)
-      }
-
     def cancelRequest(id: Long): Boolean =
       synchronized {
         // Find out if we have a work item with the given id.
@@ -230,8 +250,8 @@ class ReadOnlyServerEngine(
             // Remove the item from the queue
             workQueue = workQueue filterNot (_.id.id == id)
             // Tell everyone that this request is dead.
-            serverState.eventListeners.send(protocol.ExecutionStarting(id))
-            serverState.eventListeners.send(protocol.ExecutionFailure(id))
+            eventSink.send(protocol.ExecutionStarting(id))
+            eventSink.send(protocol.ExecutionFailure(id))
             // mark it as cancelled (this removes it from our store)
             removeCancelStore(id)
             item.cancelStatus.cancel()
@@ -287,8 +307,7 @@ class ReadOnlyServerEngine(
     handleRequestsWithBuildState(client, serial, ExecutionRequest(Def.showFullKey(scopedKey)), buildState)
   }
   private def listenToEvents(client: LiveClient, serial: Long): Unit = {
-    updateState(_.addEventListener(client))
-    eventSink.drainBufferedLogs(serverState.eventListeners)
+    eventSink.addEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
@@ -309,10 +328,8 @@ class ReadOnlyServerEngine(
         System.exit(0)
       case ListenToEvents() =>
         listenToEvents(client, serial)
-        engineWorkQueue.syncNewClient(client)
-      // TODO send active execution info as recorded by eventSink
       case UnlistenToEvents() =>
-        updateState(_.removeEventListener(client))
+        eventSink.removeEventListener(client)
         client.reply(serial, ReceivedResponse())
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))

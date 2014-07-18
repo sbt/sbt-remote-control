@@ -70,9 +70,13 @@ class TestExecution extends SbtClientTest {
           case ExecutionStarting(id) =>
             record(id)
           case ExecutionFailure(id) =>
+            if (!commandsById.contains(id))
+              throw new RuntimeException(s"ExecutionFailure on unknown id: ${event}")
             record(id)
             executionDones.get(commandsById(id)).foreach(_.success(()))
           case ExecutionSuccess(id) =>
+            if (!commandsById.contains(id))
+              throw new RuntimeException(s"ExecutionSuccess on unknown id: ${event}")
             record(id)
             executionDones.get(commandsById(id)).foreach(_.success(()))
           case TaskStarted(id, taskId, _) =>
@@ -126,12 +130,13 @@ class TestExecution extends SbtClientTest {
 
     // sequence must match expected items in order, but may have other items too
     def verifySequence(outermost: Seq[_], expecteds: Seq[PartialFunction[Any, Unit]]): Unit = {
+      System.err.println(s"Verifying ${expecteds.size} items from ${outermost.size}")
       def verifyOne(items: List[_], expected: PartialFunction[Any, Unit]): List[_] = items match {
         case head :: tail =>
           if (expected.isDefinedAt(head)) {
             expected.apply(head)
             // uncomment this to find failures
-            //System.err.println("Matched: " + head)
+            // System.err.println("Matched: " + head)
             tail
           } else {
             verifyOne(tail, expected)
@@ -394,6 +399,9 @@ class TestExecution extends SbtClientTest {
       }
 
       // TEST 4: Test that a second client can connect and see the execution queue
+      // Note: this test is last in a withSbt because the nested withSbt sends a
+      // requestSelfDestruct to the server which would confuse following tests
+      // without some work to clean up the problem.
       {
         System.out.println("Testing that a second client gets the execution queue")
         // Block the execution queue with a task that waits for target/stamp.txt to exist,
@@ -447,7 +455,7 @@ class TestExecution extends SbtClientTest {
             val recorded = event match {
               case ExecutionWaiting(id, command, clientInfo) =>
                 if (sofar.get(command).map(_.nonEmpty).getOrElse(false))
-                  throw new Exception(s"Got something else before ExecutionWaiting ${event} ${sofar}")
+                  throw new Exception(s"Got something else before ExecutionWaiting for ${command} already had: ${sofar.get(command)} just got: ${event}")
                 sofar + (command -> (event :: Nil))
               case ExecutionStarting(id) => append(id)
               case ExecutionFailure(id) => append(id)
@@ -528,7 +536,99 @@ class TestExecution extends SbtClientTest {
       }
     }
 
-    if (successfulTestCount.get == 4)
+    // test 5 needs a new client since it wants to close the connection early
+    withSbt(dummy) { client =>
+      val build = Promise[MinimalBuildStructure]
+
+      client watchBuild build.trySuccess
+      val result = waitWithError(build.future, "Never got build structure.")
+      assert(result.projects.size == 1, "Found too many projects!")
+      val project = result.projects.head
+      assert(project.id.name == "execution", "failed to discover project name == file name.")
+      assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
+
+      // TEST 5: Test that outstanding tasks and executions get proper finished events on close
+      {
+        System.out.println("Testing that we get finished events on close")
+
+        // delete any leftover stamp file
+        (new java.io.File(dummy, "target/stamp.txt")).delete()
+
+        val pendingWaitForStampFile = Promise[Unit]()
+        client.handleEvents {
+          case TaskStarted(_, _, Some(key)) if key.key.name == "waitForStampFile" =>
+            pendingWaitForStampFile.trySuccess(())
+          case other =>
+            System.err.println("While waiting for stamp: " + other)
+        }
+
+        // Block the execution queue with a task that waits for target/stamp.txt to exist,
+        // then put two more things in the queue so we can see the order
+        val futureFirstClientRecord = recordExecutions(client, Seq("waitForStampFile", "dep1", "dep2"))
+
+        waitWithError(pendingWaitForStampFile.future, "didn't get ExecutionWaiting(waitForStampFile)")
+
+        // kill the connection with stuff still pending
+        client.close()
+
+        val recorded = waitWithError(futureFirstClientRecord, "client didn't get the events")
+        def verifyExecutionFailed(name: String): Unit = {
+          var executionId = -1L
+          verifySequence(recorded(name).events, Seq(
+            {
+              case ExecutionWaiting(id, command, clientInfo) if ((command: String) == name) =>
+                executionId = id
+                assert(clientInfo.uuid == client.uuid.toString)
+                assert(clientInfo.configName == client.configName)
+                assert(clientInfo.humanReadableName == client.humanReadableName)
+            },
+            {
+              case ExecutionStarting(id) =>
+                assert(id == executionId)
+            },
+            {
+              case TaskStarted(id, taskId, Some(key)) if key.key.name == name =>
+                assert(id == executionId)
+            },
+            {
+              case TaskFinished(id, taskId, Some(key), success) if key.key.name == name =>
+                assert(id == executionId)
+                assert(!success)
+            },
+            {
+              case ExecutionFailure(id) =>
+                assert(id == executionId)
+            }))
+        }
+        def verifyExecutionNeverRun(name: String): Unit = {
+          var executionId = -1L
+          verifySequence(recorded(name).events, Seq(
+            {
+              case ExecutionWaiting(id, command, clientInfo) if ((command: String) == name) =>
+                executionId = id
+                assert(clientInfo.uuid == client.uuid.toString)
+                assert(clientInfo.configName == client.configName)
+                assert(clientInfo.humanReadableName == client.humanReadableName)
+            },
+            {
+              case ExecutionStarting(id) =>
+                assert(id == executionId)
+            },
+            {
+              case ExecutionFailure(id) =>
+                assert(id == executionId)
+            }))
+        }
+
+        verifyExecutionFailed("waitForStampFile")
+        verifyExecutionNeverRun("dep1")
+        verifyExecutionNeverRun("dep2")
+
+        successfulTestCount.getAndIncrement()
+      }
+    }
+
+    if (successfulTestCount.get == 5)
       System.out.println(s"Done with IT ${this.getClass.getName}")
     else
       throw new AssertionError("Did not complete all tests successfully")
