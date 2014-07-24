@@ -41,9 +41,9 @@ object Dependencies {
 
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
-  val sbtIo                = sbtOrg % "io" % sbtLibraryVersion
-  val sbtLauncherInterface    = "org.scala-sbt" % "launcher-interface" % sbtLibraryVersion
-  val sbtCompletion           = "org.scala-sbt" % "completion" % sbtLibraryVersion
+  val sbtIo                = sbtOrg %% "io" % sbtLibraryVersion
+  val sbtLauncherInterface    = "org.scala-sbt" % "launcher-interface" % sbt13Version
+  val sbtCompletion           = "org.scala-sbt" %% "completion" % sbtLibraryVersion
   val scalaParserCombinators  = "org.scala-lang.modules"  %% "scala-parser-combinators" % "1.0.1"
 
   val akkaActor            = "com.typesafe.akka" %% "akka-actor" % akkaVersion
