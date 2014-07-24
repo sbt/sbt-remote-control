@@ -33,7 +33,7 @@ object SbtSupport {
     // TODO - Configure different SBT version...
     //sbtLaunchJarUrl <<= sbtVersion apply downloadUrlForVersion,
     // TODO - We use a milestone launcher for now...
-    sbtLaunchJarUrl := currentDownloadUrl(Dependencies.sbtMainVersion),
+    sbtLaunchJarUrl := currentDownloadUrl(Dependencies.sbt13Version),
     sbtLaunchJarLocation <<= baseDirectory (_ / "target" / "sbt" / "sbt-launch.jar"),
     sbtLaunchJar <<= (sbtLaunchJarUrl, sbtLaunchJarLocation) map downloadFile
   )
