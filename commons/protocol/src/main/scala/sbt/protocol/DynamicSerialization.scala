@@ -65,6 +65,12 @@ object DynamicSerialization extends DynamicSerialization {
       case Classes.LongClass => Some(implicitly[Format[Long]])
       case Classes.FloatClass => Some(implicitly[Format[Float]])
       case Classes.DoubleClass => Some(implicitly[Format[Double]])
+      case Classes.OptionSubClass() =>
+        for {
+          child <- lookup(mf.typeArguments(0))
+        } yield {
+          optionFormat(child.asInstanceOf[Format[Any]])
+        }
       // TODO - polymorphism?
       case Classes.SeqSubClass() =>
         // Now we need to find the first type arguments structure:
