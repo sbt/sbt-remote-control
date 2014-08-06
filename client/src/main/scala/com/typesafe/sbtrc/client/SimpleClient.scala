@@ -62,15 +62,6 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     sendJson(message, serial) flatMap { _ => result }
   }
 
-  // like sendJsonWithRegistration but provides a prebuilt promise
-  private def sendJsonWithResult[T: Writes, R](message: T)(registration: (Long, Promise[R]) => Unit): Future[R] = {
-    sendJsonWithRegistration(message) { serial =>
-      val result = Promise[R]()
-      registration(serial, result)
-      result.future
-    }
-  }
-
   override def buildValueSerialization: DynamicSerialization = DynamicSerialization
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
@@ -85,23 +76,34 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
-  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] = {
-    sendJsonWithResult(CommandCompletionsRequest(partialCommand, detailLevel)) { (serial: Long, result: Promise[Set[Completion]]) =>
-      completionsManager.register(serial, result)
-    }
+  private implicit object completionsManager extends RequestManager[CommandCompletionsRequest] {
+    override type R = Set[Completion]
   }
 
-  def lookupScopedKey(name: String): Future[Seq[ScopedKey]] = {
-    sendJsonWithResult(KeyLookupRequest(name)) { (serial: Long, result: Promise[Seq[ScopedKey]]) =>
-      keyLookupRequestManager.register(serial, result)
-    }
+  private implicit object cancelRequestManager extends RequestManager[CancelExecutionRequest] {
+    override type R = Boolean
   }
 
-  def analyzeExecution(command: String): Future[ExecutionAnalysis] = {
-    sendJsonWithResult(AnalyzeExecutionRequest(command)) { (serial: Long, result: Promise[ExecutionAnalysis]) =>
-      analyzeExecutionRequestManager.register(serial, result)
-    }
+  private implicit object keyLookupRequestManager extends RequestManager[KeyLookupRequest] {
+    override type R = Seq[ScopedKey]
   }
+
+  private implicit object analyzeExecutionRequestManager extends RequestManager[AnalyzeExecutionRequest] {
+    override type R = ExecutionAnalysis
+  }
+
+  private def sendRequestWithManager[Req <: Request](request: Req)(implicit manager: RequestManager[Req], writes: Writes[Req]): Future[manager.R] = {
+    sendJsonWithRegistration(request) { serial => manager.register(serial) }
+  }
+
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] =
+    sendRequestWithManager(CommandCompletionsRequest(partialCommand, detailLevel))
+
+  def lookupScopedKey(name: String): Future[Seq[ScopedKey]] =
+    sendRequestWithManager(KeyLookupRequest(name))
+
+  def analyzeExecution(command: String): Future[ExecutionAnalysis] =
+    sendRequestWithManager(AnalyzeExecutionRequest(command))
 
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     sendJsonWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
@@ -114,9 +116,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     }
   }
   def cancelExecution(id: Long): Future[Boolean] =
-    sendJsonWithRegistration(CancelExecutionRequest(id)) { serial =>
-      cancelRequestManager.register(serial)
-    }
+    sendRequestWithManager(CancelExecutionRequest(id))
 
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
@@ -189,73 +189,25 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     for (promise <- handlers.values)
       promise.failure(new RuntimeException("Connection to sbt closed"))
   }
-  private object completionsManager extends Closeable {
-    private var handlers: Map[Long, Promise[Set[Completion]]] = Map.empty
-    def register(serial: Long, listener: Promise[Set[Completion]]): Unit = synchronized {
+
+  private class RequestManager[For <: Request] extends Closeable {
+    type R
+    private var handlers: Map[Long, Promise[R]] = Map.empty
+    def register(serial: Long): Future[R] = synchronized {
+      val listener = Promise[R]()
       handlers += (serial -> listener)
+      listener.future
     }
-    def fire(serial: Long, completions: Set[Completion]): Unit = synchronized {
+    def fire(serial: Long, result: R): Unit = synchronized {
       handlers get serial match {
         case Some(handler) =>
-          handler.success(completions)
+          handler.success(result)
           handlers -= serial
         case None =>
           System.err.println(s"Received an unexpected reply to serial ${serial}")
       }
     }
-    override def close(): Unit = completePromisesOnClose(handlers)
-  }
-
-  private object cancelRequestManager extends Closeable {
-    private var handlers: Map[Long, Promise[Boolean]] = Map.empty
-
-    def register(id: Long): Future[Boolean] = synchronized {
-      val p = Promise[Boolean]()
-      handlers += (id -> p)
-      p.future
-    }
-    def fire(id: Long, result: Boolean) = synchronized {
-      handlers get id match {
-        case Some(promise) =>
-          promise.success(result)
-          handlers -= id
-        case None => //ignore
-      }
-    }
-    def close(): Unit = completePromisesOnClose(handlers)
-  }
-
-  private object keyLookupRequestManager extends Closeable {
-    private var handlers: Map[Long, Promise[Seq[ScopedKey]]] = Map.empty
-    def register(id: Long, listener: Promise[Seq[ScopedKey]]): Unit = synchronized {
-      handlers += (id -> listener)
-    }
-    def fire(id: Long, key: Seq[ScopedKey]): Unit = synchronized {
-      handlers get id match {
-        case Some(handler) =>
-          handler.success(key)
-          handlers -= id
-        case None => // ignore
-      }
-    }
-    override def close(): Unit = completePromisesOnClose(handlers)
-  }
-
-  // TODO cut-and-paste from above, factor it out
-  private object analyzeExecutionRequestManager extends Closeable {
-    private var handlers: Map[Long, Promise[ExecutionAnalysis]] = Map.empty
-    def register(id: Long, listener: Promise[ExecutionAnalysis]): Unit = synchronized {
-      handlers += (id -> listener)
-    }
-    def fire(id: Long, analysis: ExecutionAnalysis): Unit = synchronized {
-      handlers get id match {
-        case Some(handler) =>
-          handler.success(analysis)
-          handlers -= id
-        case None => // ignore
-      }
-    }
-    override def close(): Unit = completePromisesOnClose(handlers)
+    override def close(): Unit = synchronized { completePromisesOnClose(handlers) }
   }
 
   // TODO - Error handling!
