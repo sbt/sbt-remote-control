@@ -6,9 +6,11 @@ import sbt.client._
 import sbt.protocol._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
+import concurrent.ExecutionContext
 import concurrent.Promise
 import java.io.File
 import sbt.client.ScopedKey
+import java.util.concurrent.Executors
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -32,7 +34,8 @@ class CanLoadSimpleProject extends SbtClientTest {
 
   withSbt(dummy) { client =>
     val build = Promise[MinimalBuildStructure]
-    import concurrent.ExecutionContext.Implicits.global
+    val executorService = Executors.newSingleThreadExecutor()
+    implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
     client watchBuild build.trySuccess
     val result = waitWithError(build.future, "Never got build structure.")
     assert(result.projects.size == 1, "Found too many projects!")
@@ -69,7 +72,7 @@ class CanLoadSimpleProject extends SbtClientTest {
         case _: ExecutionSuccess | _: ExecutionFailure =>
           executionDone.trySuccess(())
         case _ =>
-      })(global)
+      })(keepEventsInOrderExecutor)
       try {
         requestExecution
         // Now we wait for the futures to fill out.
@@ -94,7 +97,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       case _: ExecutionFailure | _: ExecutionSuccess =>
         compileErrorCaptured.tryFailure(new AssertionError("compile execution ended with no CompilationFailure"))
       case _ =>
-    })(global)
+    })(keepEventsInOrderExecutor)
     client.requestExecution("compile", None)
     val error = try {
       waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
@@ -164,7 +167,7 @@ class CanLoadSimpleProject extends SbtClientTest {
           executionDone.trySuccess(())
         case _ =>
       }
-    })(global)
+    })(keepEventsInOrderExecutor)
     try {
       val id = waitWithError(executionId.completeWith(client.requestExecution("test", None)).future, "never received execution ID")
       waitWithError(executionDone.future, "execution of 'test' never completed")
