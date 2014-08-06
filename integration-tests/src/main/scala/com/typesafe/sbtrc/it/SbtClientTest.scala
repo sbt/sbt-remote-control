@@ -120,9 +120,12 @@ trait SbtClientTest extends IntegrationTest {
 
     def dumpLogFile(logfile: File): Unit = {
       if (logfile.exists) {
-        System.out.println(s"log file ${logfile}:")
-        scala.io.Source.fromFile(logfile).getLines().foreach { System.out.println(_) }
-        System.out.println(s"end of ${logfile}")
+        // This is disabled by default because it tends to make the actual error scroll way off the screen
+        // and is irrelevant much of the time.
+        System.out.println(s"log file is ${logfile}, you can uncomment some code in SbtClientTest.scala to dump this if you need to")
+        //System.out.println(s"log file ${logfile}:")
+        //scala.io.Source.fromFile(logfile).getLines().foreach { System.out.println(_) }
+        //System.out.println(s"end of ${logfile}")
       } else {
         System.err.println(s"No log file ${logfile} found")
       }

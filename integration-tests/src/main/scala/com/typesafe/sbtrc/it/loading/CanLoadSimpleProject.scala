@@ -6,9 +6,11 @@ import sbt.client._
 import sbt.protocol._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
+import concurrent.ExecutionContext
 import concurrent.Promise
 import java.io.File
 import sbt.client.ScopedKey
+import java.util.concurrent.Executors
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -25,13 +27,15 @@ class CanLoadSimpleProject extends SbtClientTest {
        | }
        |""".stripMargin)
 
-  sbt.IO.write(new java.io.File(dummy, "src/main/scala/error.scala"),
+  val errorFile = new java.io.File(dummy, "src/main/scala/error.scala")
 
+  sbt.IO.write(errorFile,
     """object Foo(x: String)""".stripMargin)
 
   withSbt(dummy) { client =>
     val build = Promise[MinimalBuildStructure]
-    import concurrent.ExecutionContext.Implicits.global
+    val executorService = Executors.newSingleThreadExecutor()
+    implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
     client watchBuild build.trySuccess
     val result = waitWithError(build.future, "Never got build structure.")
     assert(result.projects.size == 1, "Found too many projects!")
@@ -48,6 +52,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       val stdoutCaptured = Promise[Unit]
       val logInfoCaptured = Promise[Unit]
       val stderrCaptured = Promise[Unit]
+      val executionDone = Promise[Unit]
       val stdoutSub = (client handleEvents {
         case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
           if (taskId != 0)
@@ -64,14 +69,21 @@ class CanLoadSimpleProject extends SbtClientTest {
             logInfoCaptured.success(())
           else
             logInfoCaptured.failure(new RuntimeException("task ID was 0 for task log info"))
+        case _: ExecutionSuccess | _: ExecutionFailure =>
+          executionDone.trySuccess(())
         case _ =>
-      })(global)
-      requestExecution
-      // Now we wait for the futures to fill out.
-      waitWithError(stdoutCaptured.future, "Unable to read known stdout lines from server")
-      waitWithError(stderrCaptured.future, "Unable to read known stderr lines from server")
-      waitWithError(logInfoCaptured.future, "Unable to read known log info lines from server")
-      stdoutSub.cancel()
+      })(keepEventsInOrderExecutor)
+      try {
+        requestExecution
+        // Now we wait for the futures to fill out.
+        waitWithError(stdoutCaptured.future, "Unable to read known stdout lines from server")
+        waitWithError(stderrCaptured.future, "Unable to read known stderr lines from server")
+        waitWithError(logInfoCaptured.future, "Unable to read known log info lines from server")
+        // we block on this so there aren't leftover events to confuse later tests
+        waitWithError(executionDone.future, "execution did not complete")
+      } finally {
+        stdoutSub.cancel()
+      }
     }
     testTask(client.requestExecution("printOut", None))
     testTask {
@@ -81,11 +93,17 @@ class CanLoadSimpleProject extends SbtClientTest {
     // Now we check compilation failure messages
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
-      case CompilationFailure(taskId, failure) => compileErrorCaptured.success(failure)
+      case CompilationFailure(taskId, failure) => compileErrorCaptured.trySuccess(failure)
+      case _: ExecutionFailure | _: ExecutionSuccess =>
+        compileErrorCaptured.tryFailure(new AssertionError("compile execution ended with no CompilationFailure"))
       case _ =>
-    })(global)
+    })(keepEventsInOrderExecutor)
     client.requestExecution("compile", None)
-    val error = waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
+    val error = try {
+      waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
+    } finally {
+      compileErrorSub.cancel()
+    }
     assert(error.severity == xsbti.Severity.Error, "Failed to capture appropriate error.")
 
     val keysFuture = client.lookupScopedKey("compile")
@@ -130,6 +148,51 @@ class CanLoadSimpleProject extends SbtClientTest {
         new File(dummy, "src/main/scala/error.scala").getCanonicalFile)
     assert(unmanagedSources.sorted == expectedSources.sorted, s"Failed to received correct unmanagedSources: $unmanagedSources, expected $expectedSources")
 
-  }
+    // delete the broken file
+    errorFile.delete()
 
+    // Now check that we get test events
+    @volatile var testEvents: List[TestEvent] = Nil
+    val executionId = concurrent.Promise[Long]
+    val executionDone = concurrent.Promise[Unit]
+    val testEventSub = (client handleEvents { event =>
+      val id = waitWithError(executionId.future, "never got executionId")
+      event match {
+        case TestEvent(taskId, testEvent) =>
+          testEvents +:= testEvent
+        case ExecutionSuccess(successId) if successId == id =>
+          executionDone.trySuccess(())
+        case ExecutionFailure(failId) if failId == id =>
+          // this is actually the expected case since we know we have failing tests
+          executionDone.trySuccess(())
+        case _ =>
+      }
+    })(keepEventsInOrderExecutor)
+    try {
+      val id = waitWithError(executionId.completeWith(client.requestExecution("test", None)).future, "never received execution ID")
+      waitWithError(executionDone.future, "execution of 'test' never completed")
+    } finally {
+      testEventSub.cancel()
+    }
+    implicit object TestEventOrdering extends Ordering[TestEvent] {
+      val optionStringOrdering = implicitly[Ordering[Option[String]]]
+      override def compare(a: TestEvent, b: TestEvent): Int = {
+        a.name.compare(b.name) match {
+          case 0 => optionStringOrdering.compare(a.description, b.description) match {
+            case 0 => optionStringOrdering.compare(a.error, b.error) match {
+              case 0 => a.outcome.success.compare(b.outcome.success)
+              case other => other
+            }
+            case other => other
+          }
+          case other => other
+        }
+      }
+    }
+    val expected = List(TestEvent("OnePassTest", None, TestPassed, None),
+      TestEvent("OneFailTest", None, TestFailed, Some("this is not true")),
+      TestEvent("OnePassOneFailTest", None, TestPassed, None),
+      TestEvent("OnePassOneFailTest", None, TestFailed, Some("this is not true"))).sorted
+    assertEquals(expected, testEvents.sorted)
+  }
 }

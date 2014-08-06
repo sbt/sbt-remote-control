@@ -37,7 +37,7 @@ final class TestUtil(val scratchDir: File) {
     createFile(build, s"""
 name := "${relativeDir}"
 
-libraryDependencies += "com.novocode" % "junit-interface" % "0.7" % "test"
+libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test"
 """)
 
     val scalaSource = new File(dir, "src/main/scala")
