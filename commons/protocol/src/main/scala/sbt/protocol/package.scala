@@ -118,6 +118,35 @@ package object protocol {
       }
     }
   }
+
+  implicit val executionAnalysisCommandFormat = Json.format[ExecutionAnalysisCommand]
+  implicit val executionAnalysisKeyFormat = Json.format[ExecutionAnalysisKey]
+  implicit val executionAnalysisErrorFormat = Json.format[ExecutionAnalysisError]
+
+  implicit val executionAnalysisFormat = new Format[ExecutionAnalysis] {
+    override def writes(analysis: ExecutionAnalysis): JsValue = {
+      val (discriminator, rest) =
+        analysis match {
+          case c: ExecutionAnalysisCommand => "command" -> Json.toJson(c)
+          case k: ExecutionAnalysisKey => "key" -> Json.toJson(k)
+          case e: ExecutionAnalysisError => "error" -> Json.toJson(e)
+        }
+      val baseObj = rest match {
+        case o: JsObject => o
+        case other => throw new RuntimeException(s"Serialized $analysis as a non-object $other")
+      }
+      baseObj ++ Json.obj("executionType" -> discriminator)
+    }
+    override def reads(v: JsValue): JsResult[ExecutionAnalysis] = {
+      (v \ "executionType").validate[String] flatMap {
+        case "command" => Json.fromJson[ExecutionAnalysisCommand](v)
+        case "key" => Json.fromJson[ExecutionAnalysisKey](v)
+        case "error" => Json.fromJson[ExecutionAnalysisError](v)
+        case other => JsError(s"Invalid executionType '$other' in $v")
+      }
+    }
+  }
+
   // Protocol serializers...  
   implicit val errorResponseFormat = Json.format[ErrorResponse]
 
@@ -208,6 +237,8 @@ package object protocol {
   implicit val confirmResponseFormat = Json.format[ConfirmResponse]
   implicit val keyLookupRequestFormat = Json.format[KeyLookupRequest]
   implicit val keyLookupResponseFormat = Json.format[KeyLookupResponse]
+  implicit val analyzeExecutionRequestFormat = Json.format[AnalyzeExecutionRequest]
+  implicit val analyzeExecutionResponseFormat = Json.format[AnalyzeExecutionResponse]
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro

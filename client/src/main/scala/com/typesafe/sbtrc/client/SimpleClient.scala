@@ -96,6 +96,13 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       keyLookupRequestManager.register(serial, result)
     }
   }
+
+  def analyzeExecution(command: String): Future[ExecutionAnalysis] = {
+    sendJsonWithResult(AnalyzeExecutionRequest(command)) { (serial: Long, result: Promise[ExecutionAnalysis]) =>
+      analyzeExecutionRequestManager.register(serial, result)
+    }
+  }
+
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     sendJsonWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
       requestHandler.register(serial, interaction).received
@@ -234,6 +241,23 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     override def close(): Unit = completePromisesOnClose(handlers)
   }
 
+  // TODO cut-and-paste from above, factor it out
+  private object analyzeExecutionRequestManager extends Closeable {
+    private var handlers: Map[Long, Promise[ExecutionAnalysis]] = Map.empty
+    def register(id: Long, listener: Promise[ExecutionAnalysis]): Unit = synchronized {
+      handlers += (id -> listener)
+    }
+    def fire(id: Long, analysis: ExecutionAnalysis): Unit = synchronized {
+      handlers get id match {
+        case Some(handler) =>
+          handler.success(analysis)
+          handlers -= id
+        case None => // ignore
+      }
+    }
+    override def close(): Unit = completePromisesOnClose(handlers)
+  }
+
   // TODO - Error handling!
   object thread extends Thread {
     override def run(): Unit = {
@@ -273,6 +297,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
       requestHandler.close()
       completionsManager.close()
       keyLookupRequestManager.close()
+      analyzeExecutionRequestManager.close()
       cancelRequestManager.close()
       closeHandler()
     }
@@ -304,6 +329,8 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     private def handleResponse(replyTo: Long, response: Response): Unit = response match {
       case KeyLookupResponse(key, result) =>
         keyLookupRequestManager.fire(replyTo, result)
+      case AnalyzeExecutionResponse(analysis) =>
+        analyzeExecutionRequestManager.fire(replyTo, analysis)
       case protocol.CommandCompletionsResponse(completions) =>
         completionsManager.fire(replyTo, completions)
       case protocol.ExecutionRequestReceived(executionId) =>

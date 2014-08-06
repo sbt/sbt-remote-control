@@ -68,8 +68,16 @@ trait SbtClient extends Closeable {
   /**
    * This tries to find whether there is a build key associated with the
    * current string.  Returns all such keys (if aggregation is enabled).
+   * sbt would generally run ALL of the returned keys if you requestExecution(name).
    */
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]]
+
+  /**
+   * This analyzes how sbt will interpret "command" if you do requestExecution(command).
+   * It tells you whether the given string can be executed and whether it will be
+   * a task or a command.
+   */
+  def analyzeExecution(command: String): Future[ExecutionAnalysis]
 
   /**
    * Asks to run the command/task associated with the given input string.

@@ -131,6 +131,14 @@ case class ClosedEvent() extends Event
 case class KeyLookupRequest(name: String) extends Request
 case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
 
+case class AnalyzeExecutionRequest(command: String) extends Request
+sealed trait ExecutionAnalysis
+// sbt will run ALL of these keys (aggregation)
+case class ExecutionAnalysisKey(keys: Seq[ScopedKey]) extends ExecutionAnalysis
+case class ExecutionAnalysisError(message: String) extends ExecutionAnalysis
+case class ExecutionAnalysisCommand(name: Option[String]) extends ExecutionAnalysis
+case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Response
+
 // -----------------------------------------
 //                  Events
 // -----------------------------------------
