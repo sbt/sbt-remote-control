@@ -150,16 +150,23 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     // Now check that we get test events
     @volatile var testEvents: List[TestEvent] = Nil
+    val executionId = concurrent.Promise[Long]
     val executionDone = concurrent.Promise[Unit]
-    val testEventSub = (client handleEvents {
-      case TestEvent(taskId, event) =>
-        testEvents +:= event
-      case _: ExecutionSuccess | _: ExecutionFailure =>
-        executionDone.trySuccess(())
-      case _ =>
+    val testEventSub = (client handleEvents { event =>
+      val id = waitWithError(executionId.future, "never got executionId")
+      event match {
+        case TestEvent(taskId, testEvent) =>
+          testEvents +:= testEvent
+        case ExecutionSuccess(successId) if successId == id =>
+          executionDone.trySuccess(())
+        case ExecutionFailure(failId) if failId == id =>
+          // this is actually the expected case since we know we have failing tests
+          executionDone.trySuccess(())
+        case _ =>
+      }
     })(global)
     try {
-      val executionId = waitWithError(client.requestExecution("test", None), "never received execution ID")
+      val id = waitWithError(executionId.completeWith(client.requestExecution("test", None)).future, "never received execution ID")
       waitWithError(executionDone.future, "execution of 'test' never completed")
     } finally {
       testEventSub.cancel()
