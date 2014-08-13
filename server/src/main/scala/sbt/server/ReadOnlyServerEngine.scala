@@ -271,15 +271,33 @@ class ReadOnlyServerEngine(
   }
 
   override def run() {
-    while (running.get && nextStateRef.get == null) {
-      // here we poll, on timeout we check to see if we have build state yet.
-      // We give at least one second for loading the build before timing out.
-      queue.poll(1, java.util.concurrent.TimeUnit.SECONDS) match {
-        case null => () // Ignore.
-        case ServerRequest(client, serial, request) =>
-          handleRequestsNoBuildState(client, serial, request)
+    // we buffer most requests until 1) we have a state and 2) the project loads successfully.
+
+    while (running.get && Option(nextStateRef.get).map(!Project.isProjectLoaded(_)).getOrElse(true)) {
+      // we have to poll here because we want to continue even without
+      // a request, if we get a state. Keep the poll short to avoid a needless
+      // lag on startup.
+      @tailrec
+      def drainRequests(): Unit = {
+        queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) match {
+          case null => () // no more requests for now
+          case ServerRequest(client, serial, request) =>
+            handleRequestsNoBuildState(client, serial, request)
+            // see if there are more requests
+            drainRequests()
+        }
       }
+
+      // get all pending requests so we have all event listeners
+      // for example.
+      drainRequests()
+
+      // TODO if project load has definitively failed,
+      // here we should exit, or enter some kind of
+      // look-for-file-changes-and-retry loop. We need a good way
+      // to notify from the load failed command back to here.
     }
+
     // Now we flush through all the events we had.
     // TODO - handle failures 
     if (running.get) {
@@ -291,7 +309,7 @@ class ReadOnlyServerEngine(
     while (running.get) {
       // Here we can block on requests, because we have cached
       // build state and no longer have to see if the sbt command
-      // loop is started.p
+      // loop is started.
       val ServerRequest(client, serial, request) = queue.take
       // TODO - handle failures 
       try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
@@ -310,27 +328,59 @@ class ReadOnlyServerEngine(
     eventSink.addEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
+  private def unlistenToEvents(client: LiveClient, serial: Long): Unit = {
+    eventSink.removeEventListener(client)
+    client.reply(serial, ReceivedResponse())
+  }
+  private def killServer(): Unit = {
+    System.exit(0)
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
+
+      //// If you change any of these, you probably also need to change
+      //// handleRequestsWithBuildState below.
+
+      case KillServerRequest() =>
+        killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
+      case UnlistenToEvents() =>
+        unlistenToEvents(client, serial)
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
+
+      //// Here we don't want to buffer a bunch up because the user
+      //// is probably waiting on completions and if we reply to a flood
+      //// of these on project load the UI will get wonky. When the
+      //// project loads they can always press tab again or whatever.
+      case CommandCompletionsRequest(line, level) =>
+        client.reply(serial, CommandCompletionsResponse(results = Set.empty))
+
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
     }
   private def handleRequestsWithBuildState(client: LiveClient, serial: Long, request: Request, buildState: State): Unit =
     request match {
+      //// First, requests we also handle without build state... hard to factor out
+      //// without losing the match exhaustiveness warnings. If you change
+      //// these change above too.
+
       case KillServerRequest() =>
-        // TODO - Is killing completely the right thing?
-        System.exit(0)
+        killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
       case UnlistenToEvents() =>
-        eventSink.removeEventListener(client)
+        unlistenToEvents(client, serial)
+      case ClientClosedRequest() =>
+        updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
+
+      //// Second, requests we only handle when we have state,
+      //// or handle differently when we have state.
+
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
         client.reply(serial, ReceivedResponse())
@@ -339,9 +389,6 @@ class ReadOnlyServerEngine(
         client.reply(serial, ReceivedResponse())
       case SendSyntheticBuildChanged() =>
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
-      case ClientClosedRequest() =>
-        updateState(_.disconnect(client))
-        client.reply(serial, ReceivedResponse())
       case KeyLookupRequest(key) =>
         client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key)))
       case AnalyzeExecutionRequest(command) =>

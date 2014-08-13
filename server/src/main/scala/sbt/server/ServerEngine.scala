@@ -128,7 +128,10 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           handleNextRequestCommand,
           sendReadyForRequests,
           postCommandCleanupCommand,
-          postCommandErrorHandler) ++ BuiltinCommands.DefaultCommands,
+          postCommandErrorHandler) ++
+          // Override the default commands with server-specific/friendly ones.
+          BuiltinCommands.DefaultCommands.filterNot(ServerBootCommand.isOverriden) ++
+          ServerBootCommand.commandOverrides,
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
         preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
