@@ -310,8 +310,17 @@ class ReadOnlyServerEngine(
     eventSink.addEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
+  private def killServer(): Unit = {
+    System.exit(0)
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
+
+      //// If you change any of these, you probably also need to change
+      //// handleRequestsWithBuildState below.
+
+      case KillServerRequest() =>
+        killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
       case ClientClosedRequest() =>
@@ -323,11 +332,20 @@ class ReadOnlyServerEngine(
     }
   private def handleRequestsWithBuildState(client: LiveClient, serial: Long, request: Request, buildState: State): Unit =
     request match {
+      //// First, requests we also handle without build state... hard to factor out
+      //// without losing the match exhaustiveness warnings. If you change
+      //// these change above too.
+
       case KillServerRequest() =>
-        // TODO - Is killing completely the right thing?
-        System.exit(0)
+        killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
+      case ClientClosedRequest() =>
+        updateState(_.disconnect(client))
+        client.reply(serial, ReceivedResponse())
+
+      //// Second, requests we only handle when we have state.
+
       case UnlistenToEvents() =>
         eventSink.removeEventListener(client)
         client.reply(serial, ReceivedResponse())
@@ -339,9 +357,6 @@ class ReadOnlyServerEngine(
         client.reply(serial, ReceivedResponse())
       case SendSyntheticBuildChanged() =>
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
-      case ClientClosedRequest() =>
-        updateState(_.disconnect(client))
-        client.reply(serial, ReceivedResponse())
       case KeyLookupRequest(key) =>
         client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key)))
       case AnalyzeExecutionRequest(command) =>
