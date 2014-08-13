@@ -336,6 +336,14 @@ class ReadOnlyServerEngine(
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
+
+      //// Here we don't want to buffer a bunch up because the user
+      //// is probably waiting on completions and if we reply to a flood
+      //// of these on project load the UI will get wonky. When the
+      //// project loads they can always press tab again or whatever.
+      case CommandCompletionsRequest(line, level) =>
+        client.reply(serial, CommandCompletionsResponse(results = Set.empty))
+
       case _ =>
         // Defer all other messages....
         deferredStartupBuffer.append(ServerRequest(client, serial, request))
@@ -356,7 +364,8 @@ class ReadOnlyServerEngine(
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
 
-      //// Second, requests we only handle when we have state.
+      //// Second, requests we only handle when we have state,
+      //// or handle differently when we have state.
 
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
