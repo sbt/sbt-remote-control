@@ -271,15 +271,19 @@ class ReadOnlyServerEngine(
   }
 
   override def run() {
-    while (running.get && nextStateRef.get == null) {
-      // here we poll, on timeout we check to see if we have build state yet.
-      // We give at least one second for loading the build before timing out.
-      queue.poll(1, java.util.concurrent.TimeUnit.SECONDS) match {
+    // we buffer most requests until 1) we have a state and 2) the project loads successfully.
+
+    while (running.get && Option(nextStateRef.get).map(!Project.isProjectLoaded(_)).getOrElse(true)) {
+      // we have to poll here because we want to continue even without
+      // a request, if we get a state. Keep the poll short to avoid a needless
+      // lag on startup.
+      queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) match {
         case null => () // Ignore.
         case ServerRequest(client, serial, request) =>
           handleRequestsNoBuildState(client, serial, request)
       }
     }
+
     // Now we flush through all the events we had.
     // TODO - handle failures 
     if (running.get) {
@@ -291,7 +295,7 @@ class ReadOnlyServerEngine(
     while (running.get) {
       // Here we can block on requests, because we have cached
       // build state and no longer have to see if the sbt command
-      // loop is started.p
+      // loop is started.
       val ServerRequest(client, serial, request) = queue.take
       // TODO - handle failures 
       try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
