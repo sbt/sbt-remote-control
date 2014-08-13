@@ -32,9 +32,10 @@ object ServerBootCommand {
 
   /** Actual does the failing to load for the sbt server. */
   private[this] def doServerLoadFailed(s: State, action: String): State = {
-    val ss = ServerState.extract(s)
-    // TODO - Figure out how to get the client to acknowledge a build load failure and
-    // possibly retry...
+    s.log.error("Failed to load project.")
+    // TODO we need to notify ReadOnlyServerEngine and
+    // have it either take care of exiting, or enter
+    // some sort of retry loop, or whatever it will do.
     s.exit(ok = false)
   }
 
