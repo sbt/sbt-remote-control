@@ -12,5 +12,5 @@ trait ServerEngineQueue {
    * Note:  This will ensure that the work has already been minimized
    *        in the queue before responding.
    */
-  def blockAndTakeNext: (ServerState, ServerEngineWork)
+  def blockAndTakeNext: (RequestListeners, ServerEngineWork)
 }

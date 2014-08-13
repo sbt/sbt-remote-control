@@ -46,7 +46,9 @@ class ServerEngine(requestQueue: ServerEngineQueue,
 
   final val HandleNextServerRequest = "server-handle-next-server-request"
   final def handleNextRequestCommand = Command.command(HandleNextServerRequest) { state =>
-    val (serverState, work) = requestQueue.blockAndTakeNext
+    val (requestListeners, work) = requestQueue.blockAndTakeNext
+
+    val serverState = ServerState(requestListeners = requestListeners, lastCommand = None)
 
     // here we inject the current serverState into the State object.
     val next = handleWork(work, ServerState.update(state, serverState))

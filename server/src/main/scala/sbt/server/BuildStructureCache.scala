@@ -14,12 +14,6 @@ object BuildStructureCache {
   def extract(state: State): Option[protocol.MinimalBuildStructure] = state get buildStructureCache
   private def updateImpl(state: State, cache: protocol.MinimalBuildStructure): State = state.put(buildStructureCache, cache)
 
-  def addListener(state: State, listener: SbtClient): State = {
-    val serverState = ServerState.extract(state)
-    sendBuildStructure(listener, SbtDiscovery.buildStructure(state))
-    ServerState.update(state, serverState.addBuildListener(listener))
-  }
-
   def update(state: State): State = {
     val structure = SbtDiscovery.buildStructure(state)
     extract(state) match {
