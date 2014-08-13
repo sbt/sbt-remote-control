@@ -54,6 +54,8 @@ object WireProtocol {
     msg[CommandCompletionsResponse],
     msg[KeyLookupResponse],
     msg[KeyLookupRequest],
+    msg[AnalyzeExecutionRequest],
+    msg[AnalyzeExecutionResponse],
     msg[TaskEvent])
   private val lookUpIndex: Map[String, Format[_]] =
     (for {

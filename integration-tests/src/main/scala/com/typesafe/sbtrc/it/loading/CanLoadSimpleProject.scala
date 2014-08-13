@@ -194,5 +194,33 @@ class CanLoadSimpleProject extends SbtClientTest {
       TestEvent("OnePassOneFailTest", None, TestPassed, None),
       TestEvent("OnePassOneFailTest", None, TestFailed, Some("this is not true"))).sorted
     assertEquals(expected, testEvents.sorted)
+
+    // Now test execution analysis for three cases
+
+    // analyze a task key
+    val keyAnalysis = waitWithError(client.analyzeExecution("compile"), "failed to analyze execution of 'compile'")
+    keyAnalysis match {
+      case ExecutionAnalysisKey(keys) =>
+        assert(keys.nonEmpty)
+        assert(keys.head.key.name.contains("compile"))
+      case other => throw new AssertionError("'compile' was not analyzed as a key")
+    }
+
+    // analyze a command
+    val commandAnalysis = waitWithError(client.analyzeExecution("help"), "failed to analyze execution of 'help'")
+    commandAnalysis match {
+      case ExecutionAnalysisCommand(nameOption) =>
+        assertEquals(Some("help"), nameOption)
+      case other => throw new AssertionError("'help' was not analyzed as a command")
+    }
+
+    // analyze some nonsense
+    val errorAnalysis = waitWithError(client.analyzeExecution("invalidNope"), "failed to analyze invalid execution")
+    errorAnalysis match {
+      case ExecutionAnalysisError(message) =>
+        assert(message.nonEmpty)
+      case other =>
+        throw new AssertionError("didn't get an error analyzing an invalid execution")
+    }
   }
 }

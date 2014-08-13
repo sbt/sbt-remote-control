@@ -8,6 +8,7 @@ package object client {
   type TaskResult[T] = protocol.TaskResult[T]
   type MinimalBuildStructure = protocol.MinimalBuildStructure
   type Completion = protocol.Completion
+  type ExecutionAnalysis = protocol.ExecutionAnalysis
 
   // Events from protocol API.
   type Event = protocol.Event

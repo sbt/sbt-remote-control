@@ -343,12 +343,9 @@ class ReadOnlyServerEngine(
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
       case KeyLookupRequest(key) =>
-        val parser: complete.Parser[Seq[sbt.ScopedKey[_]]] = Act.aggregatedKeyParser(buildState)
-        import SbtToProtocolUtils.scopedKeyToProtocol
-        complete.Parser.parse(key, parser) match {
-          case Right(sk) => client.reply(serial, KeyLookupResponse(key, sk.map(k => scopedKeyToProtocol(k))))
-          case Left(msg) => client.reply(serial, KeyLookupResponse(key, Seq.empty))
-        }
+        client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key)))
+      case AnalyzeExecutionRequest(command) =>
+        client.reply(serial, AnalyzeExecutionResponse(analyzeExecution(buildState, command)))
       case ListenToValue(key) =>
         SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
           case Some(scopedKey) =>
@@ -438,4 +435,44 @@ class ReadOnlyServerEngine(
         client.reply(serial, ErrorResponse("Client can only be registered once, on connection"))
     }
 
+  private def keyLookup(buildState: State, key: String): Seq[protocol.ScopedKey] = {
+    val parser: complete.Parser[Seq[sbt.ScopedKey[_]]] = Act.aggregatedKeyParser(buildState)
+    import SbtToProtocolUtils.scopedKeyToProtocol
+    complete.Parser.parse(key, parser) match {
+      case Right(sk) => sk.map(k => scopedKeyToProtocol(k))
+      case Left(msg) => Seq.empty
+    }
+  }
+
+  private def analyzeExecution(buildState: State, command: String): ExecutionAnalysis = {
+    // use the same parser as sbt.Command.process to determine whether
+    // or not the execution will be parsed; but then we don't get back
+    // enough info to tell how it's truly interpreted, so we have to
+    // then try to guess
+    val parser = Command.combine(buildState.definedCommands)
+    complete.DefaultParsers.parse(command, parser(buildState)) match {
+      case Right(runCommand) =>
+        // here comes the heuristic part
+        val keys = keyLookup(buildState, command)
+        if (keys.isEmpty) {
+          val commands: Seq[SimpleCommand] = buildState.definedCommands.collect {
+            case c: SimpleCommand if (command == c.name || command.startsWith(s"${c.name} ")) => c
+          }
+          commands.headOption map { c =>
+            ExecutionAnalysisCommand(name = Some(c.name))
+          } getOrElse {
+            // this is a command, probably, but we can't figure out which one
+            ExecutionAnalysisCommand(name = None)
+          }
+        } else {
+          // this is SLIGHTLY oversimplified, in that sbt can still throw an
+          // error after this point if you try to mix input and regular tasks
+          // or maybe in some other cases. But a task can always fail, too, so
+          // I think we can just ignore those cases. We'll see I suppose.
+          ExecutionAnalysisKey(keys)
+        }
+      case Left(error) =>
+        ExecutionAnalysisError(error)
+    }
+  }
 }
