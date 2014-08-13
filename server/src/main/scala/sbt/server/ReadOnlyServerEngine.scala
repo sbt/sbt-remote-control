@@ -310,6 +310,10 @@ class ReadOnlyServerEngine(
     eventSink.addEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
+  private def unlistenToEvents(client: LiveClient, serial: Long): Unit = {
+    eventSink.removeEventListener(client)
+    client.reply(serial, ReceivedResponse())
+  }
   private def killServer(): Unit = {
     System.exit(0)
   }
@@ -323,6 +327,8 @@ class ReadOnlyServerEngine(
         killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
+      case UnlistenToEvents() =>
+        unlistenToEvents(client, serial)
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
@@ -340,15 +346,14 @@ class ReadOnlyServerEngine(
         killServer()
       case ListenToEvents() =>
         listenToEvents(client, serial)
+      case UnlistenToEvents() =>
+        unlistenToEvents(client, serial)
       case ClientClosedRequest() =>
         updateState(_.disconnect(client))
         client.reply(serial, ReceivedResponse())
 
       //// Second, requests we only handle when we have state.
 
-      case UnlistenToEvents() =>
-        eventSink.removeEventListener(client)
-        client.reply(serial, ReceivedResponse())
       case ListenToBuildChange() =>
         updateState(_.addBuildListener(client))
         client.reply(serial, ReceivedResponse())
