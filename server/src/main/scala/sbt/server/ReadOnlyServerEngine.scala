@@ -277,11 +277,25 @@ class ReadOnlyServerEngine(
       // we have to poll here because we want to continue even without
       // a request, if we get a state. Keep the poll short to avoid a needless
       // lag on startup.
-      queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) match {
-        case null => () // Ignore.
-        case ServerRequest(client, serial, request) =>
-          handleRequestsNoBuildState(client, serial, request)
+      @tailrec
+      def drainRequests(): Unit = {
+        queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) match {
+          case null => () // no more requests for now
+          case ServerRequest(client, serial, request) =>
+            handleRequestsNoBuildState(client, serial, request)
+            // see if there are more requests
+            drainRequests()
+        }
       }
+
+      // get all pending requests so we have all event listeners
+      // for example.
+      drainRequests()
+
+      // TODO if project load has definitively failed,
+      // here we should exit, or enter some kind of
+      // look-for-file-changes-and-retry loop. We need a good way
+      // to notify from the load failed command back to here.
     }
 
     // Now we flush through all the events we had.
