@@ -456,7 +456,7 @@ class ReadOnlyServerEngine(
         val keys = keyLookup(buildState, command)
         if (keys.isEmpty) {
           val commands: Seq[SimpleCommand] = buildState.definedCommands.collect {
-            case c: SimpleCommand if c.name == command => c
+            case c: SimpleCommand if (command == c.name || command.startsWith(s"${c.name} ")) => c
           }
           commands.headOption map { c =>
             ExecutionAnalysisCommand(name = Some(c.name))
