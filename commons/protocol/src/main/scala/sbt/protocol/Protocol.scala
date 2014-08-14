@@ -200,6 +200,11 @@ trait TaskEventUnapply[T] {
   }
 }
 
+/** Build has been loaded or reloaded successfully. Typically followed by a BuildStructureChanged. */
+case class BuildLoaded() extends ExecutionEngineEvent
+/** Build has failed to load or reload. */
+case class BuildFailedToLoad() extends ExecutionEngineEvent
+
 /** The build has been changed in some fashion. */
 case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event

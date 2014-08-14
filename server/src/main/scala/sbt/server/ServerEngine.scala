@@ -41,6 +41,9 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     // here we want to register our error handler that handles command failure.
     val newState = installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
 
+    // Notify that we have booted
+    eventSink.send(BuildLoaded())
+
     // Notify server event loop of the build state
     nextStateRef.lazySet(newState)
     newState
@@ -143,7 +146,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           postCommandErrorHandler) ++
           // Override the default commands with server-specific/friendly ones.
           BuiltinCommands.DefaultCommands.filterNot(ServerBootCommand.isOverriden) ++
-          ServerBootCommand.commandOverrides,
+          ServerBootCommand.commandOverrides(eventSink),
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
         preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
