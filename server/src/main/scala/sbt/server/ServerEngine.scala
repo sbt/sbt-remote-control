@@ -94,11 +94,8 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val serverState = ServerState.extract(state)
     work match {
       case work: CommandExecutionWork =>
-        // TODO - Figure out how to run this and ack appropriately...
+        eventSink.send(protocol.ExecutionStarting(work.id.id))
         work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
-      case other =>
-        // TODO - better error reporting here!
-        sys.error("Command loop unable to handle msg: " + other)
     }
   }
 

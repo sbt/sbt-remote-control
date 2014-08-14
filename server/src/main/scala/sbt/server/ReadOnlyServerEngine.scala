@@ -176,7 +176,6 @@ class ReadOnlyServerEngine(
               blockUntilWork()
           }
         val work = blockUntilWork()
-        eventSink.send(protocol.ExecutionStarting(work.id.id))
         (requestListeners, work)
       }
 
@@ -225,8 +224,12 @@ class ReadOnlyServerEngine(
             // Now, we insert the work either at the end, or where it belongs.
             def insertWork(remaining: List[ServerEngineWork]): List[ServerEngineWork] =
               remaining match {
-                case hd :: tail if hd.id == work.id => work :: tail
-                case hd :: tail => hd :: insertWork(tail)
+                case hd :: tail => hd match {
+                  case cmd: CommandExecutionWork if cmd.id == work.id =>
+                    work :: tail
+                  case other =>
+                    other :: insertWork(tail)
+                }
                 case Nil => work :: Nil
               }
             workQueue = insertWork(workQueue)
@@ -250,7 +253,9 @@ class ReadOnlyServerEngine(
         found match {
           case item :: Nil =>
             // Remove the item from the queue
-            workQueue = workQueue filterNot (_.id.id == id)
+            workQueue = workQueue collect {
+              case old: CommandExecutionWork if old.id.id != id => old
+            }
             // Tell everyone that this request is dead.
             eventSink.send(protocol.ExecutionStarting(id))
             eventSink.send(protocol.ExecutionFailure(id))
