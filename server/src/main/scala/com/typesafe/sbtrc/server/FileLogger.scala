@@ -2,6 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import java.io._
+import java.util.{ Timer, TimerTask }
 
 /**
  * An interface of a "safe-ish" logger which can dump information to a file.
@@ -22,6 +23,8 @@ trait FileLogger {
 }
 object FileLogger {
   def apply(f: File): SimpleRollingFileLogger = new SimpleRollingFileLogger(f)
+
+  private[server] val flushTimer = new Timer(true) // isDaemon=true
 }
 
 /**
@@ -63,6 +66,23 @@ class SimpleRollingFileLogger(
   file.getParentFile.mkdirs()
   private var stream = openStream()
 
+  private def flush(): Unit = silentlyHandleSynchronized {
+    stream.flush()
+  }
+
+  // If we don't do this, then the logs never flush until
+  // there are more logs, which means the logs are rarely
+  // up-to-date on disk until the process exits cleanly.
+  private val flusher = new TimerTask() {
+    override def run = flush()
+  }
+
+  // this can be pretty short, what's important is that when we get
+  // a flood of debug logging or something we are batching up the
+  // flush instead of doing it once per message.
+  private final val timerIntervalMilliseconds = 1000 * 10
+  FileLogger.flushTimer.schedule(flusher, timerIntervalMilliseconds, timerIntervalMilliseconds)
+
   def log(msg: String): Unit = silentlyHandleSynchronized {
     stream.write(msg)
     stream.write("\n")
@@ -100,6 +120,7 @@ class SimpleRollingFileLogger(
   }
 
   def close(): Unit = silentlyHandleSynchronized {
+    flusher.cancel()
     stream.println(s"Closing the ${processName} logs at ${new java.util.Date()}, goodbye.")
     stream.flush()
     stream.close()
