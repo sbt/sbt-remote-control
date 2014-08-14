@@ -181,6 +181,13 @@ class ReadOnlyServerEngine(
               blockUntilWork()
           }
         val work = blockUntilWork()
+
+        // we do this here so it's synchronized (work is either in-queue or started)
+        work match {
+          case c: CommandExecutionWork => eventSink.send(protocol.ExecutionStarting(c.id.id))
+          case EndOfWork =>
+        }
+
         (requestListeners, work)
       }
 

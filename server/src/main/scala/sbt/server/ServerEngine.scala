@@ -108,7 +108,6 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val serverState = ServerState.extract(state)
     work match {
       case work: CommandExecutionWork =>
-        eventSink.send(protocol.ExecutionStarting(work.id.id))
         work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
       case EndOfWork =>
         state.exit(ok = true)
