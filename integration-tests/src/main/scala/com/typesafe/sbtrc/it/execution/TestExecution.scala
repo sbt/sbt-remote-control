@@ -569,6 +569,8 @@ class TestExecution extends SbtClientTest {
         waitWithError(pendingWaitForStampFile.future, "didn't get ExecutionWaiting(waitForStampFile)")
 
         // kill the connection with stuff still pending
+        // NOTE this leaves an sbt server stuck in waitForStampFile that will never exit,
+        // so we have to clean up below
         client.close()
 
         val recorded = waitWithError(futureFirstClientRecord, "client didn't get the events")
@@ -619,6 +621,10 @@ class TestExecution extends SbtClientTest {
                 assert(id == executionId)
             }))
         }
+
+        // BEFORE we run the tests that may fail, unstick the
+        // server so we don't get a bunch of leftover processes
+        sbt.IO.write(new java.io.File(dummy, "target/stamp.txt"), "Hi!")
 
         verifyExecutionFailed("waitForStampFile")
         verifyExecutionNeverRun("dep1")
