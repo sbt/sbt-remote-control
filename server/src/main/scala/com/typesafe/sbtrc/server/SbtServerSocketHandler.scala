@@ -120,12 +120,22 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
         }
       }
       log.log("Server socket thread exiting.")
+
       // Cleanup clients, waiting for them to notify their users.
+      // We have a complexity that during shutdown, each client will
+      // call our close handler above and mutate the array buffer.
+      // We do know that nobody will ADD to the array buffer since
+      // this thread would do that, but a client COULD self-close before
+      // we close it. Clients call our close handler from a different
+      // thread from the one we're joining below, to avoid deadlock.
       clientLock.synchronized {
         log.log(s"${clients.size} clients open, will close them...")
         clients.foreach(_.shutdown())
         clients.foreach(_.join())
       }
+      // so sometime here after we drop clientLock, "clients" will
+      // have all its elements removed from another thread.
+
       log.log("All client sockets have been closed.")
 
       // in case we didn't exit due to a stop() call
