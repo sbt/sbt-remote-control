@@ -28,5 +28,6 @@ object ServerState {
   val serverState = AttributeKey[ServerState]("Sbt's server state")
 
   def extract(state: State): ServerState = Project.getOrError(state, serverState, "Could not find sbt's server state.")
+  def extractOpt(state: State): Option[ServerState] = state get serverState
   def update(state: State, serverState: ServerState): State = state.put(ServerState.serverState, serverState)
 }

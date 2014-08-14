@@ -177,6 +177,8 @@ class SbtClientHandler(
 
   def shutdown(): Unit = {
     running.set(false)
+    // otherwise we won't wake up until we get a request
+    try ipc.close() catch { case NonFatal(e) => }
   }
   def join(): Unit = clientThread.join()
 

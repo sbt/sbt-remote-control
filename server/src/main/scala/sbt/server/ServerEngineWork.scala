@@ -71,3 +71,5 @@ case class CommandExecutionWork(
   def withNewRequester(requester: LiveClient): CommandExecutionWork =
     CommandExecutionWork(id, command, allRequesters + requester, cancelStatus)
 }
+
+case object EndOfWork extends ServerEngineWork

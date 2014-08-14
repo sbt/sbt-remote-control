@@ -4,9 +4,10 @@ package server
 import ipc.{ MultiClientServer => IpcServer }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
-import sbt.server.{ ServerRequest, SocketMessage }
+import sbt.server.{ ServerRequest, SocketMessage, SocketClosed }
 import com.typesafe.sbtrc.ipc.HandshakeException
 import sbt.protocol._
+import scala.util.control.NonFatal
 
 /**
  * A class that will spawn up a thread to handle client connection requests.
@@ -96,13 +97,17 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
             // down the server in that instance.
             log.error(s"Handshake exception on socket: ${e.socket.getPort}", e)
           case _: InterruptedException | _: SocketTimeoutException =>
-            log.log("Checking to see if clients are empty...")
-            // Here we need to check to see if we should shut ourselves down.
-            if (clients.isEmpty) {
-              log.log("No clients connected after 3 min.  Shutting down.")
-              running.set(false)
+            if (running.get) {
+              log.log("Checking to see if clients are empty...")
+              // Here we need to check to see if we should shut ourselves down.
+              if (clients.isEmpty) {
+                log.log("No clients connected after 3 min.  Shutting down.")
+                running.set(false)
+              } else {
+                log.log("We have a client, continuing serving connections.")
+              }
             } else {
-              log.log("We have a client, continuing serving connections.")
+              log.log(s"socket exception, running=false, exiting")
             }
           case e: Throwable =>
             // On any other failure, we'll just down the server for now.
@@ -116,14 +121,19 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
         clients.foreach(_.shutdown())
         clients.foreach(_.join())
       }
-      // TODO - better shutdown semantics?
-      System.exit(0)
+      log.log("All client sockets have been closed.")
+      // notify we are closed
+      msgHandler(SocketClosed)
     }
   }
   thread.start()
 
   // Tells the server to stop running.
-  def stop(): Unit = running.set(false)
+  def stop(): Unit = {
+    running.set(false)
+    // be sure we clean up the socket
+    try serverSocket.close() catch { case NonFatal(e) => }
+  }
 
   // Blocks the server until we've been told to shutdown by someone.
   def join(): Unit = thread.join()

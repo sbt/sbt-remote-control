@@ -40,6 +40,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
     // here we want to register our error handler that handles command failure.
     val newState = installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
+
     // Notify server event loop of the build state
     nextStateRef.lazySet(newState)
     newState
@@ -77,17 +78,26 @@ class ServerEngine(requestQueue: ServerEngineQueue,
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
-    val lastState = ServerState.extract(state)
-    lastState.lastCommand match {
-      case Some(LastCommand(command)) =>
-        command.cancelStatus.complete()
-        eventSink.send(ExecutionFailure(command.id.id))
-      case None => ()
-    }
     // NOTE - we always need to re-register ourselves as the error handler.
     val withErrorHandler = state.copy(onFailure = Some(PostCommandErrorHandler))
-    // Here we clear the last command so we don't report success in the next step.
-    val clearedCommand = ServerState.update(withErrorHandler, lastState.clearLastCommand)
+
+    val clearedCommand = {
+      // the server state might not exist depending on what happened before the error
+      val lastStateOption = ServerState.extractOpt(withErrorHandler)
+      lastStateOption map { lastState =>
+        lastState.lastCommand match {
+          case Some(LastCommand(command)) =>
+            command.cancelStatus.complete()
+            eventSink.send(ExecutionFailure(command.id.id))
+          case None => ()
+        }
+
+        // Here we clear the last command so we don't report success in the next step.
+        ServerState.update(withErrorHandler, lastState.clearLastCommand)
+      } getOrElse {
+        withErrorHandler
+      }
+    }
     PostCommandCleanup :: HandleNextServerRequest :: clearedCommand
   }
 
@@ -97,11 +107,13 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       case work: CommandExecutionWork =>
         eventSink.send(protocol.ExecutionStarting(work.id.id))
         work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
+      case EndOfWork =>
+        state.exit(ok = true)
     }
   }
 
   /** This will load/launch the sbt execution engine. */
-  def execute(configuration: xsbti.AppConfiguration): Unit = {
+  def execute(configuration: xsbti.AppConfiguration): xsbti.MainResult = {
     import BasicCommands.early
     import BasicCommandStrings.runEarly
     import BuiltinCommands.{ initialize, defaults }
