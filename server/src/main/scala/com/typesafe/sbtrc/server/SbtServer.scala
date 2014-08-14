@@ -49,14 +49,18 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
         val originOut = System.out
         val originErr = System.err
         // TODO - Timeouts that lead to us shutting down the server.
-        val result = try commandEngine.execute(configuration)
+        val result = try Right(commandEngine.execute(configuration))
         catch {
-          case e: Throwable =>
-            e.printStackTrace(originErr)
-            throw e
+          case e: xsbti.FullReload =>
+            // this means we want to reboot; we can kick it up
+            // to another thread via commandEngineThreadResult
+            Left(e)
         }
         masterLog.log(s"Done executing sbt server engine, result $result")
-        commandEngineThreadResult.success(result)
+        result match {
+          case Left(e) => commandEngineThreadResult.failure(e)
+          case Right(r) => commandEngineThreadResult.success(r)
+        }
       } catch {
         case t: Throwable =>
           masterLog.error(s"command engine thread crash ${t.getClass.getName}: ${t.getMessage}", t)
@@ -92,7 +96,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
 
     masterLog.log("Waiting for command engine result")
 
-    // If this returns reboot, then the entire server machinery should restart including
+    // If this throws FullReload, then the entire server machinery should restart including
     // a new socket, in theory.
     val result = concurrent.Await.result(commandEngineThreadResult.future, concurrent.duration.Duration(2, TimeUnit.SECONDS))
 
@@ -100,6 +104,10 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
 
     result
   } catch {
+    case e: xsbti.FullReload =>
+      // this exception tells the launcher code to reload
+      masterLog.log(s"Throwing FullReload up to sbt launcher")
+      throw e
     case NonFatal(e) =>
       masterLog.error(s"Unexpected error ${e.getClass.getName}: ${e.getMessage}", e)
       Exit(1)

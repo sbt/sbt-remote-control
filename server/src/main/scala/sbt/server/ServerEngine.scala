@@ -115,7 +115,12 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     }
   }
 
-  /** This will load/launch the sbt execution engine. */
+  /**
+   * This will load/launch the sbt execution engine. In addition to returning
+   *  a result, it can throw xsbti.FulLReload.
+   *  TODO: FullReload contains an array of pending commands - does that
+   *  make a mess on reload?
+   */
   def execute(configuration: xsbti.AppConfiguration): xsbti.MainResult = {
     import BasicCommands.early
     import BasicCommandStrings.runEarly
