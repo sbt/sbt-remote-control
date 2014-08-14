@@ -4,7 +4,7 @@ package server
 import java.net.ServerSocket
 import sbt.State
 import sbt.server.ServerEngine
-import sbt.server.ServerRequest
+import sbt.server.SocketMessage
 import sbt.protocol
 
 /**
@@ -22,7 +22,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   val serverEngineLogFile = new java.io.File(configuration.baseDirectory, ".sbtserver/master.log")
 
   // The queue where requests go before we fullfill them.
-  private val queue = new java.util.concurrent.LinkedBlockingDeque[ServerRequest]
+  private val queue = new java.util.concurrent.LinkedBlockingDeque[SocketMessage]
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
@@ -31,9 +31,9 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     eventEngine.eventSink, eventEngine.eventSink, eventEngine.eventSink)
 
   // External API to run queue.
-  def queueClientRequest(request: ServerRequest): Unit = queue.add(request)
+  def queueSocketMessage(request: SocketMessage): Unit = queue.add(request)
   // Create the helper which will handle socket requests.
-  private val socketHandler = new SbtServerSocketHandler(socket, queueClientRequest, serverEngineLogFile)
+  private val socketHandler = new SbtServerSocketHandler(socket, queueSocketMessage, serverEngineLogFile)
 
   // TODO - Maybe the command engine should extend thread too?
   private val commandEngineThread = new Thread("sbt-server-command-loop") {

@@ -4,7 +4,7 @@ package server
 import ipc.{ MultiClientServer => IpcServer }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
-import sbt.server.ServerRequest
+import sbt.server.{ ServerRequest, SocketMessage }
 import com.typesafe.sbtrc.ipc.HandshakeException
 import sbt.protocol._
 
@@ -13,7 +13,7 @@ import sbt.protocol._
  *
  * TODO - We should use netty for this rather than spawning so many threads.
  */
-class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerRequest => Unit,
+class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessage => Unit,
   serverEngineLogFile: java.io.File) {
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000

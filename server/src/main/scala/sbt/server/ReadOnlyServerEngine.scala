@@ -10,8 +10,10 @@ import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
 import play.api.libs.json.{ JsValue, Writes }
 
+sealed trait SocketMessage
+
 // a little wrapper around protocol.request to keep the client/serial with it
-case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
+case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request) extends SocketMessage
 
 /**
  * This class represents an event loop which sits outside the normal sbt command
@@ -27,7 +29,7 @@ case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Req
  *
  */
 class ReadOnlyServerEngine(
-  queue: BlockingQueue[ServerRequest],
+  queue: BlockingQueue[SocketMessage],
   nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
   private val running = new AtomicBoolean(true)
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
