@@ -65,6 +65,8 @@ class SimpleRollingFileLogger(
     stream.write(msg)
     stream.write("\n")
     e.printStackTrace(stream)
+    // be extra-sure we get errors.
+    stream.flush()
     // TODO - Stack traces are large...
     checkRotate(msg.length + 1)
   }
@@ -89,7 +91,11 @@ class SimpleRollingFileLogger(
     }
   }
 
-  def close(): Unit = silentlyHandleSynchronized(stream.close())
+  def close(): Unit = silentlyHandleSynchronized {
+    stream.println(s"Closing the logs at ${new java.util.Date()}, goodbye.")
+    stream.flush()
+    stream.close()
+  }
 
   final def silentlyHandleSynchronized[A](f: => A): Unit = synchronized {
     try f catch {
