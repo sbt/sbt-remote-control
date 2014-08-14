@@ -46,7 +46,9 @@ class SimpleRollingFileLogger(
   }
 
   private def openStream() = synchronized {
-    new PrintWriter(new FileWriter(file))
+    val s = new PrintWriter(file, "UTF-8")
+    s.println(s"New log file opened at ${new java.util.Date()}")
+    s
   }
 
   // make sure we can write to the file.
@@ -71,13 +73,15 @@ class SimpleRollingFileLogger(
   private def checkRotate(charsWritten: Long): Unit = silentlyHandleSynchronized {
     written += charsWritten
     if (written > maxFileSize) {
+      val oldFile = dumpFile
+      stream.println(s"Rolled to $oldFile at ${new java.util.Date()}")
       stream.flush()
       stream.close()
       // Note: This should be efficient as we're running in the same directory.
       // If a renameTo is unsucessfull, a slow move will occur.
       // We also allow rotating logs to fail, and we just reopen and continue
       // writing to the same file if we're unable to move the existing one.
-      silentlyHandleSynchronized(sbt.IO.move(file, dumpFile))
+      silentlyHandleSynchronized(sbt.IO.move(file, oldFile))
       // Bump the count of how many times we've rolled and reset.
       count += 1
       written = 0
