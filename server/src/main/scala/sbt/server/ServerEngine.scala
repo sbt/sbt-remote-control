@@ -126,6 +126,9 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     import BuiltinCommands.{ initialize, defaults }
     import CommandStrings.{ BootCommand, DefaultsCommand, InitCommand }
 
+    fileLogger.log(s"Command engine arguments=${configuration.arguments().toList}")
+    fileLogger.log(s"Command engine baseDirectory=${configuration.baseDirectory}")
+
     // TODO - can this be part of a command?
     val globalLogging = initializeLoggers(fileLogger)
     // TODO - This is copied from StandardMain so we can override globalLogging
@@ -154,6 +157,9 @@ class ServerEngine(requestQueue: ServerEngineQueue,
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
         preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
+
+    fileLogger.log(s"Command engine initial remaining commands ${state.remainingCommands}")
+
     StandardMain.runManaged(state)
   }
 
