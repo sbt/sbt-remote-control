@@ -109,19 +109,28 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
             } else {
               log.log(s"socket exception, running=false, exiting")
             }
+          case e: java.io.IOException =>
+            // this is expected when we close the socket
+            log.log(s"Server socket closed ${e.getClass.getName}: ${e.getMessage}")
+            running.set(false)
           case e: Throwable =>
-            // On any other failure, we'll just down the server for now.
-            log.error("Unhandled throwable, shutting down server.", e)
+            // this one is an unexpected failure
+            log.error(s"Unhandled throwable in server socket thread ${e.getClass.getName}: ${e.getMessage}", e)
             running.set(false)
         }
       }
-      log.log("Shutting down server socket.")
+      log.log("Server socket thread exiting.")
       // Cleanup clients, waiting for them to notify their users.
       clientLock.synchronized {
+        log.log(s"${clients.size} clients open, will close them...")
         clients.foreach(_.shutdown())
         clients.foreach(_.join())
       }
       log.log("All client sockets have been closed.")
+
+      // in case we didn't exit due to a stop() call
+      try serverSocket.close() catch { case NonFatal(e) => }
+
       // notify we are closed
       msgHandler(SocketClosed)
     }
