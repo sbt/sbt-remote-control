@@ -40,6 +40,13 @@ class SimpleRollingFileLogger(
   sbt.IO.createDirectory(file.getParentFile)
   private var count = 1L
   private var written = 0L
+
+  private val processName =
+    try java.lang.management.ManagementFactory.getRuntimeMXBean().getName()
+    catch {
+      case _ => "(unknown)"
+    }
+
   // Returns the next location to dump our current logs.
   private def dumpFile: File = synchronized {
     new File(file.getParentFile, f"${file.getName}.${count % numFiles}%02d")
@@ -47,7 +54,8 @@ class SimpleRollingFileLogger(
 
   private def openStream() = synchronized {
     val s = new PrintWriter(file, "UTF-8")
-    s.println(s"New log file opened at ${new java.util.Date()}")
+    s.println(s"New log file opened at ${new java.util.Date()} by ${processName}")
+    s.flush() // be sure we never have a mysterious empty log file
     s
   }
 
@@ -92,7 +100,7 @@ class SimpleRollingFileLogger(
   }
 
   def close(): Unit = silentlyHandleSynchronized {
-    stream.println(s"Closing the logs at ${new java.util.Date()}, goodbye.")
+    stream.println(s"Closing the ${processName} logs at ${new java.util.Date()}, goodbye.")
     stream.flush()
     stream.close()
   }
