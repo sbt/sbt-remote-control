@@ -21,7 +21,7 @@ trait FileLogger {
   def file: File
 }
 object FileLogger {
-  def apply(f: File): FileLogger = new SimpleRollingFileLogger(f)
+  def apply(f: File): SimpleRollingFileLogger = new SimpleRollingFileLogger(f)
 }
 
 /**

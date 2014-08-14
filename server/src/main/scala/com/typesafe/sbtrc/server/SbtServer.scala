@@ -59,12 +59,12 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
         commandEngineThreadResult.success(result)
       } catch {
         case t: Throwable =>
-          masterLog.log(s"command engine thread crash ${t.getClass.getName}: ${t.getMessage}")
+          masterLog.error(s"command engine thread crash ${t.getClass.getName}: ${t.getMessage}", t)
           commandEngineThreadResult.tryFailure(new Exception("command engine thread crashed", t))
       }
     }
   }
-  override def awaitTermination(): xsbti.MainResult = {
+  override def awaitTermination(): xsbti.MainResult = try {
     // Here we actually start.
     eventEngine.start()
     commandEngineThread.start()
@@ -96,5 +96,7 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     masterLog.log(s"Returning control to sbt launcher with result $result")
 
     result
+  } finally {
+    masterLog.close()
   }
 }
