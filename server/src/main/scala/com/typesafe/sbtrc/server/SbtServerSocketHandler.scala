@@ -155,5 +155,8 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
   }
 
   // Blocks the server until we've been told to shutdown by someone.
-  def join(): Unit = thread.join()
+  def join(): Unit = {
+    thread.join()
+    log.close()
+  }
 }

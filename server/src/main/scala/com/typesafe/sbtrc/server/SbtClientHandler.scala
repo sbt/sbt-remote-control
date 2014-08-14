@@ -182,7 +182,10 @@ class SbtClientHandler(
     // otherwise we won't wake up until we get a request
     try ipc.close() catch { case NonFatal(e) => }
   }
-  def join(): Unit = clientThread.join()
+  def join(): Unit = {
+    clientThread.join()
+    log.close()
+  }
 
   override def equals(o: Any): Boolean =
     o match {
