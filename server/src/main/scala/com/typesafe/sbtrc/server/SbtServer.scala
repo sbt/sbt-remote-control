@@ -19,21 +19,24 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     new java.net.URI(s"http://${addr}:${port}")
   }
 
-  val serverEngineLogFile = new java.io.File(configuration.baseDirectory, ".sbtserver/master.log")
+  val masterLogFile = new java.io.File(configuration.baseDirectory, ".sbtserver/master.log")
+  if (!masterLogFile.getParentFile.mkdirs())
+    System.err.println(s"Could not create directory ${masterLogFile.getParentFile}")
+  val masterLog = FileLogger(masterLogFile)
 
   // The queue where requests go before we fullfill them.
   private val queue = new java.util.concurrent.LinkedBlockingDeque[SocketMessage]
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
-  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, serverEngineLogFile,
+  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, masterLog,
     // this is a little silly but keeping the ability to break them up later
     eventEngine.eventSink, eventEngine.eventSink, eventEngine.eventSink)
 
   // External API to run queue.
   def queueSocketMessage(request: SocketMessage): Unit = queue.add(request)
   // Create the helper which will handle socket requests.
-  private val socketHandler = new SbtServerSocketHandler(socket, queueSocketMessage, serverEngineLogFile)
+  private val socketHandler = new SbtServerSocketHandler(socket, queueSocketMessage, masterLogFile)
 
   // TODO - Maybe the command engine should extend thread too?
   private val commandEngineThread = new Thread("sbt-server-command-loop") {

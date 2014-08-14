@@ -14,6 +14,7 @@ import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.{ Future, Promise }
+import com.typesafe.sbtrc.server.FileLogger
 
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
@@ -26,7 +27,7 @@ import scala.concurrent.{ Future, Promise }
  */
 class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
-  serverEngineLogFile: File,
+  fileLogger: FileLogger,
   taskEventSink: JsonSink[TaskEvent],
   eventSink: JsonSink[ExecutionEngineEvent],
   logSink: JsonSink[LogEvent]) {
@@ -107,7 +108,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     import CommandStrings.{ BootCommand, DefaultsCommand, InitCommand }
 
     // TODO - can this be part of a command?
-    val globalLogging = initializeLoggers(serverEngineLogFile)
+    val globalLogging = initializeLoggers(fileLogger)
     // TODO - This is copied from StandardMain so we can override globalLogging
     def initialState(configuration: xsbti.AppConfiguration, initialDefinitions: Seq[Command], preCommands: Seq[String]): State =
       {
@@ -138,15 +139,8 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   }
 
   /** Can convert an event logger into GlobalLogging. */
-  def initializeLoggers(serverLogFile: File): GlobalLogging = {
-    // First override all logging.
-    serverLogFile.getParentFile.mkdirs()
-    val rollingLogger = com.typesafe.sbtrc.server.FileLogger(serverLogFile)
-    // TODO - We don't want this to be synchronized or blocking if we can help it.
-    // However, for now we also want to avoid overflowing our filesystem with logs.
-    eventLogger.updatePeer({ msg =>
-      rollingLogger.synchronized(rollingLogger.log(msg))
-    })
+  def initializeLoggers(fileLogger: FileLogger): GlobalLogging = {
+    eventLogger.updatePeer(fileLogger.log)
     def handleStdOut(line: String): Unit = eventLogger.send(LogStdOut(line))
     def handleStdErr(line: String): Unit = eventLogger.send(LogStdErr(line))
     SystemShims.replaceOutput(handleStdOut, handleStdErr)
