@@ -66,7 +66,10 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   }
   override def awaitTermination(): xsbti.MainResult = try {
     // Here we actually start.
+    masterLog.log("Starting event engine")
     eventEngine.start()
+
+    masterLog.log("Starting sbt command engine")
     commandEngineThread.start()
 
     // Wait for the server to stop (which means: no more sbt commands in State).
@@ -96,6 +99,10 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     masterLog.log(s"Returning control to sbt launcher with result $result")
 
     result
+  } catch {
+    case NonFatal(e) =>
+      masterLog.error(s"Unexpected error ${e.getClass.getName}: ${e.getMessage}", e)
+      Exit(1)
   } finally {
     masterLog.close()
   }

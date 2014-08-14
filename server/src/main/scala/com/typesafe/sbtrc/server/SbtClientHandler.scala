@@ -40,7 +40,7 @@ class SbtClientHandler(
         try readNextMessage()
         catch {
           case e: EOFException =>
-            log.log(s"Client $configName-$uuid closed!, shutting down.")
+            log.log(s"Client $configName-$uuid EOF, shutting down.")
             running.set(false)
           case e: SocketException =>
             log.log(s"Client $configName-$uuid closed, ${e.getClass.getName}: ${e.getMessage}, shutting down")
@@ -64,6 +64,7 @@ class SbtClientHandler(
       msgHandler(ServerRequest(SbtClientHandler.this, 0L, sbt.protocol.ClientClosedRequest()))
       // Here we tell the server thread handler...
       closed()
+      log.log(s"Client $configName-$uuid thread exiting.")
     }
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
