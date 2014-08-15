@@ -29,16 +29,19 @@ case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Req
 class ReadOnlyServerEngine(
   queue: BlockingQueue[ServerRequest],
   nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
-  // TODO - We should have a log somewhere to store events.
-  private var serverStateRef = new AtomicReference[ServerState](ServerState())
-  def serverState = serverStateRef.get()
   private val running = new AtomicBoolean(true)
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
 
-  // TODO - This only works because it is called from a single thread.
-  private def updateState(f: ServerState => ServerState): Unit =
-    serverStateRef.lazySet(f(serverStateRef.get))
+  // These listeners are handed off to ServerEngine with
+  // each request so ServerEngine doesn't see mid-request
+  // changes to the listeners.
+  // This var should only be written by the request-queue-handling thread,
+  // but gets read by the ServerEngine thread.
+  // So what we care about is that when we handle a listener change request,
+  // then next pass a request to ServerEngine, ServerEngine should see
+  // the results of the listener change request. volatile should do that.
+  @volatile private var requestListeners = TransformableRequestListeners()
 
   /**
    * This object is used by the ServerEngine to send
@@ -159,7 +162,7 @@ class ReadOnlyServerEngine(
      *  until work is ready, then notify that the work is starting and
      *  grab the current serverState.
      */
-    override def blockAndTakeNext: (ServerState, ServerEngineWork) =
+    override def blockAndTakeNext: (RequestListeners, ServerEngineWork) =
       synchronized {
         // Block until we have work ready
         def blockUntilWork(): ServerEngineWork =
@@ -173,9 +176,8 @@ class ReadOnlyServerEngine(
               blockUntilWork()
           }
         val work = blockUntilWork()
-        val state = serverState
         eventSink.send(protocol.ExecutionStarting(work.id.id))
-        (state, work)
+        (requestListeners, work)
       }
 
     /**
@@ -348,7 +350,7 @@ class ReadOnlyServerEngine(
       case UnlistenToEvents() =>
         unlistenToEvents(client, serial)
       case ClientClosedRequest() =>
-        updateState(_.disconnect(client))
+        requestListeners = requestListeners.disconnect(client)
         client.reply(serial, ReceivedResponse())
 
       //// Here we don't want to buffer a bunch up because the user
@@ -375,17 +377,17 @@ class ReadOnlyServerEngine(
       case UnlistenToEvents() =>
         unlistenToEvents(client, serial)
       case ClientClosedRequest() =>
-        updateState(_.disconnect(client))
+        requestListeners = requestListeners.disconnect(client)
         client.reply(serial, ReceivedResponse())
 
       //// Second, requests we only handle when we have state,
       //// or handle differently when we have state.
 
       case ListenToBuildChange() =>
-        updateState(_.addBuildListener(client))
+        requestListeners = requestListeners.addBuildListener(client)
         client.reply(serial, ReceivedResponse())
       case UnlistenToBuildChange() =>
-        updateState(_.removeBuildListener(client))
+        requestListeners = requestListeners.removeBuildListener(client)
         client.reply(serial, ReceivedResponse())
       case SendSyntheticBuildChanged() =>
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
@@ -406,10 +408,10 @@ class ReadOnlyServerEngine(
 
               // register the key listener.
               // TODO: needs support somewhere to send events when the value of setting keys are updated
-              updateState(_.addKeyListener(client, scopedKey))
+              requestListeners = requestListeners.addKeyListener(client, scopedKey)
             } else {
               // Schedule the key to run as well as registering the key listener.
-              updateState(_.addKeyListener(client, scopedKey))
+              requestListeners = requestListeners.addKeyListener(client, scopedKey)
             }
             client.reply(serial, ReceivedResponse())
 
@@ -419,7 +421,7 @@ class ReadOnlyServerEngine(
       case UnlistenToValue(key) =>
         SbtToProtocolUtils.protocolToScopedKey(key, buildState) match {
           case Some(scopedKey) =>
-            updateState(_.removeKeyListener(client, scopedKey))
+            requestListeners = requestListeners.removeKeyListener(client, scopedKey)
             client.reply(serial, ReceivedResponse())
           case None => // Issue a no such key error
             client.reply(serial, KeyNotFound(key))
@@ -520,6 +522,51 @@ class ReadOnlyServerEngine(
         }
       case Left(error) =>
         ExecutionAnalysisError(error)
+    }
+  }
+}
+
+/**
+ * Implements RequestListeners for use by ReadOnlyServerEngine, with methods
+ *  to create transformed copies.
+ */
+private final case class TransformableRequestListeners(
+  buildListeners: SbtClient = NullSbtClient,
+  keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty) extends RequestListeners {
+
+  /** Remove a client from any registered listeners. */
+  def disconnect(client: SbtClient): TransformableRequestListeners =
+    copy(
+      buildListeners = buildListeners without client,
+      keyListeners = keyListeners map (_ remove client))
+
+  def addBuildListener(l: SbtClient): TransformableRequestListeners = {
+    val next = buildListeners zip l
+    copy(buildListeners = next)
+  }
+  def removeBuildListener(l: SbtClient): TransformableRequestListeners = {
+    val next = buildListeners without l
+    copy(buildListeners = next)
+  }
+
+  def addKeyListener[T](client: SbtClient, key: sbt.ScopedKey[T]): TransformableRequestListeners = {
+    // TODO - Speed this up.
+    val handler =
+      keyListeners.find(_.key == key).getOrElse(KeyValueClientListener(key, NullSbtClient))
+    val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client)
+    copy(keyListeners = newListeners)
+  }
+  def removeKeyListener[T](client: SbtClient, key: sbt.ScopedKey[T]): TransformableRequestListeners = {
+    keyListeners.find(_.key == key) map { handler =>
+      val withoutHandler = keyListeners.filterNot(_.key == key)
+      val newHandler = handler.remove(client)
+      val newListeners = if (newHandler.client != NullSbtClient)
+        withoutHandler :+ newHandler
+      else
+        withoutHandler
+      copy(keyListeners = newListeners)
+    } getOrElse {
+      this
     }
   }
 }

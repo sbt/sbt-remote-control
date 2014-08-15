@@ -4,28 +4,17 @@ package server
 case class LastCommand(command: CommandExecutionWork)
 
 /**
- * Represents the current state of the sbt server we use to drive
- * events/handle client requests.
+ * Represents the current state of ServerEngine, as passed between
+ * commands (ServerState gets tacked on to sbt's State).
  */
-case class ServerState(
-  buildListeners: SbtClient = NullSbtClient,
-  keyListeners: Seq[KeyValueClientListener[_]] = Seq.empty,
+final case class ServerState(
+  requestListeners: RequestListeners,
   lastCommand: Option[LastCommand] = None) {
 
-  /** Remove a client from any registered listeners. */
-  def disconnect(client: SbtClient): ServerState =
-    copy(
-      buildListeners = buildListeners without client,
-      keyListeners = keyListeners map (_ remove client))
+  def buildListeners: SbtClient = requestListeners.buildListeners
 
-  def addBuildListener(l: SbtClient): ServerState = {
-    val next = buildListeners zip l
-    copy(buildListeners = next)
-  }
-  def removeBuildListener(l: SbtClient): ServerState = {
-    val next = buildListeners without l
-    copy(buildListeners = next)
-  }
+  def keyListeners: Seq[KeyValueClientListener[_]] = requestListeners.keyListeners
+
   def withLastCommand(cmd: LastCommand): ServerState = {
     copy(lastCommand = Some(cmd))
   }
@@ -33,27 +22,6 @@ case class ServerState(
 
   def optionalExecutionId: Option[ExecutionId] = lastCommand.map(_.command.id)
   def requiredExecutionId: ExecutionId = optionalExecutionId.getOrElse(throw new RuntimeException("Last command with execution ID should be set here but is not"))
-
-  def addKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
-    // TODO - Speed this up.
-    val handler =
-      keyListeners.find(_.key == key).getOrElse(KeyValueClientListener(key, NullSbtClient))
-    val newListeners = keyListeners.filterNot(_.key == key) :+ handler.add(client)
-    copy(keyListeners = newListeners)
-  }
-  def removeKeyListener[T](client: SbtClient, key: ScopedKey[T]): ServerState = {
-    keyListeners.find(_.key == key) map { handler =>
-      val withoutHandler = keyListeners.filterNot(_.key == key)
-      val newHandler = handler.remove(client)
-      val newListeners = if (newHandler.client != NullSbtClient)
-        withoutHandler :+ newHandler
-      else
-        withoutHandler
-      copy(keyListeners = newListeners)
-    } getOrElse {
-      this
-    }
-  }
 }
 
 object ServerState {
