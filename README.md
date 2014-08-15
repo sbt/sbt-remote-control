@@ -33,6 +33,17 @@ To run the integration tests, which operate inside the sbt-launcher environment,
     sbt> integration-tests
 
 
+### Running the terminal
+
+You need to do the equivalent of this:
+
+```
+rm -rf ~/.sbt/boot/scala-2.10.[0-9]/com.typesafe.sbtrc/
+java -jar /home/jsuereth/projects/sbt/sbt/target/sbt-launch-0.13.2-SNAPSHOT.jar @/home/jsuereth/projects/sbt/sbt-remote-control/terminal/target/resource_managed/main/sbt-client.properties
+```
+
+i.e. remove the sbtrc stuff in .sbt/boot and then launch with an
+sbt launcher. Doesn't matter which sbt launcher (in theory).
 
 ### Publishing
 
