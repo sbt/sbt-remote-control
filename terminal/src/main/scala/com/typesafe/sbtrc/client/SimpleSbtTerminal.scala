@@ -100,11 +100,9 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     val connector = SbtConnector("terminal", "Command Line Terminal", configuration.baseDirectory)
 
     def onConnect(client: SbtClient): Unit = {
-      import concurrent.ExecutionContext.global
-
       // This guy should handle future execution NOT on our event loop, or we'll block.
       // Ideally, "same thread" execution context instead.
-      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)(global)
+      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)
 
       // Upon reconnection, down what's currently executing.
       clearAndSchedule(TakeNextCommand(client, reader))
