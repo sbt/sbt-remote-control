@@ -4,12 +4,18 @@ package client
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
 
-/** This represents a connection to the Sbt server, and all the actions that can be performed against an active sbt build. */
+/**
+ * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
+ *  This high-level interface tracks a lot of state on the client side and provides convenience methods
+ *  to shield you from using the raw protocol.
+ */
 trait SbtClient extends Closeable {
 
-  def uuid: java.util.UUID
-  def configName: String
-  def humanReadableName: String
+  def channel: SbtChannel
+
+  final def uuid: java.util.UUID = channel.uuid
+  final def configName: String = channel.configName
+  final def humanReadableName: String = channel.humanReadableName
 
   /**
    * A registry of custom serializers that are used for task
@@ -194,4 +200,8 @@ trait SbtClient extends Closeable {
 
   /** Returns true if the client is closed. */
   def isClosed: Boolean
+}
+
+object SbtClient {
+  def apply(channel: SbtChannel): SbtClient = new com.typesafe.sbtrc.client.SimpleSbtClient(channel)
 }

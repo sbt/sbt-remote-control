@@ -83,7 +83,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
     if (closed)
       throw new RuntimeException("Not reconnecting because SbtConnector was closed")
 
-    donePromise.success(connectToSbt())
+    donePromise.success(SbtClient(connectToSbt()))
   } catch {
     case NonFatal(e) =>
       donePromise.failure(e)
@@ -98,7 +98,7 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
     adjustRemaining(_ => 0)
   }
 
-  private[this] def connectToSbt(): SbtClient = {
+  private[this] def connectToSbt(): SbtChannel = {
     val uri = locator.locate(directory)
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
     val rawClient = new ipc.Client(socket, WireProtocol.sendJsonFilter)
@@ -114,11 +114,11 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
         throw new RuntimeException(s"unexpected initial message from server was not a reply to ${registerSerial}: ${wtf}")
       }
     }
-    new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
+    new SimpleSbtChannel(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
   }
 }
 
-class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
+final class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
 
   private sealed trait ConnectState
   // open() never called
