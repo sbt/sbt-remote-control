@@ -114,10 +114,10 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
   override def requestSelfDestruct(): Unit =
     channel.sendJson(KillServerRequest())
 
+  private val closeLatch = new java.util.concurrent.CountDownLatch(1)
   def close(): Unit = {
     channel.close()
-    // thread should exit on channel close
-    thread.join()
+    closeLatch.await()
   }
 
   private object eventManager extends ListenerManager[protocol.Event, EventListener, ListenToEvents, UnlistenToEvents](ListenToEvents(), UnlistenToEvents(), channel) {
@@ -169,38 +169,21 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
     override def close(): Unit = synchronized { completePromisesOnClose(handlers) }
   }
 
-  private val eventQueue = new java.util.concurrent.LinkedBlockingQueue[Envelope]()
-  // since we're just going to queue stuff it's safe to use the channel's thread.
-  // If we were taking any kind of lock or anything it wouldn't be.
-  private object RunOnSameThreadContext extends ExecutionContext {
-    def execute(runnable: Runnable): Unit = runnable.run()
-    def reportFailure(t: Throwable): Unit = ()
-  }
-  private def onMessage(envelope: Envelope): Unit = eventQueue.put(envelope)
+  private var executionState: ImpliedState.ExecutionEngine = ImpliedState.ExecutionEngine.empty
 
-  channel.handleMessages(onMessage)(RunOnSameThreadContext)
-
-  // this thread is a little bit wasteful, just for coding convenience.
-  // we could probably just do all this directly in onMessage above,
-  // since the channel already makes a thread, keeping state in
-  // a synchronized var.
-  object thread extends Thread {
-    override def run(): Unit = {
-      var executionState: ImpliedState.ExecutionEngine = ImpliedState.ExecutionEngine.empty
-
-      @tailrec
-      def loop(): Unit = {
-        val envelope = eventQueue.take()
-        executionState = handleEnvelope(executionState, envelope)
-        envelope match {
-          case protocol.Envelope(_, _, _: ClosedEvent) =>
-          case _ => loop()
-        }
+  // synchronizing this probably does very little since we are always
+  // called from the same channel thread anyhow, but just to be safe
+  // we do it.
+  private def onMessage(envelope: Envelope): Unit = synchronized {
+    val closed = {
+      executionState = handleEnvelope(executionState, envelope)
+      envelope match {
+        case protocol.Envelope(_, _, _: ClosedEvent) => true
+        case _ => false
       }
-      loop()
+    }
 
-      // the channel has closed
-
+    if (closed) {
       // generate events to terminate any tasks and executions
       for {
         withWrites <- ImpliedState.eventsToEmptyEngineState(executionState, success = false)
@@ -219,10 +202,21 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
       keyLookupRequestManager.close()
       analyzeExecutionRequestManager.close()
       cancelRequestManager.close()
+
+      // notify close() that it can return
+      closeLatch.countDown()
     }
   }
 
-  thread.start()
+  // this is mildly dangerous but we know we are called from the
+  // SimpleChannel thread and we can just make that thread
+  // safe to invoke listeners from (they all have their own EC anyhow)
+  private object RunOnSameThreadContext extends ExecutionContext {
+    def execute(runnable: Runnable): Unit = runnable.run()
+    def reportFailure(t: Throwable): Unit = ()
+  }
+
+  channel.handleMessages(onMessage)(RunOnSameThreadContext)
 
   private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
     case e: ValueChanged[_] =>
