@@ -7,7 +7,7 @@ package server
  */
 trait ServerEngineQueue {
   /**
-   * Blocks until we have a new request.
+   * Blocks until we have a new request. None if "EOF" (server engine should stop).
    *
    * Note:  This will ensure that the work has already been minimized
    *        in the queue before responding.

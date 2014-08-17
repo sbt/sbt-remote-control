@@ -239,6 +239,8 @@ package object protocol {
   implicit val keyLookupResponseFormat = Json.format[KeyLookupResponse]
   implicit val analyzeExecutionRequestFormat = Json.format[AnalyzeExecutionRequest]
   implicit val analyzeExecutionResponseFormat = Json.format[AnalyzeExecutionResponse]
+  implicit val buildLoadedFormat = emptyObjectFormat(BuildLoaded())
+  implicit val buildFailedToLoadFormat = emptyObjectFormat(BuildFailedToLoad())
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro

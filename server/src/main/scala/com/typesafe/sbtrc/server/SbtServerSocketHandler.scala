@@ -4,16 +4,17 @@ package server
 import ipc.{ MultiClientServer => IpcServer }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
-import sbt.server.ServerRequest
+import sbt.server.{ ServerRequest, SocketMessage, SocketClosed }
 import com.typesafe.sbtrc.ipc.HandshakeException
 import sbt.protocol._
+import scala.util.control.NonFatal
 
 /**
  * A class that will spawn up a thread to handle client connection requests.
  *
  * TODO - We should use netty for this rather than spawning so many threads.
  */
-class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerRequest => Unit,
+class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessage => Unit,
   serverEngineLogFile: java.io.File) {
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000
@@ -96,35 +97,66 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: ServerReque
             // down the server in that instance.
             log.error(s"Handshake exception on socket: ${e.socket.getPort}", e)
           case _: InterruptedException | _: SocketTimeoutException =>
-            log.log("Checking to see if clients are empty...")
-            // Here we need to check to see if we should shut ourselves down.
-            if (clients.isEmpty) {
-              log.log("No clients connected after 3 min.  Shutting down.")
-              running.set(false)
+            if (running.get) {
+              log.log("Checking to see if clients are empty...")
+              // Here we need to check to see if we should shut ourselves down.
+              if (clients.isEmpty) {
+                log.log("No clients connected after 3 min.  Shutting down.")
+                running.set(false)
+              } else {
+                log.log("We have a client, continuing serving connections.")
+              }
             } else {
-              log.log("We have a client, continuing serving connections.")
+              log.log(s"socket exception, running=false, exiting")
             }
+          case e: java.io.IOException =>
+            // this is expected when we close the socket
+            log.log(s"Server socket closed ${e.getClass.getName}: ${e.getMessage}")
+            running.set(false)
           case e: Throwable =>
-            // On any other failure, we'll just down the server for now.
-            log.error("Unhandled throwable, shutting down server.", e)
+            // this one is an unexpected failure
+            log.error(s"Unhandled throwable in server socket thread ${e.getClass.getName}: ${e.getMessage}", e)
             running.set(false)
         }
       }
-      log.log("Shutting down server socket.")
+      log.log("Server socket thread exiting.")
+
       // Cleanup clients, waiting for them to notify their users.
+      // We have a complexity that during shutdown, each client will
+      // call our close handler above and mutate the array buffer.
+      // We do know that nobody will ADD to the array buffer since
+      // this thread would do that, but a client COULD self-close before
+      // we close it. Clients call our close handler from a different
+      // thread from the one we're joining below, to avoid deadlock.
       clientLock.synchronized {
+        log.log(s"${clients.size} clients open, will close them...")
         clients.foreach(_.shutdown())
         clients.foreach(_.join())
       }
-      // TODO - better shutdown semantics?
-      System.exit(0)
+      // so sometime here after we drop clientLock, "clients" will
+      // have all its elements removed from another thread.
+
+      log.log("All client sockets have been closed.")
+
+      // in case we didn't exit due to a stop() call
+      try serverSocket.close() catch { case NonFatal(e) => }
+
+      // notify we are closed
+      msgHandler(SocketClosed)
     }
   }
   thread.start()
 
   // Tells the server to stop running.
-  def stop(): Unit = running.set(false)
+  def stop(): Unit = {
+    running.set(false)
+    // be sure we clean up the socket
+    try serverSocket.close() catch { case NonFatal(e) => }
+  }
 
   // Blocks the server until we've been told to shutdown by someone.
-  def join(): Unit = thread.join()
+  def join(): Unit = {
+    thread.join()
+    log.close()
+  }
 }

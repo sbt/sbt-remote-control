@@ -2,6 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import java.io._
+import java.util.{ Timer, TimerTask }
 
 /**
  * An interface of a "safe-ish" logger which can dump information to a file.
@@ -21,7 +22,9 @@ trait FileLogger {
   def file: File
 }
 object FileLogger {
-  def apply(f: File): FileLogger = new SimpleRollingFileLogger(f)
+  def apply(f: File): SimpleRollingFileLogger = new SimpleRollingFileLogger(f)
+
+  private[server] val flushTimer = new Timer(true) // isDaemon=true
 }
 
 /**
@@ -40,18 +43,45 @@ class SimpleRollingFileLogger(
   sbt.IO.createDirectory(file.getParentFile)
   private var count = 1L
   private var written = 0L
+
+  private val processName =
+    try java.lang.management.ManagementFactory.getRuntimeMXBean().getName()
+    catch {
+      case _ => "(unknown)"
+    }
+
   // Returns the next location to dump our current logs.
   private def dumpFile: File = synchronized {
     new File(file.getParentFile, f"${file.getName}.${count % numFiles}%02d")
   }
 
   private def openStream() = synchronized {
-    new PrintWriter(new FileWriter(file))
+    val s = new PrintWriter(file, "UTF-8")
+    s.println(s"New log file opened at ${new java.util.Date()} by ${processName}")
+    s.flush() // be sure we never have a mysterious empty log file
+    s
   }
 
   // make sure we can write to the file.
   file.getParentFile.mkdirs()
   private var stream = openStream()
+
+  private def flush(): Unit = silentlyHandleSynchronized {
+    stream.flush()
+  }
+
+  // If we don't do this, then the logs never flush until
+  // there are more logs, which means the logs are rarely
+  // up-to-date on disk until the process exits cleanly.
+  private val flusher = new TimerTask() {
+    override def run = flush()
+  }
+
+  // this can be pretty short, what's important is that when we get
+  // a flood of debug logging or something we are batching up the
+  // flush instead of doing it once per message.
+  private final val timerIntervalMilliseconds = 1000 * 10
+  FileLogger.flushTimer.schedule(flusher, timerIntervalMilliseconds, timerIntervalMilliseconds)
 
   def log(msg: String): Unit = silentlyHandleSynchronized {
     stream.write(msg)
@@ -63,6 +93,8 @@ class SimpleRollingFileLogger(
     stream.write(msg)
     stream.write("\n")
     e.printStackTrace(stream)
+    // be extra-sure we get errors.
+    stream.flush()
     // TODO - Stack traces are large...
     checkRotate(msg.length + 1)
   }
@@ -71,13 +103,15 @@ class SimpleRollingFileLogger(
   private def checkRotate(charsWritten: Long): Unit = silentlyHandleSynchronized {
     written += charsWritten
     if (written > maxFileSize) {
+      val oldFile = dumpFile
+      stream.println(s"Rolled to $oldFile at ${new java.util.Date()}")
       stream.flush()
       stream.close()
       // Note: This should be efficient as we're running in the same directory.
       // If a renameTo is unsucessfull, a slow move will occur.
       // We also allow rotating logs to fail, and we just reopen and continue
       // writing to the same file if we're unable to move the existing one.
-      silentlyHandleSynchronized(sbt.IO.move(file, dumpFile))
+      silentlyHandleSynchronized(sbt.IO.move(file, oldFile))
       // Bump the count of how many times we've rolled and reset.
       count += 1
       written = 0
@@ -85,7 +119,12 @@ class SimpleRollingFileLogger(
     }
   }
 
-  def close(): Unit = silentlyHandleSynchronized(stream.close())
+  def close(): Unit = silentlyHandleSynchronized {
+    flusher.cancel()
+    stream.println(s"Closing the ${processName} logs at ${new java.util.Date()}, goodbye.")
+    stream.flush()
+    stream.close()
+  }
 
   final def silentlyHandleSynchronized[A](f: => A): Unit = synchronized {
     try f catch {

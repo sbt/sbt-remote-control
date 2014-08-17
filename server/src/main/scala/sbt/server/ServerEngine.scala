@@ -14,6 +14,7 @@ import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.{ Future, Promise }
+import com.typesafe.sbtrc.server.FileLogger
 
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
@@ -26,7 +27,7 @@ import scala.concurrent.{ Future, Promise }
  */
 class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
-  serverEngineLogFile: File,
+  fileLogger: FileLogger,
   taskEventSink: JsonSink[TaskEvent],
   eventSink: JsonSink[ExecutionEngineEvent],
   logSink: JsonSink[LogEvent]) {
@@ -39,6 +40,10 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
     // here we want to register our error handler that handles command failure.
     val newState = installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
+
+    // Notify that we have booted
+    eventSink.send(BuildLoaded())
+
     // Notify server event loop of the build state
     nextStateRef.lazySet(newState)
     newState
@@ -76,17 +81,26 @@ class ServerEngine(requestQueue: ServerEngineQueue,
 
   final def PostCommandErrorHandler = "server-post-command-error-handler"
   final def postCommandErrorHandler = Command.command(PostCommandErrorHandler) { state: State =>
-    val lastState = ServerState.extract(state)
-    lastState.lastCommand match {
-      case Some(LastCommand(command)) =>
-        command.cancelStatus.complete()
-        eventSink.send(ExecutionFailure(command.id.id))
-      case None => ()
-    }
     // NOTE - we always need to re-register ourselves as the error handler.
     val withErrorHandler = state.copy(onFailure = Some(PostCommandErrorHandler))
-    // Here we clear the last command so we don't report success in the next step.
-    val clearedCommand = ServerState.update(withErrorHandler, lastState.clearLastCommand)
+
+    val clearedCommand = {
+      // the server state might not exist depending on what happened before the error
+      val lastStateOption = ServerState.extractOpt(withErrorHandler)
+      lastStateOption map { lastState =>
+        lastState.lastCommand match {
+          case Some(LastCommand(command)) =>
+            command.cancelStatus.complete()
+            eventSink.send(ExecutionFailure(command.id.id))
+          case None => ()
+        }
+
+        // Here we clear the last command so we don't report success in the next step.
+        ServerState.update(withErrorHandler, lastState.clearLastCommand)
+      } getOrElse {
+        withErrorHandler
+      }
+    }
     PostCommandCleanup :: HandleNextServerRequest :: clearedCommand
   }
 
@@ -94,23 +108,29 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val serverState = ServerState.extract(state)
     work match {
       case work: CommandExecutionWork =>
-        // TODO - Figure out how to run this and ack appropriately...
         work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
-      case other =>
-        // TODO - better error reporting here!
-        sys.error("Command loop unable to handle msg: " + other)
+      case EndOfWork =>
+        state.exit(ok = true)
     }
   }
 
-  /** This will load/launch the sbt execution engine. */
-  def execute(configuration: xsbti.AppConfiguration): Unit = {
+  /**
+   * This will load/launch the sbt execution engine. In addition to returning
+   *  a result, it can throw xsbti.FulLReload.
+   *  TODO: FullReload contains an array of pending commands - does that
+   *  make a mess on reload?
+   */
+  def execute(configuration: xsbti.AppConfiguration): xsbti.MainResult = {
     import BasicCommands.early
     import BasicCommandStrings.runEarly
     import BuiltinCommands.{ initialize, defaults }
     import CommandStrings.{ BootCommand, DefaultsCommand, InitCommand }
 
+    fileLogger.log(s"Command engine arguments=${configuration.arguments().toList}")
+    fileLogger.log(s"Command engine baseDirectory=${configuration.baseDirectory}")
+
     // TODO - can this be part of a command?
-    val globalLogging = initializeLoggers(serverEngineLogFile)
+    val globalLogging = initializeLoggers(fileLogger)
     // TODO - This is copied from StandardMain so we can override globalLogging
     def initialState(configuration: xsbti.AppConfiguration, initialDefinitions: Seq[Command], preCommands: Seq[String]): State =
       {
@@ -133,23 +153,19 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           postCommandErrorHandler) ++
           // Override the default commands with server-specific/friendly ones.
           BuiltinCommands.DefaultCommands.filterNot(ServerBootCommand.isOverriden) ++
-          ServerBootCommand.commandOverrides,
+          ServerBootCommand.commandOverrides(eventSink),
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
         preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
+
+    fileLogger.log(s"Command engine initial remaining commands ${state.remainingCommands}")
+
     StandardMain.runManaged(state)
   }
 
   /** Can convert an event logger into GlobalLogging. */
-  def initializeLoggers(serverLogFile: File): GlobalLogging = {
-    // First override all logging.
-    serverLogFile.getParentFile.mkdirs()
-    val rollingLogger = com.typesafe.sbtrc.server.FileLogger(serverLogFile)
-    // TODO - We don't want this to be synchronized or blocking if we can help it.
-    // However, for now we also want to avoid overflowing our filesystem with logs.
-    eventLogger.updatePeer({ msg =>
-      rollingLogger.synchronized(rollingLogger.log(msg))
-    })
+  def initializeLoggers(fileLogger: FileLogger): GlobalLogging = {
+    eventLogger.updatePeer(fileLogger.log)
     def handleStdOut(line: String): Unit = eventLogger.send(LogStdOut(line))
     def handleStdErr(line: String): Unit = eventLogger.send(LogStdErr(line))
     SystemShims.replaceOutput(handleStdOut, handleStdErr)

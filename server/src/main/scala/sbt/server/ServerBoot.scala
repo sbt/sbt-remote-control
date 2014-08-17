@@ -22,20 +22,21 @@ import sbt.StateOps
 object ServerBootCommand {
 
   /** A new load failed command which handles the server requirements */
-  val serverLoadFailed = Command(LoadFailed)(loadProjectParser)(doServerLoadFailed)
+  private def serverLoadFailed(eventSink: JsonSink[protocol.BuildFailedToLoad]) =
+    Command(LoadFailed)(loadProjectParser)(doServerLoadFailed(eventSink, _, _))
 
   /** List of commands which override sbt's default commands. */
-  def commandOverrides = Seq(serverLoadFailed)
+  def commandOverrides(eventSink: JsonSink[protocol.BuildFailedToLoad]) = Seq(serverLoadFailed(eventSink))
 
   def isOverriden(cmd: Command): Boolean =
     cmd == loadFailed
 
   /** Actual does the failing to load for the sbt server. */
-  private[this] def doServerLoadFailed(s: State, action: String): State = {
+  private[this] def doServerLoadFailed(eventSink: JsonSink[protocol.BuildFailedToLoad], s: State, action: String): State = {
     s.log.error("Failed to load project.")
-    // TODO we need to notify ReadOnlyServerEngine and
-    // have it either take care of exiting, or enter
-    // some sort of retry loop, or whatever it will do.
+    eventSink.send(protocol.BuildFailedToLoad())
+    // this causes the command loop to exit which should make the whole server exit,
+    // though we may get fancier someday and try to reload.
     s.exit(ok = false)
   }
 

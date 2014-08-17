@@ -8,15 +8,10 @@ final case class ExecutionId(id: Long) {
   require(id != 0L)
 }
 
-sealed trait ServerEngineWork {
-  def id: ExecutionId
-  /** True if this work has been finished. */
-  def isCancelled: Boolean
-
-}
+sealed trait ServerEngineWork
 
 /**
- * Or hook to exposing cancellation status (and cleanup)
+ * Our hook exposing cancellation status (and cleanup)
  *  to the sbt build.
  */
 trait WorkCancellationStatus {
@@ -76,3 +71,5 @@ case class CommandExecutionWork(
   def withNewRequester(requester: LiveClient): CommandExecutionWork =
     CommandExecutionWork(id, command, allRequesters + requester, cancelStatus)
 }
+
+case object EndOfWork extends ServerEngineWork

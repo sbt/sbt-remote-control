@@ -9,9 +9,14 @@ import sbt.protocol._
 import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
 import play.api.libs.json.{ JsValue, Writes }
+import scala.util.control.NonFatal
+
+sealed trait SocketMessage
 
 // a little wrapper around protocol.request to keep the client/serial with it
-case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request)
+case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request) extends SocketMessage
+
+case object SocketClosed extends SocketMessage
 
 /**
  * This class represents an event loop which sits outside the normal sbt command
@@ -27,7 +32,7 @@ case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Req
  *
  */
 class ReadOnlyServerEngine(
-  queue: BlockingQueue[ServerRequest],
+  queue: BlockingQueue[SocketMessage],
   nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
   private val running = new AtomicBoolean(true)
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
@@ -176,9 +181,20 @@ class ReadOnlyServerEngine(
               blockUntilWork()
           }
         val work = blockUntilWork()
-        eventSink.send(protocol.ExecutionStarting(work.id.id))
+
+        // we do this here so it's synchronized (work is either in-queue or started)
+        work match {
+          case c: CommandExecutionWork => eventSink.send(protocol.ExecutionStarting(c.id.id))
+          case EndOfWork =>
+        }
+
         (requestListeners, work)
       }
+
+    def close(): Unit = synchronized {
+      workQueue = workQueue :+ EndOfWork
+      notify()
+    }
 
     /**
      * Called from the ReadOnlyEngine thread.
@@ -202,6 +218,8 @@ class ReadOnlyServerEngine(
               } match {
                 case Some(previous: CommandExecutionWork) =>
                   previous.withNewRequester(client) -> false
+                case Some(other) => // just to fix exhaustiveness warning
+                  throw new RuntimeException(s"impossible case, we should have filtered out $other")
                 case None =>
                   // Make a new work item
                   val id = ExecutionId(getAndIncrementExecutionId)
@@ -225,8 +243,12 @@ class ReadOnlyServerEngine(
             // Now, we insert the work either at the end, or where it belongs.
             def insertWork(remaining: List[ServerEngineWork]): List[ServerEngineWork] =
               remaining match {
-                case hd :: tail if hd.id == work.id => work :: tail
-                case hd :: tail => hd :: insertWork(tail)
+                case hd :: tail => hd match {
+                  case cmd: CommandExecutionWork if cmd.id == work.id =>
+                    work :: tail
+                  case other =>
+                    other :: insertWork(tail)
+                }
                 case Nil => work :: Nil
               }
             workQueue = insertWork(workQueue)
@@ -250,7 +272,9 @@ class ReadOnlyServerEngine(
         found match {
           case item :: Nil =>
             // Remove the item from the queue
-            workQueue = workQueue filterNot (_.id.id == id)
+            workQueue = workQueue collect {
+              case old: CommandExecutionWork if old.id.id != id => old
+            }
             // Tell everyone that this request is dead.
             eventSink.send(protocol.ExecutionStarting(id))
             eventSink.send(protocol.ExecutionFailure(id))
@@ -272,17 +296,27 @@ class ReadOnlyServerEngine(
       cancelStore -= id
   }
 
+  // this is private because we only call it ourselves when we get SocketClosed;
+  // other people who might call this should probably be stopping the socket
+  // handler instead.
+  private def quit(): Unit = if (running.get) {
+    engineWorkQueue.close()
+    running.set(false)
+  }
+
   override def run() {
     // we buffer most requests until 1) we have a state and 2) the project loads successfully.
 
     while (running.get && Option(nextStateRef.get).map(!Project.isProjectLoaded(_)).getOrElse(true)) {
-      // we have to poll here because we want to continue even without
-      // a request, if we get a state. Keep the poll short to avoid a needless
-      // lag on startup.
       @tailrec
       def drainRequests(): Unit = {
+        // don't check running.get again in here! we need to drain everything.
+        // we have to poll here because we want to continue even without
+        // a request, if we get a state. Keep the poll short to avoid a needless
+        // lag on startup.
         queue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS) match {
           case null => () // no more requests for now
+          case SocketClosed => quit() // sets running=false
           case ServerRequest(client, serial, request) =>
             handleRequestsNoBuildState(client, serial, request)
             // see if there are more requests
@@ -290,35 +324,35 @@ class ReadOnlyServerEngine(
         }
       }
 
-      // get all pending requests so we have all event listeners
-      // for example.
+      // get all pending requests - we need to drain the queue entirely
+      // before we check running.get again, because for example a kill server
+      // request might set running.get to false, but we still want to
+      // handle requests up until the server shuts down.
       drainRequests()
-
-      // TODO if project load has definitively failed,
-      // here we should exit, or enter some kind of
-      // look-for-file-changes-and-retry loop. We need a good way
-      // to notify from the load failed command back to here.
     }
 
-    // Now we flush through all the events we had.
-    // TODO - handle failures 
+    // Now we flush through all the events we buffered, unless we've already
+    // been shut down without ever loading the project.
     if (running.get) {
       for {
         ServerRequest(client, serial, request) <- deferredStartupBuffer
       } handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
     }
+
     // Now we just run with the initialized build.
     while (running.get) {
       // Here we can block on requests, because we have cached
       // build state and no longer have to see if the sbt command
       // loop is started.
-      val ServerRequest(client, serial, request) = queue.take
-      // TODO - handle failures 
-      try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
-      catch {
-        case e: Exception =>
-          // TODO - Fatal exceptions?
-          client.reply(serial, protocol.ErrorResponse(e.getMessage))
+      queue.take match {
+        case ServerRequest(client, serial, request) =>
+          try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
+          catch {
+            case NonFatal(e) =>
+              client.reply(serial, protocol.ErrorResponse(e.getMessage))
+          }
+        case SocketClosed =>
+          quit()
       }
     }
   }
@@ -334,9 +368,6 @@ class ReadOnlyServerEngine(
     eventSink.removeEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
-  private def killServer(): Unit = {
-    System.exit(0)
-  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
 
@@ -344,7 +375,7 @@ class ReadOnlyServerEngine(
       //// handleRequestsWithBuildState below.
 
       case KillServerRequest() =>
-        killServer()
+        quit()
       case ListenToEvents() =>
         listenToEvents(client, serial)
       case UnlistenToEvents() =>
@@ -371,7 +402,7 @@ class ReadOnlyServerEngine(
       //// these change above too.
 
       case KillServerRequest() =>
-        killServer()
+        quit()
       case ListenToEvents() =>
         listenToEvents(client, serial)
       case UnlistenToEvents() =>

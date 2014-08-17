@@ -40,7 +40,7 @@ class SbtClientHandler(
         try readNextMessage()
         catch {
           case e: EOFException =>
-            log.log(s"Client $configName-$uuid closed!, shutting down.")
+            log.log(s"Client $configName-$uuid EOF, shutting down.")
             running.set(false)
           case e: SocketException =>
             log.log(s"Client $configName-$uuid closed, ${e.getClass.getName}: ${e.getMessage}, shutting down")
@@ -62,8 +62,10 @@ class SbtClientHandler(
       // Here we send a client disconnected message to the main sbt
       // engine so it stops using this client.
       msgHandler(ServerRequest(SbtClientHandler.this, 0L, sbt.protocol.ClientClosedRequest()))
-      // Here we tell the server thread handler...
-      closed()
+      // Here we tell the server thread handler... this MUST be in another thread
+      // or it could deadlock when someone is trying to join().
+      concurrent.Future(closed())(concurrent.ExecutionContext.Implicits.global)
+      log.log(s"Client $configName-$uuid thread exiting.")
     }
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
@@ -177,8 +179,13 @@ class SbtClientHandler(
 
   def shutdown(): Unit = {
     running.set(false)
+    // otherwise we won't wake up until we get a request
+    try ipc.close() catch { case NonFatal(e) => }
   }
-  def join(): Unit = clientThread.join()
+  def join(): Unit = {
+    clientThread.join()
+    log.close()
+  }
 
   override def equals(o: Any): Boolean =
     o match {
