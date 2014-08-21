@@ -52,14 +52,54 @@ private[sbt] object CommandLineUiContext extends AbstractUIContext {
 private class BackgroundThreadPool extends java.io.Closeable {
 
   private val nextThreadId = new java.util.concurrent.atomic.AtomicInteger(1)
+  private val threadGroup = Thread.currentThread.getThreadGroup()
 
-  private class BackgroundThread(val taskName: String, body: () => Unit)
-    extends Thread(s"sbt-bg-$taskName-${nextThreadId.getAndIncrement}") {
-    // Do NOT setDaemon because then the code in TaskExit.scala in sbt will insta-kill
-    // the backgrounded process, at least for the case of the run task.
+  private val threadFactory = new java.util.concurrent.ThreadFactory() {
+    override def newThread(runnable: Runnable): Thread = {
+      val thread = new Thread(threadGroup, runnable, s"sbt-bg-threads-${nextThreadId.getAndIncrement}")
+      // Do NOT setDaemon because then the code in TaskExit.scala in sbt will insta-kill
+      // the backgrounded process, at least for the case of the run task.
+      thread
+    }
+  }
 
-    override def run() = try body()
-    finally cleanup()
+  private val executor = new java.util.concurrent.ThreadPoolExecutor(0, /* corePoolSize */
+    32, /* maxPoolSize, max # of bg tasks */
+    2, java.util.concurrent.TimeUnit.SECONDS, /* keep alive unused threads this long (if corePoolSize < maxPoolSize) */
+    new java.util.concurrent.LinkedBlockingQueue[Runnable](),
+    threadFactory)
+
+  private class BackgroundRunnable(val taskName: String, body: () => Unit)
+    extends Runnable with BackgroundJob {
+
+    private val finishedLatch = new java.util.concurrent.CountDownLatch(1)
+
+    private sealed trait Status
+    private case object Waiting extends Status
+    private final case class Running(thread: Thread) extends Status
+    // the oldThread is None if we never ran
+    private final case class Stopped(oldThread: Option[Thread]) extends Status
+
+    // synchronize to read/write this, no sync to just read
+    @volatile
+    private var status: Status = Waiting
+
+    // double-finally for extra paranoia that we will finishedLatch.countDown
+    override def run() = try {
+      val go = synchronized {
+        status match {
+          case Waiting =>
+            status = Running(Thread.currentThread())
+            true
+          case Stopped(_) =>
+            false
+          case Running(_) =>
+            throw new RuntimeException("Impossible status of bg thread")
+        }
+      }
+      try { if (go) body() }
+      finally cleanup()
+    } finally finishedLatch.countDown()
 
     private class StopListener(val callback: () => Unit, val executionContext: concurrent.ExecutionContext) extends java.io.Closeable {
       override def close(): Unit = removeListener(this)
@@ -77,12 +117,6 @@ private class BackgroundThreadPool extends java.io.Closeable {
       stopListeners -= listener
     }
 
-    def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable = synchronized {
-      val result = new StopListener(listener, ex)
-      stopListeners += result
-      result
-    }
-
     def cleanup(): Unit = {
       // avoid holding any lock while invoking callbacks, and
       // handle callbacks being added by other callbacks, just
@@ -98,15 +132,32 @@ private class BackgroundThreadPool extends java.io.Closeable {
         }
       }
     }
-  }
 
-  private class BackgroundJobThread(thread: BackgroundThread) extends BackgroundJob {
-    def awaitTermination(): Unit = thread.join()
-    def humanReadableName: String = thread.taskName
-    def isRunning(): Boolean = thread.isAlive()
-    def shutdown(): Unit = thread.interrupt()
+    override def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable = synchronized {
+      val result = new StopListener(listener, ex)
+      stopListeners += result
+      result
+    }
 
-    def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable = thread.onStop(listener)
+    override def awaitTermination(): Unit = finishedLatch.await()
+    override def humanReadableName: String = taskName
+    override def isRunning(): Boolean = status match {
+      case Waiting => true // we start as running from BackgroundJob perspective
+      case Running(thread) => thread.isAlive()
+      case Stopped(threadOption) => threadOption.map(_.isAlive()).getOrElse(false)
+    }
+    override def shutdown(): Unit = synchronized {
+      status match {
+        case Waiting =>
+          status = Stopped(None) // makes run() not run the body
+        case Running(thread) =>
+          status = Stopped(Some(thread))
+          thread.interrupt()
+        case Stopped(threadOption) =>
+          // try to interrupt again! woot!
+          threadOption.foreach(_.interrupt())
+      }
+    }
   }
 
   def run(manager: BackgroundJobManager, streams: std.TaskStreams[ScopedKey[_]])(work: (Logger, UIContext) => Unit): BackgroundJobHandle = {
@@ -114,18 +165,20 @@ private class BackgroundThreadPool extends java.io.Closeable {
     // not sure what the magic incantation is.
     val taskName = streams.key.scope.task.toOption.map(_.label).getOrElse("<unknown task>")
     def start(logger: Logger, uiContext: UIContext): BackgroundJob = {
-      val thread = new BackgroundThread(taskName, { () =>
+      val runnable = new BackgroundRunnable(taskName, { () =>
         work(logger, uiContext)
       })
-      thread.start()
-      new BackgroundJobThread(thread)
+
+      executor.execute(runnable)
+
+      runnable
     }
 
     manager.runInBackground(streams, start)
   }
 
   override def close(): Unit = {
-
+    executor.shutdown()
   }
 }
 
