@@ -9,6 +9,8 @@ trait BackgroundJob {
   def humanReadableName: String
   def awaitTermination(): Unit
   def shutdown(): Unit
+  // this should be true on construction and stay true until
+  // the job is complete
   def isRunning(): Boolean
   // called after stop or on spontaneous exit, closing the result
   // removes the listener
@@ -45,6 +47,14 @@ trait BackgroundJobManager extends java.io.Closeable {
   // to figure out which task is calling runInBackground.
   def runInBackground(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => BackgroundJob): BackgroundJobHandle
 
+  /**
+   * Launch a background job which is a function that runs inside another thread;
+   *  killing the job will interrupt() the thread. If your thread blocks on a process,
+   *  then you should get an InterruptedException while blocking on the process, and
+   *  then you could process.destroy() for example.
+   */
+  def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => Unit): BackgroundJobHandle
+
   def list(): Seq[BackgroundJobHandle]
   def stop(job: BackgroundJobHandle): Unit
   def waitFor(job: BackgroundJobHandle): Unit
@@ -52,7 +62,6 @@ trait BackgroundJobManager extends java.io.Closeable {
     list().find(_.id == id).foreach(stop(_))
   final def waitFor(id: Long): Unit =
     list().find(_.id == id).foreach(waitFor(_))
-
 }
 
 object BackgroundJob {
@@ -64,81 +73,4 @@ object BackgroundJob {
   val jobWaitFor = inputKey[Unit]("Wait for a background job to finish by providing its ID.")
   val backgroundRun = inputKey[BackgroundJobHandle]("Start an application's default main class as a background job")
   val backgroundRunMain = inputKey[BackgroundJobHandle]("Start a provided main class as a background job")
-
-  private val nextThreadId = new java.util.concurrent.atomic.AtomicInteger(1)
-
-  private class BackgroundThread(val taskName: String, body: () => Unit) extends Thread(s"sbt-bg-$taskName-${nextThreadId.getAndIncrement}") {
-    setDaemon(true)
-
-    override def run() = try body()
-    finally cleanup()
-
-    private class StopListener(val callback: () => Unit, val executionContext: concurrent.ExecutionContext) extends java.io.Closeable {
-      override def close(): Unit = removeListener(this)
-      override def hashCode: Int = System.identityHashCode(this)
-      override def equals(other: Any): Boolean = other match {
-        case r: AnyRef => this eq r
-        case _ => false
-      }
-    }
-
-    // access is synchronized
-    private var stopListeners = Set.empty[StopListener]
-
-    private def removeListener(listener: StopListener): Unit = synchronized {
-      stopListeners -= listener
-    }
-
-    def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable = synchronized {
-      val result = new StopListener(listener, ex)
-      stopListeners += result
-      result
-    }
-
-    def cleanup(): Unit = {
-      // avoid holding any lock while invoking callbacks, and
-      // handle callbacks being added by other callbacks, just
-      // to be all fancy.
-      while (synchronized { stopListeners.nonEmpty }) {
-        val listeners = synchronized {
-          val list = stopListeners.toList
-          stopListeners = Set.empty
-          list
-        }
-        listeners.foreach { l =>
-          l.executionContext.prepare().execute(new Runnable { override def run = l.callback() })
-        }
-      }
-    }
-  }
-
-  private class BackgroundJobThread(thread: BackgroundThread) extends BackgroundJob {
-    def awaitTermination(): Unit = thread.join()
-    def humanReadableName: String = thread.taskName
-    def isRunning(): Boolean = thread.isAlive()
-    def shutdown(): Unit = thread.interrupt()
-
-    def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable = thread.onStop(listener)
-  }
-
-  /**
-   * Launch a background job which is a function that runs inside another thread;
-   *  killing the job will interrupt() the thread. If your thread blocks on a process,
-   *  then you should get an InterruptedException while blocking on the process, and
-   *  then you could process.destroy() for example.
-   */
-  def startBackgroundThread(manager: BackgroundJobManager, streams: std.TaskStreams[ScopedKey[_]])(work: (Logger, UIContext) => Unit): BackgroundJobHandle = {
-    // TODO this gets me "compile:backgroundRun::streams" but I really want "compile:backgroundRun" -
-    // not sure what the magic incantation is.
-    val taskName = streams.key.scope.task.toOption.map(_.label).getOrElse("<unknown task>")
-    def start(logger: Logger, uiContext: UIContext): BackgroundJob = {
-      val thread = new BackgroundThread(taskName, { () =>
-        work(logger, uiContext)
-      })
-      thread.start()
-      new BackgroundJobThread(thread)
-    }
-
-    manager.runInBackground(streams, start)
-  }
 }
