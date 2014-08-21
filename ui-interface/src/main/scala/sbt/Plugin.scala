@@ -55,7 +55,8 @@ private class BackgroundThreadPool extends java.io.Closeable {
 
   private class BackgroundThread(val taskName: String, body: () => Unit)
     extends Thread(s"sbt-bg-$taskName-${nextThreadId.getAndIncrement}") {
-    setDaemon(true)
+    // Do NOT setDaemon because then the code in TaskExit.scala in sbt will insta-kill
+    // the backgrounded process, at least for the case of the run task.
 
     override def run() = try body()
     finally cleanup()
