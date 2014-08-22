@@ -182,10 +182,14 @@ private class BackgroundThreadPool extends java.io.Closeable {
   }
 }
 
-// this default implementation is fine for both command line and UI, probably
+// Shared by command line and UI implementation
 private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobManager {
   private val nextId = new java.util.concurrent.atomic.AtomicLong(1)
   private val pool = new BackgroundThreadPool()
+
+  // hooks for sending start/stop events
+  protected def onAddJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {}
+  protected def onRemoveJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {}
 
   // this mutable state could conceptually go on State except
   // that then every task that runs a background job would have
@@ -193,19 +197,19 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
   @volatile
   private final var jobs = Set.empty[Handle]
   private def addJob(uiContext: UIContext, job: Handle): Unit = synchronized {
-    // TODO send some kind of event on job add
+    onAddJob(uiContext, job)
     jobs += job
   }
 
   private def removeJob(uiContext: UIContext, job: Handle): Unit = synchronized {
-    // TODO send some kind of event on job remove
+    onRemoveJob(uiContext, job)
     jobs -= job
   }
 
-  private final class Handle(override val spawningTask: ScopedKey[_], val logger: Logger with java.io.Closeable,
-    val uiContext: UIContext, val job: BackgroundJob) extends BackgroundJobHandle {
+  private final class Handle(override val id: Long, override val spawningTask: ScopedKey[_],
+    val logger: Logger with java.io.Closeable, val uiContext: UIContext, val job: BackgroundJob)
+    extends BackgroundJobHandle {
 
-    override val id: Long = nextId.getAndIncrement()
     def humanReadableName: String = job.humanReadableName
 
     // EC for onStop handler below
@@ -225,11 +229,12 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     override final def hashCode(): Int = id.hashCode
   }
 
-  protected def makeContext(streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, UIContext)
+  protected def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, UIContext)
 
   override def runInBackground(streams: TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => BackgroundJob): BackgroundJobHandle = {
-    val (logger, uiContext) = makeContext(streams)
-    val job = try new Handle(streams.key, logger, uiContext, start(logger, uiContext))
+    val id = nextId.getAndIncrement()
+    val (logger, uiContext) = makeContext(id, streams)
+    val job = try new Handle(id, streams.key, logger, uiContext, start(logger, uiContext))
     catch {
       case e: Throwable =>
         logger.close()
@@ -270,7 +275,7 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
 }
 
 private[sbt] class CommandLineBackgroundJobManager extends AbstractBackgroundJobManager {
-  override def makeContext(streams: TaskStreams[ScopedKey[_]]) = {
+  override def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]) = {
     // TODO this is no good; what we need to do is replicate how sbt
     // gets loggers from Streams, but without the thing where they
     // are all closed when the Streams is closed. So we need "detached"
