@@ -29,6 +29,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   nextStateRef: AtomicReference[State],
   fileLogger: FileLogger,
   taskEventSink: JsonSink[TaskEvent],
+  jobEventSink: JsonSink[BackgroundJobEvent],
   eventSink: JsonSink[ExecutionEngineEvent],
   logSink: JsonSink[LogEvent]) {
 
@@ -199,7 +200,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
-        UIShims.makeShims(state, taskIdRecorder, taskEventSink) ++
+        UIShims.makeShims(state, taskIdRecorder, logSink, taskEventSink, jobEventSink) ++
         loggingShims(state) ++
         ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.

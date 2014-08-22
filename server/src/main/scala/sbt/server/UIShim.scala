@@ -2,10 +2,16 @@ package sbt
 package server
 
 import play.api.libs.json.Writes
+import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
+import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
+import sbt.AbstractBackgroundJobManager
 
-private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractUIContext {
+private final class TaskUIContext(state: ServerState, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent])
+  extends AbstractUIContext {
+  override def sendEvent[T: Writes](event: T): Unit =
+    eventSink.send(TaskEvent(taskId, event))
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -31,15 +37,53 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 
-  def sendEvent[T: Writes](event: T): Unit =
-    eventSink.send(TaskEvent(taskId, event))
-
   private def taskId: Long = {
     // TODO currently this depends on thread locals; we need to
     // set things up similar to how streams work now where we make
     // a per-task UIContext which knows that task's ID. This may
     // involve changes to the sbt core.
     taskIdFinder.bestGuessTaskId(taskIfKnown = None)
+  }
+}
+
+private final class BackgroundJobUIContext(jobId: Long, eventSink: JsonSink[BackgroundJobEvent])
+  extends AbstractUIContext {
+  override def sendEvent[T: Writes](event: T): Unit =
+    eventSink.send(BackgroundJobEvent(jobId, event))
+
+  // TODO split UIContext into event sink / interaction so we don't have to stub this
+  def readLine(prompt: String, mask: Boolean): Option[String] =
+    throw new java.io.IOException("background jobs can't get input")
+
+  // TODO split UIContext into event sink / interaction so we don't have to stub this
+  def confirm(msg: String): Boolean =
+    throw new java.io.IOException("background jobs can't get input")
+}
+
+private final class ServerBackgroundJobManager(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
+  extends AbstractBackgroundJobManager {
+
+  private val nullTaskFinder = new TaskIdFinder() {
+    def bestGuessTaskId(taskIfKnown: Option[sbt.Task[_]]): Long = 0L
+    def taskId(task: sbt.Task[_]): Option[Long] = None
+  }
+
+  // TODO LogEvent has a taskId in it, which we need to get rid of somehow
+  private final class JobLogger extends EventLogger(nullTaskFinder, logSink) with java.io.Closeable {
+    override def close(): Unit = {}
+  }
+
+  protected override def makeContext(id: Long, streams: std.TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, UIContext) = {
+    val logger = new JobLogger
+    val ui = new BackgroundJobUIContext(id, eventSink)
+    (logger, ui)
+  }
+
+  protected override def onAddJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {
+    // TODO to send the started event we need executionId to make it in here
+  }
+  protected override def onRemoveJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {
+    // TODO send the finished event
   }
 }
 
@@ -54,10 +98,13 @@ object UIShims {
       formats foreach { x =>
         DynamicSerialization.register(x.format)(x.manifest)
       }
-      new ServerUIContext(ServerState.extract(state), taskIdFinder, eventSink)
+      new TaskUIContext(ServerState.extract(state), taskIdFinder, eventSink)
     }
-  def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
+  private def jobManagerSetting(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
+    BackgroundJob.jobManager := { new ServerBackgroundJobManager(logSink, eventSink) }
+  def makeShims(state: State, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
       UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil,
-      uiContextSetting(taskIdFinder, eventSink))
+      uiContextSetting(taskIdFinder, taskEventSink),
+      jobManagerSetting(logSink, jobEventSink))
 }

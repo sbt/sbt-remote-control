@@ -200,6 +200,36 @@ trait TaskEventUnapply[T] {
   }
 }
 
+/** A custom event from a task. "name" is conventionally the simplified class name. */
+case class BackgroundJobEvent(jobId: Long, name: String, serialized: JsValue) extends Event
+
+object BackgroundJobEvent {
+  import play.api.libs.json.Writes
+
+  def apply[T: Writes](jobId: Long, event: T): BackgroundJobEvent = {
+    val json = implicitly[Writes[T]].writes(event)
+    BackgroundJobEvent(jobId, Message.makeSimpleName(event.getClass), json)
+  }
+}
+
+/** Companion objects of events which can go in a task event extend this */
+trait BackgroundJobEventUnapply[T] {
+  import play.api.libs.json.Reads
+  import scala.reflect.ClassTag
+  import play.api.libs.json.Json
+
+  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+    case jobEvent: BackgroundJobEvent =>
+      val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
+      if (name != jobEvent.name) {
+        None
+      } else {
+        Json.fromJson[T](jobEvent.serialized).asOpt map { result => jobEvent.jobId -> result }
+      }
+    case other => None
+  }
+}
+
 /** Build has been loaded or reloaded successfully. Typically followed by a BuildStructureChanged. */
 case class BuildLoaded() extends ExecutionEngineEvent
 /** Build has failed to load or reload. */
@@ -229,6 +259,12 @@ case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) 
 // in just for convenience so clients don't have to hash taskId if their
 // only interest is in the key and executionId
 case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+
+final case class BackgroundJobInfo(id: Long, humanReadableName: String, spawningTask: ScopedKey)
+
+final case class BackgroundJobStarted(executionId: Long, job: BackgroundJobInfo) extends ExecutionEngineEvent
+// TODO add success: Boolean ?
+final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends ExecutionEngineEvent
 
 ///// Events below here are intended to go inside a TaskEvent
 

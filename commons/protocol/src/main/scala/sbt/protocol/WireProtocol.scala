@@ -58,7 +58,10 @@ object WireProtocol {
     msg[AnalyzeExecutionResponse],
     msg[TaskEvent],
     msg[BuildLoaded],
-    msg[BuildFailedToLoad])
+    msg[BuildFailedToLoad],
+    msg[BackgroundJobStarted],
+    msg[BackgroundJobFinished],
+    msg[BackgroundJobEvent])
   private val lookUpIndex: Map[String, Format[_]] =
     (for {
       (_, (name, format)) <- messages

@@ -151,4 +151,3 @@ object KeyFilter {
   val empty = KeyFilter(None, None, None)
   implicit val format = Json.format[KeyFilter]
 }           
-                     
