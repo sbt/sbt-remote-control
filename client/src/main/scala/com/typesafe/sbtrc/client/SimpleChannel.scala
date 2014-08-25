@@ -6,7 +6,6 @@ import sbt.protocol._
 import sbt.client.{ SbtChannel, Subscription }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
@@ -21,17 +20,9 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   override val humanReadableName: String,
   socket: ipc.Client, closeHandler: () => Unit) extends SbtChannel {
 
-  private var claimed = false
-
-  /**
-   * Called once by whoever will use the channel; if called twice it throws ChannelInUseException.
-   *  This is just to provide fail-fast if you try to wrap the same channel in multiple clients or something.
-   */
-  override def claim(): Unit = synchronized {
-    if (claimed)
-      throw new sbt.client.ChannelInUseException()
-    claimed = true
-  }
+  // counted down when we should start sending events
+  private val claimed = new java.util.concurrent.atomic.AtomicBoolean(false)
+  private val claimedLatch = new java.util.concurrent.CountDownLatch(1)
 
   // We have two things we want to do with the sendJson error:
   // either report it in the Future if we are going to return a Future,
@@ -79,6 +70,19 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   override def handleMessages(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription =
     messageListeners.add(listener)(ex)
 
+  override def claimMessages(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription = {
+    if (claimed.getAndSet(true)) {
+      throw new sbt.client.ChannelInUseException()
+    } else {
+      // we have to handle messages before we release the
+      // latch so we don't miss any messages
+      val sub = handleMessages(listener)
+      // tell the message thread to start handling messages
+      claimedLatch.countDown()
+      sub
+    }
+  }
+
   @volatile var running = true
 
   override def close(): Unit = {
@@ -86,12 +90,24 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
     // Here we force the client to close so it interrupts the read thread and we can kill the process, otherwise we may
     // never stop in any reasonable time.
     socket.close()
+    // in case we are waiting on the claimed latch,
+    // also interrupt
+    thread.interrupt()
     // other cleanup all happens on the thread
     thread.join()
   }
 
   object thread extends Thread {
     override def run(): Unit = {
+      // wait until someone claims events before we start to read them
+      try claimedLatch.await()
+      catch {
+        case e: InterruptedException =>
+          // this happens if we close() before anyone
+          // ever does a claimMessages()
+          running = false
+      }
+
       // we save our serials so we can synthesize ClosedEvent
       var lastReceivedSerial = 0L
       while (running) {
@@ -106,6 +122,11 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
             // Closing the socket can cause "IOException: Stream closed"
             // when reading a stream or in other cases we might get a socket
             // exception or EOFException perhaps.
+            running = false
+          case e: InterruptedException =>
+            // if this was from close() then running should be false already,
+            // if it was from someone else it's not clear what happened
+            // but I guess it would be safest to stop running.
             running = false
         }
       }

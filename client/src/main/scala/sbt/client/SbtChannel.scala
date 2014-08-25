@@ -47,16 +47,22 @@ trait SbtChannel extends Closeable {
 
   /**
    * Invoke a function in the given ExecutionContext for every message received over this channel.
-   *   NOTE your ExecutionContext needs to keep these messages in order or you will be sad!
+   * This may be called ONLY ONCE by whoever will primarily use the channel; calling it claims the channel
+   * and starts handling events. This avoids races on startup (we don't want to lose events before
+   * a handler has been attached).
+   * If this is called twice you will get ChannelInUseException. All channels need a "primary
+   * owner" which controls when the stream of events starts and handles requests and such.
+   *
+   * NOTE your ExecutionContext needs to keep messages in order or you will be sad!
+   */
+  def claimMessages(listener: protocol.Envelope => Unit)(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * Like claimMessages but can be called more than once and does not start the message stream. No messages will be sent
+   *  until someone does claimMessages().
    */
   def handleMessages(listener: protocol.Envelope => Unit)(implicit ex: ExecutionContext): Subscription
 
   /** true if close() has been called or the socket was closed by the server. */
   def isClosed: Boolean
-
-  /**
-   * Called once by whoever will use the channel; if called twice it throws ChannelInUseException.
-   *  This is just to provide fail-fast if you try to wrap the same channel in multiple clients or something.
-   */
-  def claim(): Unit
 }

@@ -19,9 +19,6 @@ import scala.annotation.tailrec
  */
 final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient {
 
-  // immediately throw if we wrap the same channel twice
-  channel.claim()
-
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
   override def humanReadableName: String = channel.humanReadableName
@@ -212,16 +209,6 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
     }
   }
 
-  // this is mildly dangerous but we know we are called from the
-  // SimpleChannel thread and we can just make that thread
-  // safe to invoke listeners from (they all have their own EC anyhow)
-  private object RunOnSameThreadContext extends ExecutionContext {
-    def execute(runnable: Runnable): Unit = runnable.run()
-    def reportFailure(t: Throwable): Unit = ()
-  }
-
-  channel.handleMessages(onMessage)(RunOnSameThreadContext)
-
   private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
     case e: ValueChanged[_] =>
       valueEventManager(e.key).sendEvent(e)
@@ -299,6 +286,19 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
   private val requestHandler = new RequestHandler()
 
   override def isClosed: Boolean = channel.isClosed
+
+  // this is mildly dangerous but we know we are called from the
+  // SimpleChannel thread and we can just make that thread
+  // safe to invoke listeners from (they all have their own EC anyhow)
+  private object RunOnSameThreadContext extends ExecutionContext {
+    def execute(runnable: Runnable): Unit = runnable.run()
+    def reportFailure(t: Throwable): Unit = ()
+  }
+
+  // This throws if we wrap the same channel twice. It's here
+  // at the bottom of initialization since we don't want onMessage
+  // called before we fill in all of our fields.
+  channel.claimMessages(onMessage)(RunOnSameThreadContext)
 }
 
 class RequestException(msg: String) extends Exception(msg)
