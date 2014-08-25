@@ -22,3 +22,5 @@ logs/
 .project
 .cache
 bin/
+.sbtserver
+project/.sbtserver

@@ -69,6 +69,13 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     }
   }
   override def awaitTermination(): xsbti.MainResult = try {
+    // Log some handy debug info
+    val mx = java.lang.management.ManagementFactory.getRuntimeMXBean();
+    masterLog.log(s"jvm ${mx.getName()}")
+    masterLog.log(s"jvm vmName=${mx.getVmName} vmVendor=${mx.getVmVendor} vmVersion=${mx.getVmVersion}")
+    masterLog.log(s"jvm specName=${mx.getSpecName} specVendor=${mx.getSpecVendor} specVersion=${mx.getSpecVersion}")
+    masterLog.log(s"jvm arguments: ${mx.getInputArguments()}")
+
     // Here we actually start.
     masterLog.log("Starting event engine")
     eventEngine.start()
