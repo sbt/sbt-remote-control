@@ -22,6 +22,10 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
   // immediately throw if we wrap the same channel twice
   channel.claim()
 
+  override def uuid: java.util.UUID = channel.uuid
+  override def configName: String = channel.configName
+  override def humanReadableName: String = channel.humanReadableName
+
   override def buildValueSerialization: DynamicSerialization = DynamicSerialization
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {

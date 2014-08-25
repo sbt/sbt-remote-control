@@ -21,6 +21,18 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   override val humanReadableName: String,
   socket: ipc.Client, closeHandler: () => Unit) extends SbtChannel {
 
+  private var claimed = false
+
+  /**
+   * Called once by whoever will use the channel; if called twice it throws ChannelInUseException.
+   *  This is just to provide fail-fast if you try to wrap the same channel in multiple clients or something.
+   */
+  override def claim(): Unit = synchronized {
+    if (claimed)
+      throw new sbt.client.ChannelInUseException()
+    claimed = true
+  }
+
   // We have two things we want to do with the sendJson error:
   // either report it in the Future if we are going to return a Future,
   // or ignore it. We never want to report it synchronously

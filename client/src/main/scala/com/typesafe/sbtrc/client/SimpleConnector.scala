@@ -171,6 +171,10 @@ final class SimpleConnector(configName: String, humanReadableName: String, direc
     state.thread.start()
   }
 
+  override def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
+    openChannel(channel => onConnect(SbtClient(channel)), onError)(ex)
+  }
+
   override def openChannel(onConnect: SbtChannel => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
     val listener = new OpenListener(onConnect, onError, ex)
     SimpleConnector.this.synchronized(listeners = listener :: listeners)

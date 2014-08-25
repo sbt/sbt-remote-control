@@ -32,9 +32,7 @@ trait SbtConnector extends Closeable {
    * will also be canceled when the SbtConnector is closed.
    *
    */
-  final def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
-    openChannel(channel => onConnect(SbtClient(channel)), onError)(ex)
-  }
+  def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription
 
   /** Lower-level version of open() which returns a raw channel rather than an SbtClient */
   def openChannel(onConnect: SbtChannel => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription

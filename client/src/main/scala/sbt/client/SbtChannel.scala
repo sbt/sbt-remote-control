@@ -54,15 +54,9 @@ trait SbtChannel extends Closeable {
   /** true if close() has been called or the socket was closed by the server. */
   def isClosed: Boolean
 
-  private var claimed = false
-
   /**
    * Called once by whoever will use the channel; if called twice it throws ChannelInUseException.
    *  This is just to provide fail-fast if you try to wrap the same channel in multiple clients or something.
    */
-  final def claim(): Unit = synchronized {
-    if (claimed)
-      throw new ChannelInUseException()
-    claimed = true
-  }
+  def claim(): Unit
 }

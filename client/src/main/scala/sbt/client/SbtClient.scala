@@ -13,9 +13,9 @@ trait SbtClient extends Closeable {
 
   def channel: SbtChannel
 
-  final def uuid: java.util.UUID = channel.uuid
-  final def configName: String = channel.configName
-  final def humanReadableName: String = channel.humanReadableName
+  def uuid: java.util.UUID
+  def configName: String
+  def humanReadableName: String
 
   /**
    * A registry of custom serializers that are used for task
