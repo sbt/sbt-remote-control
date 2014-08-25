@@ -53,6 +53,9 @@ trait SbtChannel extends Closeable {
    * If this is called twice you will get ChannelInUseException. All channels need a "primary
    * owner" which controls when the stream of events starts and handles requests and such.
    *
+   * The listener is guaranteed to get a ClosedEvent as the last message; if the channel is
+   * already closed, it will be sent immediately (through the provided ExecutionContext).
+   *
    * NOTE your ExecutionContext needs to keep messages in order or you will be sad!
    */
   def claimMessages(listener: protocol.Envelope => Unit)(implicit ex: ExecutionContext): Subscription

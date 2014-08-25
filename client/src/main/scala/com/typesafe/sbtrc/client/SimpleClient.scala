@@ -288,8 +288,9 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
   override def isClosed: Boolean = channel.isClosed
 
   // this is mildly dangerous but we know we are called from the
-  // SimpleChannel thread and we can just make that thread
-  // safe to invoke listeners from (they all have their own EC anyhow)
+  // SimpleChannel thread unless the channel is already closed,
+  // and we can just make that thread safe to invoke listeners
+  // from (they all have their own EC anyhow)
   private object RunOnSameThreadContext extends ExecutionContext {
     def execute(runnable: Runnable): Unit = runnable.run()
     def reportFailure(t: Throwable): Unit = ()
@@ -297,7 +298,10 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
 
   // This throws if we wrap the same channel twice. It's here
   // at the bottom of initialization since we don't want onMessage
-  // called before we fill in all of our fields.
+  // called before we fill in all of our fields. If the channel
+  // is already closed on client side (which should not be possible since
+  // we didn't close it) then we would in theory get a synchronous ClosedEvent
+  // here.
   channel.claimMessages(onMessage)(RunOnSameThreadContext)
 }
 

@@ -65,7 +65,7 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
       case NonFatal(e) => Future.failed(e)
     }
 
-  private val messageListeners = new ListenerSet[Envelope]()
+  private val messageListeners = new ListenerSet()
 
   override def handleMessages(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription =
     messageListeners.add(listener)(ex)
@@ -135,10 +135,8 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
       // make sure it's marked as closed on client side
       socket.close()
 
-      // ClosedEvent is our only client-side-synthesized thing,
-      // because there's no way for anyone to know otherwise.
-      messageListeners.send(protocol.Envelope(serial = lastReceivedSerial + 1, replyTo = 0L, ClosedEvent()))
-      messageListeners.close()
+      // this synthesizes ClosedEvent to all listeners
+      messageListeners.close(lastReceivedSerial + 1)
       // this is so our spawning connector doesn't need to listen to all
       // messages just to get ClosedEvent
       closeHandler()
@@ -151,12 +149,12 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
 }
 
 /** Store a bunch of event listeners */
-private final class ListenerSet[Event] extends Closeable {
+private final class ListenerSet {
 
   /** A wrapped event listener that ensures events are fired on the desired execution context. */
-  private final class Listener(listener: Event => Unit, ex: ExecutionContext) {
+  private final class Listener(listener: Envelope => Unit, ex: ExecutionContext) {
     private val id = java.util.UUID.randomUUID
-    def send(e: Event): Unit = {
+    def send(e: Envelope): Unit = {
       // TODO - do we need to prepare the context?
       ex.prepare.execute(new Runnable() {
         def run(): Unit = {
@@ -172,25 +170,24 @@ private final class ListenerSet[Event] extends Closeable {
     }
   }
 
-  def add(listener: Event => Unit)(implicit ex: ExecutionContext): Subscription = {
+  def add(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription = {
     val wrapped = new Listener(listener, ex)
-    addEventListener(wrapped)
+    if (closeEventSerial == 0L)
+      listeners += wrapped
+    else
+      wrapped.send(protocol.Envelope(serial = closeEventSerial, replyTo = 0L, ClosedEvent()))
     object subscription extends Subscription {
       def cancel(): Unit =
-        removeEventListener(wrapped)
+        listeners -= wrapped
     }
     subscription
   }
 
   private var listeners = Set.empty[Listener]
+  // if nonzero, we are closed
+  private var closeEventSerial = 0L
 
-  private def addEventListener(l: Listener): Unit = synchronized {
-    listeners += l
-  }
-  private def removeEventListener(l: Listener): Unit = synchronized {
-    listeners -= l
-  }
-  def send(e: Event): Unit = synchronized {
+  def send(e: Envelope): Unit = synchronized {
     listeners foreach { l =>
       try l send e
       catch {
@@ -199,10 +196,12 @@ private final class ListenerSet[Event] extends Closeable {
     }
   }
 
-  override def close(): Unit = synchronized {
-    // Don't send events to these listeners anymore.
-    while (listeners.nonEmpty)
-      removeEventListener(listeners.head)
+  def close(closeEventSerial: Long): Unit = synchronized {
+    this.closeEventSerial = closeEventSerial
+    // ClosedEvent is our only client-side-synthesized thing,
+    // because there's no way for anyone to know otherwise.
+    send(protocol.Envelope(serial = closeEventSerial, replyTo = 0L, ClosedEvent()))
+    listeners = Set.empty
   }
 }
 
