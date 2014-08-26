@@ -68,7 +68,7 @@ class ReadOnlyServerEngine(
     // the idea of this buffer is to just hold on to logs
     // whenever we have no clients at all, so we make a best
     // effort to ensure at least one client gets each log event.
-    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.LogEvent]]()
+    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.CoreLogEvent]]()
     private def drainBufferedLogs(client: SbtClient): Unit = {
       @tailrec
       def drainAnother(): Unit = {
@@ -92,10 +92,10 @@ class ReadOnlyServerEngine(
 
     override def send[T <: Event](msg: T)(implicit writes: Writes[T]): Unit = {
       msg match {
-        case event: LogEvent if event.taskId == 0L =>
+        case event: CoreLogEvent =>
           eventListeners match {
             case NullSbtClient =>
-              bufferedLogs.add(EventWithWrites.withWrites(event.asInstanceOf[T with LogEvent]))
+              bufferedLogs.add(EventWithWrites.withWrites(event)(writes.asInstanceOf[Writes[CoreLogEvent]]))
             case client: SbtClient =>
               drainBufferedLogs(client)
               client.send(msg)(writes)

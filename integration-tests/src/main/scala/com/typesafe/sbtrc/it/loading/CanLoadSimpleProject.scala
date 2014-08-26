@@ -54,21 +54,12 @@ class CanLoadSimpleProject extends SbtClientTest {
       val stderrCaptured = Promise[Unit]
       val executionDone = Promise[Unit]
       val stdoutSub = (client handleEvents {
-        case LogEvent(taskId, LogStdOut(line)) if line contains "test-out" =>
-          if (taskId != 0)
-            stdoutCaptured.success(())
-          else
-            stdoutCaptured.failure(new RuntimeException("task ID was 0 for task stdout"))
-        case LogEvent(taskId, LogStdErr(line)) if line contains "test-err" =>
-          if (taskId != 0)
-            stderrCaptured.success(())
-          else
-            stderrCaptured.failure(new RuntimeException("task ID was 0 for task stderr"))
-        case LogEvent(taskId, LogMessage("info", line)) if line contains "test-info" =>
-          if (taskId != 0)
-            logInfoCaptured.success(())
-          else
-            logInfoCaptured.failure(new RuntimeException("task ID was 0 for task log info"))
+        case TaskLogEvent(_, LogStdOut(line)) if line contains "test-out" =>
+          stdoutCaptured.success(())
+        case TaskLogEvent(_, LogStdErr(line)) if line contains "test-err" =>
+          stderrCaptured.success(())
+        case TaskLogEvent(_, LogMessage("info", line)) if line contains "test-info" =>
+          logInfoCaptured.success(())
         case _: ExecutionSuccess | _: ExecutionFailure =>
           executionDone.trySuccess(())
         case _ =>

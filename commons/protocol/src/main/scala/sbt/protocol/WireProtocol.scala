@@ -17,6 +17,8 @@ import language.existentials
 object WireProtocol {
 
   private val messages: Map[Class[_], (String, Format[_])] = Map(
+    msg[TaskLogEvent],
+    msg[CoreLogEvent],
     msg[KillServerRequest],
     msg[CancelExecutionRequest],
     msg[CancelExecutionResponse],
@@ -44,7 +46,6 @@ object WireProtocol {
     msg[UnlistenToValue],
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
-    msg[LogEvent],
     msg[BuildStructureChanged],
     msg[ValueChanged[Any]],
     msg[ErrorResponse],
