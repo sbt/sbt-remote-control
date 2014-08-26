@@ -4,6 +4,7 @@ package server
 import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
+import sbt.protocol.ImmutableDynamicSerialization
 
 /** Helpers to map from sbt types into serializable json types. */
 private[server] object SbtToProtocolUtils {
@@ -49,9 +50,10 @@ private[server] object SbtToProtocolUtils {
       task = taskString)
   }
 
-  def settingKeyToProtocolValue[T](key: SettingKey[T], extracted: Extracted): TaskResult[T] = {
+  def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T] = {
+    val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("state should have serializations on it"))
     val value = extracted.get(key)
-    TaskSuccess(BuildValue(value)(key.key.manifest))
+    TaskSuccess(BuildValue(value, serializations)(key.key.manifest))
   }
 
   def projectRefToProtocol(x: sbt.ProjectRef): protocol.ProjectReference = {

@@ -434,7 +434,7 @@ class ReadOnlyServerEngine(
             if (SettingCompletions.isSetting(scopedKey.key)) {
               // get the value of the setting key from the build state, and send it to the client
               val settingKey = SettingKey(scopedKey.key.asInstanceOf[sbt.AttributeKey[Any]]) in scopedKey.scope
-              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, extracted)
+              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, buildState, extracted)
               client.send(ValueChanged(key, change))
 
               // register the key listener.
@@ -465,7 +465,7 @@ class ReadOnlyServerEngine(
             if (SettingCompletions.isSetting(scopedKey.key)) {
               // get the value of the setting key from the build state, and send it to the client
               val settingKey = SettingKey(scopedKey.key.asInstanceOf[sbt.AttributeKey[Any]]) in scopedKey.scope
-              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, extracted)
+              val change = SbtToProtocolUtils.settingKeyToProtocolValue(settingKey, buildState, extracted)
               client.send(ValueChanged(key, change))
             } else {
               // for tasks, we have to run the task to generate the change event.

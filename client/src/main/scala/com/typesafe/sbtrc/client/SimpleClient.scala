@@ -62,7 +62,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
     sendJson(message, serial) flatMap { _ => result }
   }
 
-  override def buildValueSerialization: DynamicSerialization = DynamicSerialization
+  override val buildValueSerialization: DynamicSerialization = new MutableDynamicSerialization()
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
@@ -321,7 +321,7 @@ class SimpleSbtClient(override val uuid: java.util.UUID,
         executionState
     }
     private def handleNextMessage(executionState: ImpliedState.ExecutionEngine): ImpliedState.ExecutionEngine =
-      handleEnvelope(executionState, protocol.Envelope(client.receive()))
+      handleEnvelope(executionState, protocol.Envelope(client.receive(), buildValueSerialization))
   }
 
   thread.start()

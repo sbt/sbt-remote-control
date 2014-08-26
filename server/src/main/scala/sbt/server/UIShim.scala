@@ -48,12 +48,6 @@ object UIShims {
   private def uiContextSetting(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Setting[_] =
     UIContext.uiContext in Global := {
       val state = sbt.Keys.state.value
-      // TODO - Maybe we don't need to register these everytime, but only
-      // `onLoad` of a build?
-      val formats = UIContext.registeredFormats.value
-      formats foreach { x =>
-        DynamicSerialization.register(x.format)(x.manifest)
-      }
       new ServerUIContext(ServerState.extract(state), taskIdFinder, eventSink)
     }
   def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
