@@ -17,13 +17,11 @@ import scala.annotation.tailrec
 /**
  * A concrete implementation of the SbtClient trait.
  */
-final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient {
+final class SimpleSbtClient(override val channel: SbtChannel, serializations: ReadOnlyDynamicSerialization) extends SbtClient {
 
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
   override def humanReadableName: String = channel.humanReadableName
-
-  override val buildValueSerialization: DynamicSerialization = new MutableDynamicSerialization()
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
@@ -302,7 +300,7 @@ final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient 
   // is already closed on client side (which should not be possible since
   // we didn't close it) then we would in theory get a synchronous ClosedEvent
   // here.
-  channel.claimMessages(onMessage)(RunOnSameThreadContext)
+  channel.claimMessages(onMessage, serializations)(RunOnSameThreadContext)
 }
 
 class RequestException(msg: String) extends Exception(msg)

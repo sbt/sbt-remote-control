@@ -68,7 +68,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |TestThingPlugin.settings
        |""".stripMargin)
 
-  withSbt(dummy) { client =>
+  withSbt(dummy, sbt.protocol.ImmutableDynamicSerialization.defaultSerializations.register(SerializedThing.format)) { client =>
     // Here we request something to run which will ask for input...
     import concurrent.ExecutionContext.global
     object interaction extends Interaction {
@@ -101,8 +101,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")
 
     // Now we try to grab the value of maketestThing 
-    // We must explicitly register the mechanism of deserializing the custom message.
-    client.buildValueSerialization.register(SerializedThing.format)
+    // To do this we had to create the client with serializer SerializedThing.format
     val testThingValuePromise = Promise[sbt.protocol.TaskResult[SerializedThing]]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>

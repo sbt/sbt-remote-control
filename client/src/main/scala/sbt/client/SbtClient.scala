@@ -3,6 +3,7 @@ package client
 
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
+import play.api.libs.json.Format
 
 /**
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
@@ -16,13 +17,6 @@ trait SbtClient extends Closeable {
   def uuid: java.util.UUID
   def configName: String
   def humanReadableName: String
-
-  /**
-   * A registry of custom serializers that are used for task
-   * results ("build values"). This allows interpreting task
-   * results from custom sbt plugins.
-   */
-  def buildValueSerialization: protocol.DynamicSerialization
 
   /**
    * Watch the build structure, receiving notification when it changes.
@@ -203,5 +197,17 @@ trait SbtClient extends Closeable {
 }
 
 object SbtClient {
-  def apply(channel: SbtChannel): SbtClient = new com.typesafe.sbtrc.client.SimpleSbtClient(channel)
+  /** Create an SbtClient attached to the provided channel. This can only be done once per channel. */
+  def apply(channel: SbtChannel): SbtClient =
+    apply(channel, protocol.ImmutableDynamicSerialization.defaultSerializations)
+  /**
+   * Create an SbtClient attached to the provided channel. This can only be done once per channel.
+   *  The provided serializations will be used to decode task result values.
+   *  (If you need to add serializations after creating a client, probably the API we should
+   *  add for that is a variant of SbtClient.watch() which takes a deserializer. But for now
+   *  you have to add all needed serializations up front, there's no API to change them later.)
+   *  (TODO right now we require a Format for each serialization, but in fact only the Reads is used.)
+   */
+  def apply(channel: SbtChannel, serializations: protocol.ReadOnlyDynamicSerialization): SbtClient =
+    new com.typesafe.sbtrc.client.SimpleSbtClient(channel, serializations)
 }
