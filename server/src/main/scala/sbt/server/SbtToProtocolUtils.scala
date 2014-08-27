@@ -4,7 +4,7 @@ package server
 import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
-import sbt.protocol.ImmutableDynamicSerialization
+import sbt.protocol.DynamicSerialization
 
 /** Helpers to map from sbt types into serializable json types. */
 private[server] object SbtToProtocolUtils {

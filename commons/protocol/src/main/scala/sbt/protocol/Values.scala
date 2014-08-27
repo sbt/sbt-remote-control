@@ -71,19 +71,19 @@ private[protocol] object Classes {
 object BuildValue {
 
   // Here we need to reflectively look up the serialization of things...
-  def apply[T](o: T, serializations: ReadOnlyDynamicSerialization)(implicit mf: Manifest[T]): BuildValue[T] =
+  def apply[T](o: T, serializations: DynamicSerialization)(implicit mf: Manifest[T]): BuildValue[T] =
     serializations.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
     } getOrElse UnserializedValue(o.toString, None)
 
-  private def deserialize(value: JsValue, mf: TypeInfo, serializations: ReadOnlyDynamicSerialization): Option[BuildValue[Any]] =
+  private def deserialize(value: JsValue, mf: TypeInfo, serializations: DynamicSerialization): Option[BuildValue[Any]] =
     for {
       realMf <- mf.toManifest()
       serializer <- serializations.lookup(realMf)
       realValue <- serializer.reads(value).asOpt
     } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[Format[Any]], mf)
 
-  private class BuildValueReads(val serializations: ReadOnlyDynamicSerialization) extends Reads[BuildValue[Any]] {
+  private class BuildValueReads(val serializations: DynamicSerialization) extends Reads[BuildValue[Any]] {
     def reads(map: JsValue): JsResult[BuildValue[Any]] = {
       (map \ "stringValue").asOpt[String].flatMap { stringValue =>
         // TODO - Check for additional deserializers...
@@ -118,7 +118,7 @@ object BuildValue {
   // Hacky object so we don't instantiate classes just to satisfy typer.
   // We're safe at runtime given we ignore the type args after
   // erasure....
-  private class BuildValueFormat(serializations: ReadOnlyDynamicSerialization) extends Format[BuildValue[Any]] {
+  private class BuildValueFormat(serializations: DynamicSerialization) extends Format[BuildValue[Any]] {
     override def writes(t: BuildValue[Any]): JsValue =
       buildValueWrites.writes(t)
 
@@ -135,7 +135,7 @@ object BuildValue {
   @volatile
   private var oneItemCache: Option[BuildValueFormat] = None
 
-  private def getFormat(serializations: ReadOnlyDynamicSerialization): BuildValueFormat = {
+  private def getFormat(serializations: DynamicSerialization): BuildValueFormat = {
     oneItemCache.filter(fmt => fmt.reader.serializations eq serializations).getOrElse {
       val created = new BuildValueFormat(serializations)
       // tasty side effects
@@ -144,10 +144,10 @@ object BuildValue {
     }
   }
 
-  def format[T](serializations: ReadOnlyDynamicSerialization): Format[BuildValue[T]] =
+  def format[T](serializations: DynamicSerialization): Format[BuildValue[T]] =
     getFormat(serializations).asInstanceOf[Format[BuildValue[T]]]
 
-  def reads[T](serializations: ReadOnlyDynamicSerialization): Reads[BuildValue[T]] =
+  def reads[T](serializations: DynamicSerialization): Reads[BuildValue[T]] =
     getFormat(serializations).reader.asInstanceOf[Reads[BuildValue[T]]]
 
   implicit def writes[T]: Writes[BuildValue[T]] =

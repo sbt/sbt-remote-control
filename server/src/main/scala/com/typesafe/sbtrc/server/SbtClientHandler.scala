@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, ImmutableDynamicSerialization, ReadLineRequest, ReadLineResponse, ErrorResponse }
+import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, DynamicSerialization, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Writes
 import sbt.server.ServerRequest
 import sbt.server.ExecutionId
@@ -33,7 +33,7 @@ class SbtClientHandler(
   // in the value to deserialize here, and then in ServerEngine just before processing
   // the message in question, grab our registered deserializers off of State and
   // deserialize the embedded JsValue. But for now this never happens so we can just do this.
-  private val serializations = ImmutableDynamicSerialization.defaultSerializations
+  private val serializations = DynamicSerialization.defaultSerializations
 
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   def isAlive: Boolean = clientThread.isAlive && running.get

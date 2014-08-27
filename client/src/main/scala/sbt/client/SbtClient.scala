@@ -199,7 +199,7 @@ trait SbtClient extends Closeable {
 object SbtClient {
   /** Create an SbtClient attached to the provided channel. This can only be done once per channel. */
   def apply(channel: SbtChannel): SbtClient =
-    apply(channel, protocol.ImmutableDynamicSerialization.defaultSerializations)
+    apply(channel, protocol.DynamicSerialization.defaultSerializations)
   /**
    * Create an SbtClient attached to the provided channel. This can only be done once per channel.
    *  The provided serializations will be used to decode task result values.
@@ -208,6 +208,6 @@ object SbtClient {
    *  you have to add all needed serializations up front, there's no API to change them later.)
    *  (TODO right now we require a Format for each serialization, but in fact only the Reads is used.)
    */
-  def apply(channel: SbtChannel, serializations: protocol.ReadOnlyDynamicSerialization): SbtClient =
+  def apply(channel: SbtChannel, serializations: protocol.DynamicSerialization): SbtClient =
     new com.typesafe.sbtrc.client.SimpleSbtClient(channel, serializations)
 }

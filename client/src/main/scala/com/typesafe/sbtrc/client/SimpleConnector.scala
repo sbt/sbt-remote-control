@@ -105,7 +105,7 @@ private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
     rawClient.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)), registerSerial)
-    Envelope(rawClient.receive(), ImmutableDynamicSerialization.defaultSerializations) match {
+    Envelope(rawClient.receive(), DynamicSerialization.defaultSerializations) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")
       case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>

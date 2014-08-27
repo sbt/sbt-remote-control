@@ -2,6 +2,7 @@ package sbt
 package server
 
 import protocol.{
+  DynamicSerialization,
   ExecutionEngineEvent,
   TaskStarted,
   TaskFinished,
@@ -11,9 +12,8 @@ import protocol.{
   TaskSuccess,
   BuildValue
 }
-import protocol.ReadOnlyDynamicSerialization
 
-private[server] class ServerExecuteProgress(state: ServerState, serializations: ReadOnlyDynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 

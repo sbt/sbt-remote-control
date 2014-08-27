@@ -30,7 +30,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
     final override def run(): Unit = {
       // we know we're only going to process known handshake/registration messages
       // so the default serializations are (more than) enough.
-      val serializations = ImmutableDynamicSerialization.defaultSerializations
+      val serializations = DynamicSerialization.defaultSerializations
 
       // TODO - Is this the right place to do this?
       serverSocket.setSoTimeout(TIMEOUT_TO_DEATH)

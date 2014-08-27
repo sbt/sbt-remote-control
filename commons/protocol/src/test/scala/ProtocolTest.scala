@@ -29,7 +29,7 @@ class ProtocolTest {
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
 
-    val serializations = protocol.ImmutableDynamicSerialization.defaultSerializations
+    val serializations = protocol.DynamicSerialization.defaultSerializations
 
     val specifics = Seq(
       // Requests
@@ -85,7 +85,7 @@ class ProtocolTest {
 
     for (s <- specifics) {
       import protocol.WireProtocol.{ fromRaw, toRaw }
-      val roundtrippedOption = fromRaw(toRaw(s), protocol.ImmutableDynamicSerialization.defaultSerializations)
+      val roundtrippedOption = fromRaw(toRaw(s), protocol.DynamicSerialization.defaultSerializations)
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
@@ -108,7 +108,7 @@ class ProtocolTest {
 
   @Test
   def testDynamicSerialization(): Unit = {
-    val ds = new protocol.MutableDynamicSerialization()
+    val ds = protocol.DynamicSerialization.defaultSerializations
     def roundtrip[T: Manifest](t: T): Unit = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
@@ -140,7 +140,7 @@ class ProtocolTest {
 
   @Test
   def testBuildValueSerialization(): Unit = {
-    val serializations = protocol.ImmutableDynamicSerialization.defaultSerializations
+    val serializations = protocol.DynamicSerialization.defaultSerializations
     implicit def format[T]: Format[protocol.BuildValue[T]] = protocol.BuildValue.format[T](serializations)
     def roundtripBuildValue[T: Manifest](buildValue: protocol.BuildValue[T]): Unit = {
       val json = Json.toJson(buildValue)

@@ -3,56 +3,39 @@ package protocol
 
 import play.api.libs.json.{ Format, Reads, Writes }
 
-trait ReadOnlyDynamicSerialization {
-  def lookup[T](implicit mf: Manifest[T]): Option[Format[T]]
-}
-
 /**
  * An interface representing a mechanism to register and
  *  retrieve serialization for specific types at runtime.
  *
  *  This suffers from all the same limitations as scala.Manifest for
  *  handling types.
+ *
+ *  A DynamicSerialization is immutable.
  */
-trait DynamicSerialization extends ReadOnlyDynamicSerialization {
-  def register[T](serializer: Format[T])(implicit mf: Manifest[T]): Unit
+trait DynamicSerialization {
+  /** Look up a serialization using its type manifest */
+  def lookup[T](implicit mf: Manifest[T]): Option[Format[T]]
+  /** Add a serializer, returning the new modified DynamicSerialization. */
+  def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization
 }
 
-// TODO this should be private[sbt] somehow but right now we are using it in com.typesafe
-// instead of sbt package
-case class ImmutableDynamicSerialization(registered: Map[Manifest[_], Format[_]]) extends ReadOnlyDynamicSerialization {
-  def register[T](serializer: Format[T])(implicit mf: Manifest[T]): ImmutableDynamicSerialization =
+object DynamicSerialization {
+  val defaultSerializations: DynamicSerialization = ConcreteDynamicSerialization(Map.empty)
+}
+
+private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Format[_]]) extends DynamicSerialization {
+  override def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization =
     // Here we erase the original type when storing
-    ImmutableDynamicSerialization(registered + (mf -> serializer))
+    ConcreteDynamicSerialization(registered + (mf -> serializer))
 
   override def lookup[T](implicit mf: Manifest[T]): Option[Format[T]] =
     // When looking up, given the interface, it's safe to return to
     // the original type.
     (registered get mf).asInstanceOf[Option[Format[T]]] orElse
-      DynamicSerialization.memoizedDefaultSerializer(mf)
+      ConcreteDynamicSerialization.memoizedDefaultSerializer(mf)
 }
 
-object ImmutableDynamicSerialization {
-  val defaultSerializations = ImmutableDynamicSerialization(Map.empty)
-}
-
-// TODO this should be private[sbt] somehow but right now we are using it in com.typesafe
-// instead of sbt package
-class MutableDynamicSerialization extends DynamicSerialization {
-  @volatile
-  private var underlying = ImmutableDynamicSerialization.defaultSerializations
-
-  override def register[T](serializer: Format[T])(implicit mf: Manifest[T]): Unit = synchronized {
-    underlying = underlying.register(serializer)
-  }
-
-  override def lookup[T](implicit mf: Manifest[T]): Option[Format[T]] =
-    underlying.lookup(mf)
-
-  def immutableSnapshot: ReadOnlyDynamicSerialization = underlying
-}
-
-private object DynamicSerialization {
+private object ConcreteDynamicSerialization {
   private val defaultSerializationMemos =
     scala.collection.concurrent.TrieMap[Manifest[_], Format[_]]()
 
@@ -100,5 +83,4 @@ private object DynamicSerialization {
         None
     }).asInstanceOf[Option[Format[T]]]
   }
-
 }

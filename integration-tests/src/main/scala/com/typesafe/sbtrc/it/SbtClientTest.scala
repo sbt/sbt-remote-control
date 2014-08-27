@@ -90,7 +90,7 @@ trait SbtClientTest extends IntegrationTest {
    *
    */
   final def withSbt(projectDirectory: java.io.File,
-    serializations: sbt.protocol.ReadOnlyDynamicSerialization = sbt.protocol.ImmutableDynamicSerialization.defaultSerializations)(f: SbtClient => Unit): Unit = {
+    serializations: sbt.protocol.DynamicSerialization = sbt.protocol.DynamicSerialization.defaultSerializations)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",

@@ -16,7 +16,7 @@ import language.existentials
  */
 object WireProtocol {
 
-  private val messages: Map[Class[_], (String, ReadOnlyDynamicSerialization => Reads[_], Writes[_])] = Map(
+  private val messages: Map[Class[_], (String, DynamicSerialization => Reads[_], Writes[_])] = Map(
     msg[TaskLogEvent],
     msg[CoreLogEvent],
     msg[KillServerRequest],
@@ -47,7 +47,7 @@ object WireProtocol {
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
     msg[BuildStructureChanged],
-    msg[ValueChanged[Any]] { serializations: ReadOnlyDynamicSerialization =>
+    msg[ValueChanged[Any]] { serializations: DynamicSerialization =>
       implicit val buildValueReads = BuildValue.reads[Any](serializations)
       implicit val taskResultReads = TaskResult.reads[Any] // this line shouldn't be needed...
       valueChangedReads
@@ -64,7 +64,7 @@ object WireProtocol {
     msg[TaskEvent],
     msg[BuildLoaded],
     msg[BuildFailedToLoad])
-  private val readsIndex: Map[String, ReadOnlyDynamicSerialization => Reads[_]] =
+  private val readsIndex: Map[String, DynamicSerialization => Reads[_]] =
     (for {
       (_, (name, readFactory, _)) <- messages
     } yield name -> readFactory).toMap
@@ -80,7 +80,7 @@ object WireProtocol {
     }
   }
 
-  private class MessageReads(val serializations: ReadOnlyDynamicSerialization) extends Reads[Message] {
+  private class MessageReads(val serializations: DynamicSerialization) extends Reads[Message] {
     // if we mess up a read/write pair we just get a cache miss, no big deal
     @volatile
     private var cache = Map.empty[String, Reads[_]]
@@ -96,7 +96,7 @@ object WireProtocol {
     }
   }
 
-  private class MessageFormat(serializations: ReadOnlyDynamicSerialization) extends Format[Message] {
+  private class MessageFormat(serializations: DynamicSerialization) extends Format[Message] {
     def writes(t: Message): JsValue =
       messageWrites.writes(t)
 
@@ -111,7 +111,7 @@ object WireProtocol {
   @volatile
   private var oneItemCache: Option[MessageFormat] = None
 
-  private def getFormat(serializations: ReadOnlyDynamicSerialization): MessageFormat = {
+  private def getFormat(serializations: DynamicSerialization): MessageFormat = {
     oneItemCache.filter(fmt => fmt.reader.serializations eq serializations).getOrElse {
       val created = new MessageFormat(serializations)
       // tasty side effects
@@ -125,10 +125,10 @@ object WireProtocol {
     case value => sys.error("Unable to serialize non-object message type!")
   }
 
-  private def msg[T <: Message](implicit f: Format[T], mf: ClassManifest[T]): (Class[T], (String, ReadOnlyDynamicSerialization => Reads[T], Writes[T])) =
+  private def msg[T <: Message](implicit f: Format[T], mf: ClassManifest[T]): (Class[T], (String, DynamicSerialization => Reads[T], Writes[T])) =
     mf.runtimeClass.asInstanceOf[Class[T]] -> (simpleName(mf.runtimeClass), _ => f, f)
 
-  private def msg[T <: Message](readsFactory: ReadOnlyDynamicSerialization => Reads[T])(implicit writes: Writes[T], mf: ClassManifest[T]): (Class[T], (String, ReadOnlyDynamicSerialization => Reads[T], Writes[T])) =
+  private def msg[T <: Message](readsFactory: DynamicSerialization => Reads[T])(implicit writes: Writes[T], mf: ClassManifest[T]): (Class[T], (String, DynamicSerialization => Reads[T], Writes[T])) =
     mf.runtimeClass.asInstanceOf[Class[T]] -> (simpleName(mf.runtimeClass), readsFactory, writes)
 
   private def removeDollar(s: String) = {
@@ -148,7 +148,7 @@ object WireProtocol {
   private def simpleName(c: Class[_]) = removeDollar(lastChunk(c.getName))
 
   // just used below to go WireEnvelope => Envelope, and in test suite
-  def fromRaw(msg: JsValue, serializations: ReadOnlyDynamicSerialization): Option[Message] =
+  def fromRaw(msg: JsValue, serializations: DynamicSerialization): Option[Message] =
     getFormat(serializations).reads(msg).asOpt
 
   // just used by the test suite
@@ -177,7 +177,7 @@ case class Envelope(override val serial: Long, override val replyTo: Long, overr
  *  the "class" protocol.  This may disappear at some point, as the duplication with ipc.Envelope may not be necessary.
  */
 object Envelope {
-  def apply(wire: ipc.WireEnvelope, serializations: ReadOnlyDynamicSerialization): Envelope = {
+  def apply(wire: ipc.WireEnvelope, serializations: DynamicSerialization): Envelope = {
     val message: Message = try {
       // this can throw malformed json errors
       WireProtocol.fromRaw(Json.parse(wire.asString), serializations).getOrElse(sys.error("Failure deserializing json."))
