@@ -109,20 +109,22 @@ class SimpleSbtTerminal extends xsbti.AppMain {
 
       import protocol._
       (client handleEvents {
-        case LogEvent(taskId, LogSuccess(msg)) =>
-          // TODO - ASCII CHARACTER CODES!
-          reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(taskId, LogMessage(LogMessage.INFO, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[info] $msg")
-        case LogEvent(taskId, LogMessage(LogMessage.WARN, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[warn] $msg")
-        case LogEvent(taskId, LogMessage(LogMessage.ERROR, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[error] $msg")
-        case LogEvent(taskId, LogStdOut(msg)) =>
-          reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(taskId, LogStdErr(msg)) =>
-          // TODO - on stderr?
-          reader.printLineAndRedrawPrompt(msg)
+        case event: LogEvent => event.entry match {
+          case LogSuccess(msg) =>
+            // TODO - ASCII CHARACTER CODES!
+            reader.printLineAndRedrawPrompt(msg)
+          case LogMessage(LogMessage.INFO, msg) =>
+            reader.printLineAndRedrawPrompt(s"[info] $msg")
+          case LogMessage(LogMessage.WARN, msg) =>
+            reader.printLineAndRedrawPrompt(s"[warn] $msg")
+          case LogMessage(LogMessage.ERROR, msg) =>
+            reader.printLineAndRedrawPrompt(s"[error] $msg")
+          case LogStdOut(msg) =>
+            reader.printLineAndRedrawPrompt(msg)
+          case LogStdErr(msg) =>
+            // TODO - on stderr?
+            reader.printLineAndRedrawPrompt(msg)
+        }
         case _ => ()
       })(RunOnSameThreadContext)
     }

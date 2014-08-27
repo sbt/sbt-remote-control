@@ -11,7 +11,10 @@ trait TaskIdFinder {
    * doesn't return an Option because normally we want to just send the event
    * anyway with a 0 task ID.
    */
-  def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long
+  final def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long =
+    bestGuessTaskIdOption(taskIfKnown).getOrElse(0L)
+
+  def bestGuessTaskIdOption(taskIfKnown: Option[Task[_]] = None): Option[Long]
 
   /** just look up the task ID by key, don't use any thread info. */
   def taskId(task: Task[_]): Option[Long]
@@ -99,20 +102,20 @@ class TaskIdRecorder extends TaskIdFinder {
     }
   }
 
-  override def bestGuessTaskId(taskIfKnown: Option[Task[_]] = None): Long = {
+  override def bestGuessTaskIdOption(taskIfKnown: Option[Task[_]] = None): Option[Long] = {
     taskIfKnown flatMap { key =>
       taskIds.get(key)
-    } getOrElse {
+    } orElse {
       taskIdThreadLocal.get match {
         // if we don't have anything in the thread local, if we have
         // only one task running we can guess that one.
         case 0L => synchronized {
           if (runningTasks.size == 1)
-            taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?"))
+            Some(taskIds.get(runningTasks.head).getOrElse(throw new RuntimeException("running task has no ID?")))
           else
-            0L
+            None
         }
-        case other => other
+        case other => Some(other)
       }
     }
   }

@@ -87,8 +87,8 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           }
           val client = new SbtClientHandler(uuid, register.configName, register.humanReadableName,
             server, msgHandler, onClose)
-          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
-          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
+          client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
+          client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
           clientLock.synchronized {
             clients.append(client)
             log.log(s"Connected Clients: ${clients map (c => s"${c.configName}-${c.uuid}") mkString ", "}")

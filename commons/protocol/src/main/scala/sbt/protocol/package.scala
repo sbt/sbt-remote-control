@@ -190,7 +190,7 @@ package object protocol {
       }).map(x => JsSuccess(x)).getOrElse(JsError("Not a log message."))
     }
   }
-  implicit val logEventFormat = Json.format[LogEvent]
+
   private def emptyObjectFormat[A](instance: A) = new Format[A] {
     def writes(e: A): JsValue = JsObject(Seq.empty)
     def reads(obj: JsValue): JsResult[A] = JsSuccess(instance)
@@ -208,6 +208,8 @@ package object protocol {
     def reads(value: JsValue): JsResult[TestOutcome] =
       JsSuccess(TestOutcome(value.as[String]))
   }
+  implicit val taskLogEventFormat = Json.format[TaskLogEvent]
+  implicit val coreLogEventFormat = Json.format[CoreLogEvent]
   implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
   implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
   implicit val clientInfoFormat = Json.format[ClientInfo]
