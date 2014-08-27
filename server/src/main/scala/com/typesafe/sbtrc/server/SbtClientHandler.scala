@@ -33,9 +33,8 @@ class SbtClientHandler(
   private object clientThread extends Thread(s"sbt-client-handler-$configName-$uuid") {
     final override def run(): Unit = {
       import sbt.protocol
-      send(protocol.LogEvent(0L,
-        protocol.LogMessage(protocol.LogMessage.DEBUG,
-          s"sbt client logs are in: ${log.file.getAbsolutePath}")))
+      send(protocol.CoreLogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG,
+        s"sbt client logs are in: ${log.file.getAbsolutePath}")))
       while (running.get) {
         try readNextMessage()
         catch {

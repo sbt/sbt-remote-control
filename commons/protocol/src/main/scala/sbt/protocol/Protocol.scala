@@ -167,8 +167,15 @@ object LogMessage {
   val ERROR = "error"
   private[protocol] val validLevels = Set(DEBUG, INFO, WARN, ERROR)
 }
-/** We have a new log to display. taskId is 0 if the task is unknown. */
-case class LogEvent(taskId: Long, entry: LogEntry) extends Event
+sealed trait LogEvent extends Event {
+  def entry: LogEntry
+}
+/** A log event from a task (marked with task ID) */
+case class TaskLogEvent(taskId: Long, entry: LogEntry) extends LogEvent {
+  require(taskId != 0L)
+}
+/** A log event from "sbt core" (i.e. not from a task, no task ID available) */
+case class CoreLogEvent(entry: LogEntry) extends LogEvent
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
 case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
@@ -223,7 +230,7 @@ case class ConfirmResponse(confirmed: Boolean) extends Response
 
 // the taskId is provided here (tying it to an executionId and key),
 // and then in further events from the task we only provide taskId
-// since the exeuctionId and key can be deduced from that.
+// since the executionId and key can be deduced from that.
 case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
 // we really could provide taskId ONLY here, but we throw the executionId and key
 // in just for convenience so clients don't have to hash taskId if their

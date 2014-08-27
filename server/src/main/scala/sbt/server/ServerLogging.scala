@@ -5,6 +5,9 @@ import scala.util.matching.Regex
 import java.io.Writer
 import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicReference
+import sbt.protocol.CoreLogEvent
+import sbt.protocol.TaskLogEvent
+import play.api.libs.json.Writes
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
 private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent]) extends BasicLogger {
@@ -17,7 +20,11 @@ private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[pro
     // a custom stream for each task which records the task's key.
     // That will eliminate the need for heuristic BS based on which thread we are in.
     // But for now we don't have the taskIfKnown ever.
-    logSink.send(protocol.LogEvent(taskIdFinder.bestGuessTaskId(taskIfKnown = None), entry))
+    val taskIdOption = taskIdFinder.bestGuessTaskIdOption(taskIfKnown = None)
+    if (taskIdOption.isDefined)
+      taskIdOption.foreach(taskId => logSink.send(TaskLogEvent(taskId, entry)))
+    else
+      logSink.send(CoreLogEvent(entry))
     peer.get match {
       case Some(f) => f(entry.message)
       case None => ()
