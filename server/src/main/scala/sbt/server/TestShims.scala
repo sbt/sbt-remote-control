@@ -9,8 +9,8 @@ object TestShims {
   val testShimSettings: Seq[Setting[_]] =
     Seq(
       serverTestListener in Global := {
-        val context = UIContext.uiContext.value
-        new ServerTestListener(context)
+        val sendEventService = UIKeys.sendEventService.value
+        new ServerTestListener(sendEventService)
       },
       sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value)
 
@@ -24,7 +24,7 @@ object TestShims {
 
 import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
-class ServerTestListener(val context: UIContext) extends TestReportListener {
+class ServerTestListener(val sendEventService: SendEventService) extends TestReportListener {
   override def startGroup(name: String): Unit = {}
 
   override def testEvent(event: TestEvent): Unit = {
@@ -41,7 +41,7 @@ class ServerTestListener(val context: UIContext) extends TestReportListener {
         // TODO - Handle this correctly...
         case TStatus.Pending => protocol.TestSkipped
       }
-      context.sendEvent(
+      sendEventService.sendEvent(
         protocol.TestEvent(
           detail.fullyQualifiedName,
           None, // No descriptions in new interface?
