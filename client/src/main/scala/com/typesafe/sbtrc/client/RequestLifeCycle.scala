@@ -30,7 +30,7 @@ private[client] class InteractionHelper(i: Interaction, ex: ExecutionContext) ex
   def confirm(msg: String): Boolean =
     withExecutionContext(i.confirm(msg))
   private def withExecutionContext[A](f: => A): A = {
-    val result = promise[A]
+    val result = concurrent.Promise[A]()
     ex.prepare.execute(new Runnable {
       def run(): Unit = {
         try result.success(f)

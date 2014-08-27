@@ -15,6 +15,7 @@ object DebugClient {
     val humanReadableName = "Debug Client"
     client.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)),
       client.serialGetAndIncrement())
-    new SimpleSbtClient(uuid, configName, humanReadableName, client, closeHandler = () => ())
+    val channel = new SimpleSbtChannel(uuid, configName, humanReadableName, client, closeHandler = () => ())
+    SbtClient(channel)
   }
 }
