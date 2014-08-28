@@ -5,7 +5,7 @@ import play.api.libs.json.Writes
 import sbt.protocol.TaskEvent
 import sbt.protocol.DynamicSerialization
 
-private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractUIContext {
+private[server] class ServerInteractionService(state: ServerState) extends AbstractInteractionService {
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -30,6 +30,9 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
       waitForever(client.confirm(executionId, msg))
       // TODO - Maybe we just always return some default value here.
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
+}
+
+private[server] class ServerSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractSendEventService {
 
   def sendEvent[T: Writes](event: T): Unit =
     eventSink.send(TaskEvent(taskId, event))
@@ -45,13 +48,17 @@ private[server] class ServerUIContext(state: ServerState, taskIdFinder: TaskIdFi
 
 object UIShims {
 
-  private def uiContextSetting(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Setting[_] =
-    UIContext.uiContext in Global := {
+  private def uiServicesSettings(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] = Seq(
+    UIKeys.interactionService in Global := {
       val state = sbt.Keys.state.value
-      new ServerUIContext(ServerState.extract(state), taskIdFinder, eventSink)
-    }
+      new ServerInteractionService(ServerState.extract(state))
+    },
+    UIKeys.sendEventService in Global := {
+      new ServerSendEventService(taskIdFinder, eventSink)
+    })
+
   def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
     Seq(
-      UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil,
-      uiContextSetting(taskIdFinder, eventSink))
+      UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil) ++
+      uiServicesSettings(taskIdFinder, eventSink)
 }

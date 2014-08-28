@@ -8,20 +8,21 @@ import play.api.libs.json._
  *
  * Basically, we just stub out the setting you can use to look up the current UI context.
  */
-object SbtUiPlugin extends Plugin {
+object SbtUIPlugin extends Plugin {
 
   override val buildSettings: Seq[Setting[_]] = Seq(
-    UIContext.uiContext in Global <<= (UIContext.uiContext in Global) ?? CommandLineUiContext,
-    UIContext.registeredFormats in Global <<= (UIContext.registeredFormats in Global) ?? Nil)
+    UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
+    UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
+    UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil)
 
   def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisteredFormat(format)(mf)
+    UIKeys.registeredFormats in Global += RegisteredFormat(format)(mf)
   def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
+    UIKeys.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
 
 }
 
-private[sbt] object CommandLineUiContext extends AbstractUIContext {
+private[sbt] object CommandLineUIServices extends AbstractInteractionService with AbstractSendEventService {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
