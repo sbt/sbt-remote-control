@@ -34,13 +34,16 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   logSink: JsonSink[LogEvent]) {
 
   private val taskIdRecorder = new TaskIdRecorder
-  private val eventLogger = new EventLogger(taskIdRecorder, logSink)
+  private val eventLogger = new TaskEventLogger(taskIdRecorder, logSink)
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
   final def sendReadyForRequests = Command.command(SendReadyForRequests) { state =>
     // here we want to register our error handler that handles command failure.
-    val newState = installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler)))
+    // we also update the serializations object which is stored on state; it only
+    // depends on settings, not tasks, so we only need to update it on loading the
+    // build.
+    val newState = Serializations.update(installBuildHooks(state.copy(onFailure = Some(PostCommandErrorHandler))))
 
     // Notify that we have booted
     eventSink.send(BuildLoaded())

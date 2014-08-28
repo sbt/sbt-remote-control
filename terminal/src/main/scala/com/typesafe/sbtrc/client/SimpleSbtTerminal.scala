@@ -100,31 +100,31 @@ class SimpleSbtTerminal extends xsbti.AppMain {
     val connector = SbtConnector("terminal", "Command Line Terminal", configuration.baseDirectory)
 
     def onConnect(client: SbtClient): Unit = {
-      import concurrent.ExecutionContext.global
-
       // This guy should handle future execution NOT on our event loop, or we'll block.
       // Ideally, "same thread" execution context instead.
-      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)(global)
+      val reader = new sbt.terminal.RemoteJLineReader(None, client, true)
 
       // Upon reconnection, down what's currently executing.
       clearAndSchedule(TakeNextCommand(client, reader))
 
       import protocol._
       (client handleEvents {
-        case LogEvent(taskId, LogSuccess(msg)) =>
-          // TODO - ASCII CHARACTER CODES!
-          reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(taskId, LogMessage(LogMessage.INFO, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[info] $msg")
-        case LogEvent(taskId, LogMessage(LogMessage.WARN, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[warn] $msg")
-        case LogEvent(taskId, LogMessage(LogMessage.ERROR, msg)) =>
-          reader.printLineAndRedrawPrompt(s"[error] $msg")
-        case LogEvent(taskId, LogStdOut(msg)) =>
-          reader.printLineAndRedrawPrompt(msg)
-        case LogEvent(taskId, LogStdErr(msg)) =>
-          // TODO - on stderr?
-          reader.printLineAndRedrawPrompt(msg)
+        case event: LogEvent => event.entry match {
+          case LogSuccess(msg) =>
+            // TODO - ASCII CHARACTER CODES!
+            reader.printLineAndRedrawPrompt(msg)
+          case LogMessage(LogMessage.INFO, msg) =>
+            reader.printLineAndRedrawPrompt(s"[info] $msg")
+          case LogMessage(LogMessage.WARN, msg) =>
+            reader.printLineAndRedrawPrompt(s"[warn] $msg")
+          case LogMessage(LogMessage.ERROR, msg) =>
+            reader.printLineAndRedrawPrompt(s"[error] $msg")
+          case LogStdOut(msg) =>
+            reader.printLineAndRedrawPrompt(msg)
+          case LogStdErr(msg) =>
+            // TODO - on stderr?
+            reader.printLineAndRedrawPrompt(msg)
+        }
         case _ => ()
       })(RunOnSameThreadContext)
     }

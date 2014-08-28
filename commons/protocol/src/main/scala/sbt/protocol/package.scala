@@ -190,7 +190,7 @@ package object protocol {
       }).map(x => JsSuccess(x)).getOrElse(JsError("Not a log message."))
     }
   }
-  implicit val logEventFormat = Json.format[LogEvent]
+
   private def emptyObjectFormat[A](instance: A) = new Format[A] {
     def writes(e: A): JsValue = JsObject(Seq.empty)
     def reads(obj: JsValue): JsResult[A] = JsSuccess(instance)
@@ -208,6 +208,9 @@ package object protocol {
     def reads(value: JsValue): JsResult[TestOutcome] =
       JsSuccess(TestOutcome(value.as[String]))
   }
+  implicit val taskLogEventFormat = Json.format[TaskLogEvent]
+  implicit val coreLogEventFormat = Json.format[CoreLogEvent]
+  implicit val backgroundJobLogEventFormat = Json.format[BackgroundJobLogEvent]
   implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
   implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
   implicit val clientInfoFormat = Json.format[ClientInfo]
@@ -261,6 +264,33 @@ package object protocol {
     }
   }
 
+  implicit def valueChangedReads[A](implicit result: Reads[TaskResult[A]]): Reads[ValueChanged[A]] = new Reads[ValueChanged[A]] {
+    override def reads(v: JsValue): JsResult[ValueChanged[A]] = {
+      for {
+        key <- Json.fromJson[ScopedKey](v \ "key")
+        result <- result.reads(v \ "value")
+      } yield ValueChanged(key, result)
+    }
+  }
+
+  implicit def valueChangedWrites[A](implicit result: Writes[TaskResult[A]]): Writes[ValueChanged[A]] = new Writes[ValueChanged[A]] {
+    override def writes(v: ValueChanged[A]): JsValue =
+      JsObject(Seq(
+        "key" -> Json.toJson(v.key),
+        "value" -> result.writes(v.value)))
+  }
+
+  // TODO - This needs an explicit format... yay.
+  implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] =
+    new Format[ValueChanged[A]] {
+      val reader = valueChangedReads
+      val writer = valueChangedWrites
+      override def writes(v: ValueChanged[A]): JsValue =
+        writer.writes(v)
+      override def reads(v: JsValue): JsResult[ValueChanged[A]] =
+        reader.reads(v)
+    }
+
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
   implicit val backgroundJobEventFormat: Format[BackgroundJobEvent] = new Format[BackgroundJobEvent] {
@@ -276,21 +306,6 @@ package object protocol {
       } yield BackgroundJobEvent(jobId = jobId, name = name, serialized = serialized)
     }
   }
-
-  // TODO - This needs an explicit format... yay.
-  implicit def valueChangeHackery[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] =
-    new Format[ValueChanged[A]] {
-      def writes(v: ValueChanged[A]): JsValue =
-        JsObject(Seq(
-          "key" -> Json.toJson(v.key),
-          "value" -> result.writes(v.value)))
-      def reads(v: JsValue): JsResult[ValueChanged[A]] = {
-        for {
-          key <- Json.fromJson[ScopedKey](v \ "key")
-          result <- result.reads(v \ "value")
-        } yield ValueChanged(key, result)
-      }
-    }
 
   implicit val completionFormat = Json.format[Completion]
   implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]

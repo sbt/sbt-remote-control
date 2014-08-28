@@ -40,7 +40,7 @@ private[client] object ExecutionContexts {
 // the thread (don't want to keep it around when it's typically needed
 // only briefly).
 // Important: closeHandler guaranteed to be called only AFTER doneHandler
-private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
+private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
   closeHandler: () => Unit,
   sleepMilliseconds: Long, configName: String, humanReadableName: String,
   directory: File, locator: SbtServerLocator) extends Thread with Closeable {
@@ -50,11 +50,11 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
 
   // we want to ALWAYS call doneHandler first and then closeHandler only if
   // we successfully opened the client and it's now been closed.
-  val donePromise = Promise[SbtClient]()
+  val donePromise = Promise[SbtChannel]()
   val closedPromise = Promise[Unit]()
-  donePromise.future.onComplete { maybeClient =>
-    doneHandler(maybeClient)
-    if (maybeClient.isSuccess) {
+  donePromise.future.onComplete { maybeChannel =>
+    doneHandler(maybeChannel)
+    if (maybeChannel.isSuccess) {
       // wait on the client to complete closePromise. Note that it
       // may have ALREADY completed.
       closedPromise.future.onComplete(_ => closeHandler())
@@ -98,14 +98,14 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
     adjustRemaining(_ => 0)
   }
 
-  private[this] def connectToSbt(): SbtClient = {
+  private[this] def connectToSbt(): SbtChannel = {
     val uri = locator.locate(directory)
     val socket = new java.net.Socket(uri.getHost, uri.getPort)
     val rawClient = new ipc.Client(socket, WireProtocol.sendJsonFilter)
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
     rawClient.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)), registerSerial)
-    Envelope(rawClient.receive()) match {
+    Envelope(rawClient.receive(), DynamicSerialization.defaultSerializations) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")
       case Envelope(_, `registerSerial`, reply: ReceivedResponse) =>
@@ -114,11 +114,11 @@ private final class ConnectThread(doneHandler: Try[SbtClient] => Unit,
         throw new RuntimeException(s"unexpected initial message from server was not a reply to ${registerSerial}: ${wtf}")
       }
     }
-    new SimpleSbtClient(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
+    new SimpleSbtChannel(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
   }
 }
 
-class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
+final class SimpleConnector(configName: String, humanReadableName: String, directory: File, locator: SbtServerLocator) extends SbtConnector {
 
   private sealed trait ConnectState
   // open() never called
@@ -128,7 +128,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   // connecting thread working on a connect
   private final case class Connecting(thread: ConnectThread) extends ConnectState
   // connecting ended in success
-  private final case class Open(client: SbtClient) extends ConnectState
+  private final case class Open(channel: SbtChannel) extends ConnectState
 
   private var connectState: ConnectState = NotYetOpened
 
@@ -141,14 +141,14 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
   // connectState != Closed.
   private var reconnecting: Boolean = true
 
-  private final class OpenListener(onConnect: SbtClient => Unit,
+  private final class OpenListener(onConnect: SbtChannel => Unit,
     onError: (Boolean, String) => Unit,
     ctx: ExecutionContext) {
-    def emitConnected(client: SbtClient): Unit =
+    def emitConnected(channel: SbtChannel): Unit =
       ctx.prepare.execute(new Runnable() {
-        override def toString = s"Runnable(onConnect(${client.configName} ${client.uuid}))"
+        override def toString = s"Runnable(onConnect(${channel.configName} ${channel.uuid}))"
         override def run(): Unit = {
-          onConnect(client)
+          onConnect(channel)
         }
       })
     def emitError(reconnecting: Boolean, message: String): Unit =
@@ -171,7 +171,11 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
     state.thread.start()
   }
 
-  def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
+  override def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
+    openChannel(channel => onConnect(SbtClient(channel)), onError)(ex)
+  }
+
+  override def openChannel(onConnect: SbtChannel => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
     val listener = new OpenListener(onConnect, onError, ex)
     SimpleConnector.this.synchronized(listeners = listener :: listeners)
     object sub extends Subscription {
@@ -198,7 +202,7 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
 
   private[this] def handleNewConnectSubscriber(listener: OpenListener): Unit = synchronized {
     connectState match {
-      case Open(client) => listener.emitConnected(client)
+      case Open(channel) => listener.emitConnected(channel)
       case Closed => listener.emitError(reconnecting = false, "Connection closed")
       case NotYetOpened | Connecting(_) => // a later event is guaranteed
     }
@@ -225,23 +229,23 @@ class SimpleConnector(configName: String, humanReadableName: String, directory: 
 
   // A callback from our connecting thread when it's done; always called before
   // onClose
-  private def onConnectionAttempt(result: Try[SbtClient]): Unit = synchronized {
+  private def onConnectionAttempt(result: Try[SbtChannel]): Unit = synchronized {
     connectState match {
       case Connecting(thread) =>
         thread.join()
         result match {
           case Failure(error) =>
             reconnectOrCloseOnError(error.getMessage)
-          case Success(client) =>
-            connectState = Open(client)
+          case Success(channel) =>
+            connectState = Open(channel)
             for (listener <- listeners)
-              listener.emitConnected(client)
+              listener.emitConnected(channel)
             if (!reconnecting) {
               // close() was called after the thread made the client
               // but before we received notification of the client,
               // so close the client here, which results in onClientClose
               // which then transitions us to Closed state.
-              client.close()
+              channel.close()
             }
         }
       case Closed | NotYetOpened | Open(_) =>

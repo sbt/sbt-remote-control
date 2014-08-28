@@ -85,7 +85,7 @@ class TestExecution extends SbtClientTest {
           case TaskFinished(id, taskId, _, _) =>
             record(id)
             executionsByTask -= taskId
-          case LogEvent(taskId, _) =>
+          case TaskLogEvent(taskId, _) =>
             executionsByTask.get(taskId)
               .map(record(_))
               .getOrElse(System.err.println(s"log event from unknown task $taskId ${event}"))
@@ -270,15 +270,15 @@ class TestExecution extends SbtClientTest {
               dep1TaskId = taskId
           },
           {
-            case LogEvent(taskId, LogStdOut(message)) if message == "dep1-stdout" =>
+            case TaskLogEvent(taskId, LogStdOut(message)) if message == "dep1-stdout" =>
               assert(taskId == dep1TaskId)
           },
           {
-            case LogEvent(taskId, LogStdErr(message)) if message == "dep1-stderr" =>
+            case TaskLogEvent(taskId, LogStdErr(message)) if message == "dep1-stderr" =>
               assert(taskId == dep1TaskId)
           },
           {
-            case LogEvent(taskId, LogMessage(LogMessage.INFO, message)) if message == "dep1-info" =>
+            case TaskLogEvent(taskId, LogMessage(LogMessage.INFO, message)) if message == "dep1-info" =>
               assert(taskId == dep1TaskId)
           },
           {

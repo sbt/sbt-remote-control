@@ -38,11 +38,11 @@ trait BackgroundJobHandle {
 
 trait BackgroundJobManager extends java.io.Closeable {
 
-  // TODO we don't really want all of UIContext, because
+  // TODO we don't really want all of SendEventService, because
   // the interaction-related methods don't make sense and
-  // will break. So - we need to split up UIContext.
+  // will break. So - we need to split up SendEventService.
   // TODO An unsolved issue here is where these Logger and
-  // UIContext come from, and how we can make this extensible
+  // SendEventService come from, and how we can make this extensible
   // rather than two hardcoded things. So one way to make
   // it extensible might be to have a task which returns
   // a BackgroundJob, and we generate special streams
@@ -50,7 +50,7 @@ trait BackgroundJobManager extends java.io.Closeable {
   // two things will be simplest. Not sure.
   // The streams instance is passed in because we can use it
   // to figure out which task is calling runInBackground.
-  def runInBackground(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => BackgroundJob): BackgroundJobHandle
+  def runInBackground(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => BackgroundJob): BackgroundJobHandle
 
   /**
    * Launch a background job which is a function that runs inside another thread;
@@ -58,7 +58,7 @@ trait BackgroundJobManager extends java.io.Closeable {
    *  then you should get an InterruptedException while blocking on the process, and
    *  then you could process.destroy() for example.
    */
-  def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => Unit): BackgroundJobHandle
+  def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => Unit): BackgroundJobHandle
 
   def list(): Seq[BackgroundJobHandle]
   def stop(job: BackgroundJobHandle): Unit
@@ -191,11 +191,11 @@ private class BackgroundThreadPool extends java.io.Closeable {
     }
   }
 
-  def run(manager: BackgroundJobManager, streams: std.TaskStreams[ScopedKey[_]])(work: (Logger, UIContext) => Unit): BackgroundJobHandle = {
+  def run(manager: BackgroundJobManager, streams: std.TaskStreams[ScopedKey[_]])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
     // TODO this gets me "compile:backgroundRun::streams" but I really want "compile:backgroundRun" -
     // not sure what the magic incantation is.
     val taskName = streams.key.scope.task.toOption.map(_.label).getOrElse("<unknown task>")
-    def start(logger: Logger, uiContext: UIContext): BackgroundJob = {
+    def start(logger: Logger, uiContext: SendEventService): BackgroundJob = {
       val runnable = new BackgroundRunnable(taskName, { () =>
         work(logger, uiContext)
       })
@@ -219,26 +219,26 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
   private val pool = new BackgroundThreadPool()
 
   // hooks for sending start/stop events
-  protected def onAddJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {}
-  protected def onRemoveJob(uiContext: UIContext, job: BackgroundJobHandle): Unit = {}
+  protected def onAddJob(uiContext: SendEventService, job: BackgroundJobHandle): Unit = {}
+  protected def onRemoveJob(uiContext: SendEventService, job: BackgroundJobHandle): Unit = {}
 
   // this mutable state could conceptually go on State except
   // that then every task that runs a background job would have
   // to be a command, so not sure what to do here.
   @volatile
   private final var jobs = Set.empty[Handle]
-  private def addJob(uiContext: UIContext, job: Handle): Unit = synchronized {
+  private def addJob(uiContext: SendEventService, job: Handle): Unit = synchronized {
     onAddJob(uiContext, job)
     jobs += job
   }
 
-  private def removeJob(uiContext: UIContext, job: Handle): Unit = synchronized {
+  private def removeJob(uiContext: SendEventService, job: Handle): Unit = synchronized {
     onRemoveJob(uiContext, job)
     jobs -= job
   }
 
   private final class Handle(override val id: Long, override val spawningTask: ScopedKey[_],
-    val logger: Logger with java.io.Closeable, val uiContext: UIContext, val job: BackgroundJob)
+    val logger: Logger with java.io.Closeable, val uiContext: SendEventService, val job: BackgroundJob)
     extends BackgroundJobHandle {
 
     def humanReadableName: String = job.humanReadableName
@@ -260,9 +260,9 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     override final def hashCode(): Int = id.hashCode
   }
 
-  protected def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, UIContext)
+  protected def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, SendEventService)
 
-  override def runInBackground(streams: TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => BackgroundJob): BackgroundJobHandle = {
+  override def runInBackground(streams: TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => BackgroundJob): BackgroundJobHandle = {
     val id = nextId.getAndIncrement()
     val (logger, uiContext) = makeContext(id, streams)
     val job = try new Handle(id, streams.key, logger, uiContext, start(logger, uiContext))
@@ -274,7 +274,7 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     job
   }
 
-  override def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, UIContext) => Unit): BackgroundJobHandle = {
+  override def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
     pool.run(this, streams)(start)
   }
 

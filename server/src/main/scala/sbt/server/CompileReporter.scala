@@ -5,7 +5,7 @@ import xsbti.Position
 import xsbti.Severity
 
 class CompileReporter(
-  context: UIContext,
+  sendEventService: SendEventService,
   project: protocol.ProjectReference,
   maximumErrors: Int,
   log: Logger,
@@ -25,7 +25,7 @@ class CompileReporter(
         pos,
         severity,
         msg)
-    context.sendEvent(errorMessage)
+    sendEventService.sendEvent(errorMessage)
     super.display(pos, msg, severity)
   }
 
@@ -57,12 +57,12 @@ object CompileReporter {
       // By this point they should all be unified to ProjectRef/BuildRef.
       if project.isInstanceOf[ProjectRef]
     } yield Keys.compilerReporter in scope := {
-      val context = UIContext.uiContext.value
+      val sendEventService = UIKeys.sendEventService.value
       val inputs = (Keys.compileInputs in scope).value
       val log = Keys.streams.value.log
       val tmp = Keys.projectInfo
       Some(new CompileReporter(
-        context,
+        sendEventService,
         SbtToProtocolUtils.projectRefToProtocol(project.asInstanceOf[ProjectRef]),
         inputs.config.maxErrors,
         log,

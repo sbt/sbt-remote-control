@@ -89,7 +89,8 @@ trait SbtClientTest extends IntegrationTest {
    * a given directory...
    *
    */
-  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
+  final def withSbt(projectDirectory: java.io.File,
+    serializations: sbt.protocol.DynamicSerialization = sbt.protocol.DynamicSerialization.defaultSerializations)(f: SbtClient => Unit): Unit = {
     // TODO - Create a prop-file locator that uses our own repositories to
     // find the classes, so we use cached values...
     val connector = new SimpleConnector("sbt-client-test", "SbtClientTest unit test",
@@ -131,8 +132,10 @@ trait SbtClientTest extends IntegrationTest {
       }
     }
 
-    val newHandler: SbtClient => Unit = { client =>
+    val newHandler: SbtChannel => Unit = { channel =>
       numConnects.getAndIncrement
+
+      val client = SbtClient(channel, serializations)
 
       val logfile = new File(projectDirectory, s".sbtserver/connections/${client.configName}-${client.uuid}.log").getAbsoluteFile
       if (!logfile.exists)
@@ -181,7 +184,7 @@ trait SbtClientTest extends IntegrationTest {
     }
 
     // TODO - We may want to connect to the sbt server and dump debugging information/logs.
-    val subscription = (connector.open(newHandler, errorHandler))(runOneThingExecutor)
+    val subscription = (connector.openChannel(newHandler, errorHandler))(runOneThingExecutor)
     // Block current thread until we can run the test.
     try {
       runOneThingExecutor.runWhenReady()

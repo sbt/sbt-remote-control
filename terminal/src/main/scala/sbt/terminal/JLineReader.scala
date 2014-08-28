@@ -4,13 +4,12 @@ package terminal
 import java.io.File
 import sbt.client.SbtClient
 import sbt.client.Completion
-import concurrent.{ Await, ExecutionContext }
 
 // This class blocks on response from the server for autocompletion options.
 final class RemoteJLineReader(
   historyPath: Option[File],
   client: SbtClient,
-  val handleCONT: Boolean)(implicit ex: ExecutionContext) extends JLine {
+  val handleCONT: Boolean) extends JLine {
 
   private val reading = new java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -35,9 +34,10 @@ final class RemoteJLineReader(
   }
 
   private def blockingServerCompleter(line: String, level: Int): (Seq[String], Seq[String]) = {
+    import concurrent.ExecutionContext.Implicits.global // for "map" below
     // TODO - configurable duration here..
     val timeout = concurrent.duration.Duration(2, java.util.concurrent.TimeUnit.SECONDS)
-    Await.result(client.possibleAutocompletions(line, level).map(convertProtocolCompletions), timeout)
+    concurrent.Await.result(client.possibleAutocompletions(line, level).map(convertProtocolCompletions), timeout)
   }
 
   private def convertProtocolCompletions(cs: Set[Completion]): (Seq[String], Seq[String]) =

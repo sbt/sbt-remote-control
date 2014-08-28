@@ -9,27 +9,28 @@ import std.TaskStreams
  *
  * Basically, we just stub out the setting you can use to look up the current UI context.
  */
-object SbtUiPlugin extends AutoPlugin {
+object SbtUIPlugin extends AutoPlugin {
 
   override def trigger = AllRequirements
   override def requires = plugins.CorePlugin
 
   // TODO why isn't this just globalSettings instead of putting everything in Global
   override val globalSettings: Seq[Setting[_]] = Seq(
-    UIContext.uiContext <<= (UIContext.uiContext in Global) ?? CommandLineUiContext,
-    UIContext.registeredFormats <<= (UIContext.registeredFormats in Global) ?? Nil,
+    UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
+    UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
+    UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
     BackgroundJob.jobManager := { new CommandLineBackgroundJobManager() },
     Keys.onUnload := { s => try Keys.onUnload.value(s) finally BackgroundJob.jobManager.value.close() },
     BackgroundJob.jobList := { BackgroundJob.jobManager.value.list() })
   // TODO implement jobStop and jobWaitFor (requires writing a job ID parser)
 
   def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisteredFormat(format)(mf)
+    UIKeys.registeredFormats in Global += RegisteredFormat(format)(mf)
   def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
-    UIContext.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
+    UIKeys.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
 }
 
-private[sbt] object CommandLineUiContext extends AbstractUIContext {
+private[sbt] object CommandLineUIServices extends AbstractInteractionService with AbstractSendEventService {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
@@ -68,6 +69,6 @@ private[sbt] class CommandLineBackgroundJobManager extends AbstractBackgroundJob
       // TODO
       override def trace(t: => Throwable): Unit = t.printStackTrace(System.err)
     }
-    (logger, CommandLineUiContext)
+    (logger, CommandLineUIServices)
   }
 }

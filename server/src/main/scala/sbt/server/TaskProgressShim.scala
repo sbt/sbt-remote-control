@@ -2,6 +2,7 @@ package sbt
 package server
 
 import protocol.{
+  DynamicSerialization,
   ExecutionEngineEvent,
   TaskStarted,
   TaskFinished,
@@ -12,7 +13,7 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
@@ -109,7 +110,7 @@ private[server] class ServerExecuteProgress(state: ServerState, taskIdRecorder: 
 
   private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T] = {
     result match {
-      case Value(v) => TaskSuccess(BuildValue(v)(mf))
+      case Value(v) => TaskSuccess(BuildValue(v, serializations)(mf))
       case Inc(err) => TaskFailure(err.getMessage)
     }
   }
@@ -125,7 +126,8 @@ object ServerExecuteProgress {
     Seq(
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)
-        new Keys.TaskProgress(new ServerExecuteProgress(sstate, taskIdRecorder, eventSink))
+        val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("in executeProgress, serializations hasn't been updated on state"))
+        new Keys.TaskProgress(new ServerExecuteProgress(sstate, serializations, taskIdRecorder, eventSink))
       })
 
   }

@@ -3,20 +3,20 @@ package client
 
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
+import play.api.libs.json.Format
 
-/** This represents a connection to the Sbt server, and all the actions that can be performed against an active sbt build. */
+/**
+ * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
+ *  This high-level interface tracks a lot of state on the client side and provides convenience methods
+ *  to shield you from using the raw protocol.
+ */
 trait SbtClient extends Closeable {
+
+  def channel: SbtChannel
 
   def uuid: java.util.UUID
   def configName: String
   def humanReadableName: String
-
-  /**
-   * A registry of custom serializers that are used for task
-   * results ("build values"). This allows interpreting task
-   * results from custom sbt plugins.
-   */
-  def buildValueSerialization: protocol.DynamicSerialization
 
   /**
    * Watch the build structure, receiving notification when it changes.
@@ -194,4 +194,20 @@ trait SbtClient extends Closeable {
 
   /** Returns true if the client is closed. */
   def isClosed: Boolean
+}
+
+object SbtClient {
+  /** Create an SbtClient attached to the provided channel. This can only be done once per channel. */
+  def apply(channel: SbtChannel): SbtClient =
+    apply(channel, protocol.DynamicSerialization.defaultSerializations)
+  /**
+   * Create an SbtClient attached to the provided channel. This can only be done once per channel.
+   *  The provided serializations will be used to decode task result values.
+   *  (If you need to add serializations after creating a client, probably the API we should
+   *  add for that is a variant of SbtClient.watch() which takes a deserializer. But for now
+   *  you have to add all needed serializations up front, there's no API to change them later.)
+   *  (TODO right now we require a Format for each serialization, but in fact only the Reads is used.)
+   */
+  def apply(channel: SbtChannel, serializations: protocol.DynamicSerialization): SbtClient =
+    new com.typesafe.sbtrc.client.SimpleSbtClient(channel, serializations)
 }

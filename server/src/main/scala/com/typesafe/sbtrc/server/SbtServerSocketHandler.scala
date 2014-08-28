@@ -28,6 +28,10 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
     // TODO - Check how long we've been running without a client connected
     // and shut down the server if it's been too long.
     final override def run(): Unit = {
+      // we know we're only going to process known handshake/registration messages
+      // so the default serializations are (more than) enough.
+      val serializations = DynamicSerialization.defaultSerializations
+
       // TODO - Is this the right place to do this?
       serverSocket.setSoTimeout(TIMEOUT_TO_DEATH)
       while (running.get) {
@@ -38,7 +42,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           log.log(s"  Address = ${socket.getLocalSocketAddress}")
           val server = new IpcServer(socket, WireProtocol.sendJsonFilter)
 
-          val (uuid, register, registerSerial) = Envelope(server.receive()) match {
+          val (uuid, register, registerSerial) = Envelope(server.receive(), serializations) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>
               def replyAndException(message: String): Exception = {
                 server.replyJson(serial, ErrorResponse(message))
@@ -83,8 +87,8 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           }
           val client = new SbtClientHandler(uuid, register.configName, register.humanReadableName,
             server, msgHandler, onClose)
-          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
-          client.send(LogEvent(0L, LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
+          client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
+          client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
           clientLock.synchronized {
             clients.append(client)
             log.log(s"Connected Clients: ${clients map (c => s"${c.configName}-${c.uuid}") mkString ", "}")
