@@ -292,12 +292,13 @@ package object protocol {
     (__ \ 'name).read[String] and
       (__ \ 'description).readNullable[String] and
       (__ \ 'outcome).read[TestOutcome] and
-      (__ \ 'error).readNullable[String]
+      (__ \ 'error).readNullable[String] and
+      (__ \ 'duration).read[Long]
   )(TestEvent.apply _)
 
   private val testEventWrites: Writes[TestEvent] = Writes[TestEvent] { event =>
     Json.obj("name" -> event.name, "description" -> event.description,
-      "outcome" -> event.outcome, "error" -> event.error)
+      "outcome" -> event.outcome, "error" -> event.error, "duration" -> event.duration)
   }
   implicit val testEventFormat: Format[TestEvent] = Format[TestEvent](testEventReads, testEventWrites)
 

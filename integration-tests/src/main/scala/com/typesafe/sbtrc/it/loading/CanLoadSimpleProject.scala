@@ -180,10 +180,10 @@ class CanLoadSimpleProject extends SbtClientTest {
         }
       }
     }
-    val expected = List(TestEvent("OnePassTest", None, TestPassed, None),
-      TestEvent("OneFailTest", None, TestFailed, Some("this is not true")),
-      TestEvent("OnePassOneFailTest", None, TestPassed, None),
-      TestEvent("OnePassOneFailTest", None, TestFailed, Some("this is not true"))).sorted
+    val expected = List(TestEvent("OnePassTest.testThatShouldPass", None, TestPassed, None, -1),
+      TestEvent("OneFailTest.testThatShouldFail", None, TestFailed, Some("this is not true"), -1),
+      TestEvent("OnePassOneFailTest.testThatShouldPass", None, TestPassed, None, -1),
+      TestEvent("OnePassOneFailTest.testThatShouldFail", None, TestFailed, Some("this is not true"), -1)).sorted
     assertEquals(expected, testEvents.sorted)
 
     // Now test execution analysis for three cases

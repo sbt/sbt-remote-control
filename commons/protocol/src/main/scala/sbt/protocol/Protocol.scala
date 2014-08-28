@@ -240,7 +240,7 @@ case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey],
 ///// Events below here are intended to go inside a TaskEvent
 
 /** A build test has done something useful and we're being notified of it. */
-case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String])
+case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
 
 object TestEvent extends TaskEventUnapply[TestEvent]
 

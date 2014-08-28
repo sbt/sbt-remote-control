@@ -2,6 +2,7 @@ package sbt
 package server
 
 import play.api.libs.json.Format
+import sbt.testing.TestSelector
 
 object TestShims {
 
@@ -25,11 +26,15 @@ object TestShims {
 import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
 class ServerTestListener(val sendEventService: SendEventService) extends TestReportListener {
+
+  //TODO: TestEvent should probably be extended to handle groups starting and ending
+
   override def startGroup(name: String): Unit = {}
 
   override def testEvent(event: TestEvent): Unit = {
     // event.result is just all the detail results folded,
     // we replicate that ourselves below
+
     for (detail <- event.detail) {
       val outcome = detail.status match {
         case TStatus.Success => protocol.TestPassed
@@ -41,12 +46,16 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
         // TODO - Handle this correctly...
         case TStatus.Pending => protocol.TestSkipped
       }
+      val testName = detail.selector match {
+        case s: TestSelector => s.testName
+        case _ => detail.fullyQualifiedName
+      }
       sendEventService.sendEvent(
         protocol.TestEvent(
-          detail.fullyQualifiedName,
-          None, // No descriptions in new interface?
+          testName,
+          None,
           outcome,
-          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)))
+          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage), detail.duration()))
     }
   }
 
