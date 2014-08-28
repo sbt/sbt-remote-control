@@ -1,6 +1,7 @@
 package sbt
 
 import play.api.libs.json._
+import play.api.libs.functional.syntax._
 
 package object protocol {
   // TODO - Dangerous-ish
@@ -17,19 +18,19 @@ package object protocol {
     def writes(u: java.net.URL): JsValue =
       JsString(u.toURI.toASCIIString)
     def reads(v: JsValue): JsResult[java.net.URL] =
-      JsSuccess(new java.net.URL(v.as[String]))
+      v.validate[String].map(x => new java.net.URL(x))
   }
   implicit object FileFormat extends Format[java.io.File] {
     def writes(u: java.io.File): JsValue =
       JsString(u.toURI.toASCIIString)
     def reads(v: JsValue): JsResult[java.io.File] =
-      JsSuccess(new java.io.File(new java.net.URI(v.as[String])))
+      v.validate[String].map(x => new java.io.File(new java.net.URI(x)))
   }
   implicit object UriFormat extends Format[java.net.URI] {
     def writes(u: java.net.URI): JsValue =
       JsString(u.toASCIIString)
     def reads(v: JsValue): JsResult[java.net.URI] =
-      JsSuccess(new java.net.URI(v.as[String]))
+      v.validate[String].map(x => new java.net.URI(x))
   }
   implicit def optionFormat[A](implicit other: Format[A]): Format[Option[A]] =
     new Format[Option[A]] {
@@ -62,134 +63,136 @@ package object protocol {
       JsString(in.toString)
     override def reads(in: JsValue): JsResult[xsbti.Severity] =
       in match {
-        case JsString(s) => JsSuccess(xsbti.Severity.valueOf(s))
+        case JsString(s) => Option(xsbti.Severity.valueOf(s)).map(sev => JsSuccess(sev)).getOrElse(JsError("Could not find severity: " + s))
         case _ => JsError("Could not find severity: " + in)
       }
   }
-  implicit object PositionFormat extends Format[xsbti.Position] {
-    override def writes(in: xsbti.Position): JsObject = {
-      def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
-        if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
-      val line = defineIf(in.line, "line")
-      val offset = defineIf(in.offset, "offset")
-      val pointer = defineIf(in.pointer, "pointer")
-      val pointerSpace = defineIf(in.pointerSpace, "pointerSpace")
-      val sourcePath = defineIf(in.sourcePath, "sourcePath")
-      val sourceFile = defineIf(in.sourceFile, "sourceFile")
-      JsObject(Seq("lineContent" -> JsString(in.lineContent)) ++
-        line ++
-        offset ++
-        pointer ++
-        pointerSpace ++
-        sourcePath ++
-        sourceFile)
+
+  private def convert[T](o: Option[T]): xsbti.Maybe[T] =
+    o match {
+      case Some(value) => xsbti.Maybe.just(value)
+      case None => xsbti.Maybe.nothing()
     }
-    private def convert[T](o: Option[T]): xsbti.Maybe[T] =
-      o match {
-        case Some(value) => xsbti.Maybe.just(value)
-        case None => xsbti.Maybe.nothing()
+
+  def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
+    if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
+
+  private case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
+                                          ps: Option[String], sp: Option[String]) extends xsbti.Position {
+    override def line = convert(l.map(Integer.valueOf))
+    override def offset = convert(o.map(Integer.valueOf))
+    override def pointer = convert(p.map(Integer.valueOf))
+    override def pointerSpace = convert(ps)
+    override def sourcePath = convert(sp)
+    override def sourceFile = convert(sp.map(new java.io.File(_)))
+  }
+
+  private val positionReads: Reads[xsbti.Position] = (
+    (__ \ "lineContent").read[String] and
+    (__ \ "line").readNullable[Int] and
+    (__ \ 'offset).readNullable[Int] and
+    (__ \ 'pointer).readNullable[Int] and
+    (__ \ 'pointerSpace).readNullable[String] and
+    (__ \ 'sourcePath).readNullable[String]
+  )(PositionDeserialized.apply _)
+
+  private val positionWrites: Writes[xsbti.Position] = Writes[xsbti.Position] { in =>
+    val line = defineIf(in.line, "line")
+    val offset = defineIf(in.offset, "offset")
+    val pointer = defineIf(in.pointer, "pointer")
+    val pointerSpace = defineIf(in.pointerSpace, "pointerSpace")
+    val sourcePath = defineIf(in.sourcePath, "sourcePath")
+    val sourceFile = defineIf(in.sourceFile, "sourceFile")
+    JsObject(Seq("lineContent" -> JsString(in.lineContent)) ++
+      line ++
+      offset ++
+      pointer ++
+      pointerSpace ++
+      sourcePath ++
+      sourceFile)
+  }
+
+  implicit val positionFormat: Format[xsbti.Position] = Format[xsbti.Position](positionReads, positionWrites)
+
+  private val executionAnalysisCommandFormat = Json.format[ExecutionAnalysisCommand]
+  private val executionAnalysisKeyFormat = Json.format[ExecutionAnalysisKey]
+  private val executionAnalysisErrorFormat = Json.format[ExecutionAnalysisError]
+
+  private val executionAnalysisWrites: Writes[ExecutionAnalysis] = Writes[ExecutionAnalysis] { analysis =>
+    val (discriminator, rest) =
+      analysis match {
+        case c: ExecutionAnalysisCommand => "command" -> executionAnalysisCommandFormat.writes(c)
+        case k: ExecutionAnalysisKey => "key" -> executionAnalysisKeyFormat.writes(k)
+        case e: ExecutionAnalysisError => "error" -> executionAnalysisErrorFormat.writes(e)
       }
-    private class PositionDeserialized(
-      override val lineContent: String,
-      l: Option[Int],
-      o: Option[Int],
-      p: Option[Int],
-      ps: Option[String],
-      sp: Option[String],
-      sf: Option[java.io.File]) extends xsbti.Position {
-      override def line = convert(l.map(Integer.valueOf))
-      override def offset = convert(o.map(Integer.valueOf))
-      override def pointer = convert(p.map(Integer.valueOf))
-      override def pointerSpace = convert(ps)
-      override def sourcePath = convert(sp)
-      override def sourceFile = convert(sf)
+    val baseObj = rest match {
+      case o: JsObject => o
+      case other => throw new RuntimeException(s"Serialized $analysis as a non-object $other")
     }
-    override def reads(in: JsValue): JsResult[xsbti.Position] = {
-      (in \ "lineContent") match {
-        case JsString(lineContent) =>
-          val line = (in \ "line").asOpt[Int]
-          val offset = (in \ "offset").asOpt[Int]
-          val pointer = (in \ "pointer").asOpt[Int]
-          val pointerSpace = (in \ "pointerSpace").asOpt[String]
-          val sourcePath = (in \ "sourcePath").asOpt[String]
-          val sourceFile = (in \ "sourceFile").asOpt[java.io.File]
-          JsSuccess(new PositionDeserialized(lineContent.toString, line, offset, pointer, pointerSpace, sourcePath, sourceFile))
-        case _ => JsError("Could not deserialize Position")
-      }
+    baseObj ++ Json.obj("executionType" -> discriminator)
+  }
+
+  private val executionAnalysisReads: Reads[ExecutionAnalysis] = Reads[ExecutionAnalysis] { v =>
+    (v \ "executionType").validate[String] flatMap {
+      case "command" => executionAnalysisCommandFormat.reads(v)
+      case "key" => executionAnalysisKeyFormat.reads(v)
+      case "error" => executionAnalysisErrorFormat.reads(v)
+      case other => JsError(s"Invalid executionType '$other' in $v")
     }
   }
 
-  implicit val executionAnalysisCommandFormat = Json.format[ExecutionAnalysisCommand]
-  implicit val executionAnalysisKeyFormat = Json.format[ExecutionAnalysisKey]
-  implicit val executionAnalysisErrorFormat = Json.format[ExecutionAnalysisError]
-
-  implicit val executionAnalysisFormat = new Format[ExecutionAnalysis] {
-    override def writes(analysis: ExecutionAnalysis): JsValue = {
-      val (discriminator, rest) =
-        analysis match {
-          case c: ExecutionAnalysisCommand => "command" -> Json.toJson(c)
-          case k: ExecutionAnalysisKey => "key" -> Json.toJson(k)
-          case e: ExecutionAnalysisError => "error" -> Json.toJson(e)
-        }
-      val baseObj = rest match {
-        case o: JsObject => o
-        case other => throw new RuntimeException(s"Serialized $analysis as a non-object $other")
-      }
-      baseObj ++ Json.obj("executionType" -> discriminator)
-    }
-    override def reads(v: JsValue): JsResult[ExecutionAnalysis] = {
-      (v \ "executionType").validate[String] flatMap {
-        case "command" => Json.fromJson[ExecutionAnalysisCommand](v)
-        case "key" => Json.fromJson[ExecutionAnalysisKey](v)
-        case "error" => Json.fromJson[ExecutionAnalysisError](v)
-        case other => JsError(s"Invalid executionType '$other' in $v")
-      }
-    }
-  }
+  implicit val executionAnalysisFormat = Format[ExecutionAnalysis](executionAnalysisReads, executionAnalysisWrites)
 
   // Protocol serializers...  
   implicit val errorResponseFormat = Json.format[ErrorResponse]
 
   // EVENTS
 
-  implicit object logEntryFormat extends Format[LogEntry] {
-    def writes(entry: LogEntry): JsValue =
-      entry match {
-        case LogSuccess(message) =>
-          JsObject(Seq(
-            "type" -> JsString("success"),
-            "message" -> JsString(message)))
-        case LogTrace(klass, message) =>
-          JsObject(Seq(
-            "type" -> JsString("trace"),
-            "class" -> JsString(klass),
-            "message" -> JsString(message)))
-        case LogMessage(level, message) =>
-          JsObject(Seq(
-            "type" -> JsString("message"),
-            "level" -> JsString(level),
-            "message" -> JsString(message)))
-        case LogStdOut(message) =>
-          JsObject(Seq(
-            "type" -> JsString("stdout"),
-            "message" -> JsString(message)))
-        case LogStdErr(message) =>
-          JsObject(
-            Seq("type" -> JsString("stderr"),
-              "message" -> JsString(message)))
-
-      }
-    // TODO - Nicer error messages.
-    def reads(obj: JsValue): JsResult[LogEntry] = {
-      (obj \ "type").asOpt[String].collect({
-        case "success" => LogSuccess((obj \ "message").as[String])
-        case "trace" => LogTrace((obj \ "class").as[String], (obj \ "message").as[String])
-        case "message" => LogMessage((obj \ "level").as[String], (obj \ "message").as[String])
-        case "stdout" => LogStdOut((obj \ "message").as[String])
-        case "stderr" => LogStdErr((obj \ "message").as[String])
-      }).map(x => JsSuccess(x)).getOrElse(JsError("Not a log message."))
+  private implicit class FormatOps[T](val f: Format[T]) extends AnyVal {
+    def withType(typ: String): Format[T] = {
+      //usage of 'as' here is okay since we sort of assume that it will always be a JsObject
+      val newWrites: Writes[T] = f.transform(x => x.as[JsObject] + ("type" -> JsString(typ)))
+      Format(f, newWrites)
     }
   }
+
+  private val logSuccessFormat: Format[LogSuccess] = Json.format[LogSuccess].withType("success")
+  private val logMessageFormat: Format[LogMessage] = Json.format[LogMessage].withType("message")
+  private val logStdOutFormat: Format[LogStdOut] = Json.format[LogStdOut].withType("stdout")
+  private val logStdErrFormat: Format[LogStdErr] = Json.format[LogStdErr].withType("stderr")
+
+  private val logTraceReads = (
+    (__ \ 'class).read[String] and
+    (__ \ 'message).read[String]
+  )(LogTrace.apply _)
+
+  private val logTraceWrites = (
+    (__ \ 'class).write[String] and
+    (__ \ 'message).write[String]
+  )(unlift(LogTrace.unapply))
+
+  private implicit val logTraceFormat = Format(logTraceReads, logTraceWrites).withType("trace")
+
+  //play-json does not handle polymorphic writes and reads very well at all
+  private val logEntryWrites: Writes[LogEntry] = Writes[LogEntry] {
+    case x: LogSuccess => logSuccessFormat.writes(x)
+    case x: LogTrace => logTraceWrites.writes(x)
+    case x: LogMessage => logMessageFormat.writes(x)
+    case x: LogStdOut => logStdOutFormat.writes(x)
+    case x: LogStdErr => logStdErrFormat.writes(x)
+  }
+
+  private val logEntryReads: Reads[LogEntry] = Reads[LogEntry] { js =>
+    (js \ "type").validate[String].flatMap {
+      case "success" => logSuccessFormat.reads(js)
+      case "trace" => logTraceReads.reads(js)
+      case "message" => logMessageFormat.reads(js)
+      case "stdout" => logStdOutFormat.reads(js)
+      case "stderr" => logStdErrFormat.reads(js)
+      case other => JsError(s"Unknown log entry type $other")
+    }
+  }
+  implicit val logEntryFormat: Format[LogEntry] = Format(logEntryReads, logEntryWrites)
 
   private def emptyObjectFormat[A](instance: A) = new Format[A] {
     def writes(e: A): JsValue = JsObject(Seq.empty)
@@ -206,8 +209,15 @@ package object protocol {
       JsString(outcome.toString)
     // TODO - Errors
     def reads(value: JsValue): JsResult[TestOutcome] =
-      JsSuccess(TestOutcome(value.as[String]))
+      value.validate[String].flatMap {
+        case "passed" => JsSuccess(TestPassed)
+        case "failed" => JsSuccess(TestFailed)
+        case "error" => JsSuccess(TestError)
+        case "skipped" => JsSuccess(TestSkipped)
+        case other => JsError(s"Unknown test outcome - $other")
+      }
   }
+
   implicit val taskLogEventFormat = Json.format[TaskLogEvent]
   implicit val coreLogEventFormat = Json.format[CoreLogEvent]
   implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
@@ -246,46 +256,29 @@ package object protocol {
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
-  implicit val taskEventFormat: Format[TaskEvent] = new Format[TaskEvent] {
-    override def writes(event: TaskEvent): JsValue = {
-      Json.obj("taskId" -> event.taskId, "name" -> event.name, "serialized" -> event.serialized)
-    }
-
-    override def reads(v: JsValue): JsResult[TaskEvent] = {
-      for {
-        taskId <- (v \ "taskId").validate[Long]
-        name <- (v \ "name").validate[String]
-        serialized = (v \ "serialized")
-      } yield TaskEvent(taskId = taskId, name = name, serialized = serialized)
-    }
+  private val taskEventWrites: Writes[TaskEvent] = Writes[TaskEvent] { event =>
+    Json.obj("taskId" -> event.taskId, "name" -> event.name, "serialized" -> event.serialized)
   }
 
-  implicit def valueChangedReads[A](implicit result: Reads[TaskResult[A]]): Reads[ValueChanged[A]] = new Reads[ValueChanged[A]] {
-    override def reads(v: JsValue): JsResult[ValueChanged[A]] = {
-      for {
-        key <- Json.fromJson[ScopedKey](v \ "key")
-        result <- result.reads(v \ "value")
-      } yield ValueChanged(key, result)
-    }
-  }
+  private val taskEventReads: Reads[TaskEvent] = (
+    (__ \ 'taskId).read[Long] and
+    (__ \ 'name).read[String] and
+    (__ \ 'serialized).read[JsValue]
+  )((id, name, serialized) => TaskEvent(id, name, serialized))
 
-  implicit def valueChangedWrites[A](implicit result: Writes[TaskResult[A]]): Writes[ValueChanged[A]] = new Writes[ValueChanged[A]] {
-    override def writes(v: ValueChanged[A]): JsValue =
-      JsObject(Seq(
-        "key" -> Json.toJson(v.key),
-        "value" -> result.writes(v.value)))
-  }
+  implicit val taskEventFormat: Format[TaskEvent] = Format[TaskEvent](taskEventReads, taskEventWrites)
 
-  // TODO - This needs an explicit format... yay.
-  implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] =
-    new Format[ValueChanged[A]] {
-      val reader = valueChangedReads
-      val writer = valueChangedWrites
-      override def writes(v: ValueChanged[A]): JsValue =
-        writer.writes(v)
-      override def reads(v: JsValue): JsResult[ValueChanged[A]] =
-        reader.reads(v)
-    }
+  private def valueChangedReads[A](implicit result: Reads[TaskResult[A]]): Reads[ValueChanged[A]] = (
+    (__ \ "key").read[ScopedKey] and
+	(__ \ "value").read[TaskResult[A]]
+  )(ValueChanged.apply[A] _)
+  
+  private def valueChangedWrites[A](implicit result: Writes[TaskResult[A]]): Writes[ValueChanged[A]] = (
+    (__ \ "key").write[ScopedKey] and
+	(__ \ "value").write[TaskResult[A]]
+  )(unlift(ValueChanged.unapply[A]))
+  
+  implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = Format(valueChangedReads, valueChangedWrites)
 
   implicit val completionFormat = Json.format[Completion]
   implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]
@@ -295,35 +288,30 @@ package object protocol {
   // these formatters are hand-coded because they have an unapply()
   // that confuses play-json
 
-  implicit val testEventFormat: Format[TestEvent] = new Format[TestEvent] {
-    override def writes(event: TestEvent): JsValue = {
-      Json.obj("name" -> event.name, "description" -> event.description,
-        "outcome" -> event.outcome, "error" -> event.error)
-    }
+  private val testEventReads: Reads[TestEvent] = (
+    (__ \ 'name).read[String] and
+      (__ \ 'description).readNullable[String] and
+      (__ \ 'outcome).read[TestOutcome] and
+      (__ \ 'error).readNullable[String]
+  )(TestEvent.apply _)
 
-    override def reads(v: JsValue): JsResult[TestEvent] = {
-      for {
-        name <- (v \ "name").validate[String]
-        description <- (v \ "description").validate[Option[String]]
-        outcome <- (v \ "outcome").validate[TestOutcome]
-        error <- (v \ "error").validate[Option[String]]
-      } yield TestEvent(name = name, description = description, outcome = outcome, error = error)
-    }
+  private val testEventWrites: Writes[TestEvent] = Writes[TestEvent] { event =>
+    Json.obj("name" -> event.name, "description" -> event.description,
+      "outcome" -> event.outcome, "error" -> event.error)
+  }
+  implicit val testEventFormat: Format[TestEvent] = Format[TestEvent](testEventReads, testEventWrites)
+
+  private val compilationFailureReads: Reads[CompilationFailure] = (
+    (__ \ 'project).read[ProjectReference] and
+      (__ \ 'position).read[xsbti.Position] and
+      (__ \ 'severity).read[xsbti.Severity] and
+      (__ \ 'message).read[String]
+  )(CompilationFailure.apply _)
+
+  private val compilationFailureWrites: Writes[CompilationFailure] = Writes[CompilationFailure] { event =>
+    Json.obj("project" -> event.project, "position" -> event.position,
+      "severity" -> event.severity, "message" -> event.message)
   }
 
-  implicit val compilationFailureFormat = new Format[CompilationFailure] {
-    override def writes(event: CompilationFailure): JsValue = {
-      Json.obj("project" -> event.project, "position" -> event.position,
-        "severity" -> event.severity, "message" -> event.message)
-    }
-
-    override def reads(v: JsValue): JsResult[CompilationFailure] = {
-      for {
-        project <- (v \ "project").validate[ProjectReference]
-        position <- (v \ "position").validate[xsbti.Position]
-        severity <- (v \ "severity").validate[xsbti.Severity]
-        message <- (v \ "message").validate[String]
-      } yield CompilationFailure(project = project, position = position, severity = severity, message = message)
-    }
-  }
+  implicit val compilationFailureFormat = Format[CompilationFailure](compilationFailureReads, compilationFailureWrites)
 }

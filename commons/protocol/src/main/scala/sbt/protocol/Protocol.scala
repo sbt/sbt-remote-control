@@ -262,15 +262,6 @@ sealed trait TestOutcome {
   }
 }
 
-object TestOutcome {
-  def apply(s: String): TestOutcome = s match {
-    case "passed" => TestPassed
-    case "failed" => TestFailed
-    case "error" => TestError
-    case "skipped" => TestSkipped
-  }
-}
-
 case object TestPassed extends TestOutcome {
   override def toString = "passed"
 }
