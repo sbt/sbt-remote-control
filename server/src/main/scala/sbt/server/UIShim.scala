@@ -51,19 +51,12 @@ object UIShims {
   private def uiServicesSettings(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] = Seq(
     UIKeys.interactionService in Global := {
       val state = sbt.Keys.state.value
-      // TODO this is here to make the integration tests pass
-      // even though it doesn't logically go in this task.
-      // This gets deleted once we merge another PR to drop the global
-      // serialization registry.
-      val formats = UIKeys.registeredFormats.value
-      formats foreach { x =>
-        DynamicSerialization.register(x.format)(x.manifest)
-      }
       new ServerInteractionService(ServerState.extract(state))
     },
     UIKeys.sendEventService in Global := {
       new ServerSendEventService(taskIdFinder, eventSink)
     })
+
   def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
     Seq(
       UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil) ++

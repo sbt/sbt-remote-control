@@ -56,9 +56,11 @@ trait SbtChannel extends Closeable {
    * The listener is guaranteed to get a ClosedEvent as the last message; if the channel is
    * already closed, it will be sent immediately (through the provided ExecutionContext).
    *
+   * The provided serializations are used to decode task results.
+   *
    * NOTE your ExecutionContext needs to keep messages in order or you will be sad!
    */
-  def claimMessages(listener: protocol.Envelope => Unit)(implicit ex: ExecutionContext): Subscription
+  def claimMessages(listener: protocol.Envelope => Unit, serializations: protocol.DynamicSerialization)(implicit ex: ExecutionContext): Subscription
 
   /**
    * Like claimMessages but can be called more than once and does not start the message stream. No messages will be sent

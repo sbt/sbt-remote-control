@@ -8,7 +8,7 @@ import sbt.protocol
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import play.api.libs.json.Json
+import play.api.libs.json._
 
 case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
@@ -28,6 +28,8 @@ class ProtocolTest {
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+
+    val serializations = protocol.DynamicSerialization.defaultSerializations
 
     val specifics = Seq(
       // Requests
@@ -58,14 +60,14 @@ class ProtocolTest {
       protocol.TaskFinished(50, 2, Some(scopedKey), true),
       protocol.BuildStructureChanged(buildStructure),
       protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES")),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI", serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42, serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L, serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true, serializations))),
       // TODO make Unit work ?
       // protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(()))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0, serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f, serializations))),
       protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None)),
@@ -83,7 +85,7 @@ class ProtocolTest {
 
     for (s <- specifics) {
       import protocol.WireProtocol.{ fromRaw, toRaw }
-      val roundtrippedOption = fromRaw(toRaw(s))
+      val roundtrippedOption = fromRaw(toRaw(s), protocol.DynamicSerialization.defaultSerializations)
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
@@ -106,7 +108,7 @@ class ProtocolTest {
 
   @Test
   def testDynamicSerialization(): Unit = {
-    val ds = protocol.DynamicSerialization
+    val ds = protocol.DynamicSerialization.defaultSerializations
     def roundtrip[T: Manifest](t: T): Unit = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
@@ -138,6 +140,8 @@ class ProtocolTest {
 
   @Test
   def testBuildValueSerialization(): Unit = {
+    val serializations = protocol.DynamicSerialization.defaultSerializations
+    implicit def format[T]: Format[protocol.BuildValue[T]] = protocol.BuildValue.format[T](serializations)
     def roundtripBuildValue[T: Manifest](buildValue: protocol.BuildValue[T]): Unit = {
       val json = Json.toJson(buildValue)
       //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
@@ -145,7 +149,7 @@ class ProtocolTest {
       assertEquals(buildValue, parsed)
     }
     def roundtrip[T: Manifest](t: T): Unit = {
-      roundtripBuildValue(protocol.BuildValue(t))
+      roundtripBuildValue(protocol.BuildValue(t, serializations))
     }
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))

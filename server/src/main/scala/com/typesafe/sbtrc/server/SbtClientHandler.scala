@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package server
 
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
+import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, DynamicSerialization, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Writes
 import sbt.server.ServerRequest
 import sbt.server.ExecutionId
@@ -27,6 +27,13 @@ class SbtClientHandler(
   // TODO - Configure this location.
   // TODO - Is this thread safe-ish?
   private val log = FileLogger(new java.io.File(s".sbtserver/connections/${configName}-${uuid}.log"))
+
+  // If plugins/tasks can ever *receive* custom build values in some kind of
+  // request-to-task or task-to-task event, we would probably want to store the JsValue
+  // in the value to deserialize here, and then in ServerEngine just before processing
+  // the message in question, grab our registered deserializers off of State and
+  // deserialize the embedded JsValue. But for now this never happens so we can just do this.
+  private val serializations = DynamicSerialization.defaultSerializations
 
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   def isAlive: Boolean = clientThread.isAlive && running.get
@@ -68,7 +75,7 @@ class SbtClientHandler(
     }
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
-      Envelope(ipc.receive()) match {
+      Envelope(ipc.receive(), serializations) match {
         case Envelope(serial, replyTo, msg: Request) =>
           log.log(s"Got request: $msg")
           reply(serial, sbt.protocol.ReceivedResponse())

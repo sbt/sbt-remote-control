@@ -71,23 +71,39 @@ private[protocol] object Classes {
 object BuildValue {
 
   // Here we need to reflectively look up the serialization of things...
-  def apply[T](o: T)(implicit mf: Manifest[T]): BuildValue[T] =
-    DynamicSerialization.lookup(mf) map { serializer =>
+  def apply[T](o: T, serializations: DynamicSerialization)(implicit mf: Manifest[T]): BuildValue[T] =
+    serializations.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
     } getOrElse UnserializedValue(o.toString, None)
 
-  private def deserialize(value: JsValue, mf: TypeInfo): Option[BuildValue[Any]] =
+  private def deserialize(value: JsValue, mf: TypeInfo, serializations: DynamicSerialization): Option[BuildValue[Any]] =
     for {
       realMf <- mf.toManifest()
-      serializer <- DynamicSerialization.lookup(realMf)
+      serializer <- serializations.lookup(realMf)
       realValue <- serializer.reads(value).asOpt
     } yield SerializableBuildValue[Any](realValue, serializer.asInstanceOf[Format[Any]], mf)
 
-  // Hacky object so we don't instantiate classes just to satisfy typer.
-  // We're safe at runtime given we ignore the type args after
-  // erasure....
-  private object MyRawFormat extends Format[BuildValue[Any]] {
-    def writes(t: BuildValue[Any]): JsValue =
+  private class BuildValueReads(val serializations: DynamicSerialization) extends Reads[BuildValue[Any]] {
+    def reads(map: JsValue): JsResult[BuildValue[Any]] = {
+      (map \ "stringValue").asOpt[String].flatMap { stringValue =>
+        // TODO - Check for additional deserializers...
+        val fullOpt: Option[BuildValue[Any]] =
+          for {
+            mf <- (map \ "manifest").asOpt[TypeInfo]
+            result <- deserialize((map \ "value"), mf, serializations)
+          } yield result
+        fullOpt orElse Some(UnserializedValue(stringValue.toString, Some(map \ "value")))
+      } match {
+        case Some(result) => JsSuccess(result.asInstanceOf[BuildValue[Any]])
+        case None => JsError("Could not resolve build value!")
+      }
+    }
+  }
+
+  // this one does NOT require a DynamicSerialization to be passed in
+  // so it's available statically
+  private object buildValueWrites extends Writes[BuildValue[Any]] {
+    override def writes(t: BuildValue[Any]): JsValue =
       t match {
         case UnserializedValue(string, _) =>
           JsObject(Seq("stringValue" -> JsString(string)))
@@ -97,23 +113,45 @@ object BuildValue {
             "manifest" -> Json.toJson(mf),
             "value" -> serializer.writes(value)))
       }
-    def reads(map: JsValue): JsResult[BuildValue[Any]] = {
-      (map \ "stringValue").asOpt[String].flatMap { stringValue =>
-        // TODO - Check for additional deserializers...
-        val fullOpt: Option[BuildValue[Any]] =
-          for {
-            mf <- (map \ "manifest").asOpt[TypeInfo]
-            result <- deserialize((map \ "value"), mf)
-          } yield result
-        fullOpt orElse Some(UnserializedValue(stringValue.toString, Some(map \ "value")))
-      } match {
-        case Some(result) => JsSuccess(result.asInstanceOf[BuildValue[Any]])
-        case None => JsError("Could not resolve build value!")
-      }
-    }
+  }
+
+  // Hacky object so we don't instantiate classes just to satisfy typer.
+  // We're safe at runtime given we ignore the type args after
+  // erasure....
+  private class BuildValueFormat(serializations: DynamicSerialization) extends Format[BuildValue[Any]] {
+    override def writes(t: BuildValue[Any]): JsValue =
+      buildValueWrites.writes(t)
+
+    val reader = new BuildValueReads(serializations)
+
+    override def reads(map: JsValue): JsResult[BuildValue[Any]] =
+      reader.reads(map)
+
     override def toString = "RawBuildValueFormat"
   }
-  implicit def MyFormat[T]: Format[BuildValue[T]] = MyRawFormat.asInstanceOf[Format[BuildValue[T]]]
+
+  // we usually use the same serializations for a bunch of values at once
+  // so just keep around this object
+  @volatile
+  private var oneItemCache: Option[BuildValueFormat] = None
+
+  private def getFormat(serializations: DynamicSerialization): BuildValueFormat = {
+    oneItemCache.filter(fmt => fmt.reader.serializations eq serializations).getOrElse {
+      val created = new BuildValueFormat(serializations)
+      // tasty side effects
+      oneItemCache = Some(created)
+      created
+    }
+  }
+
+  def format[T](serializations: DynamicSerialization): Format[BuildValue[T]] =
+    getFormat(serializations).asInstanceOf[Format[BuildValue[T]]]
+
+  def reads[T](serializations: DynamicSerialization): Reads[BuildValue[T]] =
+    getFormat(serializations).reader.asInstanceOf[Reads[BuildValue[T]]]
+
+  implicit def writes[T]: Writes[BuildValue[T]] =
+    buildValueWrites.asInstanceOf[Writes[BuildValue[T]]]
 
   // Default handlers....
 
@@ -137,9 +175,22 @@ case class TaskFailure[T](message: String) extends TaskResult[T] {
 }
 
 object TaskResult {
-  implicit def Format[T](implicit p: Format[BuildValue[T]]): Format[TaskResult[T]] =
-    new Format[TaskResult[T]] {
-      def writes(t: TaskResult[T]): JsValue =
+  implicit def reads[T](implicit p: Reads[BuildValue[T]]): Reads[TaskResult[T]] =
+    new Reads[TaskResult[T]] {
+      override def reads(m: JsValue): JsResult[TaskResult[T]] = {
+        (m \ "success") match {
+          case JsBoolean(true) =>
+            p.reads(m).map(TaskSuccess.apply)
+          case JsBoolean(false) =>
+            JsSuccess(TaskFailure((m \ "message").as[String]))
+          case _ =>
+            JsError("Unable to deserialize task result.")
+        }
+      }
+    }
+  implicit def writes[T](implicit p: Writes[BuildValue[T]]): Writes[TaskResult[T]] =
+    new Writes[TaskResult[T]] {
+      override def writes(t: TaskResult[T]): JsValue =
         t match {
           case TaskFailure(msg) => JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg)))
           case TaskSuccess(value) =>
@@ -150,16 +201,15 @@ object TaskResult {
             }
             base ++ valueJson
         }
-      def reads(m: JsValue): JsResult[TaskResult[T]] = {
-        (m \ "success") match {
-          case JsBoolean(true) =>
-            p.reads(m).map(TaskSuccess.apply)
-          case JsBoolean(false) =>
-            JsSuccess(TaskFailure((m \ "message").as[String]))
-          case _ =>
-            JsError("Unable to deserialize task result.")
-        }
-      }
+    }
+  implicit def format[T](implicit p: Format[BuildValue[T]]): Format[TaskResult[T]] =
+    new Format[TaskResult[T]] {
+      val reader = TaskResult.reads[T]
+      val writer = TaskResult.writes[T]
+      def writes(t: TaskResult[T]): JsValue =
+        writer.writes(t)
+      def reads(m: JsValue): JsResult[TaskResult[T]] =
+        reader.reads(m)
       override def toString = "TaskResultFormat(" + p + ")"
     }
 }
