@@ -239,8 +239,27 @@ case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey],
 
 ///// Events below here are intended to go inside a TaskEvent
 
+case class TestGroupStarted(name: String)
+object TestGroupStarted extends TaskEventUnapply[TestGroupStarted]
+case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
+object TestGroupFinished extends TaskEventUnapply[TestGroupFinished]
+
+sealed trait TestGroupResult {
+  final def success: Boolean = this == TestGroupPassed
+}
+case object TestGroupPassed extends TestGroupResult {
+  override def toString = "passed"
+}
+case object TestGroupFailed extends TestGroupResult {
+  override def toString = "failed"
+}
+case object TestGroupError extends TestGroupResult {
+  override def toString = "error"
+}
+
+
 /** A build test has done something useful and we're being notified of it. */
-case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String])
+case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
 
 object TestEvent extends TaskEventUnapply[TestEvent]
 
@@ -259,15 +278,6 @@ sealed trait TestOutcome {
       TestPassed
     else
       TestSkipped
-  }
-}
-
-object TestOutcome {
-  def apply(s: String): TestOutcome = s match {
-    case "passed" => TestPassed
-    case "failed" => TestFailed
-    case "error" => TestError
-    case "skipped" => TestSkipped
   }
 }
 
