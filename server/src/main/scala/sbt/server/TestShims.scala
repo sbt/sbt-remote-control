@@ -29,14 +29,11 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
 
   override def startGroup(name: String): Unit = {
     sendEventService.sendEvent(protocol.TestGroupStarted(name))
-    //throw new RuntimeException("foobar")
   }
 
   override def testEvent(event: TestEvent): Unit = {
     // event.result is just all the detail results folded,
     // we replicate that ourselves below
-    //throw new RuntimeException("foobar")
-
     for (detail <- event.detail) {
       val outcome = detail.status match {
         case TStatus.Success => protocol.TestPassed
