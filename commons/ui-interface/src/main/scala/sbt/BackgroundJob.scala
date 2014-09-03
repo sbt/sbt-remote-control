@@ -13,7 +13,7 @@ trait BackgroundJobHandle {
   // def tags: SomeType
 }
 
-trait BackgroundJobManager extends java.io.Closeable {
+trait BackgroundJobService extends java.io.Closeable {
 
   /**
    * Launch a background job which is a function that runs inside another thread;
@@ -30,4 +30,4 @@ trait BackgroundJobManager extends java.io.Closeable {
   def handleFormat: sbinary.Format[BackgroundJobHandle]
 }
 
-private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobManager
+private[sbt] abstract class AbstractBackgroundJobService extends BackgroundJobService

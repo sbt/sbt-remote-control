@@ -13,9 +13,9 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   override def requires = plugins.JvmPlugin
 
   override val globalSettings: Seq[Setting[_]] = Seq(
-    UIKeys.jobManager := { new CommandLineBackgroundJobManager() },
-    Keys.onUnload := { s => try Keys.onUnload.value(s) finally UIKeys.jobManager.value.close() },
-    UIKeys.jobList := { UIKeys.jobManager.value.list() },
+    UIKeys.jobService := { new CommandLineBackgroundJobService() },
+    Keys.onUnload := { s => try Keys.onUnload.value(s) finally UIKeys.jobService.value.close() },
+    UIKeys.jobList := { UIKeys.jobService.value.list() },
     UIKeys.jobStop <<= jobStopTask(),
     UIKeys.jobWaitFor <<= jobWaitForTask())
 
@@ -29,7 +29,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Defaults.loadForParser(discoveredMainClasses)((s, names) => Defaults.runMainParser(s, names getOrElse Nil))
       Def.inputTask {
         val (mainClass, args) = parser.parsed
-        UIKeys.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
+        UIKeys.jobService.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), args, logger))
         })
       }
@@ -43,7 +43,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Def.spaceDelimited()
       Def.inputTask {
         val mainClass = mainClassTask.value getOrElse error("No main class detected.")
-        UIKeys.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
+        UIKeys.jobService.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), parser.parsed, logger))
         })
       }
@@ -68,17 +68,17 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   private def loadForParserI[P, T](task: TaskKey[T], fmt: State => sbinary.Format[T])(init: Initialize[(State, Option[T]) => Parser[P]]): Initialize[State => Parser[P]] =
     (resolvedScoped, init)((ctx, f) => (s: State) => f(s, loadFromContext(task, ctx, s, fmt)))
 
-  private def foreachJobTask(f: (BackgroundJobManager, BackgroundJobHandle) => Unit): Initialize[InputTask[Unit]] = {
+  private def foreachJobTask(f: (BackgroundJobService, BackgroundJobHandle) => Unit): Initialize[InputTask[Unit]] = {
     import DefaultParsers._
     val formatGetter: State => sbinary.Format[Seq[BackgroundJobHandle]] = {
-      s: State => seqFormat(Project.extract(s).get(UIKeys.jobManager).handleFormat)
+      s: State => seqFormat(Project.extract(s).get(UIKeys.jobService).handleFormat)
     }
     val parser =
       loadForParser(UIKeys.jobList, formatGetter)((s, handles) => jobIdParser(s, handles getOrElse Nil))
     Def.inputTask {
       val handles = parser.parsed
       for (handle <- handles) {
-        f(UIKeys.jobManager.value, handle)
+        f(UIKeys.jobService.value, handle)
       }
     }
   }
@@ -219,7 +219,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
     }
   }
 
-  def run(manager: BaseBackgroundJobManager, spawningTask: ScopedKey[_])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
+  def run(manager: BaseBackgroundJobService, spawningTask: ScopedKey[_])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
     def start(logger: Logger, uiContext: SendEventService): BackgroundJob = {
       val runnable = new BackgroundRunnable(spawningTask.key.label, { () =>
         work(logger, uiContext)
@@ -239,7 +239,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
 }
 
 // Shared by command line and UI implementation
-private[sbt] abstract class BaseBackgroundJobManager extends AbstractBackgroundJobManager {
+private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJobService {
   private val nextId = new java.util.concurrent.atomic.AtomicLong(1)
   private val pool = new BackgroundThreadPool()
 
@@ -329,7 +329,7 @@ private[sbt] abstract class BaseBackgroundJobManager extends AbstractBackgroundJ
   private def withHandle(job: BackgroundJobHandle)(f: Handle => Unit): Unit = job match {
     case handle: Handle => f(handle)
     case dead: DeadHandle => () // nothing to stop or wait for
-    case other => sys.error(s"BackgroundJobHandle does not originate with the current BackgroundJobManager: $other")
+    case other => sys.error(s"BackgroundJobHandle does not originate with the current BackgroundJobService: $other")
   }
 
   override def stop(job: BackgroundJobHandle): Unit =
@@ -338,7 +338,7 @@ private[sbt] abstract class BaseBackgroundJobManager extends AbstractBackgroundJ
   override def waitFor(job: BackgroundJobHandle): Unit =
     withHandle(job)(_.job.awaitTermination())
 
-  override def toString(): String = s"BackgroundJobManager(jobs=${list().map(_.id).mkString})"
+  override def toString(): String = s"BackgroundJobService(jobs=${list().map(_.id).mkString})"
 
   override val handleFormat: sbinary.Format[BackgroundJobHandle] = {
     import sbinary.DefaultProtocol._
@@ -351,7 +351,7 @@ private[sbt] abstract class BaseBackgroundJobManager extends AbstractBackgroundJ
   }
 }
 
-private[sbt] class CommandLineBackgroundJobManager extends BaseBackgroundJobManager {
+private[sbt] class CommandLineBackgroundJobService extends BaseBackgroundJobService {
   override def makeContext(id: Long, spawningTask: ScopedKey[_]) = {
     // TODO this is no good; what we need to do is replicate how sbt
     // gets loggers from Streams, but without the thing where they

@@ -6,7 +6,7 @@ import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
 import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
-import sbt.BaseBackgroundJobManager
+import sbt.BaseBackgroundJobService
 
 private[server] class ServerInteractionService(state: ServerState) extends AbstractInteractionService {
 
@@ -55,8 +55,8 @@ private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSi
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
-private final class ServerBackgroundJobManager(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
-  extends BaseBackgroundJobManager {
+private final class ServerBackgroundJobService(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
+  extends BaseBackgroundJobService {
 
   protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
     val logger = new BackgroundJobEventLogger(id, logSink)
@@ -83,11 +83,11 @@ object UIShims {
       new TaskSendEventService(taskIdFinder, eventSink)
     })
 
-  private def jobManagerSetting(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
-    UIKeys.jobManager := { new ServerBackgroundJobManager(logSink, eventSink) }
+  private def jobServiceSetting(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
+    UIKeys.jobService := { new ServerBackgroundJobService(logSink, eventSink) }
 
   def makeShims(state: State, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
       UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
-      jobManagerSetting(logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
+      jobServiceSetting(logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

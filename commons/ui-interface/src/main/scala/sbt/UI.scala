@@ -39,7 +39,7 @@ object UIKeys {
   val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
 
   // this is a setting not a task because semantically it's required to always be the same one
-  val jobManager = settingKey[BackgroundJobManager]("Job manager used to run background jobs.")
+  val jobService = settingKey[BackgroundJobService]("Job manager used to run background jobs.")
   val jobList = taskKey[Seq[BackgroundJobHandle]]("List running background jobs.")
   val jobStop = inputKey[Unit]("Stop a background job by providing its ID.")
   val jobWaitFor = inputKey[Unit]("Wait for a background job to finish by providing its ID.")
