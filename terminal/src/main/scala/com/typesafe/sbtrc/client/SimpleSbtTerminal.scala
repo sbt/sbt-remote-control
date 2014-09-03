@@ -119,6 +119,9 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             reader.printLineAndRedrawPrompt(s"[warn] $msg")
           case LogMessage(LogMessage.ERROR, msg) =>
             reader.printLineAndRedrawPrompt(s"[error] $msg")
+          case LogMessage(_, _) => // debug or some weird unexpected string
+          case LogTrace(exceptionClassName, msg) =>
+            reader.printLineAndRedrawPrompt(s"[trace] $exceptionClassName: $msg")
           case LogStdOut(msg) =>
             reader.printLineAndRedrawPrompt(msg)
           case LogStdErr(msg) =>
