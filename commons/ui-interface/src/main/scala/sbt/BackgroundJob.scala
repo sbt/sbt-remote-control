@@ -60,7 +60,6 @@ object BackgroundJob {
   val jobManager = settingKey[BackgroundJobManager]("Job manager used to run background jobs.")
   val jobList = taskKey[Seq[BackgroundJobHandle]]("List running background jobs.")
   val jobStop = inputKey[Unit]("Stop a background job by providing its ID.")
-  val jobStopBySpawningTask = inputKey[Unit]("Stop all background jobs with the given spawning task.")
   val jobWaitFor = inputKey[Unit]("Wait for a background job to finish by providing its ID.")
   val backgroundRun = inputKey[BackgroundJobHandle]("Start an application's default main class as a background job")
   val backgroundRunMain = inputKey[BackgroundJobHandle]("Start a provided main class as a background job")
