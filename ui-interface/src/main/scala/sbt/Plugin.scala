@@ -14,15 +14,10 @@ object SbtUIPlugin extends AutoPlugin {
   override def trigger = AllRequirements
   override def requires = plugins.CorePlugin
 
-  // TODO why isn't this just globalSettings instead of putting everything in Global
   override val globalSettings: Seq[Setting[_]] = Seq(
     UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
     UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
-    UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
-    BackgroundJob.jobManager := { new CommandLineBackgroundJobManager() },
-    Keys.onUnload := { s => try Keys.onUnload.value(s) finally BackgroundJob.jobManager.value.close() },
-    BackgroundJob.jobList := { BackgroundJob.jobManager.value.list() })
-  // TODO implement jobStop and jobWaitFor (requires writing a job ID parser)
+    UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil)
 
   def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
     UIKeys.registeredFormats in Global += RegisteredFormat(format)(mf)

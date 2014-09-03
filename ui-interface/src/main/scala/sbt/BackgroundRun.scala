@@ -11,6 +11,12 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   override def trigger = AllRequirements
   override def requires = plugins.JvmPlugin
 
+  override val globalSettings: Seq[Setting[_]] = Seq(
+    BackgroundJob.jobManager := { new CommandLineBackgroundJobManager() },
+    Keys.onUnload := { s => try Keys.onUnload.value(s) finally BackgroundJob.jobManager.value.close() },
+    BackgroundJob.jobList := { BackgroundJob.jobManager.value.list() })
+  // TODO implement jobStop and jobWaitFor (requires writing a job ID parser)
+
   override val projectSettings = inConfig(Compile)(Seq(
     BackgroundJob.backgroundRunMain <<= backgroundRunMainTask(fullClasspath, runner in run),
     BackgroundJob.backgroundRun <<= backgroundRunTask(fullClasspath, mainClass in run, runner in run)))
