@@ -22,7 +22,7 @@ sealed trait SendEventService {
  *  on this interface should all be pure (conceptually this
  *  is immutable).
  */
-trait BackgroundJobHandle {
+sealed trait BackgroundJobHandle {
   def id: Long
   def humanReadableName: String
   def spawningTask: ScopedKey[_]
@@ -81,4 +81,5 @@ object UIKeys {
 }
 private[sbt] trait AbstractInteractionService extends InteractionService
 private[sbt] trait AbstractSendEventService extends SendEventService
-private[sbt] abstract class AbstractBackgroundJobService extends BackgroundJobService
+private[sbt] trait AbstractBackgroundJobService extends BackgroundJobService
+private[sbt] trait AbstractBackgroundJobHandle extends BackgroundJobHandle

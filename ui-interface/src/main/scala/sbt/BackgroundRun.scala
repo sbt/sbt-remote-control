@@ -262,13 +262,13 @@ private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJ
     jobs -= job
   }
 
-  private abstract trait AbstractHandle extends BackgroundJobHandle {
+  private abstract trait BaseHandle extends AbstractBackgroundJobHandle {
     override def toString = s"BackgroundJobHandle(${id},${humanReadableName},${Def.showFullKey(spawningTask)})"
   }
 
   private final class Handle(override val id: Long, override val spawningTask: ScopedKey[_],
     val logger: Logger with java.io.Closeable, val uiContext: SendEventService, val job: BackgroundJob)
-    extends AbstractHandle {
+    extends BaseHandle {
 
     def humanReadableName: String = job.humanReadableName
 
@@ -291,7 +291,7 @@ private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJ
 
   // we use this if we deserialize a handle for a job that no longer exists
   private final class DeadHandle(override val id: Long, override val humanReadableName: String)
-    extends AbstractHandle {
+    extends BaseHandle {
     override val spawningTask: ScopedKey[_] = Keys.streams // just a dummy value
   }
 
