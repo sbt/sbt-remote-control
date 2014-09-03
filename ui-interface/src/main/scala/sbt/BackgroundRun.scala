@@ -29,7 +29,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Defaults.loadForParser(discoveredMainClasses)((s, names) => Defaults.runMainParser(s, names getOrElse Nil))
       Def.inputTask {
         val (mainClass, args) = parser.parsed
-        BackgroundJob.jobManager.value.runInBackgroundThread(streams.value, { (logger, uiContext) =>
+        BackgroundJob.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), args, logger))
         })
       }
@@ -43,7 +43,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Def.spaceDelimited()
       Def.inputTask {
         val mainClass = mainClassTask.value getOrElse error("No main class detected.")
-        BackgroundJob.jobManager.value.runInBackgroundThread(streams.value, { (logger, uiContext) =>
+        BackgroundJob.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), parser.parsed, logger))
         })
       }

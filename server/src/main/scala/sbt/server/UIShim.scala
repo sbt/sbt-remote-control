@@ -58,7 +58,7 @@ private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSi
 private final class ServerBackgroundJobManager(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
   extends AbstractBackgroundJobManager {
 
-  protected override def makeContext(id: Long, streams: std.TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, SendEventService) = {
+  protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
     val logger = new BackgroundJobEventLogger(id, logSink)
     val eventService = new BackgroundJobSendEventService(id, eventSink)
     (logger, eventService)

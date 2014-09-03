@@ -46,7 +46,7 @@ private[sbt] object CommandLineUIServices extends AbstractInteractionService wit
 }
 
 private[sbt] class CommandLineBackgroundJobManager extends AbstractBackgroundJobManager {
-  override def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]) = {
+  override def makeContext(id: Long, spawningTask: ScopedKey[_]) = {
     // TODO this is no good; what we need to do is replicate how sbt
     // gets loggers from Streams, but without the thing where they
     // are all closed when the Streams is closed. So we need "detached"

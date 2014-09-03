@@ -44,7 +44,7 @@ trait BackgroundJobManager extends java.io.Closeable {
    *  then you should get an InterruptedException while blocking on the process, and
    *  then you could process.destroy() for example.
    */
-  def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => Unit): BackgroundJobHandle
+  def runInBackgroundThread(spawningTask: ScopedKey[_], start: (Logger, SendEventService) => Unit): BackgroundJobHandle
 
   def list(): Seq[BackgroundJobHandle]
   def stop(job: BackgroundJobHandle): Unit
@@ -180,12 +180,9 @@ private class BackgroundThreadPool extends java.io.Closeable {
     }
   }
 
-  def run(manager: AbstractBackgroundJobManager, streams: std.TaskStreams[ScopedKey[_]])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
-    // TODO this gets me "compile:backgroundRun::streams" but I really want "compile:backgroundRun" -
-    // not sure what the magic incantation is.
-    val taskName = streams.key.scope.task.toOption.map(_.label).getOrElse("<unknown task>")
+  def run(manager: AbstractBackgroundJobManager, spawningTask: ScopedKey[_])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
     def start(logger: Logger, uiContext: SendEventService): BackgroundJob = {
-      val runnable = new BackgroundRunnable(taskName, { () =>
+      val runnable = new BackgroundRunnable(spawningTask.key.label, { () =>
         work(logger, uiContext)
       })
 
@@ -194,7 +191,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
       runnable
     }
 
-    manager.runInBackground(streams, start)
+    manager.runInBackground(spawningTask, start)
   }
 
   override def close(): Unit = {
@@ -255,12 +252,12 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     override val spawningTask: ScopedKey[_] = Keys.streams // just a dummy value
   }
 
-  protected def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, SendEventService)
+  protected def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService)
 
-  def runInBackground(streams: TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => BackgroundJob): BackgroundJobHandle = {
+  def runInBackground(spawningTask: ScopedKey[_], start: (Logger, SendEventService) => BackgroundJob): BackgroundJobHandle = {
     val id = nextId.getAndIncrement()
-    val (logger, uiContext) = makeContext(id, streams)
-    val job = try new Handle(id, streams.key, logger, uiContext, start(logger, uiContext))
+    val (logger, uiContext) = makeContext(id, spawningTask)
+    val job = try new Handle(id, spawningTask, logger, uiContext, start(logger, uiContext))
     catch {
       case e: Throwable =>
         logger.close()
@@ -269,8 +266,8 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     job
   }
 
-  override def runInBackgroundThread(streams: std.TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
-    pool.run(this, streams)(start)
+  override def runInBackgroundThread(spawningTask: ScopedKey[_], start: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
+    pool.run(this, spawningTask)(start)
   }
 
   override def close(): Unit = {
