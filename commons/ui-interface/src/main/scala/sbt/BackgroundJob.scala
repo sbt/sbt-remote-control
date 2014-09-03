@@ -49,6 +49,10 @@ trait BackgroundJobManager extends java.io.Closeable {
   def list(): Seq[BackgroundJobHandle]
   def stop(job: BackgroundJobHandle): Unit
   def waitFor(job: BackgroundJobHandle): Unit
+
+  def handleFormat: sbinary.Format[BackgroundJobHandle]
+
+  // TODO drop these to keep interface pure
   final def stop(id: Long): Unit =
     list().find(_.id == id).foreach(stop(_))
   final def waitFor(id: Long): Unit =
@@ -245,6 +249,12 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     override final def hashCode(): Int = id.hashCode
   }
 
+  // we use this if we deserialize a handle for a job that no longer exists
+  private final class DeadHandle(override val id: Long, override val humanReadableName: String)
+    extends BackgroundJobHandle {
+    override val spawningTask: ScopedKey[_] = Keys.streams // just a dummy value
+  }
+
   protected def makeContext(id: Long, streams: TaskStreams[ScopedKey[_]]): (Logger with java.io.Closeable, SendEventService)
 
   def runInBackground(streams: TaskStreams[ScopedKey[_]], start: (Logger, SendEventService) => BackgroundJob): BackgroundJobHandle = {
@@ -276,8 +286,9 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
   override def list(): Seq[BackgroundJobHandle] =
     jobs.toList
 
-  private def withHandle[T](job: BackgroundJobHandle)(f: Handle => T): T = job match {
+  private def withHandle(job: BackgroundJobHandle)(f: Handle => Unit): Unit = job match {
     case handle: Handle => f(handle)
+    case dead: DeadHandle => () // nothing to stop or wait for
     case other => sys.error(s"BackgroundJobHandle does not originate with the current BackgroundJobManager: $other")
   }
 
@@ -288,4 +299,14 @@ private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobMa
     withHandle(job)(_.job.awaitTermination())
 
   override def toString(): String = s"BackgroundJobManager(jobs=${list().map(_.id).mkString})"
+
+  override val handleFormat: sbinary.Format[BackgroundJobHandle] = {
+    import sbinary.DefaultProtocol._
+    wrap[BackgroundJobHandle, (Long, String)](h => (h.id, h.humanReadableName),
+      {
+        case (id, humanReadableName) =>
+          // resurrect the actual handle, or use a dead placeholder
+          jobs.find(_.id == id).getOrElse(new DeadHandle(id, humanReadableName + " <job no longer exists>"))
+      })
+  }
 }
