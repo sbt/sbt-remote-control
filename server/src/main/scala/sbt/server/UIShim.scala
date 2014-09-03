@@ -6,7 +6,7 @@ import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
 import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
-import sbt.AbstractBackgroundJobManager
+import sbt.BaseBackgroundJobManager
 
 private[server] class ServerInteractionService(state: ServerState) extends AbstractInteractionService {
 
@@ -56,7 +56,7 @@ private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSi
 }
 
 private final class ServerBackgroundJobManager(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
-  extends AbstractBackgroundJobManager {
+  extends BaseBackgroundJobManager {
 
   protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
     val logger = new BackgroundJobEventLogger(id, logSink)
