@@ -2,6 +2,7 @@ package sbt
 package server
 
 import play.api.libs.json.Format
+import sbt.testing.{ SuiteSelector, TestWildcardSelector, TestSelector }
 
 object TestShims {
 
@@ -25,7 +26,10 @@ object TestShims {
 import testing.{ Logger => TLogger, Event => TEvent, Status => TStatus }
 
 class ServerTestListener(val sendEventService: SendEventService) extends TestReportListener {
-  override def startGroup(name: String): Unit = {}
+
+  override def startGroup(name: String): Unit = {
+    sendEventService.sendEvent(protocol.TestGroupStarted(name))
+  }
 
   override def testEvent(event: TestEvent): Unit = {
     // event.result is just all the detail results folded,
@@ -41,18 +45,32 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
         // TODO - Handle this correctly...
         case TStatus.Pending => protocol.TestSkipped
       }
+      val testName = detail.selector() match {
+        case s: TestSelector => s.testName()
+        case _ => detail.fullyQualifiedName()
+      }
       sendEventService.sendEvent(
         protocol.TestEvent(
-          detail.fullyQualifiedName,
-          None, // No descriptions in new interface?
+          testName,
+          None,
           outcome,
-          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage)))
+          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage), detail.duration()))
     }
   }
 
-  override def endGroup(name: String, t: Throwable): Unit = {}
+  override def endGroup(name: String, t: Throwable): Unit = {
+    //TODO: Should probably send some form of the stack trace here to be more useful to the user
+    sendEventService.sendEvent(protocol.TestGroupFinished(name, protocol.TestGroupError, Some(t.getMessage)))
+  }
 
-  override def endGroup(name: String, result: TestResult.Value): Unit = {}
+  override def endGroup(name: String, result: TestResult.Value): Unit = {
+    val res = result match {
+      case TestResult.Passed => protocol.TestGroupPassed
+      case TestResult.Failed => protocol.TestGroupFailed
+      case TestResult.Error => protocol.TestGroupError
+    }
+    sendEventService.sendEvent(protocol.TestGroupFinished(name, res, None))
+  }
 
   override def contentLogger(test: TestDefinition): Option[ContentLogger] = None
 }

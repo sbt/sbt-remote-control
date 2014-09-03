@@ -70,7 +70,7 @@ class ProtocolTest {
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f, serializations))),
       protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")),
-      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestOutcome("passed"), None)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0)),
       protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO")),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
@@ -92,7 +92,7 @@ class ProtocolTest {
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
-    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestOutcome("passed"), Some("bar"))) match {
+    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some("bar"), 0)) match {
       case protocol.TestEvent(taskId, test) =>
         assertEquals(4, taskId)
         assertEquals("name", test.name)
