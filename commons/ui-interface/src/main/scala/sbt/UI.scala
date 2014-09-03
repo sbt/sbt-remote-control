@@ -79,7 +79,7 @@ object UIKeys {
   val backgroundRun = inputKey[BackgroundJobHandle]("Start an application's default main class as a background job")
   val backgroundRunMain = inputKey[BackgroundJobHandle]("Start a provided main class as a background job")
 }
-private[sbt] trait AbstractInteractionService extends InteractionService
-private[sbt] trait AbstractSendEventService extends SendEventService
-private[sbt] trait AbstractBackgroundJobService extends BackgroundJobService
-private[sbt] trait AbstractBackgroundJobHandle extends BackgroundJobHandle
+private[sbt] trait SbtPrivateInteractionService extends InteractionService
+private[sbt] trait SbtPrivateSendEventService extends SendEventService
+private[sbt] trait SbtPrivateBackgroundJobService extends BackgroundJobService
+private[sbt] trait SbtPrivateBackgroundJobHandle extends BackgroundJobHandle

@@ -219,7 +219,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
     }
   }
 
-  def run(manager: BaseBackgroundJobService, spawningTask: ScopedKey[_])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
+  def run(manager: AbstractBackgroundJobService, spawningTask: ScopedKey[_])(work: (Logger, SendEventService) => Unit): BackgroundJobHandle = {
     def start(logger: Logger, uiContext: SendEventService): BackgroundJob = {
       val runnable = new BackgroundRunnable(spawningTask.key.label, { () =>
         work(logger, uiContext)
@@ -239,7 +239,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
 }
 
 // Shared by command line and UI implementation
-private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJobService {
+private[sbt] abstract class AbstractBackgroundJobService extends SbtPrivateBackgroundJobService {
   private val nextId = new java.util.concurrent.atomic.AtomicLong(1)
   private val pool = new BackgroundThreadPool()
 
@@ -262,13 +262,13 @@ private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJ
     jobs -= job
   }
 
-  private abstract trait BaseHandle extends AbstractBackgroundJobHandle {
+  private abstract trait AbstractHandle extends SbtPrivateBackgroundJobHandle {
     override def toString = s"BackgroundJobHandle(${id},${humanReadableName},${Def.showFullKey(spawningTask)})"
   }
 
   private final class Handle(override val id: Long, override val spawningTask: ScopedKey[_],
     val logger: Logger with java.io.Closeable, val uiContext: SendEventService, val job: BackgroundJob)
-    extends BaseHandle {
+    extends AbstractHandle {
 
     def humanReadableName: String = job.humanReadableName
 
@@ -291,7 +291,7 @@ private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJ
 
   // we use this if we deserialize a handle for a job that no longer exists
   private final class DeadHandle(override val id: Long, override val humanReadableName: String)
-    extends BaseHandle {
+    extends AbstractHandle {
     override val spawningTask: ScopedKey[_] = Keys.streams // just a dummy value
   }
 
@@ -351,7 +351,7 @@ private[sbt] abstract class BaseBackgroundJobService extends AbstractBackgroundJ
   }
 }
 
-private[sbt] class CommandLineBackgroundJobService extends BaseBackgroundJobService {
+private[sbt] class CommandLineBackgroundJobService extends AbstractBackgroundJobService {
   override def makeContext(id: Long, spawningTask: ScopedKey[_]) = {
     // TODO this is no good; what we need to do is replicate how sbt
     // gets loggers from Streams, but without the thing where they

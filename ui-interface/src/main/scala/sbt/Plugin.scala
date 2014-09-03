@@ -25,7 +25,7 @@ object SbtUIPlugin extends AutoPlugin {
     UIKeys.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
 }
 
-private[sbt] object CommandLineUIServices extends AbstractInteractionService with AbstractSendEventService {
+private[sbt] object CommandLineUIServices extends SbtPrivateInteractionService with SbtPrivateSendEventService {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)

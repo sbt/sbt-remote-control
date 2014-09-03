@@ -6,9 +6,9 @@ import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
 import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
-import sbt.BaseBackgroundJobService
+import sbt.AbstractBackgroundJobService
 
-private[server] class ServerInteractionService(state: ServerState) extends AbstractInteractionService {
+private[server] class ServerInteractionService(state: ServerState) extends SbtPrivateInteractionService {
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -35,7 +35,7 @@ private[server] class ServerInteractionService(state: ServerState) extends Abstr
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 }
 
-private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractSendEventService {
+private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends SbtPrivateSendEventService {
 
   private def taskId: Long = {
     // TODO currently this depends on thread locals; we need to
@@ -50,13 +50,13 @@ private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink
 }
 
 private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSink[BackgroundJobEvent])
-  extends AbstractSendEventService {
+  extends SbtPrivateSendEventService {
   override def sendEvent[T: Writes](event: T): Unit =
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
 private final class ServerBackgroundJobService(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
-  extends BaseBackgroundJobService {
+  extends AbstractBackgroundJobService {
 
   protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
     val logger = new BackgroundJobEventLogger(id, logSink)
