@@ -28,12 +28,6 @@ trait BackgroundJobManager extends java.io.Closeable {
   def waitFor(job: BackgroundJobHandle): Unit
 
   def handleFormat: sbinary.Format[BackgroundJobHandle]
-
-  // TODO drop these to keep interface pure
-  final def stop(id: Long): Unit =
-    list().find(_.id == id).foreach(stop(_))
-  final def waitFor(id: Long): Unit =
-    list().find(_.id == id).foreach(waitFor(_))
 }
 
 private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobManager
