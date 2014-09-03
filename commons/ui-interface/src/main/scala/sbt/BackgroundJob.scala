@@ -11,9 +11,6 @@ trait BackgroundJobHandle {
   def humanReadableName: String
   def spawningTask: ScopedKey[_]
   // def tags: SomeType
-
-  // TODO drop this to keep the interface pure
-  override def toString = s"BackgroundJobHandle(${id},${humanReadableName},${Def.showFullKey(spawningTask)})"
 }
 
 trait BackgroundJobManager extends java.io.Closeable {
