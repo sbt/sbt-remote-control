@@ -64,11 +64,14 @@ object RegisteredFormat {
     }
 }
 object UIKeys {
+  // TODO create a separate kind of key to lookup services separately from tasks
   val interactionService = taskKey[InteractionService]("Service used to ask for user input through the current user interface(s).")
+  // TODO create a separate kind of key to lookup services separately from tasks
   val sendEventService = taskKey[SendEventService]("Service used to send events to the current user interface(s).")
   val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
 
-  // this is a setting not a task because semantically it's required to always be the same one
+  // jobService is a setting not a task because semantically it's required to always be the same one
+  // TODO create a separate kind of key to lookup services separately from tasks
   val jobService = settingKey[BackgroundJobService]("Job manager used to run background jobs.")
   val jobList = taskKey[Seq[BackgroundJobHandle]]("List running background jobs.")
   val jobStop = inputKey[Unit]("Stop a background job by providing its ID.")
