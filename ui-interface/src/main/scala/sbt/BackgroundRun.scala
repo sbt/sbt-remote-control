@@ -89,3 +89,26 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   private def jobWaitForTask(): Initialize[InputTask[Unit]] =
     foreachJobTask { (manager, handle) => manager.waitFor(handle) }
 }
+
+private[sbt] class CommandLineBackgroundJobManager extends AbstractBackgroundJobManager {
+  override def makeContext(id: Long, spawningTask: ScopedKey[_]) = {
+    // TODO this is no good; what we need to do is replicate how sbt
+    // gets loggers from Streams, but without the thing where they
+    // are all closed when the Streams is closed. So we need "detached"
+    // loggers. Potentially on command line we also want to avoid
+    // showing the logs on the console as they arrive and only store
+    // them in the file for retrieval with "last" - except "last"
+    // takes a task name which we don't have.
+    val logger = new Logger with java.io.Closeable {
+      // TODO
+      override def close(): Unit = ()
+      // TODO
+      override def log(level: sbt.Level.Value, message: => String): Unit = System.err.println(s"background log: $level: $message")
+      // TODO
+      override def success(message: => String): Unit = System.out.println(s"bg job success: $message")
+      // TODO
+      override def trace(t: => Throwable): Unit = t.printStackTrace(System.err)
+    }
+    (logger, CommandLineUIServices)
+  }
+}
