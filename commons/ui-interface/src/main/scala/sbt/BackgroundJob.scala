@@ -1,26 +1,5 @@
 package sbt
 
-import scala.util.control.NonFatal
-import std.TaskStreams
-
-/**
- * Interface between sbt and a thing running in the background.
- */
-private[sbt] trait BackgroundJob {
-  def humanReadableName: String
-  // TODO return success/fail?
-  def awaitTermination(): Unit
-  def shutdown(): Unit
-  // this should be true on construction and stay true until
-  // the job is complete
-  def isRunning(): Boolean
-  // called after stop or on spontaneous exit, closing the result
-  // removes the listener
-  def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable
-  // do we need this or is the spawning task good enough?
-  // def tags: SomeType
-}
-
 /**
  * Interface between tasks and jobs; tasks aren't allowed
  *  to directly mess with the BackgroundJob above. Methods
@@ -58,16 +37,6 @@ trait BackgroundJobManager extends java.io.Closeable {
     list().find(_.id == id).foreach(stop(_))
   final def waitFor(id: Long): Unit =
     list().find(_.id == id).foreach(waitFor(_))
-}
-
-object BackgroundJob {
-  // this is a setting not a task because semantically it's required to always be the same one
-  val jobManager = settingKey[BackgroundJobManager]("Job manager used to run background jobs.")
-  val jobList = taskKey[Seq[BackgroundJobHandle]]("List running background jobs.")
-  val jobStop = inputKey[Unit]("Stop a background job by providing its ID.")
-  val jobWaitFor = inputKey[Unit]("Wait for a background job to finish by providing its ID.")
-  val backgroundRun = inputKey[BackgroundJobHandle]("Start an application's default main class as a background job")
-  val backgroundRunMain = inputKey[BackgroundJobHandle]("Start a provided main class as a background job")
 }
 
 private[sbt] abstract class AbstractBackgroundJobManager extends BackgroundJobManager

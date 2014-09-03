@@ -84,7 +84,7 @@ object UIShims {
     })
 
   private def jobManagerSetting(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
-    BackgroundJob.jobManager := { new ServerBackgroundJobManager(logSink, eventSink) }
+    UIKeys.jobManager := { new ServerBackgroundJobManager(logSink, eventSink) }
 
   def makeShims(state: State, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(

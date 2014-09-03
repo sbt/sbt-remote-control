@@ -37,6 +37,14 @@ object UIKeys {
   val interactionService = taskKey[InteractionService]("Service used to ask for user input through the current user interface(s).")
   val sendEventService = taskKey[SendEventService]("Service used to send events to the current user interface(s).")
   val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
+
+  // this is a setting not a task because semantically it's required to always be the same one
+  val jobManager = settingKey[BackgroundJobManager]("Job manager used to run background jobs.")
+  val jobList = taskKey[Seq[BackgroundJobHandle]]("List running background jobs.")
+  val jobStop = inputKey[Unit]("Stop a background job by providing its ID.")
+  val jobWaitFor = inputKey[Unit]("Wait for a background job to finish by providing its ID.")
+  val backgroundRun = inputKey[BackgroundJobHandle]("Start an application's default main class as a background job")
+  val backgroundRunMain = inputKey[BackgroundJobHandle]("Start a provided main class as a background job")
 }
 private[sbt] trait AbstractInteractionService extends InteractionService
 private[sbt] trait AbstractSendEventService extends SendEventService

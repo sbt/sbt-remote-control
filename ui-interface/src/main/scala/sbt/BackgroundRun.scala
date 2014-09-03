@@ -13,15 +13,15 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   override def requires = plugins.JvmPlugin
 
   override val globalSettings: Seq[Setting[_]] = Seq(
-    BackgroundJob.jobManager := { new CommandLineBackgroundJobManager() },
-    Keys.onUnload := { s => try Keys.onUnload.value(s) finally BackgroundJob.jobManager.value.close() },
-    BackgroundJob.jobList := { BackgroundJob.jobManager.value.list() },
-    BackgroundJob.jobStop <<= jobStopTask(),
-    BackgroundJob.jobWaitFor <<= jobWaitForTask())
+    UIKeys.jobManager := { new CommandLineBackgroundJobManager() },
+    Keys.onUnload := { s => try Keys.onUnload.value(s) finally UIKeys.jobManager.value.close() },
+    UIKeys.jobList := { UIKeys.jobManager.value.list() },
+    UIKeys.jobStop <<= jobStopTask(),
+    UIKeys.jobWaitFor <<= jobWaitForTask())
 
   override val projectSettings = inConfig(Compile)(Seq(
-    BackgroundJob.backgroundRunMain <<= backgroundRunMainTask(fullClasspath, runner in run),
-    BackgroundJob.backgroundRun <<= backgroundRunTask(fullClasspath, mainClass in run, runner in run)))
+    UIKeys.backgroundRunMain <<= backgroundRunMainTask(fullClasspath, runner in run),
+    UIKeys.backgroundRun <<= backgroundRunTask(fullClasspath, mainClass in run, runner in run)))
 
   private def backgroundRunMainTask(classpath: Initialize[Task[Classpath]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
     {
@@ -29,7 +29,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Defaults.loadForParser(discoveredMainClasses)((s, names) => Defaults.runMainParser(s, names getOrElse Nil))
       Def.inputTask {
         val (mainClass, args) = parser.parsed
-        BackgroundJob.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
+        UIKeys.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), args, logger))
         })
       }
@@ -43,7 +43,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       val parser = Def.spaceDelimited()
       Def.inputTask {
         val mainClass = mainClassTask.value getOrElse error("No main class detected.")
-        BackgroundJob.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
+        UIKeys.jobManager.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
           toError(scalaRun.value.run(mainClass, data(classpath.value), parser.parsed, logger))
         })
       }
@@ -71,14 +71,14 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   private def foreachJobTask(f: (BackgroundJobManager, BackgroundJobHandle) => Unit): Initialize[InputTask[Unit]] = {
     import DefaultParsers._
     val formatGetter: State => sbinary.Format[Seq[BackgroundJobHandle]] = {
-      s: State => seqFormat(Project.extract(s).get(BackgroundJob.jobManager).handleFormat)
+      s: State => seqFormat(Project.extract(s).get(UIKeys.jobManager).handleFormat)
     }
     val parser =
-      loadForParser(BackgroundJob.jobList, formatGetter)((s, handles) => jobIdParser(s, handles getOrElse Nil))
+      loadForParser(UIKeys.jobList, formatGetter)((s, handles) => jobIdParser(s, handles getOrElse Nil))
     Def.inputTask {
       val handles = parser.parsed
       for (handle <- handles) {
-        f(BackgroundJob.jobManager.value, handle)
+        f(UIKeys.jobManager.value, handle)
       }
     }
   }
@@ -88,6 +88,24 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
 
   private def jobWaitForTask(): Initialize[InputTask[Unit]] =
     foreachJobTask { (manager, handle) => manager.waitFor(handle) }
+}
+
+/**
+ * Interface between sbt and a thing running in the background.
+ */
+private[sbt] trait BackgroundJob {
+  def humanReadableName: String
+  // TODO return success/fail?
+  def awaitTermination(): Unit
+  def shutdown(): Unit
+  // this should be true on construction and stay true until
+  // the job is complete
+  def isRunning(): Boolean
+  // called after stop or on spontaneous exit, closing the result
+  // removes the listener
+  def onStop(listener: () => Unit)(implicit ex: concurrent.ExecutionContext): java.io.Closeable
+  // do we need this or is the spawning task good enough?
+  // def tags: SomeType
 }
 
 private class BackgroundThreadPool extends java.io.Closeable {
