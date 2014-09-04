@@ -95,7 +95,6 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
  */
 private[sbt] trait BackgroundJob {
   def humanReadableName: String
-  // TODO return success/fail?
   def awaitTermination(): Unit
   def shutdown(): Unit
   // this should be true on construction and stay true until

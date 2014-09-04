@@ -275,7 +275,6 @@ case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey],
 final case class BackgroundJobInfo(id: Long, humanReadableName: String, spawningTask: ScopedKey)
 
 final case class BackgroundJobStarted(executionId: Long, job: BackgroundJobInfo) extends ExecutionEngineEvent
-// TODO add success: Boolean ?
 final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends ExecutionEngineEvent
 
 ///// Events below here are intended to go inside a TaskEvent
@@ -297,7 +296,6 @@ case object TestGroupFailed extends TestGroupResult {
 case object TestGroupError extends TestGroupResult {
   override def toString = "error"
 }
-
 
 /** A build test has done something useful and we're being notified of it. */
 case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
