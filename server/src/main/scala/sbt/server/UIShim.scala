@@ -88,6 +88,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
   protected override def onRemoveJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
     synchronized { executionIds.get(job.id) } map { executionId =>
       sendEventService.sendEvent(BackgroundJobFinished(executionId = executionId, jobId = job.id))
+      synchronized { executionIds -= job.id }
     } getOrElse {
       logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
     }
