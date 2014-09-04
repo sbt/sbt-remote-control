@@ -29,6 +29,7 @@ object SbtRcBuild {
       // TODO - Move everything ot com.typesafe.sbt
       organization := "com.typesafe.sbtrc",
       version <<= version in ThisBuild,
+      isSnapshot := true,
       crossPaths := false,
       resolvers += "typesafe-mvn-releases" at "http://repo.typesafe.com/typesafe/releases/",
       resolvers += Resolver.url("typesafe-ivy-releases", new URL("http://repo.typesafe.com/typesafe/releases/"))(Resolver.ivyStylePatterns),

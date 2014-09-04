@@ -17,7 +17,7 @@ import sbt.StateOps
  *
  * For example:
  * - We do not want to hit System.in on load failure for confirmation of retry, but instead hit a client.
- * - We may want to "hook" the notion of `reload plugins`/`reload return` for special handling (not implemented).
+ * - We want to "hook" the notion of `reload plugins`/`reload return` for special handling.
  */
 object ServerBootCommand {
 
@@ -25,8 +25,20 @@ object ServerBootCommand {
   private def serverLoadFailed(eventSink: JsonSink[protocol.BuildFailedToLoad]) =
     Command(LoadFailed)(loadProjectParser)(doServerLoadFailed(eventSink, _, _))
 
+  private def projectReload(engine: ServerEngine) = {
+    Command(LoadProject)(_ => Project.loadActionParser) { (state, action) =>
+      action match {
+        case Project.LoadAction.Current =>
+          engine.installBuildHooks(BuiltinCommands.doLoadProject(state, action))
+        // TODO : Detect setting changes and fire an event
+        case _ =>
+          throw new IllegalArgumentException("'reload' command is not supported for plugins.")
+      }
+    }
+  }
+
   /** List of commands which override sbt's default commands. */
-  def commandOverrides(eventSink: JsonSink[protocol.BuildFailedToLoad]) = Seq(serverLoadFailed(eventSink))
+  def commandOverrides(engine: ServerEngine, eventSink: JsonSink[protocol.BuildFailedToLoad]) = Seq(serverLoadFailed(eventSink), projectReload(engine))
 
   def isOverriden(cmd: Command): Boolean =
     cmd == loadFailed
