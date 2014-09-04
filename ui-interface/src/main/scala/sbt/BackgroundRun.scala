@@ -20,8 +20,11 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
     UIKeys.jobWaitFor <<= jobWaitForTask())
 
   override val projectSettings = inConfig(Compile)(Seq(
+    // note that we use the same runner and mainClass as plain run
     UIKeys.backgroundRunMain <<= backgroundRunMainTask(fullClasspath, runner in run),
-    UIKeys.backgroundRun <<= backgroundRunTask(fullClasspath, mainClass in run, runner in run)))
+    UIKeys.backgroundRun <<= backgroundRunTask(fullClasspath, mainClass in run, runner in run),
+    Keys.runMain <<= runMainTask(),
+    Keys.run <<= runTask()))
 
   private def backgroundRunMainTask(classpath: Initialize[Task[Classpath]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
     {
@@ -47,6 +50,18 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
           toError(scalaRun.value.run(mainClass, data(classpath.value), parser.parsed, logger))
         })
       }
+    }
+
+  private def runMainTask(): Initialize[InputTask[Unit]] =
+    Def.inputTask {
+      val handle = UIKeys.backgroundRunMain.evaluated
+      UIKeys.jobWaitFor.toTask(handle.id.toString)
+    }
+
+  private def runTask(): Initialize[InputTask[Unit]] =
+    Def.inputTask {
+      val handle = UIKeys.backgroundRun.evaluated
+      UIKeys.jobWaitFor.toTask(handle.id.toString)
     }
 
   private def jobIdParser: (State, Seq[BackgroundJobHandle]) => Parser[Seq[BackgroundJobHandle]] = {
