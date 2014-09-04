@@ -36,6 +36,9 @@ sealed trait BackgroundJobService extends java.io.Closeable {
    *  killing the job will interrupt() the thread. If your thread blocks on a process,
    *  then you should get an InterruptedException while blocking on the process, and
    *  then you could process.destroy() for example.
+   *
+   *  TODO if we introduce a ServiceManager, we can pass that in to start instead of
+   *  two hardcoded services.
    */
   def runInBackgroundThread(spawningTask: ScopedKey[_], start: (Logger, SendEventService) => Unit): BackgroundJobHandle
 
