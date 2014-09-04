@@ -7,6 +7,11 @@ import sbt.protocol.TaskEvent
 import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
 import sbt.AbstractBackgroundJobService
+import sbt.protocol.BackgroundJobStarted
+import sbt.protocol.BackgroundJobFinished
+import sbt.protocol.CoreLogEvent
+import sbt.protocol.LogMessage
+import sbt.protocol.BackgroundJobInfo
 
 private[server] class ServerInteractionService(state: ServerState) extends SbtPrivateInteractionService {
 
@@ -55,8 +60,13 @@ private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSi
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
-private final class ServerBackgroundJobService(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
+private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
   extends AbstractBackgroundJobService {
+
+  // synchronized access; store the execution ID of each job ID.
+  // We don't want to use the executionIdFinder on job completion because
+  // the execution may already be over.
+  private var executionIds = Map.empty[Long, Long]
 
   protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
     val logger = new BackgroundJobEventLogger(id, logSink)
@@ -64,11 +74,23 @@ private final class ServerBackgroundJobService(logSink: JsonSink[protocol.LogEve
     (logger, eventService)
   }
 
-  protected override def onAddJob(uiContext: SendEventService, job: BackgroundJobHandle): Unit = {
-    // TODO to send the started event we need executionId to make it in here
+  protected override def onAddJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
+    executionIdFinder.currentExecutionId map { executionId =>
+      synchronized { executionIds += job.id -> executionId }
+      sendEventService.sendEvent(BackgroundJobStarted(executionId,
+        BackgroundJobInfo(id = job.id,
+          humanReadableName = job.humanReadableName,
+          spawningTask = SbtToProtocolUtils.scopedKeyToProtocol(job.spawningTask))))
+    } getOrElse {
+      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we launched a job without an executionId ${job}")))
+    }
   }
-  protected override def onRemoveJob(uiContext: SendEventService, job: BackgroundJobHandle): Unit = {
-    // TODO send the finished event
+  protected override def onRemoveJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
+    synchronized { executionIds.get(job.id) } map { executionId =>
+      sendEventService.sendEvent(BackgroundJobFinished(executionId = executionId, jobId = job.id))
+    } getOrElse {
+      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
+    }
   }
 }
 
@@ -83,11 +105,11 @@ object UIShims {
       new TaskSendEventService(taskIdFinder, eventSink)
     })
 
-  private def jobServiceSetting(logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
-    UIKeys.jobService := { new ServerBackgroundJobService(logSink, eventSink) }
+  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
+    UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink) }
 
-  def makeShims(state: State, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
+  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
       UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
-      jobServiceSetting(logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
+      jobServiceSetting(executionIdFinder, logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

@@ -16,6 +16,10 @@ import scala.annotation.tailrec
 import scala.concurrent.{ Future, Promise }
 import com.typesafe.sbtrc.server.FileLogger
 
+trait ExecutionIdFinder {
+  def currentExecutionId: Option[Long]
+}
+
 /**
  * An implementation of the sbt command server engine that can be used by clients.  This makes no
  *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
@@ -35,6 +39,16 @@ class ServerEngine(requestQueue: ServerEngineQueue,
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new TaskEventLogger(taskIdRecorder, logSink)
+  // TODO this hack can be repaired when we support the BackgroundJobService
+  // as a service instead of a setting
+  private final class ExecutionIdHolder extends ExecutionIdFinder {
+    @volatile
+    private var value: Option[Long] = None;
+    override def currentExecutionId = value
+    def set(executionId: Long): Unit = { value = Some(executionId) }
+    def clear(): Unit = { value = None }
+  }
+  private val executionIdFinder = new ExecutionIdHolder()
 
   // A command which runs after sbt has loaded and we're ready to handle requests.
   final val SendReadyForRequests = "server-send-ready-for-request"
@@ -77,6 +91,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       case Some(command) =>
         eventSink.send(ExecutionSuccess(command.command.id.id))
         command.command.cancelStatus.complete()
+        executionIdFinder.clear()
         BuildStructureCache.update(state)
       case None => state
     }
@@ -95,6 +110,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
         lastState.lastCommand match {
           case Some(LastCommand(command)) =>
             command.cancelStatus.complete()
+            executionIdFinder.clear()
             eventSink.send(ExecutionFailure(command.id.id))
           case None => ()
         }
@@ -112,6 +128,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     val serverState = ServerState.extract(state)
     work match {
       case work: CommandExecutionWork =>
+        executionIdFinder.set(work.id.id)
         work.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(work)))
       case EndOfWork =>
         state.exit(ok = true)
@@ -203,7 +220,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
-        UIShims.makeShims(state, taskIdRecorder, logSink, taskEventSink, jobEventSink) ++
+        UIShims.makeShims(state, executionIdFinder, taskIdRecorder, logSink, taskEventSink, jobEventSink) ++
         loggingShims(state) ++
         ServerTaskCancellation.getShims()
     // TODO - Override log manager for now, or figure out a better way.
