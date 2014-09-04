@@ -55,13 +55,19 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
   private def runMainTask(): Initialize[InputTask[Unit]] =
     Def.inputTask {
       val handle = UIKeys.backgroundRunMain.evaluated
-      UIKeys.jobWaitFor.toTask(handle.id.toString)
+      // TODO it would be better to use the jobWaitFor task in case someone
+      // customizes that task, but heck if I can figure out how to do it.
+      val service = UIKeys.jobService.value
+      service.waitFor(handle)
     }
 
   private def runTask(): Initialize[InputTask[Unit]] =
     Def.inputTask {
       val handle = UIKeys.backgroundRun.evaluated
-      UIKeys.jobWaitFor.toTask(handle.id.toString)
+      // TODO it would be better to use the jobWaitFor task in case someone
+      // customizes that task, but heck if I can figure out how to do it.
+      val service = UIKeys.jobService.value
+      service.waitFor(handle)
     }
 
   private def jobIdParser: (State, Seq[BackgroundJobHandle]) => Parser[Seq[BackgroundJobHandle]] = {
