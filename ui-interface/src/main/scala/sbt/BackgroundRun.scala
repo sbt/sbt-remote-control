@@ -74,22 +74,15 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
     }
   }
 
-  // these three are copy-pasted from Defaults.scala to change them from
-  // a static sbinary.Format to one generated from State
-  private def loadFromContext[T](task: TaskKey[T], context: ScopedKey[_], s: State, fmt: State => sbinary.Format[T]): Option[T] =
-    SessionVar.load(SessionVar.resolveContext(task.scopedKey, context.scope, s), s)(fmt(s))
-  private def loadForParser[P, T](task: TaskKey[T], fmt: State => sbinary.Format[T])(f: (State, Option[T]) => Parser[P]): Initialize[State => Parser[P]] =
-    loadForParserI(task, fmt)(Def value f)
-  private def loadForParserI[P, T](task: TaskKey[T], fmt: State => sbinary.Format[T])(init: Initialize[(State, Option[T]) => Parser[P]]): Initialize[State => Parser[P]] =
-    (resolvedScoped, init)((ctx, f) => (s: State) => f(s, loadFromContext(task, ctx, s, fmt)))
-
   private def foreachJobTask(f: (BackgroundJobService, BackgroundJobHandle) => Unit): Initialize[InputTask[Unit]] = {
     import DefaultParsers._
-    val formatGetter: State => sbinary.Format[Seq[BackgroundJobHandle]] = {
-      s: State => seqFormat(Project.extract(s).get(UIKeys.jobService).handleFormat)
+    val parser: State => Parser[Seq[BackgroundJobHandle]] = { state =>
+      val extracted = Project.extract(state)
+      val service = extracted.get(UIKeys.jobService)
+      // you might be tempted to use the jobList task here, but the problem
+      // is that its result gets cached during execution and therefore stale
+      jobIdParser(state, service.list())
     }
-    val parser =
-      loadForParser(UIKeys.jobList, formatGetter)((s, handles) => jobIdParser(s, handles getOrElse Nil))
     Def.inputTask {
       val handles = parser.parsed
       for (handle <- handles) {

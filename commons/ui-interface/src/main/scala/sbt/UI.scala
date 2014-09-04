@@ -46,6 +46,7 @@ sealed trait BackgroundJobService extends java.io.Closeable {
   def stop(job: BackgroundJobHandle): Unit
   def waitFor(job: BackgroundJobHandle): Unit
 
+  // TODO we aren't using this anymore; do we want it?
   def handleFormat: sbinary.Format[BackgroundJobHandle]
 }
 
