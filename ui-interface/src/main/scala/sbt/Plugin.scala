@@ -17,6 +17,7 @@ object SbtUIPlugin extends AutoPlugin {
   override val globalSettings: Seq[Setting[_]] = Seq(
     UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
     UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
+    UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
     UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil)
 
   def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =

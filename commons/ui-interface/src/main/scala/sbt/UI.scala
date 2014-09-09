@@ -67,11 +67,35 @@ object RegisteredFormat {
       override val manifest = mf
     }
 }
+/**
+ * Represents a dynamic type conversion to be applied
+ * prior to selecting a RegisteredFormat when sending over
+ * the wire protocol.
+ */
+sealed trait RegisteredProtocolConversion {
+  type From
+  type To
+  def fromManifest: Manifest[From]
+  def toManifest: Manifest[To]
+  def convert(from: From): To
+}
+object RegisteredProtocolConversion {
+  def apply[F, T](convert: F => T)(implicit fromMf: Manifest[F], toMf: Manifest[T]): RegisteredProtocolConversion =
+    new RegisteredProtocolConversion {
+      override type From = F
+      override type To = T
+      override def fromManifest = fromMf
+      override def toManifest = toMf
+      override def convert(from: F): T = convert(from)
+    }
+}
+
 object UIKeys {
   // TODO create a separate kind of key to lookup services separately from tasks
   val interactionService = taskKey[InteractionService]("Service used to ask for user input through the current user interface(s).")
   // TODO create a separate kind of key to lookup services separately from tasks
   val sendEventService = taskKey[SendEventService]("Service used to send events to the current user interface(s).")
+  val registeredProtocolConversions = settingKey[Seq[RegisteredProtocolConversion]]("Conversions to apply before serializing events/messages to the client.")
   val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
 
   // jobService is a setting not a task because semantically it's required to always be the same one

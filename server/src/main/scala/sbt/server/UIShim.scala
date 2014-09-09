@@ -112,5 +112,6 @@ object UIShims {
   def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
       UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
+      UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
       jobServiceSetting(executionIdFinder, logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }
