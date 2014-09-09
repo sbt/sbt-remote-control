@@ -49,7 +49,7 @@ object WorkCancellationStatus {
 // the original request anymore. We also combine requests into one of these
 // chunks of work, thus allRequesters not a single requester.
 /**
- * A case class representing a request for work to be performed.
+ * A final case class representing a request for work to be performed.
  *
  * @param id - The id given to this request for execution.
  * @param command - The sbt command that is requested to be run
@@ -57,7 +57,7 @@ object WorkCancellationStatus {
  * @param cancelRequest - A promise that will complete if cancel is requested.
  *                        If a cancel is never received, the future never completes.
  */
-case class CommandExecutionWork(
+final case class CommandExecutionWork(
   id: ExecutionId,
   command: String,
   allRequesters: Set[LiveClient],

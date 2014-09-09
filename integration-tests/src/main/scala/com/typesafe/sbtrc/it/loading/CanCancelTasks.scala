@@ -27,7 +27,7 @@ class CanCancelTasks extends SbtClientTest {
   withSbt(dummy) { client =>
     val executorService = Executors.newSingleThreadExecutor()
     implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
-    case class ExecutionRecord(loopCancelled: Boolean, compileCancelled: Boolean, events: Seq[Event])
+    final case class ExecutionRecord(loopCancelled: Boolean, compileCancelled: Boolean, events: Seq[Event])
 
     def recordExecution(): concurrent.Future[ExecutionRecord] = {
       val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_])]()
@@ -93,7 +93,7 @@ class CanCancelTasks extends SbtClientTest {
     }
     var loopId: Long = 0L
     var compileId: Long = 0L
-    case class NamedPf[T, U](name: String, pf: PartialFunction[T, U]) extends PartialFunction[T, U] {
+    final case class NamedPf[T, U](name: String, pf: PartialFunction[T, U]) extends PartialFunction[T, U] {
       def isDefinedAt(t: T): Boolean = pf.isDefinedAt(t)
       def apply(t: T): U = pf(t)
       override def toString = name

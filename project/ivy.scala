@@ -12,7 +12,7 @@ import java.io.BufferedWriter
 import org.apache.ivy.core.module.id.ModuleId
 import Project.Initialize
 
-case class LocalRepoReport(location: File, licenses: Seq[License], dependencyHash: String)
+final case class LocalRepoReport(location: File, licenses: Seq[License], dependencyHash: String)
 object LocalRepoReport {
   import sbinary._
   implicit object Myformat extends Format[LocalRepoReport] {
@@ -181,7 +181,7 @@ package sbt {
   }
 }
 
-case class License(name: String, url: String)(val deps: Seq[String]) {
+final case class License(name: String, url: String)(val deps: Seq[String]) {
   override def toString = name + " @ " + url
 }
 

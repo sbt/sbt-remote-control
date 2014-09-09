@@ -28,7 +28,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import sbt.SbtUIPlugin._
        |import sbt._
        | 
-       |case class SerializedThing(name: String, value: Int)
+       |final case class SerializedThing(name: String, value: Int)
        |object SerializedThing {
        |  implicit val format = Json.format[SerializedThing]
        |}

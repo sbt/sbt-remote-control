@@ -77,7 +77,7 @@ package object protocol {
   def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
     if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
 
-  private case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
+  private final case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
                                           ps: Option[String], sp: Option[String]) extends xsbti.Position {
     override def line = convert(l.map(Integer.valueOf))
     override def offset = convert(o.map(Integer.valueOf))

@@ -54,7 +54,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   // Implements a trampolining runnable that will read a line of input, pass that to the
   // sbt server and wait for it to complete (successfully or otherwise) before registering
   // itself to run again.
-  case class TakeNextCommand(client: SbtClient, reader: JLine) extends Runnable {
+  final case class TakeNextCommand(client: SbtClient, reader: JLine) extends Runnable {
     override final def run(): Unit = try {
       reader.readLine("> ", None) match {
         case Some("exit") => System.exit(0)
@@ -94,7 +94,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
 
   }
 
-  case class Exit(code: Int) extends xsbti.Exit
+  final case class Exit(code: Int) extends xsbti.Exit
   override def run(configuration: AppConfiguration): xsbti.Exit = {
     System.out.println("Connecting to sbt...")
     val connector = SbtConnector("terminal", "Command Line Terminal", configuration.baseDirectory)

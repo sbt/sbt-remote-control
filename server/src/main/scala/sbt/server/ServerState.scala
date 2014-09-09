@@ -1,7 +1,7 @@
 package sbt
 package server
 
-case class LastCommand(command: CommandExecutionWork)
+final case class LastCommand(command: CommandExecutionWork)
 
 /**
  * Represents the current state of ServerEngine, as passed between
