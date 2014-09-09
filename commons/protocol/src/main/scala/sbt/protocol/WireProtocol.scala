@@ -174,7 +174,7 @@ object WireProtocol {
 
 }
 
-case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
+final case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
 
 /**
  * This class is responsible for extracting from the wire protocol into

@@ -19,7 +19,7 @@ trait Envelope[T] {
   def content: T
 }
 
-case class WireEnvelope(length: Int, override val serial: Long, override val replyTo: Long, override val content: Array[Byte]) extends Envelope[Array[Byte]] {
+final case class WireEnvelope(length: Int, override val serial: Long, override val replyTo: Long, override val content: Array[Byte]) extends Envelope[Array[Byte]] {
   def asString: String = {
     new String(content, utf8)
   }

@@ -14,7 +14,7 @@ object SbtVersionUtil {
     finally reader.close()
     Option(props.getProperty("sbt.version"))
   }
-  
+
   object SbtVersionNeedsUpgraded {
     def unapply(x: String): Boolean = x match {
       case "0.12.0" => true
@@ -24,7 +24,7 @@ object SbtVersionUtil {
       case _ => false
     }
   }
-  
+
   def findSafeProjectSbtVersion(root: File): Option[String] = {
     findProjectSbtVersion(root) map {
       // Here we need to upgrade the sbt version to 0.12.4 for our hooks.
@@ -36,12 +36,11 @@ object SbtVersionUtil {
   def findProjectBinarySbtVersion(root: File): Option[String] =
     findProjectSbtVersion(root) map toBinaryVersion
 
-
   private val VersionExtractor = new scala.util.matching.Regex("""(\d+\.\d+).*""")
   def toBinaryVersion(version: String): String = {
     version match {
       case VersionExtractor(bv) => bv
-      case unknown => sys.error("Bad sbt version number: "+unknown+"!")
+      case unknown => sys.error("Bad sbt version number: " + unknown + "!")
     }
   }
 }

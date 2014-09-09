@@ -17,7 +17,7 @@ object FakeAppConfiguration {
   }
 }
 // TODO - make this less hacky
-case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = FakeAppConfiguration.defaultSbtVersion) extends AppConfiguration {
+final case class FakeAppConfiguration(original: AppConfiguration, sbtVersion: String = FakeAppConfiguration.defaultSbtVersion) extends AppConfiguration {
   final val arguments: Array[String] = Array.empty
   final def baseDirectory: File = original.baseDirectory
   private def origAp = original.provider

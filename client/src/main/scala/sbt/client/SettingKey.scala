@@ -4,7 +4,7 @@ package client
 import java.net.URI
 
 /** This is a wrapper around scoped keys which you can use to promote typesafe interfaces. */
-case class SettingKey[T](key: ScopedKey) {
+final case class SettingKey[T](key: ScopedKey) {
   // TODO - scope changing methods.
 
   def in(build: URI): SettingKey[T] = SettingKey[T](key.copy(scope = key.scope.copy(build = Some(build))))

@@ -10,7 +10,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import play.api.libs.json._
 
-case class PlayStartedEvent(port: Int)
+final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
   implicit val format = Json.format[PlayStartedEvent]
 }

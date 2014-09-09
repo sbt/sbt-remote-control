@@ -9,7 +9,7 @@ import play.api.libs.json._
  *  from sbt.  We try to preserve, as much as possible, the items inside
  *  a scala.reflect.Manfiest.
  */
-case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.empty) {
+final case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.empty) {
   override def toString = erasureClass + (
     if (typeArguments.isEmpty) ""
     else typeArguments.mkString("[", ",", "]"))
@@ -59,7 +59,7 @@ object TypeInfo {
  * This represents a "key" in sbt.
  *  Keys have names and "types" associated.
  */
-case class AttributeKey(name: String, manifest: TypeInfo) {
+final case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
@@ -70,7 +70,7 @@ object AttributeKey {
  * Represents a project in sbt.  All projects have an associated build
  * and a name.
  */
-case class ProjectReference(build: URI, name: String)
+final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
   implicit val format = Json.format[ProjectReference]
 }
@@ -82,7 +82,7 @@ object ProjectReference {
  * @param config - A key may be associated with a configuration axis.
  * @param task - A key may optionally be associated with a task axis
  */
-case class SbtScope(build: Option[URI] = None,
+final case class SbtScope(build: Option[URI] = None,
   project: Option[ProjectReference] = None,
   config: Option[String] = None,
   task: Option[AttributeKey] = None) {
@@ -99,7 +99,7 @@ object SbtScope {
 }
 
 /** Represents a key attached to some scope inside sbt. */
-case class ScopedKey(key: AttributeKey, scope: SbtScope) {
+final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
   override def toString =
     key + " in " + scope
 }
@@ -107,13 +107,13 @@ object ScopedKey {
   implicit val format: Format[ScopedKey] = Json.format[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
-case class KeyList(keys: Seq[ScopedKey])
+final case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
   implicit val format: Format[KeyList] = Json.format[KeyList]
 }
 
 /** Core information returned about projects for build clients. */
-case class MinimalProjectStructure(
+final case class MinimalProjectStructure(
   id: ProjectReference,
   // Class names of plugins used by this project.
   plugins: Seq[String])
@@ -121,7 +121,7 @@ object MinimalProjectStructure {
   implicit val format = Json.format[MinimalProjectStructure]
 }
 
-case class MinimalBuildStructure(
+final case class MinimalBuildStructure(
   builds: Seq[URI],
   projects: Seq[MinimalProjectStructure] // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
   // "unwind" on the client side into ScopedKeys.
@@ -131,7 +131,7 @@ object MinimalBuildStructure {
 }
 
 /** A filter for which keys to display. */
-case class KeyFilter(project: Option[String] = None,
+final case class KeyFilter(project: Option[String] = None,
   config: Option[String] = None,
   key: Option[String] = None) {
   def withProject(name: String) = copy(project = Some(name))

@@ -106,16 +106,16 @@ object TheBuild extends Build {
     settings(
        Keys.scalaVersion := scalaVersion,
        Keys.publishArtifact in (Test, Keys.packageBin) := true,
-       resourceGenerators in Compile <+= 
+       resourceGenerators in Compile <+=
          makeSbtLaunchProperties(
-          "sbt-server.properties", 
-          "com.typesafe.sbtrc.server.SbtServerMain", 
+          "sbt-server.properties",
+          "com.typesafe.sbtrc.server.SbtServerMain",
           Some(sbtServer13),
           Some("${user.dir}/project/.sbtserver")),
        resourceGenerators in Compile += Def.task {
          Seq(SbtSupport.sbtLaunchJar.value)
        }.taskValue,
-       Keys.libraryDependencies ++= 
+       Keys.libraryDependencies ++=
          Seq(
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
                playJson,
