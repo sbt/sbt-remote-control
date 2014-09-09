@@ -63,6 +63,7 @@ final case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
+  require(implicitly[Format[TypeInfo]] ne null)
   implicit val format = Json.format[AttributeKey]
 }
 
@@ -95,6 +96,9 @@ final case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
+  require(implicitly[Format[ProjectReference]] ne null)
+  require(implicitly[Format[URI]] ne null)
+  require(implicitly[Format[AttributeKey]] ne null)
   implicit val format: Format[SbtScope] = Json.format[SbtScope]
 }
 
@@ -104,6 +108,8 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
+  require(implicitly[Format[SbtScope]] ne null)
+  require(implicitly[Format[AttributeKey]] ne null)
   implicit val format: Format[ScopedKey] = Json.format[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
