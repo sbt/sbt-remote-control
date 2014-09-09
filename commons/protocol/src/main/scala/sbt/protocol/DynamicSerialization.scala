@@ -12,7 +12,7 @@ import play.api.libs.json.{ Format, Reads, Writes }
  *
  *  A DynamicSerialization is immutable.
  */
-trait DynamicSerialization {
+sealed trait DynamicSerialization {
   /** Look up a serialization using its type manifest */
   def lookup[T](implicit mf: Manifest[T]): Option[Format[T]]
   /** Add a serializer, returning the new modified DynamicSerialization. */
