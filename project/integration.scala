@@ -4,7 +4,7 @@ import SbtSupport.sbtLaunchJar
 import xsbt.api.Discovery
 import IvyRepositories.{localRepoCreated, makeLocalRepoSettings}
 
-case class IntegrationTestResult(name: String, passed: Boolean, log: File)
+final case class IntegrationTestResult(name: String, passed: Boolean, log: File)
 
 /** This helps set up tests which run inside the sbt launcher. */
 object integration {
@@ -76,7 +76,7 @@ object integration {
 
 // TODO - Time how long tests take.
 // TODO - Send all logs to file, and maybe just filter errors up?
-case class IntegrationContext(launchJar: File, 
+final case class IntegrationContext(launchJar: File, 
                                repository: File,
                                streams: TaskStreams,
                                version: String,

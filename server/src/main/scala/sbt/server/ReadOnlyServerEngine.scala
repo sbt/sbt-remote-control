@@ -14,7 +14,7 @@ import scala.util.control.NonFatal
 sealed trait SocketMessage
 
 // a little wrapper around protocol.request to keep the client/serial with it
-case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request) extends SocketMessage
+final case class ServerRequest(client: LiveClient, serial: Long, request: protocol.Request) extends SocketMessage
 
 case object SocketClosed extends SocketMessage
 

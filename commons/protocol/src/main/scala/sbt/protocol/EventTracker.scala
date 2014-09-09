@@ -10,7 +10,7 @@ import play.api.libs.json.Writes
  *  the events to "catch up" new clients to the current state.
  */
 
-case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
+final case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
 
 object EventWithWrites {
   def withWrites[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
@@ -23,11 +23,11 @@ object ImpliedState {
   private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
     EventWithWrites.withWrites(event)
 
-  case class Task(id: Long, key: Option[ScopedKey])
-  case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])
-  case class Job(info: BackgroundJobInfo, executionId: Long)
+  final case class Task(id: Long, key: Option[ScopedKey])
+  final case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])
+  final case class Job(info: BackgroundJobInfo, executionId: Long)
 
-  case class ExecutionEngine(waiting: immutable.Map[Long, Execution], started: immutable.Map[Long, Execution], jobs: immutable.Seq[Job])
+  final case class ExecutionEngine(waiting: immutable.Map[Long, Execution], started: immutable.Map[Long, Execution], jobs: immutable.Seq[Job])
 
   object ExecutionEngine {
     val empty = ExecutionEngine(Map.empty, Map.empty, Nil)
