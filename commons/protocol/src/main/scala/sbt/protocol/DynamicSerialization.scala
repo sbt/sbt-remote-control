@@ -20,7 +20,8 @@ trait DynamicSerialization {
 }
 
 object DynamicSerialization {
-  val defaultSerializations: DynamicSerialization = ConcreteDynamicSerialization(Map.empty)
+  val defaultSerializations: DynamicSerialization =
+    NonTrivialSerializers.registerSerializers(ConcreteDynamicSerialization(Map.empty))
 }
 
 private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Format[_]]) extends DynamicSerialization {
@@ -57,6 +58,7 @@ private object ConcreteDynamicSerialization {
       case Classes.LongClass => Some(implicitly[Format[Long]])
       case Classes.FloatClass => Some(implicitly[Format[Float]])
       case Classes.DoubleClass => Some(implicitly[Format[Double]])
+      case Classes.URIClass => Some(implicitly[Format[java.net.URI]])
       case Classes.OptionSubClass() =>
         for {
           child <- memoizedDefaultSerializer(mf.typeArguments(0))
@@ -82,5 +84,30 @@ private object ConcreteDynamicSerialization {
         System.err.println("DEBUGME - Error:  No way to serialize: " + mf)
         None
     }).asInstanceOf[Option[Format[T]]]
+  }
+}
+
+private object NonTrivialSerializers {
+  private sealed trait RegisteredFormat {
+    type T
+    def manifest: Manifest[T]
+    def format: Format[T]
+  }
+  private def toRegisteredFormat[U](implicit f: Format[U], mf: Manifest[U]): RegisteredFormat = new RegisteredFormat {
+    type T = U
+    override val format = f
+    override val manifest = mf
+  }
+  def registerSerializers(base: DynamicSerialization): DynamicSerialization = {
+    val formats = Seq(
+      toRegisteredFormat[ProjectReference],
+      toRegisteredFormat[AttributeKey],
+      toRegisteredFormat[SbtScope],
+      toRegisteredFormat[ScopedKey],
+      toRegisteredFormat[KeyFilter],
+      toRegisteredFormat[MinimalBuildStructure])
+    formats.foldLeft(base) { (sofar, next) =>
+      sofar.register(next.format)(next.manifest)
+    }
   }
 }

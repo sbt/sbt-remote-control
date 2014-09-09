@@ -151,13 +151,13 @@ class ProtocolTest {
     roundtrip(Seq("Bar", "Baz"))
     roundtrip(Seq(1, 2, 3))
     roundtrip(Seq(true, false, true, true, false))
-    //roundtrip(key)
-    //roundtrip(build)
-    //roundtrip(projectRef)
-    //roundtrip(scope)
-    //roundtrip(scopedKey)
-    //roundtrip(keyFilter)
-    //roundtrip(buildStructure)
+    roundtrip(key)
+    roundtrip(build)
+    roundtrip(projectRef)
+    roundtrip(scope)
+    roundtrip(scopedKey)
+    roundtrip(keyFilter)
+    roundtrip(buildStructure)
   }
 
   @Test
