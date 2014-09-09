@@ -57,7 +57,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     // we also update the serializations object which is stored on state; it only
     // depends on settings, not tasks, so we only need to update it on loading the
     // build.
-    val newState = Serializations.update(state.copy(onFailure = Some(PostCommandErrorHandler)))
+    val newState = Serializations.update(Conversions.update(state.copy(onFailure = Some(PostCommandErrorHandler))))
 
     // Notify that we have booted
     eventSink.send(BuildLoaded())
