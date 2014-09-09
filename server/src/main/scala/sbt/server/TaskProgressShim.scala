@@ -119,7 +119,8 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
           case None => v -> mf
         }
         TaskSuccess(BuildValue(destValue, serializations)(destManifest))
-      case Inc(err) => TaskFailure(err.getMessage)
+      case Inc(err) =>
+        TaskFailure(Option(err.getMessage).getOrElse(s"Task failed but the exception had no message: ${err.getClass.getName}"))
     }
   }
 
