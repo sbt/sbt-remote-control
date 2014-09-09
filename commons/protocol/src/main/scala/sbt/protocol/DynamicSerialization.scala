@@ -98,14 +98,53 @@ private object NonTrivialSerializers {
     override val format = f
     override val manifest = mf
   }
+  // this overload is used when we want to be able to lookup a subtype (since DynamicSerialization
+  // is only smart enough to handle exact types)
+  private def toRegisteredFormat[U, W >: U](implicit reads: Reads[U], writes: Writes[W], mf: Manifest[U]): RegisteredFormat = new RegisteredFormat {
+    type T = U
+    override val format = Format[U](reads, writes)
+    override val manifest = mf
+  }
   def registerSerializers(base: DynamicSerialization): DynamicSerialization = {
+    // TODO I think we only lookup by exact type, so registering an abstract type
+    // here such as Type or xsbti.Problem is not useful. I think.
+    // TODO we are registering some types here that aren't likely or conceivable
+    // task results; we only need to register types T that appear in taskKey[T].
+    // We don't have to register all the types of the fields in result types.
     val formats = Seq(
       toRegisteredFormat[ProjectReference],
       toRegisteredFormat[AttributeKey],
       toRegisteredFormat[SbtScope],
       toRegisteredFormat[ScopedKey],
       toRegisteredFormat[KeyFilter],
-      toRegisteredFormat[MinimalBuildStructure])
+      toRegisteredFormat[MinimalBuildStructure],
+      toRegisteredFormat[Analysis],
+      toRegisteredFormat[Stamps],
+      toRegisteredFormat[SourceInfo],
+      toRegisteredFormat[SourceInfos],
+      toRegisteredFormat[xsbti.Problem],
+      toRegisteredFormat[Problem, xsbti.Problem],
+      toRegisteredFormat[APIs],
+      toRegisteredFormat[Package],
+      toRegisteredFormat[TypeParameter],
+      toRegisteredFormat[Path],
+      toRegisteredFormat[Modifiers],
+      toRegisteredFormat[AnnotationArgument],
+      toRegisteredFormat[Annotation],
+      toRegisteredFormat[Definition],
+      toRegisteredFormat[SourceAPI],
+      toRegisteredFormat[Source],
+      toRegisteredFormat[RelationsSource],
+      toRegisteredFormat[Relations],
+      toRegisteredFormat[OutputSetting],
+      toRegisteredFormat[Compilation],
+      toRegisteredFormat[Compilations],
+      toRegisteredFormat[Stamp],
+      toRegisteredFormat[Qualifier],
+      toRegisteredFormat[Access],
+      toRegisteredFormat[PathComponent],
+      toRegisteredFormat[Type],
+      toRegisteredFormat[SimpleType, Type])
     formats.foldLeft(base) { (sofar, next) =>
       sofar.register(next.format)(next.manifest)
     }

@@ -158,6 +158,11 @@ class ProtocolTest {
     roundtrip(scopedKey)
     roundtrip(keyFilter)
     roundtrip(buildStructure)
+    roundtrip(protocol.Stamps.empty)
+    roundtrip(protocol.APIs.empty)
+    roundtrip(protocol.Relations.empty)
+    roundtrip(protocol.SourceInfos.empty)
+    roundtrip(protocol.Analysis.empty)
   }
 
   @Test
