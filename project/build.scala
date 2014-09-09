@@ -39,6 +39,7 @@ object TheBuild extends Build {
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/ui-interface")
+    dependsOnSource("ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )

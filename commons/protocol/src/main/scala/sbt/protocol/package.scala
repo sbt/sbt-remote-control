@@ -230,6 +230,7 @@ package object protocol {
 
   implicit val taskLogEventFormat = Json.format[TaskLogEvent]
   implicit val coreLogEventFormat = Json.format[CoreLogEvent]
+  implicit val backgroundJobLogEventFormat = Json.format[BackgroundJobLogEvent]
   implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
   implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
   implicit val clientInfoFormat = Json.format[ClientInfo]
@@ -263,6 +264,9 @@ package object protocol {
   implicit val analyzeExecutionResponseFormat = Json.format[AnalyzeExecutionResponse]
   implicit val buildLoadedFormat = emptyObjectFormat(BuildLoaded())
   implicit val buildFailedToLoadFormat = emptyObjectFormat(BuildFailedToLoad())
+  implicit val backgroundJobInfoFormat = Json.format[BackgroundJobInfo]
+  implicit val backgroundJobStartedFormat = Json.format[BackgroundJobStarted]
+  implicit val backgroundJobFinishedFormat = Json.format[BackgroundJobFinished]
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
@@ -291,6 +295,22 @@ package object protocol {
   )(unlift(ValueChanged.unapply[A]))
   
   implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = Format(valueChangedReads, valueChangedWrites)
+
+  // This needs a custom formatter because it has a custom apply/unapply
+  // which confuses the auto-formatter macro
+  implicit val backgroundJobEventFormat: Format[BackgroundJobEvent] = new Format[BackgroundJobEvent] {
+    override def writes(event: BackgroundJobEvent): JsValue = {
+      Json.obj("jobId" -> event.jobId, "name" -> event.name, "serialized" -> event.serialized)
+    }
+
+    override def reads(v: JsValue): JsResult[BackgroundJobEvent] = {
+      for {
+        jobId <- (v \ "jobId").validate[Long]
+        name <- (v \ "name").validate[String]
+        serialized = (v \ "serialized")
+      } yield BackgroundJobEvent(jobId = jobId, name = name, serialized = serialized)
+    }
+  }
 
   implicit val completionFormat = Json.format[Completion]
   implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]

@@ -2,15 +2,19 @@ package sbt
 
 import sbt.ScopeAxis.scopeAxisToScope
 import play.api.libs.json._
+import std.TaskStreams
 
 /**
  * This UI plugin provides the basic settings used by plugins that want to be able to communicate with a UI.
  *
  * Basically, we just stub out the setting you can use to look up the current UI context.
  */
-object SbtUIPlugin extends Plugin {
+object SbtUIPlugin extends AutoPlugin {
 
-  override val buildSettings: Seq[Setting[_]] = Seq(
+  override def trigger = AllRequirements
+  override def requires = plugins.CorePlugin
+
+  override val globalSettings: Seq[Setting[_]] = Seq(
     UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
     UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
     UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil)
@@ -19,10 +23,9 @@ object SbtUIPlugin extends Plugin {
     UIKeys.registeredFormats in Global += RegisteredFormat(format)(mf)
   def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
     UIKeys.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
-
 }
 
-private[sbt] object CommandLineUIServices extends AbstractInteractionService with AbstractSendEventService {
+private[sbt] object CommandLineUIServices extends SbtPrivateInteractionService with SbtPrivateSendEventService {
   override def readLine(prompt: String, mask: Boolean): Option[String] = {
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
@@ -41,4 +44,3 @@ private[sbt] object CommandLineUIServices extends AbstractInteractionService wit
   }
   override def sendEvent[T: Writes](event: T): Unit = ()
 }
-

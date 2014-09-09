@@ -81,7 +81,10 @@ class ProtocolTest {
       protocol.TaskLogEvent(5, protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST")),
       protocol.TaskLogEvent(6, protocol.LogStdErr("TEST")),
       protocol.TaskLogEvent(7, protocol.LogStdOut("TEST2")),
-      protocol.TaskEvent(8, PlayStartedEvent(port = 10)))
+      protocol.TaskEvent(8, PlayStartedEvent(port = 10)),
+      protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey)),
+      protocol.BackgroundJobFinished(9, 67),
+      protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)))
 
     for (s <- specifics) {
       import protocol.WireProtocol.{ fromRaw, toRaw }
