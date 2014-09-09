@@ -78,7 +78,7 @@ package object protocol {
     if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
 
   private final case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
-                                          ps: Option[String], sp: Option[String]) extends xsbti.Position {
+    ps: Option[String], sp: Option[String]) extends xsbti.Position {
     override def line = convert(l.map(Integer.valueOf))
     override def offset = convert(o.map(Integer.valueOf))
     override def pointer = convert(p.map(Integer.valueOf))
@@ -93,8 +93,7 @@ package object protocol {
     (__ \ "offset").readNullable[Int] and
     (__ \ "pointer").readNullable[Int] and
     (__ \ "pointerSpace").readNullable[String] and
-    (__ \ "sourcePath").readNullable[String]
-  )(PositionDeserialized.apply _)
+    (__ \ "sourcePath").readNullable[String])(PositionDeserialized.apply _)
 
   private val positionWrites: Writes[xsbti.Position] = Writes[xsbti.Position] { in =>
     val line = defineIf(in.line, "line")
@@ -163,13 +162,11 @@ package object protocol {
 
   private val logTraceReads = (
     (__ \ "class").read[String] and
-    (__ \ "message").read[String]
-  )(LogTrace.apply _)
+    (__ \ "message").read[String])(LogTrace.apply _)
 
   private val logTraceWrites = (
     (__ \ "class").write[String] and
-    (__ \ "message").write[String]
-  )(unlift(LogTrace.unapply))
+    (__ \ "message").write[String])(unlift(LogTrace.unapply))
 
   private implicit val logTraceFormat = Format(logTraceReads, logTraceWrites).withType("trace")
 
@@ -214,8 +211,7 @@ package object protocol {
         case other => JsError(s"Unknown test outcome - $other")
       }
     },
-    Writes[TestOutcome](outcome => JsString(outcome.toString))
-  )
+    Writes[TestOutcome](outcome => JsString(outcome.toString)))
   implicit val testGroupResultFormat: Format[TestGroupResult] = Format(
     Reads[TestGroupResult] { value =>
       value.validate[String].flatMap {
@@ -225,8 +221,7 @@ package object protocol {
         case other => JsError(s"Unknown test group result - $other")
       }
     },
-    Writes[TestGroupResult](result => JsString(result.toString))
-  )
+    Writes[TestGroupResult](result => JsString(result.toString)))
 
   implicit val taskLogEventFormat = Json.format[TaskLogEvent]
   implicit val coreLogEventFormat = Json.format[CoreLogEvent]
@@ -272,28 +267,24 @@ package object protocol {
   // which confuses the auto-formatter macro
   private val taskEventWrites: Writes[TaskEvent] = (
     (__ \ "taskId").write[Long] and
-      (__ \ "name").write[String] and
-      (__ \ "serialized").write[JsValue]
-  )(unlift(TaskEvent.unapply))
+    (__ \ "name").write[String] and
+    (__ \ "serialized").write[JsValue])(unlift(TaskEvent.unapply))
 
   private val taskEventReads: Reads[TaskEvent] = (
     (__ \ "taskId").read[Long] and
     (__ \ "name").read[String] and
-    (__ \ "serialized").read[JsValue]
-  )((id, name, serialized) => TaskEvent(id, name, serialized))
+    (__ \ "serialized").read[JsValue])((id, name, serialized) => TaskEvent(id, name, serialized))
 
   implicit val taskEventFormat: Format[TaskEvent] = Format[TaskEvent](taskEventReads, taskEventWrites)
 
   implicit def valueChangedReads[A](implicit result: Reads[TaskResult[A]]): Reads[ValueChanged[A]] = (
     (__ \ "key").read[ScopedKey] and
-	  (__ \ "value").read[TaskResult[A]]
-  )(ValueChanged.apply[A] _)
-  
+    (__ \ "value").read[TaskResult[A]])(ValueChanged.apply[A] _)
+
   implicit def valueChangedWrites[A](implicit result: Writes[TaskResult[A]]): Writes[ValueChanged[A]] = (
     (__ \ "key").write[ScopedKey] and
-	(__ \ "value").write[TaskResult[A]]
-  )(unlift(ValueChanged.unapply[A]))
-  
+    (__ \ "value").write[TaskResult[A]])(unlift(ValueChanged.unapply[A]))
+
   implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = Format(valueChangedReads, valueChangedWrites)
 
   // This needs a custom formatter because it has a custom apply/unapply
@@ -330,13 +321,11 @@ package object protocol {
   private val testGroupFinishedReads: Reads[TestGroupFinished] = (
     (__ \ "name").read[String] and
     (__ \ "result").read[TestGroupResult] and
-    (__ \ "error").readNullable[String]
-  )(TestGroupFinished.apply _)
+    (__ \ "error").readNullable[String])(TestGroupFinished.apply _)
   private val testGroupFinishedWrites: Writes[TestGroupFinished] = (
     (__ \ "name").write[String] and
-      (__ \ "result").write[TestGroupResult] and
-      (__ \ "error").writeNullable[String]
-  )(unlift(TestGroupFinished.unapply))
+    (__ \ "result").write[TestGroupResult] and
+    (__ \ "error").writeNullable[String])(unlift(TestGroupFinished.unapply))
   implicit val testGroupFinishedFormat: Format[TestGroupFinished] = Format(testGroupFinishedReads, testGroupFinishedWrites)
 
   private val testEventReads: Reads[TestEvent] = (
@@ -344,8 +333,7 @@ package object protocol {
     (__ \ "description").readNullable[String] and
     (__ \ "outcome").read[TestOutcome] and
     (__ \ "error").readNullable[String] and
-    (__ \ "duration").read[Long]
-  )(TestEvent.apply _)
+    (__ \ "duration").read[Long])(TestEvent.apply _)
 
   private val testEventWrites: Writes[TestEvent] = Writes[TestEvent] { event =>
     Json.obj("name" -> event.name, "description" -> event.description,
@@ -357,8 +345,7 @@ package object protocol {
     (__ \ "project").read[ProjectReference] and
     (__ \ "position").read[xsbti.Position] and
     (__ \ "severity").read[xsbti.Severity] and
-    (__ \ "message").read[String]
-  )(CompilationFailure.apply _)
+    (__ \ "message").read[String])(CompilationFailure.apply _)
 
   private val compilationFailureWrites: Writes[CompilationFailure] = Writes[CompilationFailure] { event =>
     Json.obj("project" -> event.project, "position" -> event.position,
