@@ -172,7 +172,6 @@ final class SimpleConnector(configName: String, humanReadableName: String, direc
   }
 
   override def open(onConnect: SbtClient => Unit, onError: (Boolean, String) => Unit)(implicit ex: ExecutionContext): Subscription = {
-    println("*** OPEN INITIALIZED: " + new java.util.Date())
     openChannel(channel => onConnect(SbtClient(channel)), onError)(ex)
   }
 
@@ -238,8 +237,6 @@ final class SimpleConnector(configName: String, humanReadableName: String, direc
           case Failure(error) =>
             reconnectOrCloseOnError(error.getMessage)
           case Success(channel) =>
-            println("*** CONNECTED: " + new java.util.Date())
-
             connectState = Open(channel)
             for (listener <- listeners)
               listener.emitConnected(channel)
