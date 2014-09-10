@@ -27,16 +27,20 @@ class EventTrackerTest {
       TaskStarted(1, 1, Some(scopedKey1)),
       TaskStarted(1, 2, Some(scopedKey2)),
       TaskFinished(1, 1, key = Some(scopedKey1), success = false),
+      BackgroundJobStarted(1, BackgroundJobInfo(id = 3, spawningTask = scopedKey2, humanReadableName = "Some job 1")),
+      BackgroundJobStarted(1, BackgroundJobInfo(id = 4, spawningTask = scopedKey2, humanReadableName = "Some job 2")),
       ExecutionWaiting(2, "foobar", clientInfo),
       ExecutionWaiting(3, "barfoo", clientInfo),
       ExecutionWaiting(4, "goesaway", clientInfo),
       ExecutionStarting(4),
-      ExecutionSuccess(4))
+      ExecutionSuccess(4),
+      BackgroundJobFinished(1, 4))
 
     val engine = ImpliedState.processEvents(ImpliedState.ExecutionEngine.empty, creationEvents)
     assertEquals(2, engine.waiting.size)
     assertEquals(1, engine.started.size)
     assertEquals(1, engine.started.values.head.tasks.size)
+    assertEquals(1, engine.jobs.size)
     assertEquals("frobulate", engine.started.values.head.command)
 
     val toReach = ImpliedState.eventsToReachEngineState(engine).map(_.event)
@@ -47,5 +51,6 @@ class EventTrackerTest {
     val emptied = ImpliedState.processEvents(engine, toEmpty)
     assertEquals(0, emptied.waiting.size)
     assertEquals(0, emptied.started.size)
+    assertEquals(0, emptied.jobs.size)
   }
 }

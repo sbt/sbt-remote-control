@@ -41,7 +41,7 @@ object NullSbtClient extends SbtClient {
   override final def send[T <: Message: Writes](msg: T): Unit = ()
   override def toString = "NullSbtClient"
 }
-case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
+final case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   // TODO - ignore individual failures?
   override final def send[T <: Message: Writes](msg: T): Unit =
     clients foreach (_ send msg)
@@ -64,7 +64,7 @@ abstract class LiveClient extends SbtClient {
   def reply[T <: Message: Writes](replyTo: Long, msg: T): Unit
 }
 
-case class KeyValueClientListener[T](
+final case class KeyValueClientListener[T](
   key: ScopedKey[T],
   client: SbtClient) {
   /** Disconnect a client from this listener. */

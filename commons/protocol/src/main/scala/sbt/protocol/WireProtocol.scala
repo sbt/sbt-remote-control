@@ -19,6 +19,7 @@ object WireProtocol {
   private val messages: Map[Class[_], (String, DynamicSerialization => Reads[_], Writes[_])] = Map(
     msg[TaskLogEvent],
     msg[CoreLogEvent],
+    msg[BackgroundJobLogEvent],
     msg[KillServerRequest],
     msg[CancelExecutionRequest],
     msg[CancelExecutionResponse],
@@ -63,7 +64,10 @@ object WireProtocol {
     msg[AnalyzeExecutionResponse],
     msg[TaskEvent],
     msg[BuildLoaded],
-    msg[BuildFailedToLoad])
+    msg[BuildFailedToLoad],
+    msg[BackgroundJobStarted],
+    msg[BackgroundJobFinished],
+    msg[BackgroundJobEvent])
   private val readsIndex: Map[String, DynamicSerialization => Reads[_]] =
     (for {
       (_, (name, readFactory, _)) <- messages
@@ -170,7 +174,7 @@ object WireProtocol {
 
 }
 
-case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
+final case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
 
 /**
  * This class is responsible for extracting from the wire protocol into

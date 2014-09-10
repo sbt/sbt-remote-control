@@ -10,26 +10,12 @@ import sbt.protocol.TaskLogEvent
 import play.api.libs.json.Writes
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
-private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent]) extends BasicLogger {
-  private val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
+private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val logSink: JsonSink[E]) extends BasicLogger {
+  protected val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
 
   def updatePeer(f: String => Unit): Unit = peer.lazySet(Some(f))
 
-  def send(entry: protocol.LogEntry): Unit = {
-    // TODO we want to get the taskIfKnown by creating a streamsManager which generates
-    // a custom stream for each task which records the task's key.
-    // That will eliminate the need for heuristic BS based on which thread we are in.
-    // But for now we don't have the taskIfKnown ever.
-    val taskIdOption = taskIdFinder.bestGuessTaskIdOption(taskIfKnown = None)
-    if (taskIdOption.isDefined)
-      taskIdOption.foreach(taskId => logSink.send(TaskLogEvent(taskId, entry)))
-    else
-      logSink.send(CoreLogEvent(entry))
-    peer.get match {
-      case Some(f) => f(entry.message)
-      case None => ()
-    }
-  }
+  def send(entry: protocol.LogEntry): Unit
 
   def trace(t: => Throwable): Unit = {
     send(protocol.LogTrace(t.getClass.getSimpleName, t.getMessage))
@@ -117,5 +103,36 @@ private[sbt] class EventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[pro
     override def close(): Unit = ()
     override def flush(): Unit = ()
   }))
+}
+
+private[sbt] class TaskEventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent])
+  extends EventLogger[protocol.LogEvent](logSink) {
+  override def send(entry: protocol.LogEntry): Unit = {
+    // TODO we want to get the taskIfKnown by creating a streamsManager which generates
+    // a custom stream for each task which records the task's key.
+    // That will eliminate the need for heuristic BS based on which thread we are in.
+    // But for now we don't have the taskIfKnown ever.
+    val taskIdOption = taskIdFinder.bestGuessTaskIdOption(taskIfKnown = None)
+    if (taskIdOption.isDefined)
+      taskIdOption.foreach(taskId => logSink.send(TaskLogEvent(taskId, entry)))
+    else
+      logSink.send(CoreLogEvent(entry))
+    peer.get match {
+      case Some(f) => f(entry.message)
+      case None => ()
+    }
+  }
+}
+
+private[sbt] class BackgroundJobEventLogger(jobId: Long, logSink: JsonSink[protocol.BackgroundJobLogEvent])
+  extends EventLogger[protocol.BackgroundJobLogEvent](logSink) with java.io.Closeable {
+  override def send(entry: protocol.LogEntry): Unit = {
+    logSink.send(protocol.BackgroundJobLogEvent(jobId, entry))
+    peer.get match {
+      case Some(f) => f(entry.message)
+      case None => ()
+    }
+  }
+  override def close(): Unit = {}
 }
 

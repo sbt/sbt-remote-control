@@ -47,7 +47,7 @@ class SimpleRollingFileLogger(
   private val processName =
     try java.lang.management.ManagementFactory.getRuntimeMXBean().getName()
     catch {
-      case _ => "(unknown)"
+      case _: Throwable => "(unknown)"
     }
 
   // Returns the next location to dump our current logs.

@@ -2,10 +2,18 @@ package sbt
 package server
 
 import play.api.libs.json.Writes
+import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
+import sbt.protocol.Event
 import sbt.protocol.DynamicSerialization
+import sbt.AbstractBackgroundJobService
+import sbt.protocol.BackgroundJobStarted
+import sbt.protocol.BackgroundJobFinished
+import sbt.protocol.CoreLogEvent
+import sbt.protocol.LogMessage
+import sbt.protocol.BackgroundJobInfo
 
-private[server] class ServerInteractionService(state: ServerState) extends AbstractInteractionService {
+private[server] class ServerInteractionService(state: ServerState) extends SbtPrivateInteractionService {
 
   private def withClient[A](state: ServerState)(f: (ExecutionId, LiveClient) => A): Option[A] = {
     state.lastCommand match {
@@ -32,17 +40,58 @@ private[server] class ServerInteractionService(state: ServerState) extends Abstr
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 }
 
-private[server] class ServerSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends AbstractSendEventService {
-
-  def sendEvent[T: Writes](event: T): Unit =
-    eventSink.send(TaskEvent(taskId, event))
+private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends SbtPrivateSendEventService {
 
   private def taskId: Long = {
     // TODO currently this depends on thread locals; we need to
     // set things up similar to how streams work now where we make
-    // a per-task UIContext which knows that task's ID. This may
+    // a per-task SendEventService which knows that task's ID. This may
     // involve changes to the sbt core.
     taskIdFinder.bestGuessTaskId(taskIfKnown = None)
+  }
+
+  override def sendEvent[T: Writes](event: T): Unit =
+    eventSink.send(TaskEvent(taskId, event))
+}
+
+private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSink[BackgroundJobEvent])
+  extends SbtPrivateSendEventService {
+  override def sendEvent[T: Writes](event: T): Unit =
+    eventSink.send(BackgroundJobEvent(jobId, event))
+}
+
+private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
+  extends AbstractBackgroundJobService {
+
+  // synchronized access; store the execution ID of each job ID.
+  // We don't want to use the executionIdFinder on job completion because
+  // the execution may already be over.
+  private var executionIds = Map.empty[Long, Long]
+
+  protected override def makeContext(id: Long, spawningTask: ScopedKey[_]): (Logger with java.io.Closeable, SendEventService) = {
+    val logger = new BackgroundJobEventLogger(id, logSink)
+    val eventService = new BackgroundJobSendEventService(id, eventSink)
+    (logger, eventService)
+  }
+
+  protected override def onAddJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
+    executionIdFinder.currentExecutionId map { executionId =>
+      synchronized { executionIds += job.id -> executionId }
+      sendEventService.sendEvent(BackgroundJobStarted(executionId,
+        BackgroundJobInfo(id = job.id,
+          humanReadableName = job.humanReadableName,
+          spawningTask = SbtToProtocolUtils.scopedKeyToProtocol(job.spawningTask))))
+    } getOrElse {
+      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we launched a job without an executionId ${job}")))
+    }
+  }
+  protected override def onRemoveJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
+    synchronized { executionIds.get(job.id) } map { executionId =>
+      sendEventService.sendEvent(BackgroundJobFinished(executionId = executionId, jobId = job.id))
+      synchronized { executionIds -= job.id }
+    } getOrElse {
+      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
+    }
   }
 }
 
@@ -54,11 +103,15 @@ object UIShims {
       new ServerInteractionService(ServerState.extract(state))
     },
     UIKeys.sendEventService in Global := {
-      new ServerSendEventService(taskIdFinder, eventSink)
+      new TaskSendEventService(taskIdFinder, eventSink)
     })
 
-  def makeShims(state: State, taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] =
+  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
+    UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink) }
+
+  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
-      UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil) ++
-      uiServicesSettings(taskIdFinder, eventSink)
+      UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
+      UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
+      jobServiceSetting(executionIdFinder, logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

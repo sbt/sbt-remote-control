@@ -18,7 +18,7 @@ class TestExecution extends SbtClientTest {
   implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
 
   try {
-    case class ExecutionRecord(results: Map[ScopedKey, sbt.client.TaskResult[_]], events: Seq[Event])
+    final case class ExecutionRecord(results: Map[ScopedKey, sbt.client.TaskResult[_]], events: Seq[Event])
 
     def recordExecutions(client: SbtClient, commands: Seq[String]): concurrent.Future[Map[String, ExecutionRecord]] = {
       val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_])]()

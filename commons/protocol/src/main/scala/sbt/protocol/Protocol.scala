@@ -48,32 +48,32 @@ sealed trait ExecutionEngineEvent extends Event
 //              Requests (Reactive API)
 // ------------------------------------------
 
-case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
+final case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
 
-case class RegisterClientRequest(info: ClientInfo) extends Request
+final case class RegisterClientRequest(info: ClientInfo) extends Request
 
-case class CancelExecutionRequest(id: Long) extends Request
-case class CancelExecutionResponse(attempted: Boolean) extends Response
+final case class CancelExecutionRequest(id: Long) extends Request
+final case class CancelExecutionResponse(attempted: Boolean) extends Response
 
-case class ExecutionRequest(command: String) extends Request
-case class KeyExecutionRequest(key: ScopedKey) extends Request
+final case class ExecutionRequest(command: String) extends Request
+final case class KeyExecutionRequest(key: ScopedKey) extends Request
 // if the request was combined with an identical pending one,
 // then the id will be the same for the combined requests.
-case class ExecutionRequestReceived(id: Long) extends Response
+final case class ExecutionRequestReceived(id: Long) extends Response
 // execution queued up
-case class ExecutionWaiting(id: Long, command: String, client: ClientInfo) extends Event
+final case class ExecutionWaiting(id: Long, command: String, client: ClientInfo) extends Event
 // about to execute this one (popped off the queue)
-case class ExecutionStarting(id: Long) extends ExecutionEngineEvent
+final case class ExecutionStarting(id: Long) extends ExecutionEngineEvent
 // finished executing successfully
-case class ExecutionSuccess(id: Long) extends ExecutionEngineEvent
+final case class ExecutionSuccess(id: Long) extends ExecutionEngineEvent
 // finished executing unsuccessfully
-case class ExecutionFailure(id: Long) extends ExecutionEngineEvent
+final case class ExecutionFailure(id: Long) extends ExecutionEngineEvent
 
 /**
  * Request for the server to completely shut down.  No response expected,
  * as this is equivalent to issuing a kill -9.
  */
-case class KillServerRequest() extends Request
+final case class KillServerRequest() extends Request
 
 /**
  * @param in The (partial) command we'd like possible completions for.
@@ -81,7 +81,7 @@ case class KillServerRequest() extends Request
  * with increasing positive numbers corresponding to increasing verbosity.  Typically no more than
  * a few levels are defined.
  */
-case class CommandCompletionsRequest(in: String, level: Int) extends Request
+final case class CommandCompletionsRequest(in: String, level: Int) extends Request
 /**
  * Represents a completion.
  * The abstract members `display` and `append` are best explained with an example.
@@ -97,47 +97,47 @@ case class CommandCompletionsRequest(in: String, level: Int) extends Request
  *  1) what needs to be appended to the current input if a completion is selected
  *  2) the full token being completed, which is useful for presenting a user with choices to select
  */
-case class Completion(append: String, display: String, isEmpty: Boolean)
-case class CommandCompletionsResponse(results: Set[Completion]) extends Response
+final case class Completion(append: String, display: String, isEmpty: Boolean)
+final case class CommandCompletionsResponse(results: Set[Completion]) extends Response
 
 // Request for the server to send us all events that happen on the sbt server.
-case class ListenToEvents() extends Request
-case class UnlistenToEvents() extends Request
+final case class ListenToEvents() extends Request
+final case class UnlistenToEvents() extends Request
 
-case class ListenToBuildChange() extends Request
-case class UnlistenToBuildChange() extends Request
+final case class ListenToBuildChange() extends Request
+final case class UnlistenToBuildChange() extends Request
 // send us a build changed event even if it didn't change
-case class SendSyntheticBuildChanged() extends Request
+final case class SendSyntheticBuildChanged() extends Request
 
-case class ListenToValue(key: ScopedKey) extends Request
-case class UnlistenToValue(key: ScopedKey) extends Request
+final case class ListenToValue(key: ScopedKey) extends Request
+final case class UnlistenToValue(key: ScopedKey) extends Request
 // send us a value changed event even if it didn't change
-case class SendSyntheticValueChanged(key: ScopedKey) extends Request
+final case class SendSyntheticValueChanged(key: ScopedKey) extends Request
 // This is issued if a request for a key value fails.
-case class KeyNotFound(key: ScopedKey) extends Response
+final case class KeyNotFound(key: ScopedKey) extends Response
 
 /**
  * This is fired as an implementation detail on server side when a client connection is detected
  * to be closed. TODO having this in public API is sort of terrible.
  */
-case class ClientClosedRequest() extends Request
+final case class ClientClosedRequest() extends Request
 
 /**
  * This is synthesized client-side when a client connection closes. It
  *  purposely has no Format since it doesn't go over the wire.
  */
-case class ClosedEvent() extends Event
+final case class ClosedEvent() extends Event
 
-case class KeyLookupRequest(name: String) extends Request
-case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
+final case class KeyLookupRequest(name: String) extends Request
+final case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
 
-case class AnalyzeExecutionRequest(command: String) extends Request
+final case class AnalyzeExecutionRequest(command: String) extends Request
 sealed trait ExecutionAnalysis
 // sbt will run ALL of these keys (aggregation)
-case class ExecutionAnalysisKey(keys: Seq[ScopedKey]) extends ExecutionAnalysis
-case class ExecutionAnalysisError(message: String) extends ExecutionAnalysis
-case class ExecutionAnalysisCommand(name: Option[String]) extends ExecutionAnalysis
-case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Response
+final case class ExecutionAnalysisKey(keys: Seq[ScopedKey]) extends ExecutionAnalysis
+final case class ExecutionAnalysisError(message: String) extends ExecutionAnalysis
+final case class ExecutionAnalysisCommand(name: Option[String]) extends ExecutionAnalysis
+final case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Response
 
 // -----------------------------------------
 //                  Events
@@ -151,11 +151,11 @@ case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Respons
 sealed trait LogEntry {
   def message: String
 }
-case class LogStdOut(message: String) extends LogEntry
-case class LogStdErr(message: String) extends LogEntry
-case class LogSuccess(message: String) extends LogEntry
-case class LogTrace(throwableClass: String, message: String) extends LogEntry
-case class LogMessage(level: String, message: String) extends LogEntry {
+final case class LogStdOut(message: String) extends LogEntry
+final case class LogStdErr(message: String) extends LogEntry
+final case class LogSuccess(message: String) extends LogEntry
+final case class LogTrace(throwableClass: String, message: String) extends LogEntry
+final case class LogMessage(level: String, message: String) extends LogEntry {
   if (!LogMessage.validLevels.contains(level))
     throw new RuntimeException("Not a valid log level: '" + level + "'")
 }
@@ -171,14 +171,19 @@ sealed trait LogEvent extends Event {
   def entry: LogEntry
 }
 /** A log event from a task (marked with task ID) */
-case class TaskLogEvent(taskId: Long, entry: LogEntry) extends LogEvent {
+final case class TaskLogEvent(taskId: Long, entry: LogEntry) extends LogEvent {
   require(taskId != 0L)
 }
 /** A log event from "sbt core" (i.e. not from a task, no task ID available) */
-case class CoreLogEvent(entry: LogEntry) extends LogEvent
+final case class CoreLogEvent(entry: LogEntry) extends LogEvent
+
+/** A log event from a background job */
+final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends LogEvent {
+  require(jobId != 0L)
+}
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
-case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
+final case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
 
 object TaskEvent {
   import play.api.libs.json.Writes
@@ -207,41 +212,76 @@ trait TaskEventUnapply[T] {
   }
 }
 
+/** A custom event from a task. "name" is conventionally the simplified class name. */
+final case class BackgroundJobEvent(jobId: Long, name: String, serialized: JsValue) extends Event
+
+object BackgroundJobEvent {
+  import play.api.libs.json.Writes
+
+  def apply[T: Writes](jobId: Long, event: T): BackgroundJobEvent = {
+    val json = implicitly[Writes[T]].writes(event)
+    BackgroundJobEvent(jobId, Message.makeSimpleName(event.getClass), json)
+  }
+}
+
+/** Companion objects of events which can go in a task event extend this */
+trait BackgroundJobEventUnapply[T] {
+  import play.api.libs.json.Reads
+  import scala.reflect.ClassTag
+  import play.api.libs.json.Json
+
+  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+    case jobEvent: BackgroundJobEvent =>
+      val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
+      if (name != jobEvent.name) {
+        None
+      } else {
+        Json.fromJson[T](jobEvent.serialized).asOpt map { result => jobEvent.jobId -> result }
+      }
+    case other => None
+  }
+}
+
 /** Build has been loaded or reloaded successfully. Typically followed by a BuildStructureChanged. */
-case class BuildLoaded() extends ExecutionEngineEvent
+final case class BuildLoaded() extends ExecutionEngineEvent
 /** Build has failed to load or reload. */
-case class BuildFailedToLoad() extends ExecutionEngineEvent
+final case class BuildFailedToLoad() extends ExecutionEngineEvent
 
 /** The build has been changed in some fashion. */
-case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
-case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event
+final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
+final case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event
 
 /** can be the response to anything. */
-case class ErrorResponse(error: String) extends Response
+final case class ErrorResponse(error: String) extends Response
 /** A notification that a given request has been received. */
-case class ReceivedResponse() extends Response
-case class RequestCompleted() extends Response
-case class RequestFailed() extends Response
+final case class ReceivedResponse() extends Response
+final case class RequestCompleted() extends Response
+final case class RequestFailed() extends Response
 
-case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) extends Request
-case class ReadLineResponse(line: Option[String]) extends Response
-case class ConfirmRequest(executionId: Long, message: String) extends Request
-case class ConfirmResponse(confirmed: Boolean) extends Response
+final case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) extends Request
+final case class ReadLineResponse(line: Option[String]) extends Response
+final case class ConfirmRequest(executionId: Long, message: String) extends Request
+final case class ConfirmResponse(confirmed: Boolean) extends Response
 
 // the taskId is provided here (tying it to an executionId and key),
 // and then in further events from the task we only provide taskId
 // since the executionId and key can be deduced from that.
-case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
+final case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
 // we really could provide taskId ONLY here, but we throw the executionId and key
 // in just for convenience so clients don't have to hash taskId if their
 // only interest is in the key and executionId
-case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+final case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+
+final case class BackgroundJobInfo(id: Long, humanReadableName: String, spawningTask: ScopedKey)
+
+final case class BackgroundJobStarted(executionId: Long, job: BackgroundJobInfo) extends ExecutionEngineEvent
+final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends ExecutionEngineEvent
 
 ///// Events below here are intended to go inside a TaskEvent
 
-case class TestGroupStarted(name: String)
+final case class TestGroupStarted(name: String)
 object TestGroupStarted extends TaskEventUnapply[TestGroupStarted]
-case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
+final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished]
 
 sealed trait TestGroupResult {
@@ -257,9 +297,8 @@ case object TestGroupError extends TestGroupResult {
   override def toString = "error"
 }
 
-
 /** A build test has done something useful and we're being notified of it. */
-case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
+final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
 
 object TestEvent extends TaskEventUnapply[TestEvent]
 
@@ -295,7 +334,7 @@ case object TestSkipped extends TestOutcome {
 }
 
 /** A compilation issue from the compiler. */
-case class CompilationFailure(
+final case class CompilationFailure(
   project: ProjectReference,
   position: xsbti.Position,
   severity: xsbti.Severity,

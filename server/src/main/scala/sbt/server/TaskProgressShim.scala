@@ -2,6 +2,7 @@ package sbt
 package server
 
 import protocol.{
+  DynamicConversion,
   DynamicSerialization,
   ExecutionEngineEvent,
   TaskStarted,
@@ -13,7 +14,7 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, conversions: DynamicConversion, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
@@ -110,7 +111,14 @@ private[server] class ServerExecuteProgress(state: ServerState, serializations: 
 
   private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T] = {
     result match {
-      case Value(v) => TaskSuccess(BuildValue(v, serializations)(mf))
+      case Value(v) =>
+        val (destValue, destManifest) = conversions.convert(v)(mf) match {
+          case Some(valueAndManifest) =>
+            // this cast lies to the compiler, but it deserves it.
+            valueAndManifest.asInstanceOf[(T, Manifest[T])]
+          case None => v -> mf
+        }
+        TaskSuccess(BuildValue(destValue, serializations)(destManifest))
       case Inc(err) => TaskFailure(err.getMessage)
     }
   }
@@ -127,7 +135,8 @@ object ServerExecuteProgress {
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)
         val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("in executeProgress, serializations hasn't been updated on state"))
-        new Keys.TaskProgress(new ServerExecuteProgress(sstate, serializations, taskIdRecorder, eventSink))
+        val conversions = Conversions.extractOpt(state).getOrElse(throw new RuntimeException("in executeProgress, conversions hasn't been updated on state"))
+        new Keys.TaskProgress(new ServerExecuteProgress(sstate, conversions, serializations, taskIdRecorder, eventSink))
       })
 
   }

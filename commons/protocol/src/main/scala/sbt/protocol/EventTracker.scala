@@ -10,7 +10,7 @@ import play.api.libs.json.Writes
  *  the events to "catch up" new clients to the current state.
  */
 
-case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
+final case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
 
 object EventWithWrites {
   def withWrites[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
@@ -23,13 +23,14 @@ object ImpliedState {
   private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
     EventWithWrites.withWrites(event)
 
-  case class Task(id: Long, key: Option[ScopedKey])
-  case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])
+  final case class Task(id: Long, key: Option[ScopedKey])
+  final case class Execution(id: Long, command: String, client: ClientInfo, tasks: immutable.Map[Long, Task])
+  final case class Job(info: BackgroundJobInfo, executionId: Long)
 
-  case class ExecutionEngine(waiting: immutable.Map[Long, Execution], started: immutable.Map[Long, Execution])
+  final case class ExecutionEngine(waiting: immutable.Map[Long, Execution], started: immutable.Map[Long, Execution], jobs: immutable.Seq[Job])
 
   object ExecutionEngine {
-    val empty = ExecutionEngine(Map.empty, Map.empty)
+    val empty = ExecutionEngine(Map.empty, Map.empty, Nil)
   }
 
   private def endExecution(engine: ExecutionEngine, id: Long): ExecutionEngine = {
@@ -82,7 +83,13 @@ object ImpliedState {
         case None =>
           throw new RuntimeException(s"Received TaskFinished for an execution we don't know about")
       }
-    case _ =>
+    case BackgroundJobStarted(executionId, info) =>
+      engine.copy(jobs = Job(info, executionId) +: engine.jobs)
+    case BackgroundJobFinished(executionId, jobId) =>
+      engine.copy(jobs = engine.jobs.filter(_.info.id != jobId))
+    case BuildFailedToLoad() =>
+      engine
+    case BuildLoaded() =>
       engine
   }
 
@@ -94,6 +101,12 @@ object ImpliedState {
         case other => sofar
       }
     }
+
+  private def eventToStartJob(job: Job): EventWithWrites[BackgroundJobStarted] =
+    BackgroundJobStarted(executionId = job.executionId, job = job.info)
+
+  private def eventToFinishJob(job: Job): EventWithWrites[BackgroundJobFinished] =
+    BackgroundJobFinished(executionId = job.executionId, jobId = job.info.id)
 
   private def eventToStartTask(executionId: Long, task: Task): EventWithWrites[TaskStarted] =
     TaskStarted(executionId = executionId, taskId = task.id, key = task.key)
@@ -134,7 +147,13 @@ object ImpliedState {
     val starting = engine.started.values.flatMap { execution => eventsToCreateAndStartExecution(execution) }
     val waiting = for (execution <- engine.waiting.values)
       yield writes(ExecutionWaiting(execution.id, execution.command, execution.client))
-    (starting ++ waiting).toList
+    // it is a slight violation of ideal semantics to start a job outside of the execution
+    // the job was started by, but for no-longer-running executions there isn't a lot we can do.
+    // Possibly we should fake-start-and-stop the execution around this, but that could cause trouble too.
+    // So I think we just need to relax the semantics: job events are not guaranteed to be inside
+    // the job-creating execution.
+    val jobs = engine.jobs.map { job => eventToStartJob(job) }
+    (starting ++ waiting ++ jobs).toList
   }
 
   /**
@@ -148,6 +167,9 @@ object ImpliedState {
         // we have no way to cancel an execution without starting it
         eventsToStartExecution(execution) ++ eventsToFinishExecution(execution, success)
       }
-    (starting ++ waiting).toList
+    val finishJobs = engine.jobs.map { job =>
+      eventToFinishJob(job)
+    }
+    (starting ++ waiting ++ finishJobs).toList
   }
 }

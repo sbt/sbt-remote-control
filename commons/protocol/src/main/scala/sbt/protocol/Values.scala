@@ -14,7 +14,7 @@ sealed trait BuildValue[T] {
   def stringValue: String
 }
 /** Represents a value we can send over the wire, both serializing + deserializing. */
-case class SerializableBuildValue[T](
+final case class SerializableBuildValue[T](
   rawValue: T,
   serializer: Format[T],
   manifest: TypeInfo) extends BuildValue[T] {
@@ -36,7 +36,7 @@ case class SerializableBuildValue[T](
  *  @param rawJson  If not None, this means the server knew how to serialize the value but we were
  *                  unable to decode it.   This JSON could still be used to introspect the data.
  */
-case class UnserializedValue[T](stringValue: String, rawJson: Option[JsValue]) extends BuildValue[T] {
+final case class UnserializedValue[T](stringValue: String, rawJson: Option[JsValue]) extends BuildValue[T] {
   def value = None
 }
 
@@ -166,11 +166,11 @@ sealed trait TaskResult[T] {
   def isSuccess: Boolean
 }
 /** This represents that the task was run successfully. */
-case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
+final case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
   override def isSuccess = true
 }
 /** This represents that there was an error running a task, and returns the error message. */
-case class TaskFailure[T](message: String) extends TaskResult[T] {
+final case class TaskFailure[T](message: String) extends TaskResult[T] {
   override def isSuccess = false
 }
 
