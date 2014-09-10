@@ -54,6 +54,7 @@ private[protocol] object Classes {
   val SeqClass = classOf[Seq[_]]
   val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
+  val ThrowableClass = classOf[Throwable]
 
   // TODO - Figure out how to handle attributed, and
   // other sbt special classes....
@@ -66,6 +67,7 @@ private[protocol] object Classes {
   object OptionSubClass extends SubClass(OptionClass)
   object SeqSubClass extends SubClass(SeqClass)
   object AttributedSubClass extends SubClass(AttributedClass)
+  object ThrowableSubClass extends SubClass(ThrowableClass)
 }
 
 // TODO - Clean up our serialziation of arbitrary values into RawStrcuture.... 
@@ -76,6 +78,12 @@ object BuildValue {
     serializations.lookup(mf) map { serializer =>
       SerializableBuildValue(o, serializer, TypeInfo.fromManifest(mf))
     } getOrElse UnserializedValue(o.toString, None)
+
+  def usingRuntimeClass[T](o: T, serializations: DynamicSerialization): BuildValue[T] = {
+    serializations.lookup(o.getClass) map { serializer =>
+      SerializableBuildValue(o, serializer.asInstanceOf[Writes[T]], TypeInfo.fromClass(o.getClass))
+    } getOrElse (UnserializedValue(o.toString, None))
+  }
 
   private def deserialize(value: JsValue, mf: TypeInfo, serializations: DynamicSerialization): Option[BuildValue[Any]] =
     for {
@@ -153,47 +161,47 @@ object BuildValue {
 
   implicit def writes[T]: Writes[BuildValue[T]] =
     buildValueWrites.asInstanceOf[Writes[BuildValue[T]]]
-
-  // Default handlers....
-
 }
 
 /**
- * represents potential results coming back from an sbt SettingValueRequest, TaskValueRequest or
- *  InputTaskValueRequest.
+ * Represents the outcome of a task. The outcome can be a type T or an exception with type E.
  */
-sealed trait TaskResult[T] {
+sealed trait TaskResult[+T, +E <: Throwable] {
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
 }
 /** This represents that the task was run successfully. */
-final case class TaskSuccess[T](value: BuildValue[T]) extends TaskResult[T] {
+final case class TaskSuccess[+T, +E <: Throwable](value: BuildValue[T]) extends TaskResult[T, E] {
   override def isSuccess = true
 }
 /** This represents that there was an error running a task, and returns the error message. */
-final case class TaskFailure[T](message: String) extends TaskResult[T] {
+final case class TaskFailure[+T, +E <: Throwable](message: String, cause: BuildValue[E]) extends TaskResult[T, E] {
   override def isSuccess = false
 }
 
 object TaskResult {
-  implicit def reads[T](implicit p: Reads[BuildValue[T]]): Reads[TaskResult[T]] =
-    new Reads[TaskResult[T]] {
-      override def reads(m: JsValue): JsResult[TaskResult[T]] = {
+  implicit def reads[T, E <: Throwable](implicit readSuccess: Reads[BuildValue[T]], readFailure: Reads[BuildValue[E]]): Reads[TaskResult[T, E]] =
+    new Reads[TaskResult[T, E]] {
+      override def reads(m: JsValue): JsResult[TaskResult[T, E]] = {
         (m \ "success") match {
           case JsBoolean(true) =>
-            p.reads(m).map(TaskSuccess.apply)
+            readSuccess.reads(m).map(TaskSuccess.apply)
           case JsBoolean(false) =>
-            JsSuccess(TaskFailure((m \ "message").as[String]))
+            for {
+              cause <- readFailure.reads(m \ "cause")
+              message <- (m \ "message").validate[String]
+            } yield TaskFailure(message, cause)
           case _ =>
             JsError("Unable to deserialize task result.")
         }
       }
     }
-  implicit def writes[T](implicit p: Writes[BuildValue[T]]): Writes[TaskResult[T]] =
-    new Writes[TaskResult[T]] {
-      override def writes(t: TaskResult[T]): JsValue =
+  implicit def writes[T, E <: Throwable](implicit writesSuccess: Writes[BuildValue[T]], writesFailure: Writes[BuildValue[E]]): Writes[TaskResult[T, E]] =
+    new Writes[TaskResult[T, E]] {
+      override def writes(t: TaskResult[T, E]): JsValue =
         t match {
-          case TaskFailure(msg) => JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg)))
+          case TaskFailure(msg, cause) =>
+            JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg), "cause" -> Json.toJson(cause)))
           case TaskSuccess(value) =>
             val base = Json.obj("success" -> true)
             val valueJson = Json.toJson(value) match {
@@ -203,14 +211,6 @@ object TaskResult {
             base ++ valueJson
         }
     }
-  implicit def format[T](implicit p: Format[BuildValue[T]]): Format[TaskResult[T]] =
-    new Format[TaskResult[T]] {
-      val reader = TaskResult.reads[T]
-      val writer = TaskResult.writes[T]
-      def writes(t: TaskResult[T]): JsValue =
-        writer.writes(t)
-      def reads(m: JsValue): JsResult[TaskResult[T]] =
-        reader.reads(m)
-      override def toString = "TaskResultFormat(" + p + ")"
-    }
+  implicit def format[T, E <: Throwable](implicit formatSuccess: Format[BuildValue[T]], formatFailure: Format[BuildValue[E]]): Format[TaskResult[T, E]] =
+    Format[TaskResult[T, E]](TaskResult.reads[T, E], TaskResult.writes[T, E])
 }

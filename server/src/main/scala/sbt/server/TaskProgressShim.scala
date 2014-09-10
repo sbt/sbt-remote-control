@@ -109,7 +109,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
     } else mf.asInstanceOf[Manifest[T]]
   }
 
-  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T] = {
+  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T, Throwable] = {
     result match {
       case Value(v) =>
         val (destValue, destManifest) = conversions.convert(v)(mf) match {
@@ -119,8 +119,22 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
           case None => v -> mf
         }
         TaskSuccess(BuildValue(destValue, serializations)(destManifest))
-      case Inc(err) =>
-        TaskFailure(Option(err.getMessage).getOrElse(s"Task failed but the exception had no message: ${err.getClass.getName}"))
+
+      case Inc(Incomplete(node, tpe, messageOption, causes, directCauseOption)) =>
+        val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
+        val exception = directCauseOption
+          .getOrElse {
+            new Exception(message)
+          }
+
+        val exceptionValue = conversions.convertWithRuntimeClass(exception) match {
+          case Some((t: Throwable, throwableMf: Manifest[_])) =>
+            BuildValue(t, serializations)(throwableMf.asInstanceOf[Manifest[Throwable]])
+          case _ =>
+            BuildValue.usingRuntimeClass(exception, serializations)
+        }
+
+        TaskFailure(message, exceptionValue)
     }
   }
 

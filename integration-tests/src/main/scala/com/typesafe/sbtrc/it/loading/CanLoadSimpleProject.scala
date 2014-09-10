@@ -19,7 +19,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
   sealed trait AnalysisResult
   case class Success(analysis: Analysis) extends AnalysisResult
-  case class Failed(msg: String) extends AnalysisResult
+  case class Failed(msg: String, cause: Throwable) extends AnalysisResult
   case class Unserialized(value: UnserializedValue[_]) extends AnalysisResult
 
   sbt.IO.write(new java.io.File(dummy, "stdout.sbt"),
@@ -112,7 +112,7 @@ class CanLoadSimpleProject extends SbtClientTest {
         b match {
           case TaskSuccess(x: UnserializedValue[Analysis]) => result.trySuccess(Unserialized(x))
           case TaskSuccess(SerializableBuildValue(x, _, _)) => result.trySuccess(Success(x))
-          case TaskFailure(x) => result.trySuccess(Failed(x))
+          case TaskFailure(x, cause) => result.trySuccess(Failed(x, cause.value.get))
         }
       })(keepEventsInOrderExecutor)
 
@@ -123,7 +123,10 @@ class CanLoadSimpleProject extends SbtClientTest {
       client.requestExecution("compile", None)
       val failureResult = waitWithError(compileWatchFuture, "Unable get compile analysis from server")
       failureResult match {
-        case Failed(_) =>
+        case Failed(_, e: CompileFailedException) =>
+          if (e.problems.isEmpty)
+            throw new AssertionError(s"CompileFailedException had no problems in it $e")
+        case Failed(_, e) => throw new AssertionError(s"expected CompileFailedException, got $e")
         case other => throw new AssertionError(s"expected failure, got: $other")
       }
     }
@@ -145,8 +148,8 @@ class CanLoadSimpleProject extends SbtClientTest {
       b match {
         case TaskSuccess(file) =>
           baseDirectoryPromise.trySuccess(file.value.get)
-        case TaskFailure(msg) =>
-          baseDirectoryPromise.tryFailure(new Exception(msg))
+        case TaskFailure(msg, cause) =>
+          baseDirectoryPromise.tryFailure(cause.value.get)
       }
     }
 
@@ -162,8 +165,8 @@ class CanLoadSimpleProject extends SbtClientTest {
       b match {
         case TaskSuccess(files) =>
           unmanagedSourcesPromise.trySuccess(files.value.get)
-        case TaskFailure(msg) =>
-          unmanagedSourcesPromise.tryFailure(new Exception(msg))
+        case TaskFailure(msg, cause) =>
+          unmanagedSourcesPromise.tryFailure(cause.value.get)
       }
     }
 

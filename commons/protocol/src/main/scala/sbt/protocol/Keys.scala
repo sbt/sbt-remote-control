@@ -52,6 +52,10 @@ object TypeInfo {
       mf.typeArguments map (x => fromManifest(x)))
   }
 
+  def fromClass[T](klass: Class[T]): TypeInfo = {
+    TypeInfo(klass.getName, Nil)
+  }
+
   implicit val format = Json.format[TypeInfo]
 }
 

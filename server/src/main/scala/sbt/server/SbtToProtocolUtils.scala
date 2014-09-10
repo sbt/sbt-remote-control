@@ -223,7 +223,7 @@ private[server] object SbtToProtocolUtils {
   def packageAPIToProtocol(in: xsbti.api.Package): protocol.Package =
     protocol.Package(name = in.name)
 
-  def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T] = {
+  def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T, Throwable] = {
     val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("state should have serializations on it"))
     val value = extracted.get(key)
     TaskSuccess(BuildValue(value, serializations)(key.key.manifest))
@@ -272,4 +272,7 @@ private[server] object SbtToProtocolUtils {
     } yield Def.ScopedKey(s, key.asInstanceOf[sbt.AttributeKey[T]])
   }
 
+  def compileFailedExceptionToProtocol(e: sbt.compiler.CompileFailed): protocol.CompileFailedException = {
+    new protocol.CompileFailedException(e.getMessage, e.getCause, e.problems.toList)
+  }
 }

@@ -65,7 +65,8 @@ class ProtocolTest {
       protocol.TaskStarted(49, 2, Some(scopedKey)),
       protocol.TaskFinished(50, 2, Some(scopedKey), true),
       protocol.BuildStructureChanged(buildStructure),
-      protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES")),
+      // equals() doesn't work on Exception so we can't actually check this easily
+      //protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES", protocol.BuildValue(new Exception("Exploded"), serializations))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI", serializations))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42, serializations))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L, serializations))),
@@ -133,6 +134,16 @@ class ProtocolTest {
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+    object FakePosition extends xsbti.Position {
+      override def line = xsbti.Maybe.just(10)
+      override def offset = xsbti.Maybe.just(11)
+      override def pointer = xsbti.Maybe.just(12)
+      override def pointerSpace = xsbti.Maybe.just("foo")
+      override def sourcePath = xsbti.Maybe.just("foo")
+      override def sourceFile = xsbti.Maybe.just(new java.io.File("bar"))
+      override def lineContent = "this is some stuff on the line"
+      // note, this does not have a useful equals/hashCode with other instances of Position
+    }
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -163,6 +174,10 @@ class ProtocolTest {
     roundtrip(protocol.Relations.empty)
     roundtrip(protocol.SourceInfos.empty)
     roundtrip(protocol.Analysis.empty)
+    roundtrip(new Exception(null, null))
+    roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
+    roundtrip(new protocol.CompileFailedException("the compile failed", null,
+      Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
   }
 
   @Test
@@ -175,7 +190,13 @@ class ProtocolTest {
           val json = addWhatWeWereFormatting(t)(format.writes(t))
           //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
           val parsed = addWhatWeWereFormatting(t)(format.reads(json)).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
-          assertEquals("round trip of " + t, t, parsed)
+          (t, parsed) match {
+            // Throwable has a not-very-useful equals() in this case
+            case (t: Throwable, parsed: Throwable) =>
+              assertEquals("round trip of message " + t.getMessage, t.getMessage, parsed.getMessage)
+            case _ =>
+              assertEquals("round trip of " + t, t, parsed)
+          }
         } getOrElse { throw new AssertionError(s"No dynamic serialization for ${t.getClass.getName}: $t") }
       }
     })
@@ -189,7 +210,19 @@ class ProtocolTest {
       val json = Json.toJson(buildValue)
       //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
       val parsed = Json.fromJson[protocol.BuildValue[T]](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${buildValue} serialization ${json}"))
-      assertEquals(buildValue, parsed)
+      val buildValueClass: Class[_] = buildValue match {
+        case bv: protocol.SerializableBuildValue[T] => bv.manifest.toManifest(this.getClass.getClassLoader)
+          .map(_.runtimeClass).getOrElse(throw new AssertionError("don't have class for this build value"))
+        case other => throw new AssertionError("non-serializable build value $other")
+      }
+      // Throwable has a not-very-useful equals() in this case
+      if (classOf[Throwable].isAssignableFrom(buildValueClass)) {
+        val t = buildValue.value.map(_.asInstanceOf[Throwable]).get
+        val p = parsed.value.map(_.asInstanceOf[Throwable]).get
+        assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage)
+      } else {
+        assertEquals(buildValue, parsed)
+      }
     }
     roundtripTest(new Roundtripper {
       override def roundtrip[T: Manifest](t: T): Unit = {

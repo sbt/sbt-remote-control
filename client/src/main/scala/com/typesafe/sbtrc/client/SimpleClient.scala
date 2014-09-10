@@ -208,7 +208,7 @@ final class SimpleSbtClient(override val channel: SbtChannel, serializations: Dy
   }
 
   private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
-    case e: ValueChanged[_] =>
+    case e: ValueChanged[_, _] =>
       valueEventManager(e.key).sendEvent(e)
       executionState
     case e: BuildStructureChanged =>
@@ -415,9 +415,9 @@ private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: 
 }
 
 /** A wrapped build event listener that ensures events are fired on the desired execution context. */
-private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChanged[T]] {
+private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChanged[T, Throwable]] {
   private val id = java.util.UUID.randomUUID
-  override def send(e: ValueChanged[T]): Unit = {
+  override def send(e: ValueChanged[T, Throwable]): Unit = {
     // TODO - do we need to prepare the context?
     ex.prepare.execute(new Runnable() {
       def run(): Unit = {
@@ -433,8 +433,8 @@ private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], e
 }
 /** Helper to track value changes. */
 private final class ValueChangeManager[T](key: ScopedKey, channel: SbtChannel)
-  extends ListenerManager[ValueChanged[T], ValueListener[T], ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
+  extends ListenerManager[ValueChanged[T, Throwable], ValueListener[T], ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
 
-  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChanged[T]] =
+  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChanged[T, Throwable]] =
     new ValueChangeListenerHelper(l, ex)
 }
