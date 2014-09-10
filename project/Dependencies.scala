@@ -34,6 +34,7 @@ object Dependencies {
   val scala211Version = "2.11.2"
   val sbtMainVersion = sbt13Version
   val playVersion = "2.3.3"
+  val scalaCheckVersion = "1.11.5"
 
 
   // Here we declare our dependencies normally
@@ -46,7 +47,7 @@ object Dependencies {
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
   val playJson             = ("com.typesafe.play" %% "play-json" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("com.typesafe", "play-iteratees_2.11").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
-  
+
   val jansi                = "org.fusesource.jansi" % "jansi" % "1.11"
   val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"
   val brokenJoda           = brokenJodaRaw % "provided"
@@ -58,6 +59,7 @@ object Dependencies {
   val slf4jLog4j           = "org.slf4j" % "slf4j-log4j12" % "1.6.6"
 
   val junitInterface       = "com.novocode" % "junit-interface" % "0.10"
+  val scalaCheck           = "org.scalacheck" %% "scalacheck" % scalaCheckVersion
   //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
 
 

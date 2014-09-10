@@ -33,6 +33,7 @@ object SbtRcBuild {
       crossPaths := false,
       resolvers += "typesafe-mvn-releases" at "http://repo.typesafe.com/typesafe/releases/",
       resolvers += Resolver.url("typesafe-ivy-releases", new URL("http://repo.typesafe.com/typesafe/releases/"))(Resolver.ivyStylePatterns),
+      resolvers += "Sonatype Releases" at "http://oss.sonatype.org/content/repositories/releases",
       // TODO - This won't be needed when SBT 0.13 is released...
       resolvers += typesafeIvyReleases,
       resolvers += typesafeIvySnapshots,
@@ -46,6 +47,7 @@ object SbtRcBuild {
       javacOptions in Compile := Seq("-target", "1.6", "-source", "1.6"),
       javacOptions in (Compile, doc) := Seq("-source", "1.6"),
       libraryDependencies += Dependencies.junitInterface % "test",
+      libraryDependencies += Dependencies.scalaCheck % "test",
       // Scaladoc is slow as molasses.
       Keys.publishArtifact in (Compile, packageDoc) := false,
       scalaVersion := Dependencies.scalaVersion,
