@@ -7,7 +7,7 @@ import play.api.libs.json._
  * Some values are not serializable between JVMs.  This class ensures that libraries which
  * make use of core classes (like java.io.File, String, etc.) can return values.
  */
-sealed trait BuildValue[T] {
+sealed trait BuildValue[+T] {
   /** Return the value. */
   def value: Option[T]
   /** Result of calling toString on the value. */
@@ -16,7 +16,7 @@ sealed trait BuildValue[T] {
 /** Represents a value we can send over the wire, both serializing + deserializing. */
 final case class SerializableBuildValue[T](
   rawValue: T,
-  serializer: Format[T],
+  serializer: Writes[T],
   manifest: TypeInfo) extends BuildValue[T] {
   val value = Some(rawValue)
   val stringValue = rawValue.toString
