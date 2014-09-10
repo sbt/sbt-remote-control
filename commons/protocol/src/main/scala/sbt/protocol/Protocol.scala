@@ -4,6 +4,8 @@ package sbt.protocol
 // package.scala file.
 
 import play.api.libs.json.JsValue
+import java.io.File
+import scala.collection.immutable
 
 /**
  * A marker trait for *any* message that is passed back/forth from
@@ -341,3 +343,200 @@ final case class CompilationFailure(
   message: String)
 
 object CompilationFailure extends TaskEventUnapply[CompilationFailure]
+
+/* Results related to compilation.
+ * TODO let's put all of these in some kind of namespace because
+ * there are a bunch of super-generic names like Analysis, API, Package, etc.
+ */
+
+final case class Analysis(stamps: Stamps,
+  apis: APIs,
+  relations: Relations,
+  infos: SourceInfos,
+  compilations: Compilations)
+object Analysis {
+  val empty: Analysis = Analysis(stamps = Stamps.empty,
+    apis = APIs.empty,
+    relations = Relations.empty,
+    infos = SourceInfos.empty,
+    compilations = Compilations.empty)
+}
+sealed trait Stamp
+final case class Hash(value: ByteArray) extends Stamp
+final case class LastModified(value: Long) extends Stamp
+final case class Exists(value: Boolean) extends Stamp
+final case class Stamps(allInternalSources: Set[File],
+  allBinaries: Set[File],
+  allProducts: Set[File],
+  sources: Map[File, Stamp],
+  binaries: Map[File, Stamp],
+  products: Map[File, Stamp],
+  classNames: Map[File, String])
+object Stamps {
+  val empty: Stamps = Stamps(allInternalSources = Set.empty[File],
+    allBinaries = Set.empty[File],
+    allProducts = Set.empty[File],
+    sources = Map.empty[File, Stamp],
+    binaries = Map.empty[File, Stamp],
+    products = Map.empty[File, Stamp],
+    classNames = Map.empty[File, String])
+}
+final case class SourceInfo(reportedProblems: Seq[xsbti.Problem],
+  unreportedProblems: Seq[xsbti.Problem])
+final case class SourceInfos(allInfos: Map[File, SourceInfo])
+object SourceInfos {
+  val empty: SourceInfos = SourceInfos(allInfos = Map.empty[File, SourceInfo])
+}
+final case class Problem(category: String,
+  severity: xsbti.Severity,
+  message: String,
+  position: xsbti.Position) extends xsbti.Problem
+object Problem {
+  def fromXsbtiProblem(in: xsbti.Problem): Problem =
+    Problem(category = in.category,
+      severity = in.severity,
+      message = in.message,
+      position = in.position)
+}
+final case class APIs(allExternals: Set[String],
+  allInternalSources: Set[File],
+  internal: Map[File, Source],
+  external: Map[String, Source])
+object APIs {
+  def empty: APIs = APIs(allExternals = Set.empty[String],
+    allInternalSources = Set.empty[File],
+    internal = Map.empty[File, Source],
+    external = Map.empty[String, Source])
+}
+// TODO this is broken on case-insensitive filesystems
+final case class Package(name: String)
+sealed trait Qualifier
+final case class IdQualifier(value: String) extends Qualifier
+final case object ThisQualifier extends Qualifier
+final case object Unqualified extends Qualifier
+sealed trait Access
+sealed trait Qualified extends Access {
+  def qualifier: Qualifier
+}
+final case object Public extends Access
+final case class Protected(qualifier: Qualifier) extends Qualified
+final case class Private(qualifier: Qualifier) extends Qualified
+final case class TypeParameter(id: String, annotations: Seq[Annotation], typeParameters: Seq[TypeParameter], variance: xsbti.api.Variance, lowerBound: Type, upperBound: Type)
+sealed trait PathComponent
+final case class Id(id: String) extends PathComponent
+final case class Super(qualifier: Path) extends PathComponent
+final case object This extends PathComponent
+final case class Path(components: Seq[PathComponent])
+sealed trait Type
+object Type {
+  import play.api.libs.json._
+  import play.api.libs.functional.syntax._
+  import play.api.data.validation.ValidationError
+  import JsonHelpers._
+
+}
+sealed trait SimpleType extends Type
+final case class Singleton(path: Path) extends SimpleType
+final case class Projection(prefix: SimpleType, id: String) extends SimpleType
+final case class Parameterized(baseType: SimpleType, typeArguments: Seq[Type]) extends SimpleType
+final case class ParameterRef(id: String) extends SimpleType
+final case object EmptyType extends SimpleType
+final case class Annotated(baseType: Type, annotations: Seq[Annotation]) extends Type
+final case class Structure(parents: Seq[Type], declared: Seq[Definition], inherited: Seq[Definition]) extends Type
+final case class Polymorphic(baseType: Type, parameters: Seq[TypeParameter]) extends Type
+final case class Existential(baseType: Type, clause: Seq[TypeParameter]) extends Type
+final case class Constant(baseType: Type, value: String) extends Type
+final case class Modifiers(isAbstract: Boolean,
+  isOverride: Boolean,
+  isFinal: Boolean,
+  isSealed: Boolean,
+  isImplicit: Boolean,
+  isLazy: Boolean,
+  isMacro: Boolean)
+final case class AnnotationArgument(name: String, value: String)
+final case class Annotation(base: Type,
+  arguments: Seq[AnnotationArgument])
+final case class Definition(name: String,
+  access: Access,
+  modifiers: Modifiers,
+  annotations: Seq[Annotation])
+final case class SourceAPI(packages: Seq[Package],
+  definitions: Seq[Definition])
+final case class Source(compilation: Compilation,
+  hash: ByteArray,
+  api: SourceAPI,
+  apiHash: Int,
+  hasMacro: Boolean)
+final case class Relation[A, B](forwardMap: Map[A, Set[B]],
+  reverseMap: Map[B, Set[A]])
+object Relation {
+  def empty[A, B]: Relation[A, B] = Relation[A, B](forwardMap = Map.empty[A, Set[B]],
+    reverseMap = Map.empty[B, Set[A]])
+}
+final case class RelationsSource(internal: Relation[File, File],
+  external: Relation[File, String])
+final case class Relations(allSources: Set[File],
+  allProducts: Set[File],
+  allBinaryDeps: Set[File],
+  allInternalSrcDeps: Set[File],
+  allExternalDeps: Set[String],
+  srcProd: Relation[File, File],
+  binaryDep: Relation[File, File],
+  internalSrcDep: Relation[File, File],
+  externalDep: Relation[File, String],
+  direct: Option[RelationsSource],
+  publicInherited: Option[RelationsSource],
+  classes: Relation[File, String])
+object Relations {
+  val empty: Relations = Relations(allSources = Set.empty[File],
+    allProducts = Set.empty[File],
+    allBinaryDeps = Set.empty[File],
+    allInternalSrcDeps = Set.empty[File],
+    allExternalDeps = Set.empty[String],
+    srcProd = Relation.empty[File, File],
+    binaryDep = Relation.empty[File, File],
+    internalSrcDep = Relation.empty[File, File],
+    externalDep = Relation.empty[File, String],
+    direct = None,
+    publicInherited = None,
+    classes = Relation.empty[File, String])
+}
+final case class OutputSetting(sourceDirectory: String,
+  outputDirectory: String)
+final case class Compilation(startTime: Long,
+  outputs: Seq[OutputSetting])
+final case class Compilations(allCompilations: Seq[Compilation])
+object Compilations {
+  val empty: Compilations = Compilations(allCompilations = Seq.empty[Compilation])
+}
+sealed trait ByteArray extends immutable.Seq[Byte]
+object ByteArray {
+  private final val p = 16777619
+  private final val start = 2166136261L
+  private final def fnvHash(in: Array[Byte]): Int = {
+    var hash: Long = start
+    var i = 0
+    while (i < in.length) {
+      hash = (hash ^ in(i)) * p
+      i += 1
+    }
+    hash += hash << 13
+    hash ^= hash >> 7
+    hash += hash << 3
+    hash ^= hash >> 17
+    hash += hash << 5
+    hash.intValue
+  }
+  final private class ConcreteByteArray(val ary: Array[Byte]) extends ByteArray {
+    private final lazy val hc = fnvHash(ary)
+    final def apply(idx: Int): Byte = ary(idx)
+    final def iterator: Iterator[Byte] = Iterator.tabulate(ary.length)(i => ary(i))
+    final def length: Int = ary.length
+    override final def hashCode(): Int = hc
+    override final def equals(other: Any): Boolean = other match {
+      case x: ConcreteByteArray => java.util.Arrays.equals(ary, x.ary)
+      case _ => false
+    }
+  }
+  def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
+}

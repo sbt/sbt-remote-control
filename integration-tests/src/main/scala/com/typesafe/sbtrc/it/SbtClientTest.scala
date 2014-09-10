@@ -18,7 +18,9 @@ import xsbti.{
 import java.nio.charset.Charset.defaultCharset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.LinkedBlockingQueue
 import concurrent.Promise
+import scala.annotation.tailrec
 
 trait SbtClientTest extends IntegrationTest {
   // TODO - load from config - this timeout is long because travis is slow
@@ -30,6 +32,30 @@ trait SbtClientTest extends IntegrationTest {
     catch {
       case e: java.util.concurrent.TimeoutException => sys.error(msg)
     }
+  }
+
+  sealed trait QueueResults[+T, +U]
+  case class Continue[+T, +U](next: U) extends QueueResults[T, U]
+  case class Done[+T, +U](result: T) extends QueueResults[T, U]
+
+  /** helper to add error messages when waiting for results and timeouts occur. */
+  def waitOnQueue[I, T, U](queue: LinkedBlockingQueue[I], initial: U, msg: String, timeout: concurrent.duration.Duration = defaultTimeout)(body: (I, U) => QueueResults[T, U]): T = {
+    def next(): I = (try queue.poll(timeout.length, timeout.unit) catch {
+      case e: java.lang.InterruptedException => sys.error(msg)
+    }) match {
+      case null => sys.error(msg)
+      case x => x
+    }
+
+    @tailrec
+    def step(state: U, value: I): T = {
+      body(value, state) match {
+        case Continue(u) => step(u, next())
+        case Done(t) => t
+      }
+    }
+
+    step(initial, next())
   }
 
   def testingLocator(globalDir: File): LaunchedSbtServerLocator = new LaunchedSbtServerLocator {
