@@ -17,6 +17,12 @@ object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
 
 class ProtocolTest {
 
+  private def addWhatWeWereFormatting[T, U](t: T)(body: => U): U = try body
+  catch {
+    case e: Throwable =>
+      throw new AssertionError(s"Crash formatting ${t.getClass.getName}: ${e.getMessage}", e)
+  }
+
   @Test
   def testRawStructure(): Unit = {
     val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
@@ -88,7 +94,7 @@ class ProtocolTest {
 
     for (s <- specifics) {
       import protocol.WireProtocol.{ fromRaw, toRaw }
-      val roundtrippedOption = fromRaw(toRaw(s), protocol.DynamicSerialization.defaultSerializations)
+      val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s), protocol.DynamicSerialization.defaultSerializations))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
@@ -109,18 +115,24 @@ class ProtocolTest {
     }
   }
 
-  @Test
-  def testDynamicSerialization(): Unit = {
+  private trait Roundtripper {
+    def roundtrip[T: Manifest](t: T): Unit
+  }
+
+  private def roundtripTest(roundtripper: Roundtripper): Unit = {
     val ds = protocol.DynamicSerialization.defaultSerializations
-    def roundtrip[T: Manifest](t: T): Unit = {
-      val formatOption = ds.lookup(implicitly[Manifest[T]])
-      formatOption map { format =>
-        val json = format.writes(t)
-        //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
-        val parsed = format.reads(json).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
-        assertEquals("round trip of " + t, t, parsed)
-      } getOrElse { throw new AssertionError(s"No dynamic serialization for $t") }
-    }
+
+    def roundtrip[T: Manifest](t: T): Unit = roundtripper.roundtrip(t)
+
+    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val build = new java.net.URI("file:///test/project")
+    val projectRef = protocol.ProjectReference(build, "test")
+    val scope = protocol.SbtScope(project = Some(projectRef))
+    val scopedKey = protocol.ScopedKey(key, scope)
+    val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
+    val buildStructure = protocol.MinimalBuildStructure(
+      builds = Seq(build),
+      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -139,6 +151,29 @@ class ProtocolTest {
     roundtrip(Seq("Bar", "Baz"))
     roundtrip(Seq(1, 2, 3))
     roundtrip(Seq(true, false, true, true, false))
+    roundtrip(key)
+    roundtrip(build)
+    roundtrip(projectRef)
+    roundtrip(scope)
+    roundtrip(scopedKey)
+    roundtrip(keyFilter)
+    roundtrip(buildStructure)
+  }
+
+  @Test
+  def testDynamicSerialization(): Unit = {
+    val ds = protocol.DynamicSerialization.defaultSerializations
+    roundtripTest(new Roundtripper {
+      override def roundtrip[T: Manifest](t: T): Unit = {
+        val formatOption = ds.lookup(implicitly[Manifest[T]])
+        formatOption map { format =>
+          val json = addWhatWeWereFormatting(t)(format.writes(t))
+          //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
+          val parsed = addWhatWeWereFormatting(t)(format.reads(json)).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
+          assertEquals("round trip of " + t, t, parsed)
+        } getOrElse { throw new AssertionError(s"No dynamic serialization for ${t.getClass.getName}: $t") }
+      }
+    })
   }
 
   @Test
@@ -151,25 +186,10 @@ class ProtocolTest {
       val parsed = Json.fromJson[protocol.BuildValue[T]](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${buildValue} serialization ${json}"))
       assertEquals(buildValue, parsed)
     }
-    def roundtrip[T: Manifest](t: T): Unit = {
-      roundtripBuildValue(protocol.BuildValue(t, serializations))
-    }
-    roundtrip("Foo")
-    roundtrip(new java.io.File("/tmp"))
-    roundtrip(true)
-    roundtrip(false)
-    roundtrip(10: Short)
-    roundtrip(11)
-    roundtrip(12L)
-    roundtrip(13.0f)
-    roundtrip(14.0)
-    roundtrip(None: Option[String])
-    roundtrip(Some("Foo"))
-    roundtrip(Some(true))
-    roundtrip(Some(10))
-    roundtrip(Nil: Seq[String])
-    roundtrip(Seq("Bar", "Baz"))
-    roundtrip(Seq(1, 2, 3))
-    roundtrip(Seq(true, false, true, true, false))
+    roundtripTest(new Roundtripper {
+      override def roundtrip[T: Manifest](t: T): Unit = {
+        roundtripBuildValue(protocol.BuildValue(t, serializations))
+      }
+    })
   }
 }

@@ -53,6 +53,7 @@ private[protocol] object Classes {
   val OptionClass = classOf[Option[_]]
   val SeqClass = classOf[Seq[_]]
   val AttributedClass = classOf[sbt.Attributed[_]]
+  val URIClass = classOf[java.net.URI]
 
   // TODO - Figure out how to handle attributed, and
   // other sbt special classes....
