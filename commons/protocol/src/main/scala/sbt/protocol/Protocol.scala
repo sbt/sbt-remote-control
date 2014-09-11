@@ -251,7 +251,7 @@ final case class BuildFailedToLoad() extends ExecutionEngineEvent
 
 /** The build has been changed in some fashion. */
 final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
-final case class ValueChanged[T](key: ScopedKey, value: TaskResult[T]) extends Event
+final case class ValueChanged[+T, +E <: Throwable](key: ScopedKey, value: TaskResult[T, E]) extends Event
 
 /** can be the response to anything. */
 final case class ErrorResponse(error: String) extends Response
@@ -509,6 +509,9 @@ final case class Compilations(allCompilations: Seq[Compilation])
 object Compilations {
   val empty: Compilations = Compilations(allCompilations = Seq.empty[Compilation])
 }
+
+final class CompileFailedException(message: String, cause: Throwable, val problems: Seq[xsbti.Problem]) extends Exception(message, cause)
+
 sealed trait ByteArray extends immutable.Seq[Byte]
 object ByteArray {
   private final val p = 16777619

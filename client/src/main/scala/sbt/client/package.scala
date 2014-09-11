@@ -5,7 +5,7 @@ package object client {
   type KeyFilter = protocol.KeyFilter
   type ProjectReference = protocol.ProjectReference
   type ScopedKey = protocol.ScopedKey
-  type TaskResult[T] = protocol.TaskResult[T]
+  type TaskResult[+T, +E <: Throwable] = protocol.TaskResult[T, E]
   type MinimalBuildStructure = protocol.MinimalBuildStructure
   type Completion = protocol.Completion
   type ExecutionAnalysis = protocol.ExecutionAnalysis
@@ -15,6 +15,6 @@ package object client {
 
   // Wrapper names for functions
   type BuildStructureListener = MinimalBuildStructure => Unit
-  type ValueListener[T] = (ScopedKey, TaskResult[T]) => Unit
+  type ValueListener[T] = (ScopedKey, TaskResult[T, Throwable]) => Unit
   type EventListener = Event => Unit
 }

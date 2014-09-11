@@ -19,7 +19,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
   sealed trait AnalysisResult
   case class Success(analysis: Analysis) extends AnalysisResult
-  case class Failed(msg: String) extends AnalysisResult
+  case class Failed(msg: String, cause: Throwable) extends AnalysisResult
   case class Unserialized(value: UnserializedValue[_]) extends AnalysisResult
 
   sbt.IO.write(new java.io.File(dummy, "stdout.sbt"),
@@ -48,6 +48,10 @@ class CanLoadSimpleProject extends SbtClientTest {
     val project = result.projects.head
     assert(project.id.name == "test", "failed to discover project name == file name.")
     assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
+
+    val compileKeysFuture = client.lookupScopedKey("compile")
+    val compileKeys = waitWithError(compileKeysFuture, "Never received key lookup response!")
+    assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compile", s"Failed to find compile key: $compileKeys!")
 
     // Here we check autocompletions:
     val completes = waitWithError(client.possibleAutocompletions("hel", 0), "Autocompletions not returned in time.")
@@ -88,6 +92,12 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     // Now we check compilation failure messages
+
+    // log compile value changed
+    val logCompileValueSub = (client.watch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
+      System.out.println(s"Compile value changed to ${value}")
+    })(keepEventsInOrderExecutor)
+
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
       case CompilationFailure(taskId, failure) => compileErrorCaptured.trySuccess(failure)
@@ -95,27 +105,28 @@ class CanLoadSimpleProject extends SbtClientTest {
         compileErrorCaptured.tryFailure(new AssertionError("compile execution ended with no CompilationFailure"))
       case _ =>
     })(keepEventsInOrderExecutor)
-    val keysFuture = client.lookupScopedKey("compile")
-    val keys = waitWithError(keysFuture, "Never received key lookup response!")
-    assert(!keys.isEmpty && keys.head.key.name == "compile", s"Failed to find compile key: $keys!")
-    def withCompileWatch(body: Future[AnalysisResult] => Unit): Unit = {
+
+    def withCompileTaskResult(body: Future[AnalysisResult] => Unit): Unit = {
       val result = Promise[AnalysisResult]
-      val compileWatchSub: Subscription = (client.watch(TaskKey[Analysis](keys.head)) { (a, b) =>
+      val compileWatchSub: Subscription = (client.watch(TaskKey[Analysis](compileKeys.head)) { (a, b) =>
         b match {
           case TaskSuccess(x: UnserializedValue[Analysis]) => result.trySuccess(Unserialized(x))
           case TaskSuccess(SerializableBuildValue(x, _, _)) => result.trySuccess(Success(x))
-          case TaskFailure(x) => result.trySuccess(Failed(x))
+          case TaskFailure(x, cause) => result.trySuccess(Failed(x, cause.value.get))
         }
       })(keepEventsInOrderExecutor)
 
       try body(result.future)
       finally compileWatchSub.cancel()
     }
-    withCompileWatch { compileWatchFuture =>
+    withCompileTaskResult { compileWatchFuture =>
       client.requestExecution("compile", None)
       val failureResult = waitWithError(compileWatchFuture, "Unable get compile analysis from server")
       failureResult match {
-        case Failed(_) =>
+        case Failed(_, e: CompileFailedException) =>
+          if (e.problems.isEmpty)
+            throw new AssertionError(s"CompileFailedException had no problems in it $e")
+        case Failed(_, e) => throw new AssertionError(s"expected CompileFailedException, got $e")
         case other => throw new AssertionError(s"expected failure, got: $other")
       }
     }
@@ -126,6 +137,8 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
     assert(error.severity == xsbti.Severity.Error, "Failed to capture appropriate error.")
 
+    logCompileValueSub.cancel()
+
     // check receiving the value of a setting key
     val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.id.name}/baseDirectory")
     val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
@@ -135,8 +148,8 @@ class CanLoadSimpleProject extends SbtClientTest {
       b match {
         case TaskSuccess(file) =>
           baseDirectoryPromise.trySuccess(file.value.get)
-        case TaskFailure(msg) =>
-          baseDirectoryPromise.tryFailure(new Exception(msg))
+        case TaskFailure(msg, cause) =>
+          baseDirectoryPromise.tryFailure(cause.value.get)
       }
     }
 
@@ -152,8 +165,8 @@ class CanLoadSimpleProject extends SbtClientTest {
       b match {
         case TaskSuccess(files) =>
           unmanagedSourcesPromise.trySuccess(files.value.get)
-        case TaskFailure(msg) =>
-          unmanagedSourcesPromise.tryFailure(new Exception(msg))
+        case TaskFailure(msg, cause) =>
+          unmanagedSourcesPromise.tryFailure(cause.value.get)
       }
     }
 
@@ -167,7 +180,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // delete the broken file
     errorFile.delete()
 
-    withCompileWatch { compileWatchFuture =>
+    withCompileTaskResult { compileWatchFuture =>
       client.requestExecution("compile", None)
       val successResult = waitWithError(compileWatchFuture, "Unable get compile analysis from server")
       successResult match {

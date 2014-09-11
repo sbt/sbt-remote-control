@@ -15,41 +15,57 @@ import play.api.libs.json.{ Format, Reads, Writes }
 sealed trait DynamicSerialization {
   /** Look up a serialization using its type manifest */
   def lookup[T](implicit mf: Manifest[T]): Option[Format[T]]
+  /** Look up by runtime class (potentially broken if the class has type parameters) */
+  def lookup[T](klass: Class[T]): Option[Format[T]]
   /** Add a serializer, returning the new modified DynamicSerialization. */
   def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization
 }
 
 object DynamicSerialization {
   val defaultSerializations: DynamicSerialization =
-    NonTrivialSerializers.registerSerializers(ConcreteDynamicSerialization(Map.empty))
+    NonTrivialSerializers.registerSerializers(ConcreteDynamicSerialization(Map.empty, Map.empty))
 }
 
-private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Format[_]]) extends DynamicSerialization {
+private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Format[_]], byClass: Map[Class[_], Format[_]]) extends DynamicSerialization {
   override def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization =
     // Here we erase the original type when storing
-    ConcreteDynamicSerialization(registered + (mf -> serializer))
+    ConcreteDynamicSerialization(registered + (mf -> serializer), byClass + (mf.erasure -> serializer))
 
   override def lookup[T](implicit mf: Manifest[T]): Option[Format[T]] =
     // When looking up, given the interface, it's safe to return to
     // the original type.
     (registered get mf).asInstanceOf[Option[Format[T]]] orElse
       ConcreteDynamicSerialization.memoizedDefaultSerializer(mf)
+
+  override def lookup[T](klass: Class[T]): Option[Format[T]] =
+    (byClass get klass).asInstanceOf[Option[Format[T]]] orElse
+      ConcreteDynamicSerialization.memoizedDefaultSerializer(klass)
 }
 
 private object ConcreteDynamicSerialization {
-  private val defaultSerializationMemos =
+  private val defaultSerializationMemosByManifest =
     scala.collection.concurrent.TrieMap[Manifest[_], Format[_]]()
+  private val defaultSerializationMemosByClass =
+    scala.collection.concurrent.TrieMap[Class[_], Format[_]]()
 
   def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[Format[T]] =
     defaultSerializer(mf) match {
       case Some(s) =>
-        defaultSerializationMemos.put(mf, s)
+        defaultSerializationMemosByManifest.put(mf, s)
         Some(s)
       case None => None
     }
 
-  private def defaultSerializer[T](mf: Manifest[T]): Option[Format[T]] = defaultSerializationMemos.get(mf).map(_.asInstanceOf[Format[T]]) orElse {
-    (mf.erasure match {
+  def memoizedDefaultSerializer[T](klass: Class[T]): Option[Format[T]] =
+    defaultSerializer[T](klass) match {
+      case Some(s) =>
+        defaultSerializationMemosByClass.put(klass, s)
+        Some(s)
+      case None => None
+    }
+
+  private def defaultSerializer[T](klass: Class[T]): Option[Format[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[Format[T]]) orElse {
+    (klass match {
       case Classes.StringClass => Some(implicitly[Format[String]])
       case Classes.FileClass => Some(implicitly[Format[java.io.File]])
       case Classes.BooleanClass => Some(implicitly[Format[Boolean]])
@@ -59,32 +75,40 @@ private object ConcreteDynamicSerialization {
       case Classes.FloatClass => Some(implicitly[Format[Float]])
       case Classes.DoubleClass => Some(implicitly[Format[Double]])
       case Classes.URIClass => Some(implicitly[Format[java.net.URI]])
-      case Classes.OptionSubClass() =>
-        for {
-          child <- memoizedDefaultSerializer(mf.typeArguments(0))
-        } yield {
-          optionFormat(child.asInstanceOf[Format[Any]])
-        }
-      // TODO - polymorphism?
-      case Classes.SeqSubClass() =>
-        // Now we need to find the first type arguments structure:
-        import collection.generic.CanBuildFrom
-        for {
-          child <- memoizedDefaultSerializer(mf.typeArguments(0))
-        } yield {
-          val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
-          val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-          Format(reads, writes)
-        }
-      case Classes.AttributedSubClass() =>
-        for {
-          child <- memoizedDefaultSerializer(mf.typeArguments(0))
-        } yield attributedFormat(child)
+      case Classes.ThrowableSubClass() => Some(throwableFormat)
       case _ =>
-        System.err.println("DEBUGME - Error:  No way to serialize: " + mf)
         None
     }).asInstanceOf[Option[Format[T]]]
   }
+
+  private def defaultSerializer[T](mf: Manifest[T]): Option[Format[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[Format[T]]) orElse
+    defaultSerializer[T](mf.erasure.asInstanceOf[Class[T]]) orElse {
+      (mf.erasure match {
+        case Classes.OptionSubClass() =>
+          for {
+            child <- memoizedDefaultSerializer(mf.typeArguments(0))
+          } yield {
+            optionFormat(child.asInstanceOf[Format[Any]])
+          }
+        // TODO - polymorphism?
+        case Classes.SeqSubClass() =>
+          // Now we need to find the first type arguments structure:
+          import collection.generic.CanBuildFrom
+          for {
+            child <- memoizedDefaultSerializer(mf.typeArguments(0))
+          } yield {
+            val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
+            val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
+            Format(reads, writes)
+          }
+        case Classes.AttributedSubClass() =>
+          for {
+            child <- memoizedDefaultSerializer(mf.typeArguments(0))
+          } yield attributedFormat(child)
+        case _ =>
+          None
+      }).asInstanceOf[Option[Format[T]]]
+    }
 }
 
 private object NonTrivialSerializers {
@@ -144,7 +168,8 @@ private object NonTrivialSerializers {
       toRegisteredFormat[Access],
       toRegisteredFormat[PathComponent],
       toRegisteredFormat[Type],
-      toRegisteredFormat[SimpleType, Type])
+      toRegisteredFormat[SimpleType, Type],
+      toRegisteredFormat[CompileFailedException])
     formats.foldLeft(base) { (sofar, next) =>
       sofar.register(next.format)(next.manifest)
     }

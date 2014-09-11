@@ -48,6 +48,25 @@ package object protocol {
           case value => other.reads(value).map(Some(_))
         }
     }
+  // this is not implicit because it would cause trouble with
+  // more specific formatters; we just use it as an explicit fallback
+  object throwableFormat extends OFormat[java.lang.Throwable] {
+    final private implicit def recursiveFormat = this
+    def writes(t: java.lang.Throwable): JsObject =
+      JsObject(Seq("message" -> Option(t.getMessage).map(JsString(_)).getOrElse(JsNull),
+        "cause" -> Option(t.getCause).map(Json.toJson(_)).getOrElse(JsNull)))
+    def reads(v: JsValue): JsResult[java.lang.Throwable] = {
+      def validateOrNull[T <: AnyRef](json: JsValue)(implicit r: Reads[T]): JsResult[T] = json match {
+        case JsNull => JsSuccess(null.asInstanceOf[T])
+        case _ => r.reads(json)
+      }
+      for {
+        message <- validateOrNull[String](v \ "message")
+        cause <- validateOrNull[Throwable](v \ "cause")
+      } yield new Exception(message, cause)
+    }
+  }
+
   implicit def attributedFormat[T](implicit format: Format[T]) =
     new Format[sbt.Attributed[T]] {
       override def writes(t: sbt.Attributed[T]): JsValue =
@@ -284,15 +303,16 @@ package object protocol {
 
   implicit val taskEventFormat: Format[TaskEvent] = Format[TaskEvent](taskEventReads, taskEventWrites)
 
-  implicit def valueChangedReads[A](implicit result: Reads[TaskResult[A]]): Reads[ValueChanged[A]] = (
+  implicit def valueChangedReads[A, E <: Throwable](implicit result: Reads[TaskResult[A, E]]): Reads[ValueChanged[A, E]] = (
     (__ \ "key").read[ScopedKey] and
-    (__ \ "value").read[TaskResult[A]])(ValueChanged.apply[A] _)
+    (__ \ "value").read[TaskResult[A, E]])(ValueChanged.apply[A, E] _)
 
-  implicit def valueChangedWrites[A](implicit result: Writes[TaskResult[A]]): Writes[ValueChanged[A]] = (
+  implicit def valueChangedWrites[A, E <: Throwable](implicit result: Writes[TaskResult[A, E]]): Writes[ValueChanged[A, E]] = (
     (__ \ "key").write[ScopedKey] and
-    (__ \ "value").write[TaskResult[A]])(unlift(ValueChanged.unapply[A]))
+    (__ \ "value").write[TaskResult[A, E]])(unlift(ValueChanged.unapply[A, E]))
 
-  implicit def valueChangedFormat[A](implicit result: Format[TaskResult[A]]): Format[ValueChanged[A]] = Format(valueChangedReads, valueChangedWrites)
+  implicit def valueChangedFormat[A, E <: Throwable](implicit result: Format[TaskResult[A, E]]): Format[ValueChanged[A, E]] =
+    Format(valueChangedReads, valueChangedWrites)
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
@@ -613,4 +633,23 @@ package object protocol {
   implicit val relationsSourceFormat: Format[RelationsSource] = Json.format[RelationsSource]
   implicit val relationsFormat: Format[Relations] = Json.format[Relations]
   implicit val analysisFormat: Format[Analysis] = Json.format[Analysis]
+
+  implicit val compileFailedExceptionReads: Reads[CompileFailedException] = new Reads[CompileFailedException] {
+    override def reads(json: JsValue): JsResult[CompileFailedException] = {
+      for {
+        t <- throwableFormat.reads(json)
+        problems <- (json \ "problems").validate[Seq[xsbti.Problem]]
+      } yield new CompileFailedException(t.getMessage, t.getCause, problems)
+    }
+  }
+
+  implicit val compileFailedExceptionWrites: Writes[CompileFailedException] = new Writes[CompileFailedException] {
+    override def writes(e: CompileFailedException): JsValue = {
+      val json = throwableFormat.writes(e)
+      json ++ Json.obj("problems" -> e.problems)
+    }
+  }
+
+  implicit val compileFailedExceptionFormat: Format[CompileFailedException] =
+    Format(compileFailedExceptionReads, compileFailedExceptionWrites)
 }
