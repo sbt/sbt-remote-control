@@ -100,6 +100,10 @@ package object protocol {
       case None => xsbti.Maybe.nothing()
     }
 
+  private def convertToOption[T](o: xsbti.Maybe[T]): Option[T] =
+    if (o.isDefined()) Some(o.get())
+    else None
+
   def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
     if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
 
@@ -112,6 +116,14 @@ package object protocol {
     override def sourcePath = convert(sp)
     override def sourceFile = convert(sp.map(new java.io.File(_)))
   }
+
+  def fromXsbtiPosition(in: xsbti.Position): xsbti.Position =
+    PositionDeserialized(in.lineContent(),
+      convertToOption(in.line()).map(_.intValue),
+      convertToOption(in.offset()).map(_.intValue),
+      convertToOption(in.pointer()).map(_.intValue),
+      convertToOption(in.pointerSpace()),
+      convertToOption(in.sourcePath()))
 
   private val positionReads: Reads[xsbti.Position] = (
     (__ \ "lineContent").read[String] and
@@ -168,7 +180,7 @@ package object protocol {
 
   implicit val executionAnalysisFormat = Format[ExecutionAnalysis](executionAnalysisReads, executionAnalysisWrites)
 
-  // Protocol serializers...  
+  // Protocol serializers...
   implicit val errorResponseFormat = Json.format[ErrorResponse]
 
   // EVENTS
@@ -524,7 +536,8 @@ package object protocol {
         }
       }
   }
-  implicit val pathComponentFormat: Format[PathComponent] = new Format[PathComponent] {
+  // lazy needed to avoid NPE
+  implicit lazy val pathComponentFormat: Format[PathComponent] = new Format[PathComponent] {
     def writes(o: PathComponent): JsValue = o match {
       case x: Id => emitTypedValue("id", "id" -> x.id)
       case x: Super => emitTypedValue("super", "qualifier" -> x.qualifier)
@@ -533,17 +546,20 @@ package object protocol {
     def reads(json: JsValue): JsResult[PathComponent] =
       (json \ "type").validate[String].flatMap {
         _ match {
-          case "id" => (json \ "path").validate[String].map(Id(_))
+          case "id" => (json \ "id").validate[String].map(Id(_))
           case "super" => (json \ "qualifier").validate[Path].map(Super(_))
           case "this" => JsSuccess(This)
           case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'id', 'super', or 'this', got: $x"))))
         }
       }
   }
-  implicit val pathFormat: Format[Path] = Json.format[Path]
-  implicit val typeParameterFormat: Format[TypeParameter] = Json.format[TypeParameter]
+  // lazy needed to avoid NPE
+  implicit lazy val pathFormat: Format[Path] = Json.format[Path]
+  // lazy needed to avoid NPE
+  implicit lazy val typeParameterFormat: Format[TypeParameter] = Json.format[TypeParameter]
 
-  implicit val simpleTypeReads: Reads[SimpleType] = new Reads[SimpleType] {
+  // lazy needed to avoid NPE
+  implicit lazy val simpleTypeReads: Reads[SimpleType] = new Reads[SimpleType] {
     def reads(json: JsValue): JsResult[SimpleType] =
       (json \ "type").validate[String].flatMap {
         _ match {
@@ -573,7 +589,8 @@ package object protocol {
       case EmptyType => emitTypedValue("emptyType")
     }
   }
-  implicit val typeReads: Reads[Type] = new Reads[Type] {
+  // lazy needed to avoid NPE
+  implicit lazy val typeReads: Reads[Type] = new Reads[Type] {
     def reads(json: JsValue): JsResult[Type] =
       (json \ "type").validate[String].flatMap {
         _ match {
@@ -605,7 +622,8 @@ package object protocol {
         }
       }
   }
-  implicit val typeWrites: Writes[Type] = new Writes[Type] {
+  // lazy needed to avoid NPE
+  implicit lazy val typeWrites: Writes[Type] = new Writes[Type] {
     def writes(o: Type): JsValue = o match {
       case x: SimpleType => simpleTypeWrites.writes(x)
       case x: Annotated => emitTypedValue("annotated", "baseType" -> x.baseType, "annotations" -> x.annotations)
@@ -615,16 +633,19 @@ package object protocol {
       case x: Constant => emitTypedValue("constant", "baseType" -> x.baseType, "value" -> x.value)
     }
   }
-  implicit val typeFormat: Format[Type] = Format[Type](typeReads, typeWrites)
+  implicit lazy val typeFormat: Format[Type] = Format[Type](typeReads, typeWrites)
 
-  implicit val annotationArgumentFormat: Format[AnnotationArgument] = Json.format[AnnotationArgument]
-  implicit val annotationFormat: Format[Annotation] = Json.format[Annotation]
+  // lazy needed to avoid NPE
+  implicit lazy val annotationArgumentFormat: Format[AnnotationArgument] = Json.format[AnnotationArgument]
+  // lazy needed to avoid NPE
+  implicit lazy val annotationFormat: Format[Annotation] = Json.format[Annotation]
   implicit val packageFormat: Format[Package] = Json.format[Package]
   implicit val sourceInfoFormat: Format[SourceInfo] = Json.format[SourceInfo]
   implicit val sourceInfosFormat: Format[SourceInfos] = Json.format[SourceInfos]
   implicit val outputSettingFormat: Format[OutputSetting] = Json.format[OutputSetting]
   implicit val modifiersFormat: Format[Modifiers] = Json.format[Modifiers]
-  implicit val definitionFormat: Format[Definition] = Json.format[Definition]
+  // lazy needed to avoid NPE
+  implicit lazy val definitionFormat: Format[Definition] = Json.format[Definition]
   implicit val compilationFormat: Format[Compilation] = Json.format[Compilation]
   implicit val sourceAPIFormat: Format[SourceAPI] = Json.format[SourceAPI]
   implicit val sourceFormat: Format[Source] = Json.format[Source]

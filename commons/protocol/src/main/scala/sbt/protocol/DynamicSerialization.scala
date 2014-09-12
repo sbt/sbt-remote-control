@@ -136,6 +136,7 @@ private object NonTrivialSerializers {
     // task results; we only need to register types T that appear in taskKey[T].
     // We don't have to register all the types of the fields in result types.
     val formats = Seq(
+      toRegisteredFormat[ByteArray],
       toRegisteredFormat[ProjectReference],
       toRegisteredFormat[AttributeKey],
       toRegisteredFormat[SbtScope],
