@@ -26,7 +26,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
     Keys.runMain <<= runMainTask(),
     Keys.run <<= runTask()))
 
-  private def backgroundRunMainTask(classpath: Initialize[Task[Classpath]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
+  def backgroundRunMainTask(classpath: Initialize[Task[Classpath]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
     {
       import DefaultParsers._
       val parser = Defaults.loadForParser(discoveredMainClasses)((s, names) => Defaults.runMainParser(s, names getOrElse Nil))
@@ -38,7 +38,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       }
     }
 
-  private def backgroundRunTask(classpath: Initialize[Task[Classpath]], mainClassTask: Initialize[Task[Option[String]]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
+  def backgroundRunTask(classpath: Initialize[Task[Classpath]], mainClassTask: Initialize[Task[Option[String]]], scalaRun: Initialize[Task[ScalaRun]]): Initialize[InputTask[BackgroundJobHandle]] =
     {
       import Def.parserToInput
       import sys.error
