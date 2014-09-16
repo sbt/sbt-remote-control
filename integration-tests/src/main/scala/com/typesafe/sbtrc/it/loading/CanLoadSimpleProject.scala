@@ -20,7 +20,7 @@ class CanLoadSimpleProject extends SbtClientTest {
   sealed trait AnalysisResult
   case class Success(analysis: Analysis) extends AnalysisResult
   case class Failed(msg: String, cause: Throwable) extends AnalysisResult
-  case class Unserialized(value: UnserializedValue[_]) extends AnalysisResult
+  case class Unserialized[T](value: UnserializedValue[T]) extends AnalysisResult
 
   sbt.IO.write(new java.io.File(dummy, "stdout.sbt"),
 
