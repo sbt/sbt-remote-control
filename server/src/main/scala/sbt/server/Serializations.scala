@@ -63,7 +63,8 @@ object Conversions {
       register(sourceAPIToProtocol),
       register(definitionToProtocol),
       register(packageAPIToProtocol),
-      register(compileFailedExceptionToProtocol))
+      register(compileFailedExceptionToProtocol),
+      register(moduleIdToProtocol))
 
     conversions.foldLeft(base) { (sofar, next) =>
       next(sofar)

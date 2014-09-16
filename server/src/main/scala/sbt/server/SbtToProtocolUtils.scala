@@ -275,4 +275,10 @@ private[server] object SbtToProtocolUtils {
   def compileFailedExceptionToProtocol(e: sbt.compiler.CompileFailed): protocol.CompileFailedException = {
     new protocol.CompileFailedException(e.getMessage, e.getCause, e.problems.toList)
   }
+
+  def moduleIdToProtocol(moduleId: org.apache.ivy.core.module.id.ModuleId): protocol.ModuleId = {
+    import scala.collection.JavaConverters._
+    protocol.ModuleId(organization = moduleId.getOrganisation(), name = moduleId.getName(),
+      attributes = moduleId.getAttributes().asInstanceOf[java.util.Map[String, String]].asScala.toMap)
+  }
 }

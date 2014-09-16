@@ -172,7 +172,8 @@ private object NonTrivialSerializers {
       toRegisteredFormat[PathComponent],
       toRegisteredFormat[Type],
       toRegisteredFormat[SimpleType, Type],
-      toRegisteredFormat[CompileFailedException])
+      toRegisteredFormat[CompileFailedException],
+      toRegisteredFormat[ModuleId])
     formats.foldLeft(base) { (sofar, next) =>
       sofar.register(next.format)(next.manifest)
     }

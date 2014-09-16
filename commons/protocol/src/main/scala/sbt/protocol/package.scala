@@ -683,4 +683,10 @@ package object protocol {
       json ++ Json.obj("problems" -> e.problems)
     }
   }
+
+  implicit val compileFailedExceptionFormat: Format[CompileFailedException] =
+    Format(compileFailedExceptionReads, compileFailedExceptionWrites)
+
+  implicit val moduleIdReads: Reads[ModuleId] = Json.reads[ModuleId]
+  implicit val moduleIdWrites: Writes[ModuleId] = Json.writes[ModuleId]
 }
