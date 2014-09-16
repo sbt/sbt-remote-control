@@ -4,6 +4,7 @@ package client
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
 import play.api.libs.json.Format
+import sbt.protocol._
 
 /**
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.

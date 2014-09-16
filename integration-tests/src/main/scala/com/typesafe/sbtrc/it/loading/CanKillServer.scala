@@ -8,7 +8,6 @@ import java.util.concurrent.Executors
 import concurrent.duration.Duration.Inf
 import concurrent.{ Await, ExecutionContext }
 import java.io.File
-import sbt.client.ScopedKey
 import java.util.concurrent.LinkedBlockingQueue
 import annotation.tailrec
 
