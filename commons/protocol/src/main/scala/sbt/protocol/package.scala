@@ -17,12 +17,6 @@ package object protocol {
     }
   }
   // Generic Serializers
-  implicit object UrlFormat extends Format[java.net.URL] {
-    def writes(u: java.net.URL): JsValue =
-      JsString(u.toURI.toASCIIString)
-    def reads(v: JsValue): JsResult[java.net.URL] =
-      v.validate[String].map(x => new java.net.URL(x))
-  }
   implicit object FileFormat extends Format[java.io.File] {
     def writes(u: java.io.File): JsValue =
       JsString(u.toURI.toASCIIString)
