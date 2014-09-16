@@ -3,11 +3,11 @@ package sbt.client
 import java.net.URI
 
 /** This is a wrapper around scoped keys which you can use to promote typesafe interfaces. */
-final case class TaskKey[T](key: ScopedKey) {
+final case class TaskKey[T](key: sbt.protocol.ScopedKey) {
   // TODO - scope changing methods.
 
   def in(build: URI): TaskKey[T] = TaskKey[T](key.copy(scope = key.scope.copy(build = Some(build))))
-  def in(project: ProjectReference): TaskKey[T] =
+  def in(project: sbt.protocol.ProjectReference): TaskKey[T] =
 
     TaskKey[T](key.copy(scope =
       key.scope.copy(

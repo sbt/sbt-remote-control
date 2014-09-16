@@ -9,7 +9,6 @@ import concurrent.Await
 import concurrent.ExecutionContext
 import concurrent.{ Promise, Future }
 import java.io.File
-import sbt.client.ScopedKey
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
 

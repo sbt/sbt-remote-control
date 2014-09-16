@@ -3,7 +3,7 @@ package terminal
 
 import java.io.File
 import sbt.client.SbtClient
-import sbt.client.Completion
+import sbt.protocol.Completion
 
 // This class blocks on response from the server for autocompletion options.
 final class RemoteJLineReader(

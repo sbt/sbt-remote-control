@@ -18,10 +18,10 @@ class TestExecution extends SbtClientTest {
   implicit val keepEventsInOrderExecutor = ExecutionContext.fromExecutorService(executorService)
 
   try {
-    final case class ExecutionRecord(results: Map[ScopedKey, sbt.client.TaskResult[_, Throwable]], events: Seq[Event])
+    final case class ExecutionRecord(results: Map[ScopedKey, TaskResult[_, Throwable]], events: Seq[Event])
 
     def recordExecutions(client: SbtClient, commands: Seq[String]): concurrent.Future[Map[String, ExecutionRecord]] = {
-      val results = new LinkedBlockingQueue[(ScopedKey, sbt.client.TaskResult[_, Throwable])]()
+      val results = new LinkedBlockingQueue[(ScopedKey, TaskResult[_, Throwable])]()
       val events =
         commands.foldLeft(Map.empty[String, LinkedBlockingQueue[Event]]) { (sofar, next) =>
           sofar + (next -> new LinkedBlockingQueue[Event]())
@@ -104,7 +104,7 @@ class TestExecution extends SbtClientTest {
         })
         _ <- concurrent.Future.sequence(executionDones.values.map(_.future)) // wait for complete
       } yield {
-        var resultsMap = Map.empty[ScopedKey, sbt.client.TaskResult[_, Throwable]]
+        var resultsMap = Map.empty[ScopedKey, TaskResult[_, Throwable]]
         while (!results.isEmpty())
           resultsMap += results.take()
 
