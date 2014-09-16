@@ -89,8 +89,8 @@ object TheBuild extends Build {
        val fullContents = lockFile match {
          case Some(file) => contents + """|[server]
                                           |  lock: %s
-                                          |  jvmargs: ${sbt.jvmargs-${sbt.global.base-${user.home}/.sbt}/.jvmargs}
-                                          |  jvmprops: ${sbt.jvmprops-${sbt.global.base-${user.home}/.sbt}/.jvmprops}""".stripMargin.format(file)
+                                          |  jvmargs: ${sbt.jvmargs-${sbt.global.base-${user.home}/.sbt}/jvmargs}
+                                          |  jvmprops: ${sbt.jvmprops-${sbt.global.base-${user.home}/.sbt}/jvmprops}""".stripMargin.format(file)
          case None => contents
        }
        IO.write(file, fullContents)
