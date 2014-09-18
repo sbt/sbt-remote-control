@@ -5,88 +5,79 @@ import play.api.libs.functional.syntax._
 import play.api.data.validation.ValidationError
 import protocol.JsonHelpers._
 
-package object protocol {
+// these serializers are so generic they don't really "belong"
+// in the sbt.protocol API, but we need them internally
+// to implement other serializers.
+private[sbt] object GenericSerializers {
 
-  // TODO - Dangerous-ish
-  implicit object IntFormat extends Format[java.lang.Integer] {
-    def writes(i: java.lang.Integer): JsValue =
-      JsNumber(i.intValue)
-    def reads(v: JsValue): JsResult[java.lang.Integer] = v match {
-      case JsNumber(value) => JsSuccess(value.toInt)
-      case _ => JsError("Unable to convert integer: " + v)
+  // adapt the Int reads/writes to boxed java.lang.Integer
+  implicit val integerReads = Reads[java.lang.Integer](j => implicitly[Reads[Int]].reads(j).map(new java.lang.Integer(_)))
+  implicit val integerWrites = Writes[java.lang.Integer](i => implicitly[Writes[Int]].writes(i))
+
+  def fileFromString(s: String): Option[java.io.File] =
+    try Some(new java.io.File(new java.net.URI(s)))
+    catch {
+      case e: Exception => None
     }
+  def fileToString(f: java.io.File): String =
+    f.toURI.toASCIIString
+  implicit val fileReads = Reads[java.io.File] { j =>
+    j.validate[String].flatMap(x =>
+      fileFromString(x).map(JsSuccess(_)).getOrElse(JsError(s"Invalid filename $x")))
   }
-  // Generic Serializers
-  implicit object FileFormat extends Format[java.io.File] {
-    def writes(u: java.io.File): JsValue =
-      JsString(u.toURI.toASCIIString)
-    def reads(v: JsValue): JsResult[java.io.File] =
-      v.validate[String].map(x => new java.io.File(new java.net.URI(x)))
-  }
-  implicit object UriFormat extends Format[java.net.URI] {
-    def writes(u: java.net.URI): JsValue =
-      JsString(u.toASCIIString)
-    def reads(v: JsValue): JsResult[java.net.URI] =
-      v.validate[String].map(x => new java.net.URI(x))
-  }
-  implicit def optionFormat[A](implicit other: Format[A]): Format[Option[A]] =
-    new Format[Option[A]] {
-      def writes(o: Option[A]): JsValue =
-        o match {
-          case Some(value) => other.writes(value)
-          case None => JsNull // TODO - Is this ok?
-        }
-      def reads(v: JsValue): JsResult[Option[A]] =
-        v match {
-          case JsNull => JsSuccess(None)
-          case value => other.reads(value).map(Some(_))
-        }
-    }
+  implicit val fileWrites = Writes[java.io.File](f => JsString(fileToString(f)))
+
+  implicit val uriReads = Reads[java.net.URI](v => v.validate[String].map(x => new java.net.URI(x)))
+  implicit val uriWrites = Writes[java.net.URI](u => JsString(u.toASCIIString))
+
   // this is not implicit because it would cause trouble with
   // more specific formatters; we just use it as an explicit fallback
-  object throwableFormat extends OFormat[java.lang.Throwable] {
-    final private implicit def recursiveFormat = this
-    def writes(t: java.lang.Throwable): JsObject =
-      JsObject(Seq("message" -> Option(t.getMessage).map(JsString(_)).getOrElse(JsNull),
-        "cause" -> Option(t.getCause).map(Json.toJson(_)).getOrElse(JsNull)))
-    def reads(v: JsValue): JsResult[java.lang.Throwable] = {
-      def validateOrNull[T <: AnyRef](json: JsValue)(implicit r: Reads[T]): JsResult[T] = json match {
-        case JsNull => JsSuccess(null.asInstanceOf[T])
-        case _ => r.reads(json)
-      }
-      for {
-        message <- validateOrNull[String](v \ "message")
-        cause <- validateOrNull[Throwable](v \ "cause")
-      } yield new Exception(message, cause)
+  val throwableReads: Reads[java.lang.Throwable] = Reads[java.lang.Throwable] { v =>
+    implicit def recursiveReads = throwableReads
+    def validateOrNull[T <: AnyRef](json: JsValue)(implicit r: Reads[T]): JsResult[T] = json match {
+      case JsNull => JsSuccess(null.asInstanceOf[T])
+      case _ => r.reads(json)
+    }
+    for {
+      message <- validateOrNull[String](v \ "message")
+      cause <- validateOrNull[Throwable](v \ "cause")
+    } yield new Exception(message, cause)
+  }
+  val throwableWrites: OWrites[java.lang.Throwable] = OWrites[java.lang.Throwable] { t =>
+    implicit def recursiveWrites = throwableWrites
+    JsObject(Seq("message" -> Option(t.getMessage).map(JsString(_)).getOrElse(JsNull),
+      "cause" -> Option(t.getCause).map(Json.toJson(_)).getOrElse(JsNull)))
+  }
+
+}
+
+package object protocol {
+  // default serializers
+  import Reads._
+  import Writes._
+  // our private extra default serializers
+  import GenericSerializers._
+
+  implicit def attributedWrites[T](implicit writes: Writes[T]) = Writes[Attributed[T]] { t =>
+    JsObject(Seq("attributed" -> JsBoolean(true),
+      "data" -> writes.writes(t.data)))
+  }
+
+  implicit def attributedReads[T](implicit reads: Reads[T]) = Reads[Attributed[T]] { obj =>
+    (obj \ "attributed") match {
+      case JsBoolean(true) =>
+        reads.reads(obj \ "data").map(sbt.Attributed.blank)
+      case _ => JsError("not a valid attributed.")
     }
   }
 
-  implicit def attributedFormat[T](implicit format: Format[T]) =
-    new Format[sbt.Attributed[T]] {
-      override def writes(t: sbt.Attributed[T]): JsValue =
-        JsObject(Seq("attributed" -> JsBoolean(true),
-          "data" -> format.writes(t.data)))
-      override def reads(obj: JsValue): JsResult[sbt.Attributed[T]] =
-        (obj \ "attributed") match {
-          case JsBoolean(true) =>
-            format.reads(obj \ "data").map(sbt.Attributed.blank)
-          case _ => JsError("not a valid attributed.")
-        }
-      override def toString = "Format[Attributed[" + format + "]"
+  implicit val severityWrites = Writes[xsbti.Severity](s => JsString(s.toString))
+  implicit val severityReads = Reads[xsbti.Severity] { in =>
+    in match {
+      case JsString(s) => Option(xsbti.Severity.valueOf(s)).map(sev => JsSuccess(sev)).getOrElse(JsError("Could not find severity: " + s))
+      case _ => JsError("Could not find severity: " + in)
     }
-  implicit object SeverityFormat extends Format[xsbti.Severity] {
-    override def writes(in: xsbti.Severity): JsValue =
-      JsString(in.toString)
-    override def reads(in: JsValue): JsResult[xsbti.Severity] =
-      in match {
-        case JsString(s) => Option(xsbti.Severity.valueOf(s)).map(sev => JsSuccess(sev)).getOrElse(JsError("Could not find severity: " + s))
-        case _ => JsError("Could not find severity: " + in)
-      }
   }
-
-  implicit val xsbtiProblemFormat: Format[xsbti.Problem] =
-    Format[xsbti.Problem](Reads(problemReads.reads),
-      Writes(x => problemWrites.writes(Problem.fromXsbtiProblem(x))))
 
   private def convert[T](o: Option[T]): xsbti.Maybe[T] =
     o match {
@@ -98,8 +89,8 @@ package object protocol {
     if (o.isDefined()) Some(o.get())
     else None
 
-  def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit format: Format[T]): Seq[(String, JsValue)] =
-    if (value.isDefined) Seq(name -> format.writes(value.get)) else Nil
+  def defineIf[T](value: xsbti.Maybe[T], name: String)(implicit writes: Writes[T]): Seq[(String, JsValue)] =
+    if (value.isDefined) Seq(name -> writes.writes(value.get)) else Nil
 
   private final case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
     ps: Option[String], sp: Option[String]) extends xsbti.Position {
@@ -119,7 +110,7 @@ package object protocol {
       convertToOption(in.pointerSpace()),
       convertToOption(in.sourcePath()))
 
-  private val positionReads: Reads[xsbti.Position] = (
+  implicit val positionReads: Reads[xsbti.Position] = (
     (__ \ "lineContent").read[String] and
     (__ \ "line").readNullable[Int] and
     (__ \ "offset").readNullable[Int] and
@@ -127,7 +118,7 @@ package object protocol {
     (__ \ "pointerSpace").readNullable[String] and
     (__ \ "sourcePath").readNullable[String])(PositionDeserialized.apply _)
 
-  private val positionWrites: Writes[xsbti.Position] = Writes[xsbti.Position] { in =>
+  implicit val positionWrites: Writes[xsbti.Position] = Writes[xsbti.Position] { in =>
     val line = defineIf(in.line, "line")
     val offset = defineIf(in.offset, "offset")
     val pointer = defineIf(in.pointer, "pointer")
@@ -143,18 +134,19 @@ package object protocol {
       sourceFile)
   }
 
-  implicit val positionFormat: Format[xsbti.Position] = Format[xsbti.Position](positionReads, positionWrites)
+  private val executionAnalysisCommandReads = Json.reads[ExecutionAnalysisCommand]
+  private val executionAnalysisCommandWrites = Json.writes[ExecutionAnalysisCommand]
+  private val executionAnalysisKeyReads = Json.reads[ExecutionAnalysisKey]
+  private val executionAnalysisKeyWrites = Json.writes[ExecutionAnalysisKey]
+  private val executionAnalysisErrorReads = Json.reads[ExecutionAnalysisError]
+  private val executionAnalysisErrorWrites = Json.writes[ExecutionAnalysisError]
 
-  private val executionAnalysisCommandFormat = Json.format[ExecutionAnalysisCommand]
-  private val executionAnalysisKeyFormat = Json.format[ExecutionAnalysisKey]
-  private val executionAnalysisErrorFormat = Json.format[ExecutionAnalysisError]
-
-  private val executionAnalysisWrites: Writes[ExecutionAnalysis] = Writes[ExecutionAnalysis] { analysis =>
+  implicit val executionAnalysisWrites: Writes[ExecutionAnalysis] = Writes[ExecutionAnalysis] { analysis =>
     val (discriminator, rest) =
       analysis match {
-        case c: ExecutionAnalysisCommand => "command" -> executionAnalysisCommandFormat.writes(c)
-        case k: ExecutionAnalysisKey => "key" -> executionAnalysisKeyFormat.writes(k)
-        case e: ExecutionAnalysisError => "error" -> executionAnalysisErrorFormat.writes(e)
+        case c: ExecutionAnalysisCommand => "command" -> executionAnalysisCommandWrites.writes(c)
+        case k: ExecutionAnalysisKey => "key" -> executionAnalysisKeyWrites.writes(k)
+        case e: ExecutionAnalysisError => "error" -> executionAnalysisErrorWrites.writes(e)
       }
     val baseObj = rest match {
       case o: JsObject => o
@@ -163,34 +155,35 @@ package object protocol {
     baseObj ++ Json.obj("executionType" -> discriminator)
   }
 
-  private val executionAnalysisReads: Reads[ExecutionAnalysis] = Reads[ExecutionAnalysis] { v =>
+  implicit val executionAnalysisReads: Reads[ExecutionAnalysis] = Reads[ExecutionAnalysis] { v =>
     (v \ "executionType").validate[String] flatMap {
-      case "command" => executionAnalysisCommandFormat.reads(v)
-      case "key" => executionAnalysisKeyFormat.reads(v)
-      case "error" => executionAnalysisErrorFormat.reads(v)
+      case "command" => executionAnalysisCommandReads.reads(v)
+      case "key" => executionAnalysisKeyReads.reads(v)
+      case "error" => executionAnalysisErrorReads.reads(v)
       case other => JsError(s"Invalid executionType '$other' in $v")
     }
   }
 
-  implicit val executionAnalysisFormat = Format[ExecutionAnalysis](executionAnalysisReads, executionAnalysisWrites)
-
   // Protocol serializers...
-  implicit val errorResponseFormat = Json.format[ErrorResponse]
+  implicit val errorResponseReads = Json.reads[ErrorResponse]
+  implicit val errorResponseWrites = Json.writes[ErrorResponse]
 
   // EVENTS
 
-  private implicit class FormatOps[T](val f: Format[T]) extends AnyVal {
-    def withType(typ: String): Format[T] = {
-      //usage of 'as' here is okay since we sort of assume that it will always be a JsObject
-      val newWrites: Writes[T] = f.transform(x => x.as[JsObject] + ("type" -> JsString(typ)))
-      Format(f, newWrites)
+  private implicit class OWritesOps[T](val w: OWrites[T]) extends AnyVal {
+    def withType(typ: String): OWrites[T] = {
+      OWrites(t => w.writes(t) + ("type" -> JsString(typ)))
     }
   }
 
-  private val logSuccessFormat: Format[LogSuccess] = Json.format[LogSuccess].withType("success")
-  private val logMessageFormat: Format[LogMessage] = Json.format[LogMessage].withType("message")
-  private val logStdOutFormat: Format[LogStdOut] = Json.format[LogStdOut].withType("stdout")
-  private val logStdErrFormat: Format[LogStdErr] = Json.format[LogStdErr].withType("stderr")
+  private val logSuccessReads = Json.reads[LogSuccess]
+  private val logSuccessWrites = Json.writes[LogSuccess].withType("success")
+  private val logMessageReads = Json.reads[LogMessage]
+  private val logMessageWrites = Json.writes[LogMessage].withType("message")
+  private val logStdOutReads = Json.reads[LogStdOut]
+  private val logStdOutWrites = Json.writes[LogStdOut].withType("stdout")
+  private val logStdErrReads = Json.reads[LogStdErr]
+  private val logStdErrWrites = Json.writes[LogStdErr].withType("stderr")
 
   private val logTraceReads = (
     (__ \ "class").read[String] and
@@ -198,42 +191,42 @@ package object protocol {
 
   private val logTraceWrites = (
     (__ \ "class").write[String] and
-    (__ \ "message").write[String])(unlift(LogTrace.unapply))
-
-  private implicit val logTraceFormat = Format(logTraceReads, logTraceWrites).withType("trace")
+    (__ \ "message").write[String])(unlift(LogTrace.unapply)).withType("trace")
 
   //play-json does not handle polymorphic writes and reads very well at all
-  private val logEntryWrites: Writes[LogEntry] = Writes[LogEntry] {
-    case x: LogSuccess => logSuccessFormat.writes(x)
+  private implicit val logEntryWrites: Writes[LogEntry] = Writes[LogEntry] {
+    case x: LogSuccess => logSuccessWrites.writes(x)
     case x: LogTrace => logTraceWrites.writes(x)
-    case x: LogMessage => logMessageFormat.writes(x)
-    case x: LogStdOut => logStdOutFormat.writes(x)
-    case x: LogStdErr => logStdErrFormat.writes(x)
+    case x: LogMessage => logMessageWrites.writes(x)
+    case x: LogStdOut => logStdOutWrites.writes(x)
+    case x: LogStdErr => logStdErrWrites.writes(x)
   }
 
-  private val logEntryReads: Reads[LogEntry] = Reads[LogEntry] { js =>
+  private implicit val logEntryReads: Reads[LogEntry] = Reads[LogEntry] { js =>
     (js \ "type").validate[String].flatMap {
-      case "success" => logSuccessFormat.reads(js)
+      case "success" => logSuccessReads.reads(js)
       case "trace" => logTraceReads.reads(js)
-      case "message" => logMessageFormat.reads(js)
-      case "stdout" => logStdOutFormat.reads(js)
-      case "stderr" => logStdErrFormat.reads(js)
+      case "message" => logMessageReads.reads(js)
+      case "stdout" => logStdOutReads.reads(js)
+      case "stderr" => logStdErrReads.reads(js)
       case other => JsError(s"Unknown log entry type $other")
     }
   }
-  implicit val logEntryFormat: Format[LogEntry] = Format(logEntryReads, logEntryWrites)
 
-  private def emptyObjectFormat[A](instance: A) = new Format[A] {
-    def writes(e: A): JsValue = JsObject(Seq.empty)
-    def reads(obj: JsValue): JsResult[A] = JsSuccess(instance)
-  }
-  implicit val receivedResponseFormat = emptyObjectFormat(ReceivedResponse())
+  private def emptyObjectReads[A](instance: A) = Reads[A](_ => JsSuccess(instance))
+  private def emptyObjectWrites[A] = Writes[A](_ => JsObject(Nil))
 
-  implicit val requestCompletedFormat = emptyObjectFormat(RequestCompleted())
-  implicit val requestFailedFormat = emptyObjectFormat(RequestFailed())
-  implicit val killRequestFormat = emptyObjectFormat(KillServerRequest())
+  implicit val receivedResponseReads = emptyObjectReads(ReceivedResponse())
+  implicit val receivedResponseWrites = emptyObjectWrites[ReceivedResponse]
 
-  implicit val outcomeFormat: Format[TestOutcome] = Format(
+  implicit val requestCompletedReads = emptyObjectReads(RequestCompleted())
+  implicit val requestCompletedWrites = emptyObjectWrites[RequestCompleted]
+  implicit val requestFailedReads = emptyObjectReads(RequestFailed())
+  implicit val requestFailedWrites = emptyObjectWrites[RequestFailed]
+  implicit val killRequestReads = emptyObjectReads(KillServerRequest())
+  implicit val killRequestWrites = emptyObjectWrites[KillServerRequest]
+
+  implicit val testOutcomeReads =
     Reads[TestOutcome] { value =>
       value.validate[String].flatMap {
         case "passed" => JsSuccess(TestPassed)
@@ -242,9 +235,10 @@ package object protocol {
         case "skipped" => JsSuccess(TestSkipped)
         case other => JsError(s"Unknown test outcome - $other")
       }
-    },
-    Writes[TestOutcome](outcome => JsString(outcome.toString)))
-  implicit val testGroupResultFormat: Format[TestGroupResult] = Format(
+    }
+  implicit val testOutcomeWrites =
+    Writes[TestOutcome](outcome => JsString(outcome.toString))
+  implicit val testGroupResultReads =
     Reads[TestGroupResult] { value =>
       value.validate[String].flatMap {
         case "passed" => JsSuccess(TestGroupPassed)
@@ -252,62 +246,100 @@ package object protocol {
         case "error" => JsSuccess(TestGroupError)
         case other => JsError(s"Unknown test group result - $other")
       }
-    },
-    Writes[TestGroupResult](result => JsString(result.toString)))
+    }
+  implicit val testGroupResultWrites =
+    Writes[TestGroupResult](result => JsString(result.toString))
 
-  implicit val taskLogEventFormat = Json.format[TaskLogEvent]
-  implicit val coreLogEventFormat = Json.format[CoreLogEvent]
-  implicit val backgroundJobLogEventFormat = Json.format[BackgroundJobLogEvent]
-  implicit val cancelExecutionRequestFormat = Json.format[CancelExecutionRequest]
-  implicit val cancelExecutionResponseFormat = Json.format[CancelExecutionResponse]
-  implicit val clientInfoFormat = Json.format[ClientInfo]
-  implicit val registerClientRequestFormat = Json.format[RegisterClientRequest]
-  implicit val executionRequestFormat = Json.format[ExecutionRequest]
-  implicit val keyExecutionRequestFormat = Json.format[KeyExecutionRequest]
-  implicit val executionReceivedFormat = Json.format[ExecutionRequestReceived]
-  implicit val executionWaitingFormat = Json.format[ExecutionWaiting]
-  implicit val executionStartingFormat = Json.format[ExecutionStarting]
-  implicit val executionSuccessFormat = Json.format[ExecutionSuccess]
-  implicit val executionFailureFormat = Json.format[ExecutionFailure]
-  implicit val listenToEventsFormat = emptyObjectFormat(ListenToEvents())
-  implicit val unlistenToEventsFormat = emptyObjectFormat(UnlistenToEvents())
-  implicit val listenToBuildChangeFormat = emptyObjectFormat(ListenToBuildChange())
-  implicit val unlistenToBuildChangeFormat = emptyObjectFormat(UnlistenToBuildChange())
-  implicit val sendSyntheticBuildChangedFormat = emptyObjectFormat(SendSyntheticBuildChanged())
-  implicit val buildStructureChangedFormat = Json.format[BuildStructureChanged]
-  implicit val listenToValueFormat = Json.format[ListenToValue]
-  implicit val unlistenToValueFormat = Json.format[UnlistenToValue]
-  implicit val sendSyntheticValueChangedFormat = Json.format[SendSyntheticValueChanged]
-  implicit val keyNotFoundFormat = Json.format[KeyNotFound]
-  implicit val taskStartedFormat = Json.format[TaskStarted]
-  implicit val taskFinishedFormat = Json.format[TaskFinished]
-  implicit val readLineRequestFormat = Json.format[ReadLineRequest]
-  implicit val readLineResponseFormat = Json.format[ReadLineResponse]
-  implicit val confirmRequestFormat = Json.format[ConfirmRequest]
-  implicit val confirmResponseFormat = Json.format[ConfirmResponse]
-  implicit val keyLookupRequestFormat = Json.format[KeyLookupRequest]
-  implicit val keyLookupResponseFormat = Json.format[KeyLookupResponse]
-  implicit val analyzeExecutionRequestFormat = Json.format[AnalyzeExecutionRequest]
-  implicit val analyzeExecutionResponseFormat = Json.format[AnalyzeExecutionResponse]
-  implicit val buildLoadedFormat = emptyObjectFormat(BuildLoaded())
-  implicit val buildFailedToLoadFormat = emptyObjectFormat(BuildFailedToLoad())
-  implicit val backgroundJobInfoFormat = Json.format[BackgroundJobInfo]
-  implicit val backgroundJobStartedFormat = Json.format[BackgroundJobStarted]
-  implicit val backgroundJobFinishedFormat = Json.format[BackgroundJobFinished]
+  implicit val taskLogEventReads = Json.reads[TaskLogEvent]
+  implicit val taskLogEventWrites = Json.writes[TaskLogEvent]
+  implicit val coreLogEventReads = Json.reads[CoreLogEvent]
+  implicit val coreLogEventWrites = Json.writes[CoreLogEvent]
+  implicit val backgroundJobLogEventReads = Json.reads[BackgroundJobLogEvent]
+  implicit val backgroundJobLogEventWrites = Json.writes[BackgroundJobLogEvent]
+  implicit val cancelExecutionRequestReads = Json.reads[CancelExecutionRequest]
+  implicit val cancelExecutionRequestWrites = Json.writes[CancelExecutionRequest]
+  implicit val cancelExecutionResponseReads = Json.reads[CancelExecutionResponse]
+  implicit val cancelExecutionResponseWrites = Json.writes[CancelExecutionResponse]
+  implicit val clientInfoReads = Json.reads[ClientInfo]
+  implicit val clientInfoWrites = Json.writes[ClientInfo]
+  implicit val registerClientRequestReads = Json.reads[RegisterClientRequest]
+  implicit val registerClientRequestWrites = Json.writes[RegisterClientRequest]
+  implicit val executionRequestReads = Json.reads[ExecutionRequest]
+  implicit val executionRequestWrites = Json.writes[ExecutionRequest]
+  implicit val keyExecutionRequestReads = Json.reads[KeyExecutionRequest]
+  implicit val keyExecutionRequestWrites = Json.writes[KeyExecutionRequest]
+  implicit val executionReceivedReads = Json.reads[ExecutionRequestReceived]
+  implicit val executionReceivedWrites = Json.writes[ExecutionRequestReceived]
+  implicit val executionWaitingReads = Json.reads[ExecutionWaiting]
+  implicit val executionWaitingWrites = Json.writes[ExecutionWaiting]
+  implicit val executionStartingReads = Json.reads[ExecutionStarting]
+  implicit val executionStartingWrites = Json.writes[ExecutionStarting]
+  implicit val executionSuccessReads = Json.reads[ExecutionSuccess]
+  implicit val executionSuccessWrites = Json.writes[ExecutionSuccess]
+  implicit val executionFailureReads = Json.reads[ExecutionFailure]
+  implicit val executionFailureWrites = Json.writes[ExecutionFailure]
+  implicit val listenToEventsReads = emptyObjectReads(ListenToEvents())
+  implicit val listenToEventsWrites = emptyObjectWrites[ListenToEvents]
+  implicit val unlistenToEventsReads = emptyObjectReads(UnlistenToEvents())
+  implicit val unlistenToEventsWrites = emptyObjectWrites[UnlistenToEvents]
+  implicit val listenToBuildChangeReads = emptyObjectReads(ListenToBuildChange())
+  implicit val listenToBuildChangeWrites = emptyObjectWrites[ListenToBuildChange]
+  implicit val unlistenToBuildChangeReads = emptyObjectReads(UnlistenToBuildChange())
+  implicit val unlistenToBuildChangeWrites = emptyObjectWrites[UnlistenToBuildChange]
+  implicit val sendSyntheticBuildChangedReads = emptyObjectReads(SendSyntheticBuildChanged())
+  implicit val sendSyntheticBuildChangedWrites = emptyObjectWrites[SendSyntheticBuildChanged]
+  implicit val buildStructureChangedReads = Json.reads[BuildStructureChanged]
+  implicit val buildStructureChangedWrites = Json.writes[BuildStructureChanged]
+  implicit val listenToValueReads = Json.reads[ListenToValue]
+  implicit val listenToValueWrites = Json.writes[ListenToValue]
+  implicit val unlistenToValueReads = Json.reads[UnlistenToValue]
+  implicit val unlistenToValueWrites = Json.writes[UnlistenToValue]
+  implicit val sendSyntheticValueChangedReads = Json.reads[SendSyntheticValueChanged]
+  implicit val sendSyntheticValueChangedWrites = Json.writes[SendSyntheticValueChanged]
+  implicit val keyNotFoundReads = Json.reads[KeyNotFound]
+  implicit val keyNotFoundWrites = Json.writes[KeyNotFound]
+  implicit val taskStartedReads = Json.reads[TaskStarted]
+  implicit val taskStartedWrites = Json.writes[TaskStarted]
+  implicit val taskFinishedReads = Json.reads[TaskFinished]
+  implicit val taskFinishedWrites = Json.writes[TaskFinished]
+  implicit val readLineRequestReads = Json.reads[ReadLineRequest]
+  implicit val readLineRequestWrites = Json.writes[ReadLineRequest]
+  implicit val readLineResponseReads = Json.reads[ReadLineResponse]
+  implicit val readLineResponseWrites = Json.writes[ReadLineResponse]
+  implicit val confirmRequestReads = Json.reads[ConfirmRequest]
+  implicit val confirmRequestWrites = Json.writes[ConfirmRequest]
+  implicit val confirmResponseReads = Json.reads[ConfirmResponse]
+  implicit val confirmResponseWrites = Json.writes[ConfirmResponse]
+  implicit val keyLookupRequestReads = Json.reads[KeyLookupRequest]
+  implicit val keyLookupRequestWrites = Json.writes[KeyLookupRequest]
+  implicit val keyLookupResponseReads = Json.reads[KeyLookupResponse]
+  implicit val keyLookupResponseWrites = Json.writes[KeyLookupResponse]
+  implicit val analyzeExecutionRequestReads = Json.reads[AnalyzeExecutionRequest]
+  implicit val analyzeExecutionRequestWrites = Json.writes[AnalyzeExecutionRequest]
+  implicit val analyzeExecutionResponseReads = Json.reads[AnalyzeExecutionResponse]
+  implicit val analyzeExecutionResponseWrites = Json.writes[AnalyzeExecutionResponse]
+  implicit val buildLoadedReads = emptyObjectReads(BuildLoaded())
+  implicit val buildLoadedWrites = emptyObjectWrites[BuildLoaded]
+  implicit val buildFailedToLoadReads = emptyObjectReads(BuildFailedToLoad())
+  implicit val buildFailedToLoadWrites = emptyObjectWrites[BuildFailedToLoad]
+  implicit val backgroundJobInfoReads = Json.reads[BackgroundJobInfo]
+  implicit val backgroundJobInfoWrites = Json.writes[BackgroundJobInfo]
+  implicit val backgroundJobStartedReads = Json.reads[BackgroundJobStarted]
+  implicit val backgroundJobStartedWrites = Json.writes[BackgroundJobStarted]
+  implicit val backgroundJobFinishedReads = Json.reads[BackgroundJobFinished]
+  implicit val backgroundJobFinishedWrites = Json.writes[BackgroundJobFinished]
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
-  private val taskEventWrites: Writes[TaskEvent] = (
+  implicit val taskEventWrites: Writes[TaskEvent] = (
     (__ \ "taskId").write[Long] and
     (__ \ "name").write[String] and
     (__ \ "serialized").write[JsValue])(unlift(TaskEvent.unapply))
 
-  private val taskEventReads: Reads[TaskEvent] = (
+  implicit val taskEventReads: Reads[TaskEvent] = (
     (__ \ "taskId").read[Long] and
     (__ \ "name").read[String] and
     (__ \ "serialized").read[JsValue])((id, name, serialized) => TaskEvent(id, name, serialized))
-
-  implicit val taskEventFormat: Format[TaskEvent] = Format[TaskEvent](taskEventReads, taskEventWrites)
 
   implicit def valueChangedReads[A, E <: Throwable](implicit result: Reads[TaskResult[A, E]]): Reads[ValueChanged[A, E]] = (
     (__ \ "key").read[ScopedKey] and
@@ -317,86 +349,68 @@ package object protocol {
     (__ \ "key").write[ScopedKey] and
     (__ \ "value").write[TaskResult[A, E]])(unlift(ValueChanged.unapply[A, E]))
 
-  implicit def valueChangedFormat[A, E <: Throwable](implicit result: Format[TaskResult[A, E]]): Format[ValueChanged[A, E]] =
-    Format(valueChangedReads, valueChangedWrites)
-
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro
-  implicit val backgroundJobEventFormat: Format[BackgroundJobEvent] = new Format[BackgroundJobEvent] {
-    override def writes(event: BackgroundJobEvent): JsValue = {
-      Json.obj("jobId" -> event.jobId, "name" -> event.name, "serialized" -> event.serialized)
-    }
-
-    override def reads(v: JsValue): JsResult[BackgroundJobEvent] = {
-      for {
-        jobId <- (v \ "jobId").validate[Long]
-        name <- (v \ "name").validate[String]
-        serialized = (v \ "serialized")
-      } yield BackgroundJobEvent(jobId = jobId, name = name, serialized = serialized)
-    }
+  implicit val backgroundJobEventWrites = Writes[BackgroundJobEvent] { event =>
+    Json.obj("jobId" -> event.jobId, "name" -> event.name, "serialized" -> event.serialized)
   }
 
-  implicit val completionFormat = Json.format[Completion]
-  implicit val commandCompletionsRequestFormat = Json.format[CommandCompletionsRequest]
-  implicit val commandCompletionsResponseFormat = Json.format[CommandCompletionsResponse]
+  implicit val backgroundJobEventReads = Reads[BackgroundJobEvent] { v =>
+    for {
+      jobId <- (v \ "jobId").validate[Long]
+      name <- (v \ "name").validate[String]
+      serialized = (v \ "serialized")
+    } yield BackgroundJobEvent(jobId = jobId, name = name, serialized = serialized)
+  }
+
+  implicit val completionReads = Json.reads[Completion]
+  implicit val completionWrites = Json.writes[Completion]
+  implicit val commandCompletionsRequestReads = Json.reads[CommandCompletionsRequest]
+  implicit val commandCompletionsRequestWrites = Json.writes[CommandCompletionsRequest]
+  implicit val commandCompletionsResponseReads = Json.reads[CommandCompletionsResponse]
+  implicit val commandCompletionsResponseWrites = Json.writes[CommandCompletionsResponse]
 
   ///// task events (do not extend protocol.Message)
   // these formatters are hand-coded because they have an unapply()
   // that confuses play-json
 
-  private val testGroupStartedReads: Reads[TestGroupStarted] =
+  implicit val testGroupStartedReads: Reads[TestGroupStarted] =
     (__ \ "name").read[String].map(TestGroupStarted(_))
-  private val testGroupStartedWrites: Writes[TestGroupStarted] =
+  implicit val testGroupStartedWrites: Writes[TestGroupStarted] =
     (__ \ "name").write[String].contramap(x => x.name)
 
-  implicit val testGroupFormat: Format[TestGroupStarted] = Format(testGroupStartedReads, testGroupStartedWrites)
-
-  private val testGroupFinishedReads: Reads[TestGroupFinished] = (
+  implicit val testGroupFinishedReads: Reads[TestGroupFinished] = (
     (__ \ "name").read[String] and
     (__ \ "result").read[TestGroupResult] and
     (__ \ "error").readNullable[String])(TestGroupFinished.apply _)
-  private val testGroupFinishedWrites: Writes[TestGroupFinished] = (
+  implicit val testGroupFinishedWrites: Writes[TestGroupFinished] = (
     (__ \ "name").write[String] and
     (__ \ "result").write[TestGroupResult] and
     (__ \ "error").writeNullable[String])(unlift(TestGroupFinished.unapply))
-  implicit val testGroupFinishedFormat: Format[TestGroupFinished] = Format(testGroupFinishedReads, testGroupFinishedWrites)
 
-  private val testEventReads: Reads[TestEvent] = (
+  implicit val testEventReads: Reads[TestEvent] = (
     (__ \ "name").read[String] and
     (__ \ "description").readNullable[String] and
     (__ \ "outcome").read[TestOutcome] and
     (__ \ "error").readNullable[String] and
     (__ \ "duration").read[Long])(TestEvent.apply _)
 
-  private val testEventWrites: Writes[TestEvent] = Writes[TestEvent] { event =>
+  implicit val testEventWrites: Writes[TestEvent] = Writes[TestEvent] { event =>
     Json.obj("name" -> event.name, "description" -> event.description,
       "outcome" -> event.outcome, "error" -> event.error, "duration" -> event.duration)
   }
-  implicit val testEventFormat: Format[TestEvent] = Format[TestEvent](testEventReads, testEventWrites)
 
-  private val compilationFailureReads: Reads[CompilationFailure] = (
+  implicit val compilationFailureReads: Reads[CompilationFailure] = (
     (__ \ "project").read[ProjectReference] and
     (__ \ "position").read[xsbti.Position] and
     (__ \ "severity").read[xsbti.Severity] and
     (__ \ "message").read[String])(CompilationFailure.apply _)
 
-  private val compilationFailureWrites: Writes[CompilationFailure] = Writes[CompilationFailure] { event =>
+  implicit val compilationFailureWrites: Writes[CompilationFailure] = Writes[CompilationFailure] { event =>
     Json.obj("project" -> event.project, "position" -> event.position,
       "severity" -> event.severity, "message" -> event.message)
   }
 
-  implicit val compilationFailureFormat = Format[CompilationFailure](compilationFailureReads, compilationFailureWrites)
-
-  implicit val mutableByteArrayReads: Reads[Array[Byte]] = Reads(_.asOpt[String] map { in =>
-    try {
-      val r = hexToBytes(in)
-      JsSuccess(r)
-    } catch {
-      case e: Exception => JsError(Seq(JsPath() -> Seq(ValidationError(s"Could not decode string '$in' as hex."))))
-    }
-  } getOrElse JsError(Seq(JsPath() -> Seq(ValidationError("validate.error.expected.jsstring")))))
-  implicit val mutableByteArrayWrites: Writes[Array[Byte]] = Writes(in => JsString(bytesToHex(in)))
-  implicit val mutableByteArrayFormat: Format[Array[Byte]] = Format[Array[Byte]](mutableByteArrayReads, mutableByteArrayWrites)
   implicit val immutableByteArrayReads: Reads[ByteArray] = Reads(_.asOpt[String] map { in =>
     try {
       val r = hexToBytes(in)
@@ -406,53 +420,31 @@ package object protocol {
     }
   } getOrElse JsError(Seq(JsPath() -> Seq(ValidationError("validate.error.expected.jsstring")))))
   implicit val immutableByteArrayWrites: Writes[ByteArray] = Writes(in => JsString(bytesToHex(in.toArray)))
-  implicit val immutableByteArrayFormat: Format[ByteArray] = Format[ByteArray](immutableByteArrayReads, immutableByteArrayWrites)
-  implicit def setReads[A](implicit aReads: Reads[A]): Reads[Set[A]] = new Reads[Set[A]] {
-    def reads(json: JsValue) = json.validate[Seq[A]].map(_.toSet)
-  }
-  implicit def setWrites[A](implicit aWrites: Writes[A]): Writes[Set[A]] = new Writes[Set[A]] {
-    def writes(in: Set[A]) = JsArray(in.map(aWrites.writes).toSeq)
-  }
-  implicit def setFormat[A](implicit aFormat: Format[A]): Format[Set[A]] = Format[Set[A]](setReads, setWrites)
-  implicit def mapReads[A, B](implicit aReads: Reads[A], bReads: Reads[B]): Reads[Map[A, B]] = new Reads[Map[A, B]] {
-    def reads(json: JsValue) = json match {
-      case JsArray(in) =>
-        in.foldLeft[JsResult[Map[A, B]]](JsSuccess(Map.empty[A, B])) { (s, v) =>
-          (s, v) match {
-            case (JsSuccess(m, _), JsArray(v)) =>
-              if (v.size == 2) {
-                (Json.fromJson[A](v(0)), Json.fromJson[B](v(1))) match {
-                  case (JsSuccess(a, _), JsSuccess(b, _)) => JsSuccess(m + (a -> b))
-                  case (ea @ JsError(_), JsSuccess(_, _)) => ea
-                  case (JsSuccess(_, _), eb @ JsError(_)) => eb
-                  case (ea @ JsError(_), eb @ JsError(_)) => ea ++ eb
-                }
-              } else JsError(Seq(JsPath() -> Seq(ValidationError("expected 2 elements in map entry, got: ${v.size} [$v]"))))
-            case (JsSuccess(_, _), v) => JsError(Seq(JsPath() -> Seq(ValidationError("expected 2 elements in map entry, got: $v"))))
-            case (x @ JsError(_), _) => x
-          }
-        }
-      case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected an array of two elements. Got: $x"))))
+
+  implicit def fileMapReads[T](implicit tReads: Reads[T]): Reads[Map[java.io.File, T]] = Reads[Map[java.io.File, T]] { json =>
+    val stringMapReads = implicitly[Reads[Map[String, T]]]
+    stringMapReads.reads(json) flatMap { stringMap =>
+      try JsSuccess(stringMap.map(kv => fileFromString(kv._1).getOrElse(throw new Exception(s"invalid filename ${kv._1}")) -> kv._2))
+      catch {
+        case e: Exception => JsError(e.getMessage)
+      }
     }
   }
-  implicit def mapWrites[A, B](implicit aWrites: Writes[A], bWrites: Writes[B]): Writes[Map[A, B]] = new Writes[Map[A, B]] {
-    def writes(in: Map[A, B]) = JsArray(in.foldLeft(Seq.empty[JsArray]) {
-      case (s, (k, v)) =>
-        val kj = aWrites.writes(k)
-        val vj = bWrites.writes(v)
-        s :+ Json.arr(kj, vj).asInstanceOf[JsArray]
-    })
+
+  implicit def fileMapWrites[T](implicit tWrites: Writes[T]): OWrites[Map[java.io.File, T]] = OWrites[Map[java.io.File, T]] { m =>
+    val stringMapWrites = implicitly[OWrites[Map[String, T]]]
+    val stringMap = m.map(kv => fileToString(kv._1) -> kv._2)
+    stringMapWrites.writes(stringMap)
   }
-  implicit def mapFormat[A, B](implicit aFormat: Format[A], bFormat: Format[B]): Format[Map[A, B]] = Format[Map[A, B]](mapReads, mapWrites)
-  implicit def relationReads[A, B](implicit aReads: Reads[A], bReads: Reads[B]): Reads[Relation[A, B]] = new Reads[Relation[A, B]] {
-    def reads(json: JsValue) =
-      ((__ \ "forwardMap").read[Map[A, Set[B]]] and
-        (__ \ "reverseMap").read[Map[B, Set[A]]]).apply(Relation(_, _)).reads(json)
+
+  implicit def relationReads[A, B](implicit forwardReads: Reads[Map[A, Set[B]]], reverseReads: Reads[Map[B, Set[A]]]): Reads[Relation[A, B]] = Reads[Relation[A, B]] { json =>
+    ((__ \ "forwardMap").read[Map[A, Set[B]]] and
+      (__ \ "reverseMap").read[Map[B, Set[A]]]).apply(Relation(_, _)).reads(json)
   }
-  implicit def relationWrites[A, B](implicit aWrites: Writes[A], bWrites: Writes[B]): Writes[Relation[A, B]] = new Writes[Relation[A, B]] {
-    def writes(in: Relation[A, B]) = Json.obj("forwardMap" -> in.forwardMap, "reverseMap" -> in.reverseMap)
+  implicit def relationWrites[A, B](implicit forwardWrites: OWrites[Map[A, Set[B]]], reverseWrites: OWrites[Map[B, Set[A]]]): Writes[Relation[A, B]] = OWrites[Relation[A, B]] { in =>
+    Json.obj("forwardMap" -> in.forwardMap, "reverseMap" -> in.reverseMap)
   }
-  implicit def relationFormat[A, B](implicit aFormat: Format[A], bFormat: Format[B], mfa: Manifest[A], mfb: Manifest[B]): Format[Relation[A, B]] = Format[Relation[A, B]](relationReads, relationWrites)
+
   implicit val stampReads: Reads[Stamp] = new Reads[Stamp] {
     def reads(json: JsValue): JsResult[Stamp] =
       (json \ "type").validate[String].flatMap {
@@ -471,12 +463,17 @@ package object protocol {
       case x: Exists => emitTypedValue("exists", "value" -> x.value)
     }
   }
-  implicit val stampFormat: Format[Stamp] = Format[Stamp](stampReads, stampWrites)
-  implicit val stampsFormat: Format[Stamps] = Json.format[Stamps]
+
+  implicit val stampsReads = Json.reads[Stamps]
+  implicit val stampsWrites = Json.writes[Stamps]
+
   implicit val problemReads: Reads[Problem] = Json.reads[Problem]
   // this one causes ambiguity trouble with Writes[xsbti.Problem] and isn't needed
   // implicitly since the xsbti.Problem writes is just fine.
   private val problemWrites: Writes[Problem] = Json.writes[Problem]
+
+  implicit val xsbtiProblemReads = Reads[xsbti.Problem](problemReads.reads)
+  implicit val xsbtiProblemWrites = Writes[xsbti.Problem](x => problemWrites.writes(Problem.fromXsbtiProblem(x)))
 
   implicit val qualifierReads: Reads[Qualifier] = new Reads[Qualifier] {
     def reads(json: JsValue): JsResult[Qualifier] =
@@ -496,61 +493,68 @@ package object protocol {
       case x: IdQualifier => emitTypedValue("id", "value" -> x.value)
     }
   }
-  implicit val qualifierFormat: Format[Qualifier] = Format[Qualifier](qualifierReads, qualifierWrites)
-  implicit val accessFormat: Format[Access] = new Format[Access] {
-    def writes(o: Access): JsValue = o match {
+
+  implicit val accessWrites = Writes[Access] { o =>
+    o match {
       case Public => emitTypedValue("public")
       case x: Protected => emitTypedValue("protected", "qualifier" -> x.qualifier)
       case x: Private => emitTypedValue("private", "qualifier" -> x.qualifier)
     }
-    def reads(json: JsValue): JsResult[Access] =
-      (json \ "type").validate[String].flatMap {
-        _ match {
-          case "public" => JsSuccess(Public)
-          case "protected" => (json \ "qualifier").validate[Qualifier].map(Protected(_))
-          case "private" => (json \ "qualifier").validate[Qualifier].map(Private(_))
-          case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'public', 'protected', or 'private', got: $x"))))
-        }
-      }
   }
-  implicit val varianceFormat: Format[xsbti.api.Variance] = new Format[xsbti.api.Variance] {
+  implicit val accessReads = Reads[Access] { json =>
+    (json \ "type").validate[String].flatMap {
+      _ match {
+        case "public" => JsSuccess(Public)
+        case "protected" => (json \ "qualifier").validate[Qualifier].map(Protected(_))
+        case "private" => (json \ "qualifier").validate[Qualifier].map(Private(_))
+        case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'public', 'protected', or 'private', got: $x"))))
+      }
+    }
+  }
+
+  implicit val varianceWrites = Writes[xsbti.api.Variance] { o =>
     import xsbti.api.Variance._
-    def writes(o: xsbti.api.Variance): JsValue = o match {
+    o match {
       case Invariant => emitTypedValue("invariant")
       case Covariant => emitTypedValue("covariant")
       case Contravariant => emitTypedValue("contravariant")
     }
-    def reads(json: JsValue): JsResult[xsbti.api.Variance] =
-      (json \ "type").validate[String].flatMap {
-        _ match {
-          case "invariant" => JsSuccess(Invariant)
-          case "covariant" => JsSuccess(Covariant)
-          case "contravariant" => JsSuccess(Contravariant)
-          case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'invariant', 'covariant', or 'contravariant', got: $x"))))
-        }
+  }
+  implicit val varianceReads = Reads[xsbti.api.Variance] { json =>
+    import xsbti.api.Variance._
+    (json \ "type").validate[String].flatMap {
+      _ match {
+        case "invariant" => JsSuccess(Invariant)
+        case "covariant" => JsSuccess(Covariant)
+        case "contravariant" => JsSuccess(Contravariant)
+        case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'invariant', 'covariant', or 'contravariant', got: $x"))))
       }
+    }
   }
   // lazy needed to avoid NPE
-  implicit lazy val pathComponentFormat: Format[PathComponent] = new Format[PathComponent] {
-    def writes(o: PathComponent): JsValue = o match {
+  implicit lazy val pathComponentWrites = Writes[PathComponent] { o =>
+    o match {
       case x: Id => emitTypedValue("id", "id" -> x.id)
       case x: Super => emitTypedValue("super", "qualifier" -> x.qualifier)
       case This => emitTypedValue("this")
     }
-    def reads(json: JsValue): JsResult[PathComponent] =
-      (json \ "type").validate[String].flatMap {
-        _ match {
-          case "id" => (json \ "id").validate[String].map(Id(_))
-          case "super" => (json \ "qualifier").validate[Path].map(Super(_))
-          case "this" => JsSuccess(This)
-          case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'id', 'super', or 'this', got: $x"))))
-        }
+  }
+  implicit lazy val pathComponentReads = Reads[PathComponent] { json =>
+    (json \ "type").validate[String].flatMap {
+      _ match {
+        case "id" => (json \ "id").validate[String].map(Id(_))
+        case "super" => (json \ "qualifier").validate[Path].map(Super(_))
+        case "this" => JsSuccess(This)
+        case x => JsError(Seq(JsPath() -> Seq(ValidationError(s"Expected 'id', 'super', or 'this', got: $x"))))
       }
+    }
   }
   // lazy needed to avoid NPE
-  implicit lazy val pathFormat: Format[Path] = Json.format[Path]
+  implicit lazy val pathReads: Reads[Path] = Json.reads[Path]
+  implicit lazy val pathWrites: OWrites[Path] = Json.writes[Path]
   // lazy needed to avoid NPE
-  implicit lazy val typeParameterFormat: Format[TypeParameter] = Json.format[TypeParameter]
+  implicit lazy val typeParameterReads: Reads[TypeParameter] = Json.reads[TypeParameter]
+  implicit lazy val typeParameterWrites: Writes[TypeParameter] = Json.writes[TypeParameter]
 
   // lazy needed to avoid NPE
   implicit lazy val simpleTypeReads: Reads[SimpleType] = new Reads[SimpleType] {
@@ -574,7 +578,7 @@ package object protocol {
   }
   // This one causes ambiguity with Writes[Type] and isn't needed as a public implicit
   // because Writes[Type] works fine.
-  private val simpleTypeWrites: Writes[SimpleType] = new Writes[SimpleType] {
+  private lazy val simpleTypeWrites: Writes[SimpleType] = new Writes[SimpleType] {
     def writes(o: SimpleType): JsValue = o match {
       case x: Singleton => emitTypedValue("singleton", "path" -> x.path)
       case x: Projection => emitTypedValue("projection", "prefix" -> writes(x.prefix), "id" -> x.id)
@@ -627,32 +631,47 @@ package object protocol {
       case x: Constant => emitTypedValue("constant", "baseType" -> x.baseType, "value" -> x.value)
     }
   }
-  implicit lazy val typeFormat: Format[Type] = Format[Type](typeReads, typeWrites)
 
   // lazy needed to avoid NPE
-  implicit lazy val annotationArgumentFormat: Format[AnnotationArgument] = Json.format[AnnotationArgument]
+  implicit lazy val annotationArgumentReads = Json.reads[AnnotationArgument]
+  implicit lazy val annotationArgumentWrites = Json.writes[AnnotationArgument]
   // lazy needed to avoid NPE
-  implicit lazy val annotationFormat: Format[Annotation] = Json.format[Annotation]
-  implicit val packageFormat: Format[Package] = Json.format[Package]
-  implicit val sourceInfoFormat: Format[SourceInfo] = Json.format[SourceInfo]
-  implicit val sourceInfosFormat: Format[SourceInfos] = Json.format[SourceInfos]
-  implicit val outputSettingFormat: Format[OutputSetting] = Json.format[OutputSetting]
-  implicit val modifiersFormat: Format[Modifiers] = Json.format[Modifiers]
+  implicit lazy val annotationReads = Json.reads[Annotation]
+  implicit lazy val annotationWrites = Json.writes[Annotation]
+  implicit val packageReads = Json.reads[Package]
+  implicit val packageWrites = Json.writes[Package]
+  implicit val sourceInfoReads = Json.reads[SourceInfo]
+  implicit val sourceInfoWrites = Json.writes[SourceInfo]
+  implicit val sourceInfosReads = Json.reads[SourceInfos]
+  implicit val sourceInfosWrites = Json.writes[SourceInfos]
+  implicit val outputSettingReads = Json.reads[OutputSetting]
+  implicit val outputSettingWrites = Json.writes[OutputSetting]
+  implicit val modifiersReads = Json.reads[Modifiers]
+  implicit val modifiersWrites = Json.writes[Modifiers]
   // lazy needed to avoid NPE
-  implicit lazy val definitionFormat: Format[Definition] = Json.format[Definition]
-  implicit val compilationFormat: Format[Compilation] = Json.format[Compilation]
-  implicit val sourceAPIFormat: Format[SourceAPI] = Json.format[SourceAPI]
-  implicit val sourceFormat: Format[Source] = Json.format[Source]
-  implicit val apisFormat: Format[APIs] = Json.format[APIs]
-  implicit val compilationsFormat: Format[Compilations] = Json.format[Compilations]
-  implicit val relationsSourceFormat: Format[RelationsSource] = Json.format[RelationsSource]
-  implicit val relationsFormat: Format[Relations] = Json.format[Relations]
-  implicit val analysisFormat: Format[Analysis] = Json.format[Analysis]
+  implicit lazy val definitionReads = Json.reads[Definition]
+  implicit lazy val definitionWrites = Json.writes[Definition]
+  implicit val compilationReads = Json.reads[Compilation]
+  implicit val compilationWrites = Json.writes[Compilation]
+  implicit val sourceAPIReads = Json.reads[SourceAPI]
+  implicit val sourceAPIWrites = Json.writes[SourceAPI]
+  implicit val sourceReads = Json.reads[Source]
+  implicit val sourceWrites = Json.writes[Source]
+  implicit val apisReads = Json.reads[APIs]
+  implicit val apisWrites = Json.writes[APIs]
+  implicit val compilationsReads = Json.reads[Compilations]
+  implicit val compilationsWrites = Json.writes[Compilations]
+  implicit val relationsSourceReads = Json.reads[RelationsSource]
+  implicit val relationsSourceWrites = Json.writes[RelationsSource]
+  implicit val relationsReads = Json.reads[Relations]
+  implicit val relationsWrites = Json.writes[Relations]
+  implicit val analysisReads = Json.reads[Analysis]
+  implicit val analysisWrites = Json.writes[Analysis]
 
   implicit val compileFailedExceptionReads: Reads[CompileFailedException] = new Reads[CompileFailedException] {
     override def reads(json: JsValue): JsResult[CompileFailedException] = {
       for {
-        t <- throwableFormat.reads(json)
+        t <- throwableReads.reads(json)
         problems <- (json \ "problems").validate[Seq[xsbti.Problem]]
       } yield new CompileFailedException(t.getMessage, t.getCause, problems)
     }
@@ -660,11 +679,8 @@ package object protocol {
 
   implicit val compileFailedExceptionWrites: Writes[CompileFailedException] = new Writes[CompileFailedException] {
     override def writes(e: CompileFailedException): JsValue = {
-      val json = throwableFormat.writes(e)
+      val json = throwableWrites.writes(e)
       json ++ Json.obj("problems" -> e.problems)
     }
   }
-
-  implicit val compileFailedExceptionFormat: Format[CompileFailedException] =
-    Format(compileFailedExceptionReads, compileFailedExceptionWrites)
 }

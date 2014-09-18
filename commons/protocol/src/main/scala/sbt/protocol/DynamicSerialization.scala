@@ -43,6 +43,8 @@ private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_
 }
 
 private object ConcreteDynamicSerialization {
+  import sbt.GenericSerializers._
+
   private val defaultSerializationMemosByManifest =
     scala.collection.concurrent.TrieMap[Manifest[_], Format[_]]()
   private val defaultSerializationMemosByClass =
@@ -75,7 +77,7 @@ private object ConcreteDynamicSerialization {
       case Classes.FloatClass => Some(implicitly[Format[Float]])
       case Classes.DoubleClass => Some(implicitly[Format[Double]])
       case Classes.URIClass => Some(implicitly[Format[java.net.URI]])
-      case Classes.ThrowableSubClass() => Some(throwableFormat)
+      case Classes.ThrowableSubClass() => Some(Format[java.lang.Throwable](throwableReads, throwableWrites))
       case _ =>
         None
     }).asInstanceOf[Option[Format[T]]]
@@ -88,7 +90,7 @@ private object ConcreteDynamicSerialization {
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
           } yield {
-            optionFormat(child.asInstanceOf[Format[Any]])
+            Format.optionWithNull(child)
           }
         // TODO - polymorphism?
         case Classes.SeqSubClass() =>
@@ -104,7 +106,7 @@ private object ConcreteDynamicSerialization {
         case Classes.AttributedSubClass() =>
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
-          } yield attributedFormat(child)
+          } yield Format(attributedReads(child), attributedWrites(child))
         case _ =>
           None
       }).asInstanceOf[Option[Format[T]]]
