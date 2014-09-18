@@ -4,6 +4,10 @@ import java.net.URI
 import ScalaShims.ManifestFactory
 import play.api.libs.json._
 
+import Reads._
+import Writes._
+import sbt.GenericSerializers._
+
 /**
  *  Represents the type information we can serialize over a network
  *  from sbt.  We try to preserve, as much as possible, the items inside
@@ -56,7 +60,8 @@ object TypeInfo {
     TypeInfo(klass.getName, Nil)
   }
 
-  implicit val format = Json.format[TypeInfo]
+  implicit val reads: Reads[TypeInfo] = Json.reads[TypeInfo]
+  implicit val writes: Writes[TypeInfo] = Json.writes[TypeInfo]
 }
 
 /**
@@ -67,8 +72,9 @@ final case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
-  require(implicitly[Format[TypeInfo]] ne null)
-  implicit val format = Json.format[AttributeKey]
+  require(implicitly[Reads[TypeInfo]] ne null)
+  implicit val reads: Reads[AttributeKey] = Json.reads[AttributeKey]
+  implicit val writes: OWrites[AttributeKey] = Json.writes[AttributeKey]
 }
 
 /**
@@ -77,7 +83,8 @@ object AttributeKey {
  */
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
-  implicit val format = Json.format[ProjectReference]
+  implicit val reads: Reads[ProjectReference] = Json.reads[ProjectReference]
+  implicit val writes: OWrites[ProjectReference] = Json.writes[ProjectReference]
 }
 /**
  * Represents the scope a particular key can have in sbt.
@@ -100,10 +107,11 @@ final case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  require(implicitly[Format[ProjectReference]] ne null)
-  require(implicitly[Format[URI]] ne null)
-  require(implicitly[Format[AttributeKey]] ne null)
-  implicit val format: Format[SbtScope] = Json.format[SbtScope]
+  require(implicitly[Reads[ProjectReference]] ne null)
+  require(implicitly[Reads[URI]] ne null)
+  require(implicitly[Reads[AttributeKey]] ne null)
+  implicit val reads: Reads[SbtScope] = Json.reads[SbtScope]
+  implicit val writes: OWrites[SbtScope] = Json.writes[SbtScope]
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -112,14 +120,16 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  require(implicitly[Format[SbtScope]] ne null)
-  require(implicitly[Format[AttributeKey]] ne null)
-  implicit val format: Format[ScopedKey] = Json.format[ScopedKey]
+  require(implicitly[Reads[SbtScope]] ne null)
+  require(implicitly[Reads[AttributeKey]] ne null)
+  implicit val reads: Reads[ScopedKey] = Json.reads[ScopedKey]
+  implicit val writes: OWrites[ScopedKey] = Json.writes[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
-  implicit val format: Format[KeyList] = Json.format[KeyList]
+  implicit val reads: Reads[KeyList] = Json.reads[KeyList]
+  implicit val writes: OWrites[KeyList] = Json.writes[KeyList]
 }
 
 /** Core information returned about projects for build clients. */
@@ -128,7 +138,8 @@ final case class MinimalProjectStructure(
   // Class names of plugins used by this project.
   plugins: Seq[String])
 object MinimalProjectStructure {
-  implicit val format = Json.format[MinimalProjectStructure]
+  implicit val reads: Reads[MinimalProjectStructure] = Json.reads[MinimalProjectStructure]
+  implicit val writes: OWrites[MinimalProjectStructure] = Json.writes[MinimalProjectStructure]
 }
 
 final case class MinimalBuildStructure(
@@ -137,7 +148,8 @@ final case class MinimalBuildStructure(
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
-  implicit val format = Json.format[MinimalBuildStructure]
+  implicit val reads: Reads[MinimalBuildStructure] = Json.reads[MinimalBuildStructure]
+  implicit val writes: OWrites[MinimalBuildStructure] = Json.writes[MinimalBuildStructure]
 }
 
 /** A filter for which keys to display. */
@@ -150,5 +162,6 @@ final case class KeyFilter(project: Option[String] = None,
 }
 object KeyFilter {
   val empty = KeyFilter(None, None, None)
-  implicit val format = Json.format[KeyFilter]
+  implicit val reads: Reads[KeyFilter] = Json.reads[KeyFilter]
+  implicit val writes: OWrites[KeyFilter] = Json.writes[KeyFilter]
 }
