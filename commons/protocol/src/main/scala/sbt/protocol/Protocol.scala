@@ -543,3 +543,5 @@ object ByteArray {
   }
   def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
 }
+
+final case class ModuleId(organization: String, name: String, attributes: Map[String, String])

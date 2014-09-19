@@ -529,6 +529,7 @@ class ProtocolTest {
     roundtrip(scopedKey)
     roundtrip(keyFilter)
     roundtrip(buildStructure)
+    roundtrip(protocol.ModuleId(organization = "com.foo", name = "bar", attributes = Map("a" -> "b")))
     object NonTrivialProtocol extends Properties("NonTrivialProtocol") {
       implicit val arbitraryAnalysis: Arbitrary[protocol.Analysis] = Arbitrary(genAnalysis())
       implicit val arbitraryAPIs: Arbitrary[protocol.APIs] = Arbitrary(genAPIs())
