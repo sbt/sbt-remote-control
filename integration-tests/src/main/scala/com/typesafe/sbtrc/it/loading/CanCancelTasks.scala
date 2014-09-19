@@ -97,23 +97,54 @@ class CanCancelTasks extends SbtClientTest {
       def apply(t: T): U = pf(t)
       override def toString = name
     }
+    // we verify the two sequences separately since their order of
+    // interleaving is not guaranteed, i.e. we might get both waiting, then
+    // one starting, or one waiting, then starting, then the other waiting,
+    // or whatever.
+
     verifySequence(events,
       Seq(
         NamedPf("infiniteLoopWaiting", {
           case ExecutionWaiting(id, command, client) if ((command: String) == "infiniteLoop") => loopId = id
         }),
         NamedPf("infiniteLoopStarted", {
-          case ExecutionStarting(id) => assert(id == loopId)
+          case ExecutionStarting(id) if id == loopId =>
         }),
+        NamedPf("loopFailed", { case ExecutionFailure(id) if id == loopId => })))
+
+    verifySequence(events,
+      Seq(
         NamedPf("compileWaiting", {
           case ExecutionWaiting(id, command, client) if ((command: String) == "compile") => compileId = id
         }),
         NamedPf("compileStarted", {
-          case ExecutionStarting(id) => assert(id == compileId)
+          case ExecutionStarting(id) if id == compileId =>
         }),
-        NamedPf("compileFailed", { case ExecutionFailure(id) => assert(id == compileId) }),
-        NamedPf("loopFailed", { case ExecutionFailure(id) => assert(id == loopId) })))
+        NamedPf("compileFailed", { case ExecutionFailure(id) if id == compileId => })))
 
+    // We do check ordering between specific event pairs, though.
+    // The two executions have to wait and start in the order we
+    // queue them.
+    verifySequence(events,
+      Seq(
+        NamedPf("infiniteLoopWaitingFirst", {
+          case ExecutionWaiting(id, command, client) if ((command: String) == "infiniteLoop") =>
+        }),
+        NamedPf("compileWaitingSecond", {
+          case ExecutionWaiting(id, command, client) if ((command: String) == "compile") =>
+        })))
+
+    verifySequence(events,
+      Seq(
+        NamedPf("infiniteLoopStartedFirst", {
+          case ExecutionStarting(id) if id == loopId =>
+        }),
+        NamedPf("compileStartedSecond", {
+          case ExecutionStarting(id) if id == compileId =>
+        })))
+
+    // the order of ExecutionFailure events is NOT guaranteed, because we may
+    // fail the compile execution in the process of canceling the infiniteLoop
+    // execution (compile fails with RejectedExecutionException in that case)
   }
-
 }
