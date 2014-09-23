@@ -268,8 +268,8 @@ object ProtocolGenerators {
       path <- listOfN(maxDepth - 1)(0, 3, genPathComponent(maxDepth - 1))
     } yield protocol.Path(path)
 
-  implicit val arbitraryPackage: Arbitrary[protocol.Package] =
-    Arbitrary(Gen.alphaStr.map(protocol.Package.apply))
+  implicit val arbitraryPackage: Arbitrary[protocol.ThePackage] =
+    Arbitrary(Gen.alphaStr.map(protocol.ThePackage.apply))
 
   implicit val arbitraryQualifier: Arbitrary[protocol.Qualifier] = Arbitrary {
     val genIdQualifier = Gen.alphaStr.map(protocol.IdQualifier.apply)
@@ -547,7 +547,7 @@ class ProtocolTest {
       property("protocol.SourceInfos") = forAll { x: protocol.SourceInfos => roundtripPropTest(x) }
       property("xsbti.Problem") = forAll { x: xsbti.Problem => roundtripPropTest(x) }
       property("protocol.APIs") = forAll { x: protocol.APIs => roundtripPropTest(x) }
-      property("protocol.Package") = forAll { x: protocol.Package => roundtripPropTest(x) }
+      property("protocol.ThePackage") = forAll { x: protocol.ThePackage => roundtripPropTest(x) }
       property("protocol.TypeParameter") = forAll { x: protocol.TypeParameter => roundtripPropTest(x) }
       property("protocol.Path") = forAll { x: protocol.Path => roundtripPropTest(x) }
       property("protocol.Modifiers") = forAll { x: protocol.Modifiers => roundtripPropTest(x) }
