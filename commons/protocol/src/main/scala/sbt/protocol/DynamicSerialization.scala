@@ -152,7 +152,7 @@ private object NonTrivialSerializers {
       toRegisteredFormat[xsbti.Problem],
       toRegisteredFormat[Problem, xsbti.Problem],
       toRegisteredFormat[APIs],
-      toRegisteredFormat[Package],
+      toRegisteredFormat[ThePackage],
       toRegisteredFormat[TypeParameter],
       toRegisteredFormat[Path],
       toRegisteredFormat[Modifiers],

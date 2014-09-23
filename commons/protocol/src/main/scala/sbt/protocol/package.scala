@@ -638,8 +638,8 @@ package object protocol {
   // lazy needed to avoid NPE
   implicit lazy val annotationReads = Json.reads[Annotation]
   implicit lazy val annotationWrites = Json.writes[Annotation]
-  implicit val packageReads = Json.reads[Package]
-  implicit val packageWrites = Json.writes[Package]
+  implicit val packageReads = Json.reads[ThePackage]
+  implicit val packageWrites = Json.writes[ThePackage]
   implicit val sourceInfoReads = Json.reads[SourceInfo]
   implicit val sourceInfoWrites = Json.writes[SourceInfo]
   implicit val sourceInfosReads = Json.reads[SourceInfos]

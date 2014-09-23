@@ -220,8 +220,8 @@ private[server] object SbtToProtocolUtils {
       modifiers = modifiersToProtocol(in.modifiers),
       annotations = in.annotations.map(annotationToProtocol))
 
-  def packageAPIToProtocol(in: xsbti.api.Package): protocol.Package =
-    protocol.Package(name = in.name)
+  def packageAPIToProtocol(in: xsbti.api.Package): protocol.ThePackage =
+    protocol.ThePackage(name = in.name)
 
   def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T, Throwable] = {
     val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("state should have serializations on it"))

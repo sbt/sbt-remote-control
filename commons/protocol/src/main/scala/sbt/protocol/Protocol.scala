@@ -408,8 +408,7 @@ object APIs {
     internal = Map.empty[File, Source],
     external = Map.empty[String, Source])
 }
-// TODO this is broken on case-insensitive filesystems
-final case class Package(name: String)
+final case class ThePackage(name: String)
 sealed trait Qualifier
 final case class IdQualifier(value: String) extends Qualifier
 final case object ThisQualifier extends Qualifier
@@ -460,7 +459,7 @@ final case class Definition(name: String,
   access: Access,
   modifiers: Modifiers,
   annotations: Seq[Annotation])
-final case class SourceAPI(packages: Seq[Package],
+final case class SourceAPI(packages: Seq[ThePackage],
   definitions: Seq[Definition])
 final case class Source(compilation: Compilation,
   hash: ByteArray,
