@@ -1,6 +1,6 @@
 package sbt.protocol
 
-import com.typesafe.sbtrc.ipc
+import sbt.impl.ipc
 import play.api.libs.json._
 import java.io.File
 import language.existentials

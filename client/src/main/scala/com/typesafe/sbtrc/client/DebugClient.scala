@@ -1,6 +1,7 @@
 package com.typesafe.sbtrc
 package client
 
+import sbt.impl.ipc
 import java.net._
 import sbt.client._
 import sbt.protocol.RegisterClientRequest

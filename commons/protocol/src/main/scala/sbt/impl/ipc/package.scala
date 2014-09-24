@@ -3,7 +3,7 @@
  * Based on sbt IPC code copyright 2009 Mark Harrah
  */
 
-package com.typesafe.sbtrc
+package sbt.impl
 
 import java.net.{ InetAddress, ServerSocket, Socket }
 import java.io.IOException

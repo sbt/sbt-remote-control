@@ -1,6 +1,6 @@
 package sbt.server
 
-import com.typesafe.sbtrc.ipc
+import sbt.impl.ipc
 import ipc.{ MultiClientServer => IpcServer, HandshakeException }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
