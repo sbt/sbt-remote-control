@@ -1,11 +1,10 @@
-package com.typesafe.sbtrc
-package server
+package sbt.server
 
-import ipc.{ MultiClientServer => IpcServer }
+import com.typesafe.sbtrc.ipc
+import ipc.{ MultiClientServer => IpcServer, HandshakeException }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.server.{ ServerRequest, SocketMessage, SocketClosed }
-import com.typesafe.sbtrc.ipc.HandshakeException
 import sbt.protocol._
 import scala.util.control.NonFatal
 

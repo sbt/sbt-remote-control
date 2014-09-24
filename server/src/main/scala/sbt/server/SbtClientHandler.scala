@@ -1,6 +1,6 @@
-package com.typesafe.sbtrc
-package server
+package sbt.server
 
+import com.typesafe.sbtrc.ipc
 import ipc.{ MultiClientServer => IpcServer }
 import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, DynamicSerialization, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Writes
