@@ -1,5 +1,5 @@
-package com.typesafe.sbtrc
-package client
+
+package sbt.client.impl
 
 import sbt.client.Interaction
 import concurrent.ExecutionContext

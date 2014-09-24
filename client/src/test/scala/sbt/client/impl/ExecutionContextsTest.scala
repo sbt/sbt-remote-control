@@ -1,7 +1,7 @@
 /**
  *   Copyright (C) 2014 Typesafe Inc. <http://typesafe.com>
  */
-package com.typesafe.sbtrc.client
+package sbt.client.impl
 
 import org.junit.Assert._
 import org.junit._

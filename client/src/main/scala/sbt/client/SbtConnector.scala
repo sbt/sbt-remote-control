@@ -48,8 +48,7 @@ object SbtConnector {
    * @param directory the directory to open as an sbt build
    */
   def apply(configName: String, humanReadableName: String, directory: java.io.File): SbtConnector = {
-    import com.typesafe.sbtrc.client._
-    new SimpleConnector(configName, humanReadableName, directory,
-      SimpleLocator)
+    new impl.SimpleConnector(configName, humanReadableName, directory,
+      impl.SimpleLocator)
   }
 }

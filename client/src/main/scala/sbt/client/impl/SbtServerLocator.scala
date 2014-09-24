@@ -1,5 +1,5 @@
-package com.typesafe.sbtrc
-package client
+
+package sbt.client.impl
 
 import java.io.File
 import java.net.{ URI, URL }
