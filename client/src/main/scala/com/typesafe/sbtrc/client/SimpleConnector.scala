@@ -1,6 +1,7 @@
 package com.typesafe.sbtrc
 package client
 
+import sbt.impl.ipc
 import sbt.client._
 import java.io.File
 import scala.concurrent._

@@ -1,4 +1,4 @@
-package com.typesafe.sbtrc
+package sbt.impl
 package ipc
 
 import java.net.{ InetAddress, ServerSocket, Socket }

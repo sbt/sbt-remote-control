@@ -1,6 +1,7 @@
 package com.typesafe.sbtrc
 package client
 
+import sbt.impl.ipc
 import sbt.protocol
 import sbt.protocol._
 import sbt.client.{ SbtChannel, Subscription }
