@@ -151,17 +151,3 @@ object MinimalBuildStructure {
   implicit val reads: Reads[MinimalBuildStructure] = Json.reads[MinimalBuildStructure]
   implicit val writes: OWrites[MinimalBuildStructure] = Json.writes[MinimalBuildStructure]
 }
-
-/** A filter for which keys to display. */
-final case class KeyFilter(project: Option[String] = None,
-  config: Option[String] = None,
-  key: Option[String] = None) {
-  def withProject(name: String) = copy(project = Some(name))
-  def withConfig(name: String) = copy(config = Some(name))
-  def withKeyScope(name: String) = copy(key = Some(name))
-}
-object KeyFilter {
-  val empty = KeyFilter(None, None, None)
-  implicit val reads: Reads[KeyFilter] = Json.reads[KeyFilter]
-  implicit val writes: OWrites[KeyFilter] = Json.writes[KeyFilter]
-}
