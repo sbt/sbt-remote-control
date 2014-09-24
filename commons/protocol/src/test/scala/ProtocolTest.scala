@@ -388,7 +388,6 @@ class ProtocolTest {
     val scope = protocol.SbtScope(project = Some(
       protocol.ProjectReference(build, "test")))
     val scopedKey = protocol.ScopedKey(key, scope)
-    val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
@@ -490,7 +489,6 @@ class ProtocolTest {
     val projectRef = protocol.ProjectReference(build, "test")
     val scope = protocol.SbtScope(project = Some(projectRef))
     val scopedKey = protocol.ScopedKey(key, scope)
-    val keyFilter = protocol.KeyFilter(Some("test"), Some("test2"), Some("test3"))
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
@@ -527,7 +525,6 @@ class ProtocolTest {
     roundtrip(projectRef)
     roundtrip(scope)
     roundtrip(scopedKey)
-    roundtrip(keyFilter)
     roundtrip(buildStructure)
     roundtrip(protocol.ModuleId(organization = "com.foo", name = "bar", attributes = Map("a" -> "b")))
     object NonTrivialProtocol extends Properties("NonTrivialProtocol") {

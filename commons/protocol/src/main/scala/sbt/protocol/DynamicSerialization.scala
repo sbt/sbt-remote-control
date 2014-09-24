@@ -143,7 +143,6 @@ private object NonTrivialSerializers {
       toRegisteredFormat[AttributeKey],
       toRegisteredFormat[SbtScope],
       toRegisteredFormat[ScopedKey],
-      toRegisteredFormat[KeyFilter],
       toRegisteredFormat[MinimalBuildStructure],
       toRegisteredFormat[Analysis],
       toRegisteredFormat[Stamps],
