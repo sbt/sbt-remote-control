@@ -1,5 +1,4 @@
-package com.typesafe.sbtrc
-package server
+package sbt.server
 
 import java.net.ServerSocket
 import sbt.State

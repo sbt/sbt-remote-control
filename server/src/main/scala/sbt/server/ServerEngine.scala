@@ -14,7 +14,6 @@ import sbt.State
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.{ Future, Promise }
-import com.typesafe.sbtrc.server.FileLogger
 
 trait ExecutionIdFinder {
   def currentExecutionId: Option[Long]

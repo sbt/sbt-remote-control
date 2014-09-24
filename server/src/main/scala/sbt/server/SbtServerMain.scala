@@ -1,5 +1,4 @@
-package com.typesafe.sbtrc
-package server
+package sbt.server
 
 import xsbti.{ ServerMain, AppConfiguration, MainResult }
 import java.net.{ URI, ServerSocket }
