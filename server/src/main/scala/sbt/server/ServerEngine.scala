@@ -221,7 +221,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
         ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
         UIShims.makeShims(state, executionIdFinder, taskIdRecorder, logSink, taskEventSink, jobEventSink) ++
         loggingShims(state) ++
-        ServerTaskCancellation.getShims()
+        ServerTaskCancellation.getShims(logSink)
     // TODO - Override log manager for now, or figure out a better way.
     val extracted = Project.extract(state)
     val settings =
