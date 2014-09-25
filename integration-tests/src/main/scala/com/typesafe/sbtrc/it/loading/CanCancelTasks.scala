@@ -31,15 +31,20 @@ class CanCancelTasks extends SbtClientTest {
     def recordExecution(): concurrent.Future[ExecutionRecord] = {
       val results = new LinkedBlockingQueue[(ScopedKey, TaskResult[_, Throwable])]()
       val events = new LinkedBlockingQueue[Event]()
-      var loopIdValue = 0L
+      var executionsEndedCount = 0
       val allDone = Promise[Unit]
       def handleEvent(event: Event): Unit = {
         event match {
-          case ExecutionWaiting(id, "infiniteLoop", client) => loopIdValue = id
-          case ExecutionFailure(id) => if (id == loopIdValue) allDone.success(())
+          case ExecutionFailure(id) => executionsEndedCount += 1
+          case ExecutionSuccess(id) => executionsEndedCount += 1
           case _ =>
         }
         events.add(event)
+        // note that executionsEndedCount will be 2 for multiple
+        // events (the one where we incremented it, plus any others
+        // after that)
+        if (executionsEndedCount == 2)
+          allDone.trySuccess(())
       }
       val eventHandler = client.handleEvents(handleEvent)
       val futureTestDone = for {
