@@ -210,5 +210,5 @@ object SbtClient {
    *  (TODO right now we require a Format for each serialization, but in fact only the Reads is used.)
    */
   def apply(channel: SbtChannel, serializations: protocol.DynamicSerialization): SbtClient =
-    new com.typesafe.sbtrc.client.SimpleSbtClient(channel, serializations)
+    new impl.SimpleSbtClient(channel, serializations)
 }

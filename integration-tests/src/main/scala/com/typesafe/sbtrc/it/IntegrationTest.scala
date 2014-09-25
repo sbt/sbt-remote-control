@@ -2,7 +2,7 @@ package com.typesafe.sbtrc
 package it
 
 import sbt.client._
-import com.typesafe.sbtrc.client.{
+import sbt.client.impl.{
   SimpleConnector,
   SimpleLocator
 }
