@@ -109,7 +109,7 @@ object TheBuild extends Build {
        resourceGenerators in Compile <+=
          makeSbtLaunchProperties(
           "sbt-server.properties",
-          "com.typesafe.sbtrc.server.SbtServerMain",
+          "sbt.server.SbtServerMain",
           Some(sbtServer13),
           Some("${user.dir}/project/.sbtserver")),
        resourceGenerators in Compile += Def.task {
