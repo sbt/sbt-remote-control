@@ -3,7 +3,6 @@
  */
 import org.junit.Assert._
 import org.junit._
-import com.typesafe.sbtrc._
 import sbt.protocol
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
