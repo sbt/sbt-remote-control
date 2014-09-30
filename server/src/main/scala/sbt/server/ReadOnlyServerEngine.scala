@@ -262,33 +262,16 @@ class ReadOnlyServerEngine(
 
     def cancelRequest(id: Long): Boolean =
       synchronized {
-        // Find out if we have a work item with the given id.
-        // - If so, mark it as starting/failed in two events, and remove it. return true
-        // - If not, try to cancel something in the store
-        // - otherwise, fail.
-        val found = workQueue collect {
-          case old: CommandExecutionWork if old.id.id == id => old
-        }
-        found match {
-          case item :: Nil =>
-            // Remove the item from the queue
-            workQueue = workQueue collect {
-              case old: CommandExecutionWork if old.id.id != id => old
-            }
-            // Tell everyone that this request is dead.
-            eventSink.send(protocol.ExecutionStarting(id))
-            eventSink.send(protocol.ExecutionFailure(id))
-            // mark it as cancelled (this removes it from our store)
+        // Note we leave the item in the queue, because
+        // it needs to get to the execution engine
+        // in order to have the proper starting/finished
+        // events generated in the expected order
+        // with respect to other items in the queue.
+        cancelStore get id match {
+          case Some(value) =>
             removeCancelStore(id)
-            item.cancelStatus.cancel()
-
-          case _ =>
-            cancelStore get id match {
-              case Some(value) =>
-                removeCancelStore(id)
-                value.cancel()
-              case _ => false
-            }
+            value.cancel()
+          case _ => false
         }
       }
 
