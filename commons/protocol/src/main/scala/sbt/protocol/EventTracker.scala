@@ -10,14 +10,14 @@ import play.api.libs.json.Writes
  *  the events to "catch up" new clients to the current state.
  */
 
-final case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
+private[sbt] final case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
 
-object EventWithWrites {
+private[sbt] object EventWithWrites {
   def withWrites[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
     EventWithWrites(event, implicitly[Writes[E]])
 }
 
-object ImpliedState {
+private[sbt] object ImpliedState {
   import scala.language.implicitConversions
 
   private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =

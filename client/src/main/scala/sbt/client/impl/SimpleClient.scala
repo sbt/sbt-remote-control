@@ -17,7 +17,7 @@ import scala.annotation.tailrec
 /**
  * A concrete implementation of the SbtClient trait.
  */
-final class SimpleSbtClient(override val channel: SbtChannel, serializations: DynamicSerialization) extends SbtClient {
+private[client] final class SimpleSbtClient(override val channel: SbtChannel, serializations: DynamicSerialization) extends SbtClient {
 
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
@@ -303,9 +303,9 @@ final class SimpleSbtClient(override val channel: SbtChannel, serializations: Dy
   channel.claimMessages(onMessage, serializations)(RunOnSameThreadContext)
 }
 
-class RequestException(msg: String) extends Exception(msg)
+private[client] class RequestException(msg: String) extends Exception(msg)
 /** Abstracted mechanism of sending events. */
-trait ListenerType[Event] {
+private[client] trait ListenerType[Event] {
   def send(e: Event): Unit
   def onClose(): Unit = {}
 }

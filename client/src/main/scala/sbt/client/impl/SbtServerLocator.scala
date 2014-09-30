@@ -12,12 +12,12 @@ import scala.annotation.tailrec
 /**
  * This class is responsible for determining where the sbt server is located.
  */
-trait SbtServerLocator {
+private[client] trait SbtServerLocator {
   /** Given a project directory, look up the URI where the server is running. */
   def locate(directory: File): URI
 }
 
-abstract class AbstractSbtServerLocator extends SbtServerLocator {
+private[client] abstract class AbstractSbtServerLocator extends SbtServerLocator {
   def sbtLaunchJar: File
   def sbtProperties(directory: File): URL
 
@@ -74,10 +74,10 @@ abstract class AbstractSbtServerLocator extends SbtServerLocator {
   }
 }
 
-abstract class LaunchedSbtServerLocator extends AbstractSbtServerLocator {
+private[client] abstract class LaunchedSbtServerLocator extends AbstractSbtServerLocator {
   def sbtLaunchJar: File = LaunchedSbtServerLocator.defaultLauncherLookup
 }
-object LaunchedSbtServerLocator {
+private[client] object LaunchedSbtServerLocator {
   def defaultLauncherLookup: File =
     // Now we should look for an embedded launcher we can extract somewhere.
     dumpLauncherFromJar orElse
