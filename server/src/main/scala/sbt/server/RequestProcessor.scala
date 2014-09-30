@@ -19,21 +19,19 @@ final case class ServerRequest(client: LiveClient, serial: Long, request: protoc
 case object SocketClosed extends SocketMessage
 
 /**
- * This class represents an event loop which sits outside the normal sbt command
- * processing loop.
+ * This class represents a request-processing loop which handles requests from clients.
+ * It cannot directly do sbt work; it can pass requests off to the ServerEngine (which is the
+ * sbt main loop), and it can handle "server administrivia" requests such as adding and removing
+ * listeners. It also has a read-only view of the most recent sbt State so it can handle
+ * requests that only need to inspect the state without modifying it.
  *
- * This event loop can handle ServerState requests which are read-only against build state
- * or affect only the server state.   All other requests (mostly just ExecutionRequest) are added into a command queue
- * which the Command processing loop is expected to consume.
- *
- * @param queue - The Queue from which we read server requests and handle them.
- * @param nextStateRef - The atomic reference we use to communicate the current build state between ourselves and the
- *                       full server engine.
+ * @param queue - The queue of requests to process
+ * @param readOnlyStateRef - The latest state, updated by the ServerEngine
  *
  */
-class ReadOnlyServerEngine(
+class RequestProcessor(
   queue: BlockingQueue[SocketMessage],
-  nextStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
+  readOnlyStateRef: AtomicReference[State]) extends Thread("read-only-sbt-event-loop") {
   private val running = new AtomicBoolean(true)
   // TODO - We should probably limit the number of deferred client requests so we don't explode during startup to DoS attacks...
   private val deferredStartupBuffer = collection.mutable.ArrayBuffer.empty[ServerRequest]
@@ -136,11 +134,11 @@ class ReadOnlyServerEngine(
   }
 
   /**
-   * Object we use to synch work between the read-only "fast" event loop and
+   * Object we use to synch work between the RequestProcessor and
    *  the ServerEngine.
    *
    *  This is an ugly synchronized animal living between two threads.  There are
-   *  two method called from the ReadOnlySide:
+   *  two method called from the RequestProcessor:
    *     - enqueueWork:  Push a new client request into the queue, joining with existing requests
    *     - cancelRequest: Attempt to cancel a request in the queue, or notify non-blocking to the ServerEngine.
    *  And one method called from the ServerEngine side
@@ -197,7 +195,7 @@ class ReadOnlyServerEngine(
     }
 
     /**
-     * Called from the ReadOnlyEngine thread.
+     * Called from the RequestProcessor thread.
      *
      *  This is responsible for minimizing work on the way in,
      *  handling cancellations, etc.
@@ -290,7 +288,7 @@ class ReadOnlyServerEngine(
   override def run() {
     // we buffer most requests until 1) we have a state and 2) the project loads successfully.
 
-    while (running.get && Option(nextStateRef.get).map(!Project.isProjectLoaded(_)).getOrElse(true)) {
+    while (running.get && Option(readOnlyStateRef.get).map(!Project.isProjectLoaded(_)).getOrElse(true)) {
       @tailrec
       def drainRequests(): Unit = {
         // don't check running.get again in here! we need to drain everything.
@@ -319,7 +317,7 @@ class ReadOnlyServerEngine(
     if (running.get) {
       for {
         ServerRequest(client, serial, request) <- deferredStartupBuffer
-      } handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
+      } handleRequestsWithBuildState(client, serial, request, readOnlyStateRef.get)
     }
 
     // Now we just run with the initialized build.
@@ -329,7 +327,7 @@ class ReadOnlyServerEngine(
       // loop is started.
       queue.take match {
         case ServerRequest(client, serial, request) =>
-          try handleRequestsWithBuildState(client, serial, request, nextStateRef.get)
+          try handleRequestsWithBuildState(client, serial, request, readOnlyStateRef.get)
           catch {
             case NonFatal(e) =>
               client.reply(serial, protocol.ErrorResponse(e.getMessage))
@@ -541,7 +539,7 @@ class ReadOnlyServerEngine(
 }
 
 /**
- * Implements RequestListeners for use by ReadOnlyServerEngine, with methods
+ * Implements RequestListeners for use by RequestProcessor, with methods
  *  to create transformed copies.
  */
 private final case class TransformableRequestListeners(

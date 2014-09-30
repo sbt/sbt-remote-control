@@ -20,16 +20,16 @@ trait ExecutionIdFinder {
 }
 
 /**
- * An implementation of the sbt command server engine that can be used by clients.  This makes no
- *  assumptions about the implementation of handling sockets, etc.  It only requires a queue from which
- *  it can draw events *and* a thread it will own during the lifecycle of event processing.
+ * An implementation of the sbt main loop; as with traditional sbt, we have a queue of
+ * commands which we process one at a time. We get commands from a request queue
+ * which is fed by the RequestProcessor thread.
  *
- *  @param nextStateRef - We dump the last computed state for read-only processing once it's ready for consumption.
+ *  @param readOnlyStateRef - after each command, we store latest State for read-only use by the RequestProcessor.
  *  @param queue - The queue we consume server requests from.
  *  @param serverEngineLogFile - log file to point our file logger at
  */
 class ServerEngine(requestQueue: ServerEngineQueue,
-  nextStateRef: AtomicReference[State],
+  readOnlyStateRef: AtomicReference[State],
   fileLogger: FileLogger,
   taskEventSink: JsonSink[TaskEvent],
   jobEventSink: JsonSink[BackgroundJobEvent],
@@ -61,8 +61,8 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     // Notify that we have booted
     eventSink.send(BuildLoaded())
 
-    // Notify server event loop of the build state
-    nextStateRef.lazySet(newState)
+    // Give a copy of the state to RequestProcessor.
+    readOnlyStateRef.lazySet(newState)
     newState
   }
 
@@ -84,7 +84,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   def postCommandCleanup(state: State): State = {
     // Make sure we update the reference to state for read-only
     // stuffs before handling our next request.
-    nextStateRef.lazySet(state)
+    readOnlyStateRef.lazySet(state)
     val serverState = ServerState.extract(state)
     val nextState = serverState.lastCommand match {
       case Some(command) =>

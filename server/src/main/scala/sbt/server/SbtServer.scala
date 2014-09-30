@@ -29,10 +29,10 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   private val queue = new java.util.concurrent.LinkedBlockingDeque[SocketMessage]
 
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
-  private val eventEngine = new sbt.server.ReadOnlyServerEngine(queue, stateRef)
-  private val commandEngine = new sbt.server.ServerEngine(eventEngine.engineWorkQueue, stateRef, masterLog,
+  private val requestProcessor = new sbt.server.RequestProcessor(queue, stateRef)
+  private val commandEngine = new sbt.server.ServerEngine(requestProcessor.engineWorkQueue, stateRef, masterLog,
     // this is a little silly but keeping the ability to break them up later
-    eventEngine.eventSink, eventEngine.eventSink, eventEngine.eventSink, eventEngine.eventSink)
+    requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink)
 
   // External API to run queue.
   def queueSocketMessage(request: SocketMessage): Unit = queue.add(request)
@@ -77,19 +77,19 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
 
     // Here we actually start.
     masterLog.log("Starting event engine")
-    eventEngine.start()
+    requestProcessor.start()
 
     masterLog.log("Starting sbt command engine")
     commandEngineThread.start()
 
     // Wait for the server to stop (which means: no more sbt commands in State).
-    // If eventEngine stops first, it will send a command to the command
+    // If requestProcessor stops first, it will send a command to the command
     // engine asking the command engine to stop.
     masterLog.log("Waiting for sbt command engine")
     commandEngineThread.join()
 
-    // Close down the socket handler which should signal eventEngine to stop
-    // if it hasn't already. eventEngine drains all requests then stops, if the
+    // Close down the socket handler which should signal requestProcessor to stop
+    // if it hasn't already. requestProcessor drains all requests then stops, if the
     // socket handler has stopped.
     masterLog.log("Closing listening server socket")
     socketHandler.stop()
@@ -97,8 +97,8 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
     masterLog.log("Waiting for socket thread")
     socketHandler.join()
 
-    masterLog.log("Waiting for event engine")
-    eventEngine.join()
+    masterLog.log("Waiting for request processor thread")
+    requestProcessor.join()
 
     masterLog.log("Waiting for command engine result")
 
