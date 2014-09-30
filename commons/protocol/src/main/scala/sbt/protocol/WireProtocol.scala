@@ -14,7 +14,7 @@ import language.existentials
  * TODO - Should you be able to register more messages to serialize here?
  * TODO - Should you register the BuildValue serializer/deserializers here?
  */
-object WireProtocol {
+private[sbt] object WireProtocol {
 
   private val messages: Map[Class[_], (String, DynamicSerialization => Reads[_], Writes[_])] = Map(
     msg[TaskLogEvent],
@@ -175,13 +175,13 @@ object WireProtocol {
 
 }
 
-final case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
+private[sbt] final case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
 
 /**
  * This class is responsible for extracting from the wire protocol into
  *  the "class" protocol.  This may disappear at some point, as the duplication with ipc.Envelope may not be necessary.
  */
-object Envelope {
+private[sbt] object Envelope {
   def apply(wire: ipc.WireEnvelope, serializations: DynamicSerialization): Envelope = {
     val message: Message = try {
       // this can throw malformed json errors

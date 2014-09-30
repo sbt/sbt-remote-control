@@ -1,6 +1,8 @@
 /**
  *   Copyright (C) 2012 Typesafe Inc. <http://typesafe.com>
  */
+package sbt.protocol
+
 import org.junit.Assert._
 import org.junit._
 import sbt.protocol._

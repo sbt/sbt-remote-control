@@ -19,7 +19,7 @@ private[client] object NoInteraction extends Interaction {
   def readLine(prompt: String, mask: Boolean): Option[String] = throw NoInteractionException
   def confirm(msg: String): Boolean = throw NoInteractionException
 }
-object NoInteractionException extends Exception("No user interaction is defined for this request!")
+private[client] object NoInteractionException extends Exception("No user interaction is defined for this request!")
 // Turns async execution context calls into blocking on the client event thread.
 private[client] class InteractionHelper(i: Interaction, ex: ExecutionContext) extends Interaction {
   import concurrent.{ Await, promise }
