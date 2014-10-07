@@ -186,9 +186,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
   /** Can convert an event logger into GlobalLogging. */
   def initializeLoggers(fileLogger: FileLogger): GlobalLogging = {
     eventLogger.updatePeer(fileLogger.log)
-    def handleStdOut(line: String): Unit = eventLogger.send(LogStdOut(line))
-    def handleStdErr(line: String): Unit = eventLogger.send(LogStdErr(line))
-    SystemShims.replaceOutput(handleStdOut, handleStdErr)
+    eventLogger.takeoverSystemStreams() // replace System.out and System.err, yay mutable globals!
     def throwawayBackingFile = java.io.File.createTempFile("sbt-server-", ".log")
     def newBacking =
       GlobalLogBacking(file = throwawayBackingFile,
