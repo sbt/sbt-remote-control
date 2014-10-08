@@ -222,7 +222,7 @@ private[server] object SbtToProtocolUtils {
   def packageAPIToProtocol(in: xsbti.api.Package): protocol.ThePackage =
     protocol.ThePackage(name = in.name)
 
-  def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T, Throwable] = {
+  def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult = {
     val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("state should have serializations on it"))
     val value = extracted.get(key)
     TaskSuccess(serializations.buildValue(value)(key.key.manifest))

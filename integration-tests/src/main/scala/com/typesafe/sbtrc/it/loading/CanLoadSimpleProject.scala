@@ -104,7 +104,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     def withCompileTaskResult(body: Future[Analysis] => Unit): Unit = {
       val result = Promise[Analysis]
-      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Analysis](compileKeys.head)) { (a: ScopedKey, b: TaskResult[Any, Throwable]) =>
+      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Analysis](compileKeys.head)) { (a: ScopedKey, b: TaskResult) =>
         result.tryComplete(b.resultWithCustomThrowable[Analysis, CompileFailedException])
       })(keepEventsInOrderExecutor)
 

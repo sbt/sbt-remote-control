@@ -109,7 +109,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
     valueEventManager(key.key).watch(listener)(ex)
 
-  private def toRaw[T](listener: ValueListener[T])(implicit reads: Reads[T]): RawValueListener = (key: ScopedKey, taskResult: TaskResult[_, Throwable]) =>
+  private def toRaw[T](listener: ValueListener[T])(implicit reads: Reads[T]): RawValueListener = (key: ScopedKey, taskResult: TaskResult) =>
     listener(key, taskResult.result[T])
 
   def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
@@ -225,7 +225,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   }
 
   private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
-    case e: ValueChanged[_, _] =>
+    case e: ValueChanged =>
       valueEventManager(e.key).sendEvent(e)
       executionState
     case e: BuildStructureChanged =>
@@ -432,9 +432,9 @@ private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: 
 }
 
 /** A wrapped build event listener that ensures events are fired on the desired execution context. */
-private[client] class ValueChangeListenerHelper(listener: RawValueListener, ex: ExecutionContext) extends ListenerType[ValueChanged[_, Throwable]] {
+private[client] class ValueChangeListenerHelper(listener: RawValueListener, ex: ExecutionContext) extends ListenerType[ValueChanged] {
   private val id = java.util.UUID.randomUUID
-  override def send(e: ValueChanged[_, Throwable]): Unit = {
+  override def send(e: ValueChanged): Unit = {
     // TODO - do we need to prepare the context?
     ex.prepare.execute(new Runnable() {
       def run(): Unit = {
@@ -450,8 +450,8 @@ private[client] class ValueChangeListenerHelper(listener: RawValueListener, ex: 
 }
 /** Helper to track value changes. */
 private final class ValueChangeManager(key: ScopedKey, channel: SbtChannel)
-  extends ListenerManager[ValueChanged[_, Throwable], RawValueListener, ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
+  extends ListenerManager[ValueChanged, RawValueListener, ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
 
-  def wrapListener(l: RawValueListener, ex: ExecutionContext): ListenerType[ValueChanged[_, Throwable]] =
+  def wrapListener(l: RawValueListener, ex: ExecutionContext): ListenerType[ValueChanged] =
     new ValueChangeListenerHelper(l, ex)
 }

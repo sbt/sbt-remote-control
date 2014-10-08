@@ -29,7 +29,7 @@ class CanCancelTasks extends SbtClientTest {
     final case class ExecutionRecord(loopCancelled: Boolean, compileCancelled: Boolean, events: Seq[Event])
 
     def recordExecution(): concurrent.Future[ExecutionRecord] = {
-      val results = new LinkedBlockingQueue[(ScopedKey, TaskResult[_, Throwable])]()
+      val results = new LinkedBlockingQueue[(ScopedKey, TaskResult)]()
       val events = new LinkedBlockingQueue[Event]()
       var executionsEndedCount = 0
       val allDone = Promise[Unit]

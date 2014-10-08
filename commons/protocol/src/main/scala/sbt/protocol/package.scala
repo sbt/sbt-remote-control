@@ -341,13 +341,9 @@ package object protocol {
     (__ \ "name").read[String] and
     (__ \ "serialized").read[JsValue])((id, name, serialized) => TaskEvent(id, name, serialized))
 
-  implicit def valueChangedReads[A, E <: Throwable](implicit result: Reads[TaskResult[A, E]]): Reads[ValueChanged[A, E]] = (
-    (__ \ "key").read[ScopedKey] and
-    (__ \ "value").read[TaskResult[A, E]])(ValueChanged.apply[A, E] _)
+  implicit val valueChangedReads = Json.reads[ValueChanged]
 
-  implicit def valueChangedWrites[A, E <: Throwable](implicit result: Writes[TaskResult[A, E]]): Writes[ValueChanged[A, E]] = (
-    (__ \ "key").write[ScopedKey] and
-    (__ \ "value").write[TaskResult[A, E]])(unlift(ValueChanged.unapply[A, E]))
+  implicit val valueChangedWrites = Json.writes[ValueChanged]
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro

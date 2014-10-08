@@ -48,7 +48,7 @@ private[sbt] object WireProtocol {
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
     msg[BuildStructureChanged],
-    msg[ValueChanged[Any, Throwable]],
+    msg[ValueChanged],
     msg[ErrorResponse],
     msg[TaskStarted],
     msg[TaskFinished],

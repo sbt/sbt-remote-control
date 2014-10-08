@@ -102,10 +102,10 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
     // Now we try to grab the value of maketestThing 
     // To do this we had to create the client with serializer SerializedThing.format
-    val testThingValuePromise = Promise[sbt.protocol.TaskResult[Any, Throwable]]
+    val testThingValuePromise = Promise[sbt.protocol.TaskResult]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>
-        client.rawWatch(TaskKey[SerializedThing](key)) { (key: ScopedKey, value: TaskResult[Any, Throwable]) =>
+        client.rawWatch(TaskKey[SerializedThing](key)) { (key: ScopedKey, value: TaskResult) =>
           testThingValuePromise.trySuccess(value)
         }(global)
     }(global)

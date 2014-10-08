@@ -107,7 +107,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
     } else mf.asInstanceOf[Manifest[T]]
   }
 
-  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T, Throwable] = {
+  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult = {
     result match {
       case Value(v) =>
         val (destValue, destManifest) = conversions.convert(v)(mf) match {

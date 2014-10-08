@@ -38,21 +38,18 @@ object BuildValue {
   }
 }
 
-// TODO TaskResult does not need type parameters, get rid of them
 /**
- * Represents the outcome of a task. The outcome can be a type T or an exception with type E.
+ * Represents the outcome of a task. The outcome can be a value or an exception.
  */
-sealed trait TaskResult[+T, +E <: Throwable] {
+sealed trait TaskResult {
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
-  // this is certainly goofy right now with the T type parameter above.
-  // TODO remove type parameters from the class
   final def result[A](implicit readResult: Reads[A]): Try[A] =
     resultWithCustomThrowable[A, Throwable](readResult, sbt.GenericSerializers.throwableReads)
   def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A]
 }
 /** This represents that the task was run successfully. */
-final case class TaskSuccess[+T, +E <: Throwable](value: BuildValue) extends TaskResult[T, E] {
+final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
   override def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A] = {
     value.value[A] match {
@@ -61,8 +58,11 @@ final case class TaskSuccess[+T, +E <: Throwable](value: BuildValue) extends Tas
     }
   }
 }
-/** This represents that there was an error running a task, and returns the error message. */
-final case class TaskFailure[+T, +E <: Throwable](message: String, cause: BuildValue) extends TaskResult[T, E] {
+/**
+ * TODO I think it's wrong to have both message and cause; "cause" has to be a Throwable
+ *  so should always have getmessage anyway.
+ */
+final case class TaskFailure(message: String, cause: BuildValue) extends TaskResult {
   override def isSuccess = false
   override def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A] = {
     val t = readFailure.reads(cause.serialized).asOpt.getOrElse(new Exception(message))
@@ -71,9 +71,9 @@ final case class TaskFailure[+T, +E <: Throwable](message: String, cause: BuildV
 }
 
 object TaskResult {
-  implicit def reads[T, E <: Throwable]: Reads[TaskResult[T, E]] =
-    new Reads[TaskResult[T, E]] {
-      override def reads(m: JsValue): JsResult[TaskResult[T, E]] = {
+  implicit val reads: Reads[TaskResult] =
+    new Reads[TaskResult] {
+      override def reads(m: JsValue): JsResult[TaskResult] = {
         (m \ "success") match {
           case JsBoolean(true) =>
             Json.fromJson[BuildValue](m).map(TaskSuccess.apply)
@@ -87,9 +87,9 @@ object TaskResult {
         }
       }
     }
-  implicit def writes[T, E <: Throwable]: Writes[TaskResult[T, E]] =
-    new Writes[TaskResult[T, E]] {
-      override def writes(t: TaskResult[T, E]): JsValue =
+  implicit val writes: Writes[TaskResult] =
+    new Writes[TaskResult] {
+      override def writes(t: TaskResult): JsValue =
         t match {
           case TaskFailure(msg, cause) =>
             JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg), "cause" -> Json.toJson(cause)))
