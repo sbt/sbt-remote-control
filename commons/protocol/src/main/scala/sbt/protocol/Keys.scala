@@ -83,6 +83,7 @@ object AttributeKey {
  */
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
+  require(implicitly[Reads[java.net.URI]] ne null)
   implicit val reads: Reads[ProjectReference] = Json.reads[ProjectReference]
   implicit val writes: OWrites[ProjectReference] = Json.writes[ProjectReference]
 }

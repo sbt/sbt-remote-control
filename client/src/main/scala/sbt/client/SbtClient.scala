@@ -5,6 +5,7 @@ import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
 import play.api.libs.json.Format
 import sbt.protocol._
+import play.api.libs.json.Reads
 
 /**
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
@@ -143,9 +144,9 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  def rawWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription
   /**
-   * Adds a listener to a particular setting as with watch(), but does not receive immediate
+   * Adds a listener to a particular setting as with rawWatch(), but does not receive immediate
    * notification of the current setting value.
    *
    *  @param key  The setting to listen to changes on.
@@ -155,7 +156,7 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  def rawLazyWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription
   /**
    * Adds a listener for the value of a particular task.  If the evaluated task result changes, the event
    *  listener will be notified of the new value. In addition, the task will be evaluated IMMEDIATELY
@@ -173,7 +174,63 @@ trait SbtClient extends Closeable {
    * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *       for all listeners on the same SbtClient.
    */
-  def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  def rawWatch(key: TaskKey[_])(l: RawValueListener)(implicit ex: ExecutionContext): Subscription
+  /**
+   * Like rawWatch() except that it does NOT kick off an immediate task evaluation; it just listens
+   * to any new values that result if the task is evaluated in the future.
+   *
+   *  @param key       The task to listen to changes for.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
+   */
+  def rawLazyWatch(key: TaskKey[_])(l: RawValueListener)(implicit ex: ExecutionContext): Subscription
+
+  /**
+   * Adds a listener to a particular setting.  If this setting changes, the event listener
+   *  will be notified with the new value. In addition, the current value of the
+   *  setting will immediately (asynchronously) be sent to this listener.
+   *
+   *  @param key  The setting to listen to changes on.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
+   */
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  /**
+   * Adds a listener to a particular setting as with watch(), but does not receive immediate
+   * notification of the current setting value.
+   *
+   *  @param key  The setting to listen to changes on.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
+   */
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  /**
+   * Adds a listener for the value of a particular task.  If the evaluated task result changes, the event
+   *  listener will be notified of the new value. In addition, the task will be evaluated IMMEDIATELY
+   *  and the listener asynchronously notified of the task's latest value.
+   *
+   *  Since tasks read their state from the filesystem, it is not guaranteed that an event will be fired if
+   *  filesystem changes mean that a task _would_ change if we were to run it. Watching a task just means
+   *  that _when_ it runs, we are notified of new results; it does not mean that we auto-run it
+   *  as the filesystem changes.
+   *
+   *  @param key       The task to listen to changes for.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
+   */
+  def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
   /**
    * Like watch() except that it does NOT kick off an immediate task evaluation; it just listens
    * to any new values that result if the task is evaluated in the future.
@@ -185,7 +242,7 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit ex: ExecutionContext): Subscription
+  def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
 
   /**
    * Kills the running instance of the sbt server (by attempting to issue a kill message).

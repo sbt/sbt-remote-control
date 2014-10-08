@@ -617,31 +617,29 @@ class ProtocolTest {
   @Test
   def testBuildValueSerialization(): Unit = {
     val serializations = protocol.DynamicSerialization.defaultSerializations
-    implicit def format[T]: Format[protocol.BuildValue[T]] = protocol.BuildValue.format[T](serializations)
-    def roundtripBuild[U, T: Manifest](buildValue: protocol.BuildValue[T])(f: (protocol.BuildValue[T], protocol.BuildValue[T]) => U)(e: (Throwable, Throwable) => U): U = {
+    def roundtripBuild[U, T: Manifest](t: T)(f: (protocol.BuildValue, protocol.BuildValue) => U)(e: (Throwable, Throwable) => U): U = {
+      val mf = implicitly[Manifest[T]]
+      implicit val format = serializations.lookup(mf).getOrElse(throw new AssertionError(s"no format for ${t.getClass.getName} $t"))
+      val buildValue = BuildValue(t, serializations)
       val json = Json.toJson(buildValue)
       //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
-      val parsed = Json.fromJson[protocol.BuildValue[T]](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${buildValue} serialization ${json}"))
-      val buildValueClass: Class[_] = buildValue match {
-        case bv: protocol.SerializableBuildValue[T] => bv.manifest.toManifest(this.getClass.getClassLoader)
-          .map(_.runtimeClass).getOrElse(throw new AssertionError("don't have class for this build value"))
-        case other => throw new AssertionError("non-serializable build value $other")
-      }
+      val parsedValue = Json.fromJson[protocol.BuildValue](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${t} serialization ${json}"))
+      val parsedT = parsedValue.value[T].getOrElse(throw new AssertionError(s"could not read back from build value ${t.getClass.getName} $t"))
+      val buildValueClass: Class[_] = t.getClass
       // Throwable has a not-very-useful equals() in this case
       if (classOf[Throwable].isAssignableFrom(buildValueClass)) {
-        val t = buildValue.value.map(_.asInstanceOf[Throwable]).get
-        val p = parsed.value.map(_.asInstanceOf[Throwable]).get
-        e(t, p)
+        val p = parsedValue.value[T].map(_.asInstanceOf[Throwable]).get
+        e(t.asInstanceOf[Throwable], p)
       } else {
-        f(buildValue, parsed)
+        f(buildValue, parsedValue)
       }
     }
 
-    def roundtripBuildValue[T: Manifest](buildValue: protocol.BuildValue[T]): Unit =
-      roundtripBuild[Unit, T](buildValue)(assertEquals)((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
+    def roundtripBuildValue[T: Manifest](t: T): Unit =
+      roundtripBuild[Unit, T](t)(assertEquals)((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
 
-    def roundtripBuildValueTest[T: Manifest](buildValue: protocol.BuildValue[T]): Boolean =
-      roundtripBuild[Boolean, T](buildValue) { (a, b) =>
+    def roundtripBuildValueTest[T: Manifest](t: T): Boolean =
+      roundtripBuild[Boolean, T](t) { (a, b) =>
         val r = a == b
         if (!r) println(s"values are not equal:\n--- A: $a\n--- B: $b")
         r
@@ -653,10 +651,10 @@ class ProtocolTest {
 
     roundtripTest(new Roundtripper {
       override def roundtrip[T: Manifest](t: T): Unit = {
-        roundtripBuildValue(protocol.BuildValue(t, serializations))
+        roundtripBuildValue(t)
       }
       override def roundtripPropTest[T: Manifest](t: T): Boolean = {
-        roundtripBuildValueTest(protocol.BuildValue(t, serializations))
+        roundtripBuildValueTest(t)
       }
     })
   }

@@ -48,12 +48,7 @@ private[sbt] object WireProtocol {
     msg[SendSyntheticValueChanged],
     msg[KeyNotFound],
     msg[BuildStructureChanged],
-    msg[ValueChanged[Any, Throwable]] { serializations: DynamicSerialization =>
-      implicit val buildValueReads = BuildValue.reads[Any](serializations)
-      implicit val buildValueReadsThrowable = BuildValue.reads[Throwable](serializations)
-      implicit val taskResultReads = TaskResult.reads[Any, Throwable] // this line shouldn't be needed...
-      valueChangedReads
-    },
+    msg[ValueChanged[Any, Throwable]],
     msg[ErrorResponse],
     msg[TaskStarted],
     msg[TaskFinished],

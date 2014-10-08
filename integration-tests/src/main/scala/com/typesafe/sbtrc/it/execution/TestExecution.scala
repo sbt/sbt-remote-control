@@ -11,6 +11,7 @@ import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import scala.annotation.tailrec
 import java.util.concurrent.Executors
+import play.api.libs.json.Reads
 
 class TestExecution extends SbtClientTest {
 
@@ -39,15 +40,15 @@ class TestExecution extends SbtClientTest {
         trigger1 <- client.lookupScopedKey("trigger1").map(_.head)
         waitForStampFile <- client.lookupScopedKey("waitForStampFile").map(_.head)
       } yield {
-        def saveResult[T]: ValueListener[T] = { (key, result) =>
+        def saveResult: RawValueListener = { (key, result) =>
           results.add(key -> result)
         }
-        Seq(client.lazyWatch(TaskKey[Int](dep1))(saveResult),
-          client.lazyWatch(TaskKey[String](dep2))(saveResult),
-          client.lazyWatch(TaskKey[Int](end1))(saveResult),
-          client.lazyWatch(TaskKey[String](end2))(saveResult),
-          client.lazyWatch(TaskKey[Int](trigger1))(saveResult),
-          client.lazyWatch(TaskKey[Int](waitForStampFile))(saveResult))
+        Seq(client.rawLazyWatch(TaskKey[Int](dep1))(saveResult),
+          client.rawLazyWatch(TaskKey[String](dep2))(saveResult),
+          client.rawLazyWatch(TaskKey[Int](end1))(saveResult),
+          client.rawLazyWatch(TaskKey[String](end2))(saveResult),
+          client.rawLazyWatch(TaskKey[Int](trigger1))(saveResult),
+          client.rawLazyWatch(TaskKey[Int](waitForStampFile))(saveResult))
       }
       @volatile var executionsByTask = Map(0L -> 0L)
       def handleEvent(event: Event): Unit = {
@@ -160,12 +161,12 @@ class TestExecution extends SbtClientTest {
       verifyList(outermost.toList, expecteds)
     }
 
-    def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T): Unit = {
+    def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T)(implicit reads: Reads[T]): Unit = {
       record.results.collect({
         case (key, result) if key.key.name == taskName =>
           result
       }).headOption match {
-        case Some(TaskSuccess(value)) if ((value.value: Option[_]) == Some(expected)) => // ok!
+        case Some(TaskSuccess(value)) if (value.value[T] == Some(expected)) => // ok!
         case Some(TaskSuccess(value)) =>
           throw new AssertionError(s"Value of ${taskName} was was ${value}, expected Some(${expected})")
         case wrong =>
