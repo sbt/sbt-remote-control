@@ -4,7 +4,6 @@ package server
 import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
-import sbt.protocol.DynamicSerialization
 import scala.util.control.Exception._
 
 /** Helpers to map from sbt types into serializable json types. */
@@ -226,7 +225,7 @@ private[server] object SbtToProtocolUtils {
   def settingKeyToProtocolValue[T](key: SettingKey[T], state: State, extracted: Extracted): TaskResult[T, Throwable] = {
     val serializations = Serializations.extractOpt(state).getOrElse(throw new RuntimeException("state should have serializations on it"))
     val value = extracted.get(key)
-    TaskSuccess(BuildValue(value, serializations)(key.key.manifest))
+    TaskSuccess(serializations.buildValue(value)(key.key.manifest))
   }
 
   def projectRefToProtocol(x: sbt.ProjectRef): protocol.ProjectReference = {

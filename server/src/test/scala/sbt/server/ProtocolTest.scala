@@ -1,11 +1,10 @@
 /**
  *   Copyright (C) 2012 Typesafe Inc. <http://typesafe.com>
  */
-package sbt.protocol
+package sbt.server
 
 import org.junit.Assert._
 import org.junit._
-import sbt.protocol
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -14,6 +13,8 @@ import org.scalacheck._
 import Gen._
 import Arbitrary.arbitrary
 import org.scalacheck.Prop.forAll
+import sbt.protocol
+import sbt.protocol._
 
 object ProtocolGenerators {
   import scala.annotation.tailrec
@@ -393,8 +394,6 @@ class ProtocolTest {
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
 
-    val serializations = protocol.DynamicSerialization.defaultSerializations
-
     val specifics = Seq(
       // Requests
       protocol.KillServerRequest(),
@@ -425,14 +424,14 @@ class ProtocolTest {
       protocol.BuildStructureChanged(buildStructure),
       // equals() doesn't work on Exception so we can't actually check this easily
       //protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES", protocol.BuildValue(new Exception("Exploded"), serializations))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI", serializations))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42, serializations))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L, serializations))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true, serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true))),
       // TODO make Unit work ?
       // protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(()))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0, serializations))),
-      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f, serializations))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0))),
+      protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))),
       protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0)),
@@ -453,7 +452,7 @@ class ProtocolTest {
 
     for (s <- specifics) {
       import protocol.WireProtocol.{ fromRaw, toRaw }
-      val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s), protocol.DynamicSerialization.defaultSerializations))
+      val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s)))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
 
@@ -480,7 +479,7 @@ class ProtocolTest {
   }
 
   private def roundtripTest(roundtripper: Roundtripper): Unit = {
-    val ds = protocol.DynamicSerialization.defaultSerializations
+    val ds = DynamicSerialization.defaultSerializations
 
     def roundtrip[T: Manifest](t: T): Unit = roundtripper.roundtrip(t)
     def roundtripPropTest[T: Manifest](t: T): Boolean = roundtripper.roundtripPropTest(t)
@@ -580,7 +579,7 @@ class ProtocolTest {
 
   @Test
   def testDynamicSerialization(): Unit = {
-    val ds = protocol.DynamicSerialization.defaultSerializations
+    val ds = DynamicSerialization.defaultSerializations
     def roundtripBase[U, T: Manifest](t: T)(f: (T, T) => U)(e: (Throwable, Throwable) => U): U = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
@@ -616,11 +615,11 @@ class ProtocolTest {
 
   @Test
   def testBuildValueSerialization(): Unit = {
-    val serializations = protocol.DynamicSerialization.defaultSerializations
+    val serializations = DynamicSerialization.defaultSerializations
     def roundtripBuild[U, T: Manifest](t: T)(f: (protocol.BuildValue, protocol.BuildValue) => U)(e: (Throwable, Throwable) => U): U = {
       val mf = implicitly[Manifest[T]]
       implicit val format = serializations.lookup(mf).getOrElse(throw new AssertionError(s"no format for ${t.getClass.getName} $t"))
-      val buildValue = BuildValue(t, serializations)
+      val buildValue = serializations.buildValue(t)
       val json = Json.toJson(buildValue)
       //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
       val parsedValue = Json.fromJson[protocol.BuildValue](json).asOpt.getOrElse(throw new AssertionError(s"Failed to parse ${t} serialization ${json}"))

@@ -257,15 +257,5 @@ trait SbtClient extends Closeable {
 object SbtClient {
   /** Create an SbtClient attached to the provided channel. This can only be done once per channel. */
   def apply(channel: SbtChannel): SbtClient =
-    apply(channel, protocol.DynamicSerialization.defaultSerializations)
-  /**
-   * Create an SbtClient attached to the provided channel. This can only be done once per channel.
-   *  The provided serializations will be used to decode task result values.
-   *  (If you need to add serializations after creating a client, probably the API we should
-   *  add for that is a variant of SbtClient.watch() which takes a deserializer. But for now
-   *  you have to add all needed serializations up front, there's no API to change them later.)
-   *  (TODO right now we require a Format for each serialization, but in fact only the Reads is used.)
-   */
-  def apply(channel: SbtChannel, serializations: protocol.DynamicSerialization): SbtClient =
-    new impl.SimpleSbtClient(channel, serializations)
+    new impl.SimpleSbtClient(channel)
 }

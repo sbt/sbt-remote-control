@@ -51,8 +51,7 @@ trait SbtClientTest extends IntegrationTest {
    * a given directory...
    *
    */
-  final def withSbt(projectDirectory: java.io.File,
-    serializations: sbt.protocol.DynamicSerialization = sbt.protocol.DynamicSerialization.defaultSerializations)(f: SbtClient => Unit): Unit = {
+  final def withSbt(projectDirectory: java.io.File)(f: SbtClient => Unit): Unit = {
     val connector = Testing.connector(configuration, projectDirectory)
 
     val numConnects = new java.util.concurrent.atomic.AtomicInteger(0)
@@ -94,7 +93,7 @@ trait SbtClientTest extends IntegrationTest {
     val newHandler: SbtChannel => Unit = { channel =>
       numConnects.getAndIncrement
 
-      val client = SbtClient(channel, serializations)
+      val client = SbtClient(channel)
 
       val logfile = new File(projectDirectory, s".sbtserver/connections/${client.configName}-${client.uuid}.log").getAbsoluteFile
       if (!logfile.exists)

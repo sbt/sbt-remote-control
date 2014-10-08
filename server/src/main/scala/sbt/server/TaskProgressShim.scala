@@ -2,8 +2,6 @@ package sbt
 package server
 
 import protocol.{
-  DynamicConversion,
-  DynamicSerialization,
   ExecutionEngineEvent,
   TaskStarted,
   TaskFinished,
@@ -118,7 +116,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
             valueAndManifest.asInstanceOf[(T, Manifest[T])]
           case None => v -> mf
         }
-        TaskSuccess(BuildValue(destValue, serializations)(destManifest))
+        TaskSuccess(serializations.buildValue(destValue)(destManifest))
 
       case Inc(Incomplete(node, tpe, messageOption, causes, directCauseOption)) =>
         val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
@@ -129,9 +127,9 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
 
         val exceptionValue = conversions.convertWithRuntimeClass(exception) match {
           case Some((t: Throwable, throwableMf: Manifest[_])) =>
-            BuildValue(t, serializations)(throwableMf.asInstanceOf[Manifest[Throwable]])
+            serializations.buildValue(t)(throwableMf.asInstanceOf[Manifest[Throwable]])
           case _ =>
-            BuildValue.usingRuntimeClass(exception, serializations)
+            serializations.buildValueUsingRuntimeClass(exception)
         }
 
         TaskFailure(message, exceptionValue)

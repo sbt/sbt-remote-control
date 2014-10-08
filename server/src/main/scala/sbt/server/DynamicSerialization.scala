@@ -1,7 +1,39 @@
 package sbt
-package protocol
+package server
 
 import play.api.libs.json.{ Format, Reads, Writes }
+import sbt.protocol._
+import play.api.libs.json.JsObject
+
+/** Helper class lookups for serialization/deserialization. */
+private object Classes {
+  val StringClass = classOf[String]
+  val FileClass = classOf[java.io.File]
+  val BooleanClass = classOf[Boolean]
+  val ShortClass = classOf[Short]
+  val IntClass = classOf[Int]
+  val LongClass = classOf[Long]
+  val FloatClass = classOf[Float]
+  val DoubleClass = classOf[Double]
+  val OptionClass = classOf[Option[_]]
+  val SeqClass = classOf[Seq[_]]
+  val AttributedClass = classOf[sbt.Attributed[_]]
+  val URIClass = classOf[java.net.URI]
+  val ThrowableClass = classOf[Throwable]
+
+  // TODO - Figure out how to handle attributed, and
+  // other sbt special classes....
+
+  abstract class SubClass(cls: Class[_]) {
+    def unapply(ocls: Class[_]): Boolean =
+      cls.isAssignableFrom(ocls)
+  }
+
+  object OptionSubClass extends SubClass(OptionClass)
+  object SeqSubClass extends SubClass(SeqClass)
+  object AttributedSubClass extends SubClass(AttributedClass)
+  object ThrowableSubClass extends SubClass(ThrowableClass)
+}
 
 /**
  * An interface representing a mechanism to register and
@@ -19,6 +51,18 @@ sealed trait DynamicSerialization {
   def lookup[T](klass: Class[T]): Option[Format[T]]
   /** Add a serializer, returning the new modified DynamicSerialization. */
   def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization
+
+  // Here we need to reflectively look up the serialization of things...
+  final def buildValue[T](o: T)(implicit mf: Manifest[T]): BuildValue =
+    lookup(mf) map { serializer =>
+      BuildValue(serializer.writes(o), o.toString)
+    } getOrElse BuildValue(JsObject(Nil), o.toString)
+
+  final def buildValueUsingRuntimeClass[T](o: T): BuildValue = {
+    lookup(o.getClass) map { serializer =>
+      BuildValue(serializer.asInstanceOf[Writes[T]].writes(o), o.toString)
+    } getOrElse (BuildValue(JsObject(Nil), o.toString))
+  }
 }
 
 object DynamicSerialization {

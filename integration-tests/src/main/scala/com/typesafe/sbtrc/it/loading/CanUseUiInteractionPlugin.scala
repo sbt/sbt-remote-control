@@ -68,7 +68,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |TestThingPlugin.settings
        |""".stripMargin)
 
-  withSbt(dummy, sbt.protocol.DynamicSerialization.defaultSerializations.register(SerializedThing.format)) { client =>
+  withSbt(dummy) { client =>
     // Here we request something to run which will ask for input...
     import concurrent.ExecutionContext.global
     object interaction extends Interaction {

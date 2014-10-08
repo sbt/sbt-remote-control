@@ -41,7 +41,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           log.log(s"  Address = ${socket.getLocalSocketAddress}")
           val server = new IpcServer(socket, WireProtocol.sendJsonFilter)
 
-          val (uuid, register, registerSerial) = Envelope(server.receive(), serializations) match {
+          val (uuid, register, registerSerial) = Envelope(server.receive()) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>
               def replyAndException(message: String): Exception = {
                 server.replyJson(serial, ErrorResponse(message))

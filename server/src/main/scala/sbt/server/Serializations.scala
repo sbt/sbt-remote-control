@@ -1,9 +1,6 @@
 package sbt
 package server
 
-import protocol.DynamicSerialization
-import protocol.DynamicConversion
-
 object Serializations {
   val key = AttributeKey[DynamicSerialization]("Aggregate of registered serializations")
 

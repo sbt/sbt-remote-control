@@ -5,7 +5,6 @@ import play.api.libs.json.Writes
 import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
 import sbt.protocol.Event
-import sbt.protocol.DynamicSerialization
 import sbt.AbstractBackgroundJobService
 import sbt.protocol.BackgroundJobStarted
 import sbt.protocol.BackgroundJobFinished

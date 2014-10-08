@@ -20,7 +20,7 @@ import play.api.libs.json.Json
 /**
  * A concrete implementation of the SbtClient trait.
  */
-private[client] final class SimpleSbtClient(override val channel: SbtChannel, serializations: DynamicSerialization) extends SbtClient {
+private[client] final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient {
 
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
@@ -317,7 +317,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
   // is already closed on client side (which should not be possible since
   // we didn't close it) then we would in theory get a synchronous ClosedEvent
   // here.
-  channel.claimMessages(onMessage, serializations)(RunOnSameThreadContext)
+  channel.claimMessages(onMessage)(RunOnSameThreadContext)
 }
 
 private[client] class RequestException(msg: String) extends Exception(msg)
