@@ -58,14 +58,11 @@ final case class TaskSuccess(value: BuildValue) extends TaskResult {
     }
   }
 }
-/**
- * TODO I think it's wrong to have both message and cause; "cause" has to be a Throwable
- *  so should always have getmessage anyway.
- */
-final case class TaskFailure(message: String, cause: BuildValue) extends TaskResult {
+
+final case class TaskFailure(cause: BuildValue) extends TaskResult {
   override def isSuccess = false
   override def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A] = {
-    val t = readFailure.reads(cause.serialized).asOpt.getOrElse(new Exception(message))
+    val t = readFailure.reads(cause.serialized).asOpt.getOrElse(new Exception(cause.stringValue))
     Failure(t)
   }
 }
@@ -78,10 +75,7 @@ object TaskResult {
           case JsBoolean(true) =>
             Json.fromJson[BuildValue](m).map(TaskSuccess.apply)
           case JsBoolean(false) =>
-            for {
-              cause <- Json.fromJson[BuildValue](m \ "cause")
-              message <- (m \ "message").validate[String]
-            } yield TaskFailure(message, cause)
+            Json.fromJson[BuildValue](m \ "cause").map(TaskFailure.apply)
           case _ =>
             JsError("Unable to deserialize task result.")
         }
@@ -91,8 +85,8 @@ object TaskResult {
     new Writes[TaskResult] {
       override def writes(t: TaskResult): JsValue =
         t match {
-          case TaskFailure(msg, cause) =>
-            JsObject(Seq("success" -> JsBoolean(false), "message" -> JsString(msg), "cause" -> Json.toJson(cause)))
+          case TaskFailure(cause) =>
+            JsObject(Seq("success" -> JsBoolean(false), "cause" -> Json.toJson(cause)))
           case TaskSuccess(value) =>
             val base = Json.obj("success" -> true)
             val valueJson = Json.toJson(value) match {
