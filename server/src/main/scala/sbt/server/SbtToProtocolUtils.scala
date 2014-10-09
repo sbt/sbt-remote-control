@@ -7,7 +7,7 @@ import sbt.protocol.BuildValue
 import scala.util.control.Exception._
 
 /** Helpers to map from sbt types into serializable json types. */
-private[server] object SbtToProtocolUtils {
+object SbtToProtocolUtils {
 
   def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
     protocol.TypeInfo.fromManifest(mf)
