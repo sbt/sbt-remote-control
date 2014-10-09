@@ -9,6 +9,7 @@ import concurrent.Await
 import concurrent.Promise
 import scala.collection.JavaConverters._
 import play.api.libs.json.Json
+import scala.util.Success
 
 // Tests using interaction...
 class CanUseUiInteractionPlugin extends SbtClientTest {
@@ -67,7 +68,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |TestThingPlugin.settings
        |""".stripMargin)
 
-  withSbt(dummy, sbt.protocol.DynamicSerialization.defaultSerializations.register(SerializedThing.format)) { client =>
+  withSbt(dummy) { client =>
     // Here we request something to run which will ask for input...
     import concurrent.ExecutionContext.global
     object interaction extends Interaction {
@@ -101,21 +102,21 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
     // Now we try to grab the value of maketestThing 
     // To do this we had to create the client with serializer SerializedThing.format
-    val testThingValuePromise = Promise[sbt.protocol.TaskResult[SerializedThing, Throwable]]
+    val testThingValuePromise = Promise[sbt.protocol.TaskResult]
     client.lookupScopedKey("makeTestThing").foreach {
       case Seq(key) =>
-        client.watch(TaskKey[SerializedThing](key)) { (key, value) =>
+        client.rawWatch(TaskKey[SerializedThing](key)) { (key: ScopedKey, value: TaskResult) =>
           testThingValuePromise.trySuccess(value)
         }(global)
     }(global)
     val testThingValue = Await.result(testThingValuePromise.future, defaultTimeout)
     assert(testThingValue.isSuccess, "Failed to run makeTestThing")
     val sbt.protocol.TaskSuccess(buildValue) = testThingValue
-    buildValue match {
-      case sbt.protocol.SerializableBuildValue(value, _, _) =>
+    testThingValue.result[SerializedThing] match {
+      case Success(value) =>
         assert(value.name == "Hello, it's a test!", "Failed to serialize custom name attribute")
         assert(value.value == 10, "Failed to serialize custom value attribute")
-      case _ => sys.error(s"Failed to serialize SerializedThing: ${buildValue}")
+      case _ => sys.error(s"Failed to serialize SerializedThing: ${testThingValue}")
     }
   }
 

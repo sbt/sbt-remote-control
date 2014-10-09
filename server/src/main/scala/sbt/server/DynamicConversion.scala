@@ -1,5 +1,5 @@
 package sbt
-package protocol
+package server
 
 import play.api.libs.json.{ Format, Reads, Writes }
 

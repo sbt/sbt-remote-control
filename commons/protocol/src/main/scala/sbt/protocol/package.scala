@@ -5,10 +5,10 @@ import play.api.libs.functional.syntax._
 import play.api.data.validation.ValidationError
 import protocol.JsonHelpers._
 
-// these serializers are so generic they don't really "belong"
-// in the sbt.protocol API, but we need them internally
-// to implement other serializers.
-private[sbt] object GenericSerializers {
+// These serializers are generic or weird/hacky so don't belong
+// in sbt.protocol. Moving some of them to protocol also creates circular
+// initialization problems.
+object GenericSerializers {
 
   // adapt the Int reads/writes to boxed java.lang.Integer
   implicit val integerReads = Reads[java.lang.Integer](j => implicitly[Reads[Int]].reads(j).map(new java.lang.Integer(_)))
@@ -21,6 +21,7 @@ private[sbt] object GenericSerializers {
     }
   def fileToString(f: java.io.File): String =
     f.toURI.toASCIIString
+
   implicit val fileReads = Reads[java.io.File] { j =>
     j.validate[String].flatMap(x =>
       fileFromString(x).map(JsSuccess(_)).getOrElse(JsError(s"Invalid filename $x")))
@@ -55,7 +56,6 @@ package object protocol {
   // default serializers
   import Reads._
   import Writes._
-  // our private extra default serializers
   import GenericSerializers._
 
   implicit def attributedWrites[T](implicit writes: Writes[T]) = Writes[Attributed[T]] { t =>
@@ -341,13 +341,9 @@ package object protocol {
     (__ \ "name").read[String] and
     (__ \ "serialized").read[JsValue])((id, name, serialized) => TaskEvent(id, name, serialized))
 
-  implicit def valueChangedReads[A, E <: Throwable](implicit result: Reads[TaskResult[A, E]]): Reads[ValueChanged[A, E]] = (
-    (__ \ "key").read[ScopedKey] and
-    (__ \ "value").read[TaskResult[A, E]])(ValueChanged.apply[A, E] _)
+  implicit val valueChangedReads = Json.reads[ValueChanged]
 
-  implicit def valueChangedWrites[A, E <: Throwable](implicit result: Writes[TaskResult[A, E]]): Writes[ValueChanged[A, E]] = (
-    (__ \ "key").write[ScopedKey] and
-    (__ \ "value").write[TaskResult[A, E]])(unlift(ValueChanged.unapply[A, E]))
+  implicit val valueChangedWrites = Json.writes[ValueChanged]
 
   // This needs a custom formatter because it has a custom apply/unapply
   // which confuses the auto-formatter macro

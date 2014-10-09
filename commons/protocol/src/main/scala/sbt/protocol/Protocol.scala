@@ -251,7 +251,7 @@ final case class BuildFailedToLoad() extends ExecutionEngineEvent
 
 /** The build has been changed in some fashion. */
 final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
-final case class ValueChanged[+T, +E <: Throwable](key: ScopedKey, value: TaskResult[T, E]) extends Event
+final case class ValueChanged(key: ScopedKey, value: TaskResult) extends Event
 
 /** can be the response to anything. */
 final case class ErrorResponse(error: String) extends Response

@@ -11,15 +11,12 @@ import concurrent.{ Promise, Future }
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import play.api.libs.json.Reads
+import scala.util.{ Success, Failure }
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
   val dummy = utils.makeDummySbtProject("test")
-
-  sealed trait AnalysisResult
-  case class Success(analysis: Analysis) extends AnalysisResult
-  case class Failed(msg: String, cause: Throwable) extends AnalysisResult
-  case class Unserialized[T](value: UnserializedValue[T]) extends AnalysisResult
 
   sbt.IO.write(new java.io.File(dummy, "stdout.sbt"),
 
@@ -95,7 +92,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // log compile value changed
     val logCompileValueSub = (client.watch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
-    })(keepEventsInOrderExecutor)
+    })(implicitly[Reads[Analysis]], keepEventsInOrderExecutor)
 
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
@@ -105,14 +102,10 @@ class CanLoadSimpleProject extends SbtClientTest {
       case _ =>
     })(keepEventsInOrderExecutor)
 
-    def withCompileTaskResult(body: Future[AnalysisResult] => Unit): Unit = {
-      val result = Promise[AnalysisResult]
-      val compileWatchSub: Subscription = (client.watch(TaskKey[Analysis](compileKeys.head)) { (a, b) =>
-        b match {
-          case TaskSuccess(x: UnserializedValue[Analysis]) => result.trySuccess(Unserialized(x))
-          case TaskSuccess(SerializableBuildValue(x, _, _)) => result.trySuccess(Success(x))
-          case TaskFailure(x, cause) => result.trySuccess(Failed(x, cause.value.get))
-        }
+    def withCompileTaskResult(body: Future[Analysis] => Unit): Unit = {
+      val result = Promise[Analysis]
+      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Analysis](compileKeys.head)) { (a: ScopedKey, b: TaskResult) =>
+        result.tryComplete(b.resultWithCustomThrowable[Analysis, CompileFailedException])
       })(keepEventsInOrderExecutor)
 
       try body(result.future)
@@ -120,14 +113,21 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
     withCompileTaskResult { compileWatchFuture =>
       client.requestExecution("compile", None)
-      val failureResult = waitWithError(compileWatchFuture, "Unable get compile analysis from server")
-      failureResult match {
-        case Failed(_, e: CompileFailedException) =>
-          if (e.problems.isEmpty)
-            throw new AssertionError(s"CompileFailedException had no problems in it $e")
-        case Failed(_, e) => throw new AssertionError(s"expected CompileFailedException, got $e")
-        case other => throw new AssertionError(s"expected failure, got: $other")
-      }
+      val gotException =
+        try {
+          waitWithError(compileWatchFuture, "Unable get compile analysis from server")
+          false
+        } catch {
+          case e: CompileFailedException =>
+            if (e.problems.isEmpty)
+              throw new AssertionError(s"CompileFailedException had no problems in it $e")
+            true
+          case e: Throwable =>
+            throw new AssertionError(s"expected CompileFailedException, got $e")
+            true
+        }
+      if (!gotException)
+        throw new AssertionError(s"Expected compile to fail but it didn't")
     }
     val error = try {
       waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
@@ -142,14 +142,11 @@ class CanLoadSimpleProject extends SbtClientTest {
     val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.id.name}/baseDirectory")
     val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
 
+    import sbt.GenericSerializers._
+
     val baseDirectoryPromise = concurrent.Promise[File]
     client.watch(SettingKey[File](baseDirectoryKeys.head)) { (a, b) =>
-      b match {
-        case TaskSuccess(file) =>
-          baseDirectoryPromise.trySuccess(file.value.get)
-        case TaskFailure(msg, cause) =>
-          baseDirectoryPromise.tryFailure(cause.value.get)
-      }
+      baseDirectoryPromise.tryComplete(b)
     }
 
     val baseDirectory = waitWithError(baseDirectoryPromise.future, "Never received watch setting key first value")
@@ -161,12 +158,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     val unmanagedSourcesPromise = concurrent.Promise[collection.Seq[File]]
     client.watch(TaskKey[collection.Seq[File]](unmanagedSourcesKeys.head)) { (a, b) =>
-      b match {
-        case TaskSuccess(files) =>
-          unmanagedSourcesPromise.trySuccess(files.value.get)
-        case TaskFailure(msg, cause) =>
-          unmanagedSourcesPromise.tryFailure(cause.value.get)
-      }
+      unmanagedSourcesPromise.tryComplete(b)
     }
 
     val unmanagedSources = waitWithError(unmanagedSourcesPromise.future, "Never received watch task key first value")
@@ -181,11 +173,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     withCompileTaskResult { compileWatchFuture =>
       client.requestExecution("compile", None)
-      val successResult = waitWithError(compileWatchFuture, "Unable get compile analysis from server")
-      successResult match {
-        case Success(_) =>
-        case other => throw new AssertionError(s"expected success, got: $other")
-      }
+      waitWithError(compileWatchFuture, "Unable get compile analysis from server")
     }
 
     // Now check that we get test events

@@ -24,8 +24,6 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   // counted down when we should start sending events
   private val claimed = new java.util.concurrent.atomic.AtomicBoolean(false)
   private val claimedLatch = new java.util.concurrent.CountDownLatch(1)
-  @volatile
-  private var serializations: DynamicSerialization = DynamicSerialization.defaultSerializations
 
   // We have two things we want to do with the sendJson error:
   // either report it in the Future if we are going to return a Future,
@@ -73,11 +71,10 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   override def handleMessages(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription =
     messageListeners.add(listener)(ex)
 
-  override def claimMessages(listener: Envelope => Unit, serializations: protocol.DynamicSerialization)(implicit ex: ExecutionContext): Subscription = {
+  override def claimMessages(listener: Envelope => Unit)(implicit ex: ExecutionContext): Subscription = {
     if (claimed.getAndSet(true)) {
       throw new sbt.client.ChannelInUseException()
     } else {
-      this.serializations = serializations
       // we have to handle messages before we release the
       // latch so we don't miss any messages
       val sub = handleMessages(listener)
@@ -116,7 +113,7 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
       var lastReceivedSerial = 0L
       while (running) {
         try {
-          val envelope = protocol.Envelope(socket.receive(), serializations)
+          val envelope = protocol.Envelope(socket.receive())
           lastReceivedSerial = envelope.serial
           messageListeners.send(envelope)
         } catch {

@@ -2,8 +2,6 @@ package sbt
 package server
 
 import protocol.{
-  DynamicConversion,
-  DynamicSerialization,
   ExecutionEngineEvent,
   TaskStarted,
   TaskFinished,
@@ -109,7 +107,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
     } else mf.asInstanceOf[Manifest[T]]
   }
 
-  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult[T, Throwable] = {
+  private def resultToProtocol[T](result: Result[T], mf: Manifest[T]): TaskResult = {
     result match {
       case Value(v) =>
         val (destValue, destManifest) = conversions.convert(v)(mf) match {
@@ -118,23 +116,30 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
             valueAndManifest.asInstanceOf[(T, Manifest[T])]
           case None => v -> mf
         }
-        TaskSuccess(BuildValue(destValue, serializations)(destManifest))
+        TaskSuccess(serializations.buildValue(destValue)(destManifest))
 
       case Inc(Incomplete(node, tpe, messageOption, causes, directCauseOption)) =>
-        val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
+
+        // we eat "messageOption" if we have an exception.getMessage instead;
+        // not sure whether this sometimes loses information. But don't think
+        // there's any way for clients to know which to display when so we
+        // may as well simplify it here (if it causes trouble maybe we should
+        // combine the two messages or something).
+
         val exception = directCauseOption
           .getOrElse {
+            val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
             new Exception(message)
           }
 
         val exceptionValue = conversions.convertWithRuntimeClass(exception) match {
           case Some((t: Throwable, throwableMf: Manifest[_])) =>
-            BuildValue(t, serializations)(throwableMf.asInstanceOf[Manifest[Throwable]])
+            serializations.buildValue(t)(throwableMf.asInstanceOf[Manifest[Throwable]])
           case _ =>
-            BuildValue.usingRuntimeClass(exception, serializations)
+            serializations.buildValueUsingRuntimeClass(exception)
         }
 
-        TaskFailure(message, exceptionValue)
+        TaskFailure(exceptionValue)
     }
   }
 

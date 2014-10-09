@@ -3,7 +3,7 @@ package sbt.client.impl
 
 import sbt.protocol
 import sbt.protocol._
-import sbt.client.{ SbtChannel, SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, SettingKey, TaskKey, Interaction }
+import sbt.client.{ SbtChannel, SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, RawValueListener, SettingKey, TaskKey, Interaction }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -13,11 +13,14 @@ import java.io.EOFException
 import java.io.Closeable
 import play.api.libs.json.Writes
 import scala.annotation.tailrec
+import play.api.libs.json.Reads
+import scala.util.{ Success, Failure }
+import play.api.libs.json.Json
 
 /**
  * A concrete implementation of the SbtClient trait.
  */
-private[client] final class SimpleSbtClient(override val channel: SbtChannel, serializations: DynamicSerialization) extends SbtClient {
+private[client] final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient {
 
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
@@ -80,20 +83,20 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
 
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
-    val sub = lazyWatch(key)(listener)
+  def rawWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
+    val sub = rawLazyWatch(key)(listener)
     // TODO this is really busted; we need to have a local cache of the latest value and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
     channel.sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
-    valueEventManager[T](key.key).watch(listener)(ex)
+  def rawLazyWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    valueEventManager(key.key).watch(listener)(ex)
 
   // TODO - Some mechanisms of listening to interaction here...
-  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription = {
-    val sub = lazyWatch(key)(listener)
+  def rawWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
+    val sub = rawLazyWatch(key)(listener)
     // TODO this is really busted; we need to have a local cache of the latest value and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
@@ -103,8 +106,23 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
     channel.sendJson(SendSyntheticValueChanged(key.key))
     sub
   }
-  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit ex: ExecutionContext): Subscription =
-    valueEventManager[T](key.key).watch(listener)(ex)
+  def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    valueEventManager(key.key).watch(listener)(ex)
+
+  private def toRaw[T](listener: ValueListener[T])(implicit reads: Reads[T]): RawValueListener = (key: ScopedKey, taskResult: TaskResult) =>
+    listener(key, taskResult.result[T])
+
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawWatch(key)(toRaw(listener))
+
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawLazyWatch(key)(toRaw(listener))
+
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawWatch(key)(toRaw(listener))
+
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawLazyWatch(key)(toRaw(listener))
 
   // TODO - Maybe we should try a bit harder here to `kill` the server.
   // TODO this should be dropped because requestExecution("exit") now does
@@ -126,15 +144,14 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
     override def wrapListener(l: BuildStructureListener, ex: ExecutionContext) = new BuildListenerHelper(l, ex)
   }
   private object valueEventManager extends Closeable {
-    private var valueListeners = collection.mutable.Map.empty[ScopedKey, ValueChangeManager[_]]
+    private var valueListeners = collection.mutable.Map.empty[ScopedKey, ValueChangeManager]
 
-    def apply[T](key: ScopedKey): ValueChangeManager[T] = synchronized {
-      // Yes, we cheat types here...
+    def apply(key: ScopedKey): ValueChangeManager = synchronized {
       valueListeners.get(key) match {
-        case Some(mgr) => mgr.asInstanceOf[ValueChangeManager[T]]
+        case Some(mgr) => mgr
         case None =>
           val mgr =
-            new ValueChangeManager[Any](key, channel).asInstanceOf[ValueChangeManager[T]]
+            new ValueChangeManager(key, channel)
           valueListeners.put(key, mgr)
           mgr
       }
@@ -208,7 +225,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
   }
 
   private def handleEvent(executionState: ImpliedState.ExecutionEngine, event: Event): ImpliedState.ExecutionEngine = event match {
-    case e: ValueChanged[_, _] =>
+    case e: ValueChanged =>
       valueEventManager(e.key).sendEvent(e)
       executionState
     case e: BuildStructureChanged =>
@@ -300,7 +317,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel, se
   // is already closed on client side (which should not be possible since
   // we didn't close it) then we would in theory get a synchronous ClosedEvent
   // here.
-  channel.claimMessages(onMessage, serializations)(RunOnSameThreadContext)
+  channel.claimMessages(onMessage)(RunOnSameThreadContext)
 }
 
 private[client] class RequestException(msg: String) extends Exception(msg)
@@ -415,9 +432,9 @@ private[client] class BuildListenerHelper(listener: BuildStructureListener, ex: 
 }
 
 /** A wrapped build event listener that ensures events are fired on the desired execution context. */
-private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], ex: ExecutionContext) extends ListenerType[ValueChanged[T, Throwable]] {
+private[client] class ValueChangeListenerHelper(listener: RawValueListener, ex: ExecutionContext) extends ListenerType[ValueChanged] {
   private val id = java.util.UUID.randomUUID
-  override def send(e: ValueChanged[T, Throwable]): Unit = {
+  override def send(e: ValueChanged): Unit = {
     // TODO - do we need to prepare the context?
     ex.prepare.execute(new Runnable() {
       def run(): Unit = {
@@ -427,14 +444,14 @@ private[client] class ValueChangeListenerHelper[T](listener: ValueListener[T], e
   }
   override def hashCode = id.hashCode
   override def equals(o: Any): Boolean = o match {
-    case x: ValueChangeListenerHelper[_] => x.id == id
+    case x: ValueChangeListenerHelper => x.id == id
     case _ => false
   }
 }
 /** Helper to track value changes. */
-private final class ValueChangeManager[T](key: ScopedKey, channel: SbtChannel)
-  extends ListenerManager[ValueChanged[T, Throwable], ValueListener[T], ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
+private final class ValueChangeManager(key: ScopedKey, channel: SbtChannel)
+  extends ListenerManager[ValueChanged, RawValueListener, ListenToValue, UnlistenToValue](ListenToValue(key), UnlistenToValue(key), channel) {
 
-  def wrapListener(l: ValueListener[T], ex: ExecutionContext): ListenerType[ValueChanged[T, Throwable]] =
+  def wrapListener(l: RawValueListener, ex: ExecutionContext): ListenerType[ValueChanged] =
     new ValueChangeListenerHelper(l, ex)
 }

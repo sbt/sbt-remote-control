@@ -2,10 +2,8 @@ package sbt.server
 
 import sbt.impl.ipc
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, DynamicSerialization, ReadLineRequest, ReadLineResponse, ErrorResponse }
+import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
 import play.api.libs.json.Writes
-import sbt.server.ServerRequest
-import sbt.server.ExecutionId
 import concurrent.{ Promise, promise }
 import java.io.EOFException
 import java.net.SocketException
@@ -75,7 +73,7 @@ class SbtClientHandler(
     }
     private def readNextMessage(): Unit = {
       log.log("Reading next message from client.")
-      Envelope(ipc.receive(), serializations) match {
+      Envelope(ipc.receive()) match {
         case Envelope(serial, replyTo, msg: Request) =>
           log.log(s"Got request: $msg")
           reply(serial, sbt.protocol.ReceivedResponse())
