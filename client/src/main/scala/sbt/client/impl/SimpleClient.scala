@@ -16,6 +16,7 @@ import scala.annotation.tailrec
 import play.api.libs.json.Reads
 import scala.util.{ Success, Failure, Try }
 import play.api.libs.json.Json
+import sbt.GenericSerializers
 
 /**
  * A concrete implementation of the SbtClient trait.
@@ -62,6 +63,15 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     }
   }
 
+  private implicit object sendSyntheticValueChangedResponseConverter extends ResponseConverter[SendSyntheticValueChanged, Unit] {
+    override def convert: Converter = {
+      case protocol.ReceivedResponse() =>
+        Success(())
+      case protocol.KeyNotFound(key) =>
+        Failure(new Exception(s"No key $key exists, cannot get its value"))
+    }
+  }
+
   private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R], writes: Writes[Req]): Future[R] = {
     channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
@@ -91,12 +101,26 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
 
+  // TODO this is really busted; we need to have a local cache of the latest value and provide
+  // that local cache ONLY to the new listener, rather than reloading remotely and sending
+  // it to ALL existing listeners.
+  private def requestSyntheticValueChanged(key: protocol.ScopedKey)(implicit ex: ExecutionContext): Unit = {
+    // Right now, anytime we add a listener to a task we re-run that task (!!!)
+    // Combined with the issue of adding interaction handlers, having watch() on tasks
+    // do a notification right away may simply be a bad idea?
+    sendRequestWithConverter(SendSyntheticValueChanged(key)) onFailure {
+      case e: Throwable =>
+        // if we fail to get the value (due to e.g. no such key) we want
+        // to synthesize a notification so there's a guarantee that we
+        // get SOME watch notification always.
+        implicit val throwableWrites = GenericSerializers.throwableWrites
+        valueEventManager(key).sendEvent(ValueChanged(key, TaskFailure(BuildValue(e))))
+    }
+  }
+
   def rawWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = rawLazyWatch(key)(listener)
-    // TODO this is really busted; we need to have a local cache of the latest value and provide
-    // that local cache ONLY to the new listener, rather than reloading remotely and sending
-    // it to ALL existing listeners.
-    channel.sendJson(SendSyntheticValueChanged(key.key))
+    requestSyntheticValueChanged(key.key)
     sub
   }
   def rawLazyWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
@@ -105,13 +129,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   // TODO - Some mechanisms of listening to interaction here...
   def rawWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = rawLazyWatch(key)(listener)
-    // TODO this is really busted; we need to have a local cache of the latest value and provide
-    // that local cache ONLY to the new listener, rather than reloading remotely and sending
-    // it to ALL existing listeners.
-    // Right now, anytime we add a listener to a task we re-run that task (!!!)
-    // Combined with the issue of adding interaction handlers, having watch() on tasks
-    // do a notification right away may simply be a bad idea?
-    channel.sendJson(SendSyntheticValueChanged(key.key))
+    requestSyntheticValueChanged(key.key)
     sub
   }
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =

@@ -129,11 +129,8 @@ class CanLoadSimpleProject extends SbtClientTest {
       case other => throw new AssertionError(s"failed result was $other")
     }
 
-    // TODO we do not give you a response to a watch in this case right now
-    //val nonexistentResult = fetchTaskResult(taskKey[Int]("notARealTask"))
-    //assert(!nonexistentResult.isSuccess)
-    //System.err.println("nonexistentResult=" + nonexistentResult)
-    //System.err.println("nonexistentResult.result=" + nonexistentResult.result[Int])
+    val nonexistentResult = fetchTaskResult(taskKey[Int]("notARealTask"))
+    assert(!nonexistentResult.isSuccess)
 
     // Now we check compilation failure messages
 
