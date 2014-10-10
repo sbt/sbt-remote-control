@@ -135,16 +135,21 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     // Now we check compilation failure messages
 
-    // log compile value changed
-    val logCompileValueSub = (client.watch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
+    // log compile value changed (lazily, so we don't kick off a compile yet)
+    val logCompileValueSub = (client.lazyWatch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
     })(implicitly[Reads[Analysis]], keepEventsInOrderExecutor)
 
+    var compileId = 0L
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
       case CompilationFailure(taskId, failure) => compileErrorCaptured.trySuccess(failure)
-      case _: ExecutionFailure | _: ExecutionSuccess =>
-        compileErrorCaptured.tryFailure(new AssertionError("compile execution ended with no CompilationFailure"))
+      case ExecutionWaiting(id, command, _) if command.indexOf("compile") >= 0 =>
+        compileId = id
+      case ExecutionFailure(id) if id == compileId =>
+        compileErrorCaptured.tryFailure(new AssertionError(s"compile execution $compileId failed with no CompilationFailure"))
+      case ExecutionSuccess(id) if id == compileId =>
+        compileErrorCaptured.tryFailure(new AssertionError(s"compile execution $compileId succeeded but we wanted a CompilationFailure"))
       case _ =>
     })(keepEventsInOrderExecutor)
 
