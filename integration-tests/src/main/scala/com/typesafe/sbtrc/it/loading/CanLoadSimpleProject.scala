@@ -27,6 +27,14 @@ class CanLoadSimpleProject extends SbtClientTest {
        |   System.err.println("test-err")
        |   streams.value.log.info("test-info")
        | }
+       |
+       | val alwaysFails = taskKey[Int]("this is a task that fails")
+       |
+       | alwaysFails := { throw new Exception("This task always fails") }
+       |
+       | val alwaysFortyTwo = taskKey[Int]("this is a task that always returns 42")
+       |
+       | alwaysFortyTwo := 42
        |""".stripMargin)
 
   val errorFile = new java.io.File(dummy, "src/main/scala/error.scala")
@@ -86,6 +94,44 @@ class CanLoadSimpleProject extends SbtClientTest {
     testTask {
       client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
     }
+
+    def fetchTaskResult[T](key: TaskKey[T])(implicit reads: Reads[T]): TaskResult = {
+      val resultPromise = Promise[TaskResult]()
+      val sub = client.rawWatch(key in project.id) { (key, result) =>
+        resultPromise.trySuccess(result)
+      }
+      try {
+        waitWithError(resultPromise.future, s"waiting for result of $key")
+      } finally {
+        sub.cancel()
+      }
+    }
+
+    def taskKey[T: Manifest](name: String): TaskKey[T] = {
+      TaskKey[T](ScopedKey(key =
+        AttributeKey(name = name,
+          manifest = TypeInfo.fromManifest(implicitly[Manifest[T]])),
+        scope = SbtScope()))
+    }
+
+    val fortyTwoResult = fetchTaskResult(taskKey[Int]("alwaysFortyTwo"))
+    assert(fortyTwoResult.isSuccess)
+    assertEquals(scala.util.Success(42), fortyTwoResult.result[Int])
+
+    val failedResult = fetchTaskResult(taskKey[Int]("alwaysFails"))
+    assert(!failedResult.isSuccess)
+    val failedFailure = failedResult.result[Int]
+    assert(failedFailure.isFailure)
+    failedFailure match {
+      case Failure(e) => assert(e.getMessage.contains("always fails"))
+      case other => throw new AssertionError(s"failed result was $other")
+    }
+
+    // TODO we do not give you a response to a watch in this case right now
+    //val nonexistentResult = fetchTaskResult(taskKey[Int]("notARealTask"))
+    //assert(!nonexistentResult.isSuccess)
+    //System.err.println("nonexistentResult=" + nonexistentResult)
+    //System.err.println("nonexistentResult.result=" + nonexistentResult.result[Int])
 
     // Now we check compilation failure messages
 
