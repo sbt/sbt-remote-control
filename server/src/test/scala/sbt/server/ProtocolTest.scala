@@ -589,7 +589,7 @@ class ProtocolTest {
   private case object ObjectToJson extends TripDirection
   private case object JsonToObject extends TripDirection
   private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
-    val ds = protocol.DynamicSerialization.defaultSerializations
+    val ds = DynamicSerialization.defaultSerializations
     def oneWayTripBase[T: Manifest](t: T)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
       val path = p(baseDir)
       val formatOption = ds.lookup(implicitly[Manifest[T]])
