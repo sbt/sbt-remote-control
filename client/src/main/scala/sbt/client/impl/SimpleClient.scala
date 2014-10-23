@@ -221,15 +221,15 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       handlers += (serial -> listener)
       listener.future
     }
-    def fire(serial: Long, response: Response): Unit = synchronized {
+    // returns true if the response was handled
+    def fire(serial: Long, response: Response): Boolean = synchronized {
       handlers get serial match {
         case Some(handler) =>
           handler.fire(response)
           handlers -= serial
+          true
         case None =>
-        // probably something handled by the execution request handler;
-        // this can become a warning later if all responses are supposed to be going
-        // through here.
+          false
       }
     }
     override def close(): Unit = synchronized { completePromisesOnClose(handlers.values.map(_.promise)) }
@@ -304,17 +304,17 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   }
   private def handleResponse(replyTo: Long, response: Response): Unit = {
     // First try our generic system
-    responseTracker.fire(replyTo, response)
-
-    // Then try some special-cases that should probably be
-    // moved to the above generic system. FIXME move these
-    response match {
-      case protocol.ExecutionRequestReceived(executionId) =>
-        requestHandler.executionReceived(replyTo, executionId)
-      case protocol.ErrorResponse(msg) =>
-        requestHandler.protocolError(replyTo, msg)
-      case other =>
-      // do nothing, we don't understand it
+    if (!responseTracker.fire(replyTo, response)) {
+      // Then try some special-cases that should probably be
+      // moved to the above generic system. FIXME move these
+      response match {
+        case protocol.ExecutionRequestReceived(executionId) =>
+          requestHandler.executionReceived(replyTo, executionId)
+        case protocol.ErrorResponse(msg) =>
+          requestHandler.protocolError(replyTo, msg)
+        case other =>
+          System.err.println(s"Unhandled response $replyTo $response")
+      }
     }
   }
   private def handleRequest(serial: Long, request: Request): Unit = request match {
