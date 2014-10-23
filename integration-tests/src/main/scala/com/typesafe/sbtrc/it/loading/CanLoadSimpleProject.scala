@@ -27,6 +27,14 @@ class CanLoadSimpleProject extends SbtClientTest {
        |   System.err.println("test-err")
        |   streams.value.log.info("test-info")
        | }
+       |
+       | val alwaysFails = taskKey[Int]("this is a task that fails")
+       |
+       | alwaysFails := { throw new Exception("This task always fails") }
+       |
+       | val alwaysFortyTwo = taskKey[Int]("this is a task that always returns 42")
+       |
+       | alwaysFortyTwo := 42
        |""".stripMargin)
 
   val errorFile = new java.io.File(dummy, "src/main/scala/error.scala")
@@ -65,7 +73,9 @@ class CanLoadSimpleProject extends SbtClientTest {
         case TaskLogEvent(_, LogStdErr(line)) if line contains "test-err" =>
           stderrCaptured.success(())
         case TaskLogEvent(_, LogMessage("info", line)) if line contains "test-info" =>
-          logInfoCaptured.success(())
+          // This promise gets double-completed because it also goes to stdout;
+          // which is a bug, really. FIXME using trySuccess for now.
+          logInfoCaptured.trySuccess(())
         case _: ExecutionSuccess | _: ExecutionFailure =>
           executionDone.trySuccess(())
         case _ =>
@@ -87,18 +97,58 @@ class CanLoadSimpleProject extends SbtClientTest {
       client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
     }
 
+    def fetchTaskResult[T](key: TaskKey[T])(implicit reads: Reads[T]): TaskResult = {
+      val resultPromise = Promise[TaskResult]()
+      val sub = client.rawWatch(key in project.id) { (key, result) =>
+        resultPromise.trySuccess(result)
+      }
+      try {
+        waitWithError(resultPromise.future, s"waiting for result of $key")
+      } finally {
+        sub.cancel()
+      }
+    }
+
+    def taskKey[T: Manifest](name: String): TaskKey[T] = {
+      TaskKey[T](ScopedKey(key =
+        AttributeKey(name = name,
+          manifest = TypeInfo.fromManifest(implicitly[Manifest[T]])),
+        scope = SbtScope()))
+    }
+
+    val fortyTwoResult = fetchTaskResult(taskKey[Int]("alwaysFortyTwo"))
+    assert(fortyTwoResult.isSuccess)
+    assertEquals(scala.util.Success(42), fortyTwoResult.result[Int])
+
+    val failedResult = fetchTaskResult(taskKey[Int]("alwaysFails"))
+    assert(!failedResult.isSuccess)
+    val failedFailure = failedResult.result[Int]
+    assert(failedFailure.isFailure)
+    failedFailure match {
+      case Failure(e) => assert(e.getMessage.contains("always fails"))
+      case other => throw new AssertionError(s"failed result was $other")
+    }
+
+    val nonexistentResult = fetchTaskResult(taskKey[Int]("notARealTask"))
+    assert(!nonexistentResult.isSuccess)
+
     // Now we check compilation failure messages
 
-    // log compile value changed
-    val logCompileValueSub = (client.watch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
+    // log compile value changed (lazily, so we don't kick off a compile yet)
+    val logCompileValueSub = (client.lazyWatch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
     })(implicitly[Reads[Analysis]], keepEventsInOrderExecutor)
 
+    var compileId = 0L
     val compileErrorCaptured = Promise[CompilationFailure]
     val compileErrorSub = (client handleEvents {
       case CompilationFailure(taskId, failure) => compileErrorCaptured.trySuccess(failure)
-      case _: ExecutionFailure | _: ExecutionSuccess =>
-        compileErrorCaptured.tryFailure(new AssertionError("compile execution ended with no CompilationFailure"))
+      case ExecutionWaiting(id, command, _) if command.indexOf("compile") >= 0 =>
+        compileId = id
+      case ExecutionFailure(id) if id == compileId =>
+        compileErrorCaptured.tryFailure(new AssertionError(s"compile execution $compileId failed with no CompilationFailure"))
+      case ExecutionSuccess(id) if id == compileId =>
+        compileErrorCaptured.tryFailure(new AssertionError(s"compile execution $compileId succeeded but we wanted a CompilationFailure"))
       case _ =>
     })(keepEventsInOrderExecutor)
 

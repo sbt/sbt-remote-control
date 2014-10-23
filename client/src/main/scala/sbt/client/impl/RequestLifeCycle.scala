@@ -126,7 +126,10 @@ private[client] class RequestHandler extends Closeable {
           // run function and remove from bySerial
           try f(req)
           finally bySerial -= serial
-        case None => // TODO - Issue some error or log!
+        case None =>
+        // Right now this is completely possible because
+        // all error responses to any kind of request
+        // get sent here in case we know about them.
       }
     }
   }

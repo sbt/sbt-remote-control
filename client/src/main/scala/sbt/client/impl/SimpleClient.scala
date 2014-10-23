@@ -14,8 +14,9 @@ import java.io.Closeable
 import play.api.libs.json.Writes
 import scala.annotation.tailrec
 import play.api.libs.json.Reads
-import scala.util.{ Success, Failure }
+import scala.util.{ Success, Failure, Try }
 import play.api.libs.json.Json
+import sbt.GenericSerializers
 
 /**
  * A concrete implementation of the SbtClient trait.
@@ -38,34 +39,51 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
-  private implicit object completionsManager extends RequestManager[CommandCompletionsRequest] {
-    override type R = Set[Completion]
+  private implicit object completionsResponseConverter extends ResponseConverter[CommandCompletionsRequest, Set[Completion]] {
+    override def convert: Converter = {
+      case protocol.CommandCompletionsResponse(completions) => Success(completions)
+    }
   }
 
-  private implicit object cancelRequestManager extends RequestManager[CancelExecutionRequest] {
-    override type R = Boolean
+  private implicit object cancelResponseConverter extends ResponseConverter[CancelExecutionRequest, Boolean] {
+    override def convert: Converter = {
+      case protocol.CancelExecutionResponse(result) => Success(result)
+    }
   }
 
-  private implicit object keyLookupRequestManager extends RequestManager[KeyLookupRequest] {
-    override type R = Seq[ScopedKey]
+  private implicit object keyLookupResponseConverter extends ResponseConverter[KeyLookupRequest, Seq[ScopedKey]] {
+    override def convert: Converter = {
+      case protocol.KeyLookupResponse(key, result) => Success(result)
+    }
   }
 
-  private implicit object analyzeExecutionRequestManager extends RequestManager[AnalyzeExecutionRequest] {
-    override type R = ExecutionAnalysis
+  private implicit object analyzeExecutionResponseConverter extends ResponseConverter[AnalyzeExecutionRequest, ExecutionAnalysis] {
+    override def convert: Converter = {
+      case protocol.AnalyzeExecutionResponse(analysis) => Success(analysis)
+    }
   }
 
-  private def sendRequestWithManager[Req <: Request](request: Req)(implicit manager: RequestManager[Req], writes: Writes[Req]): Future[manager.R] = {
-    channel.sendJsonWithRegistration(request) { serial => manager.register(serial) }
+  private implicit object sendSyntheticValueChangedResponseConverter extends ResponseConverter[SendSyntheticValueChanged, Unit] {
+    override def convert: Converter = {
+      case protocol.ReceivedResponse() =>
+        Success(())
+      case protocol.KeyNotFound(key) =>
+        Failure(new Exception(s"No key $key exists, cannot get its value"))
+    }
+  }
+
+  private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R], writes: Writes[Req]): Future[R] = {
+    channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] =
-    sendRequestWithManager(CommandCompletionsRequest(partialCommand, detailLevel))
+    sendRequestWithConverter(CommandCompletionsRequest(partialCommand, detailLevel))
 
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]] =
-    sendRequestWithManager(KeyLookupRequest(name))
+    sendRequestWithConverter(KeyLookupRequest(name))
 
   def analyzeExecution(command: String): Future[ExecutionAnalysis] =
-    sendRequestWithManager(AnalyzeExecutionRequest(command))
+    sendRequestWithConverter(AnalyzeExecutionRequest(command))
 
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
     channel.sendJsonWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
@@ -78,17 +96,31 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     }
   }
   def cancelExecution(id: Long): Future[Boolean] =
-    sendRequestWithManager(CancelExecutionRequest(id))
+    sendRequestWithConverter(CancelExecutionRequest(id))
 
   def handleEvents(listener: EventListener)(implicit ex: ExecutionContext): Subscription =
     eventManager.watch(listener)(ex)
 
+  // TODO this is really busted; we need to have a local cache of the latest value and provide
+  // that local cache ONLY to the new listener, rather than reloading remotely and sending
+  // it to ALL existing listeners.
+  private def requestSyntheticValueChanged(key: protocol.ScopedKey)(implicit ex: ExecutionContext): Unit = {
+    // Right now, anytime we add a listener to a task we re-run that task (!!!)
+    // Combined with the issue of adding interaction handlers, having watch() on tasks
+    // do a notification right away may simply be a bad idea?
+    sendRequestWithConverter(SendSyntheticValueChanged(key)) onFailure {
+      case e: Throwable =>
+        // if we fail to get the value (due to e.g. no such key) we want
+        // to synthesize a notification so there's a guarantee that we
+        // get SOME watch notification always.
+        implicit val throwableWrites = GenericSerializers.throwableWrites
+        valueEventManager(key).sendEvent(ValueChanged(key, TaskFailure(BuildValue(e))))
+    }
+  }
+
   def rawWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = rawLazyWatch(key)(listener)
-    // TODO this is really busted; we need to have a local cache of the latest value and provide
-    // that local cache ONLY to the new listener, rather than reloading remotely and sending
-    // it to ALL existing listeners.
-    channel.sendJson(SendSyntheticValueChanged(key.key))
+    requestSyntheticValueChanged(key.key)
     sub
   }
   def rawLazyWatch(key: SettingKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
@@ -97,13 +129,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   // TODO - Some mechanisms of listening to interaction here...
   def rawWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = rawLazyWatch(key)(listener)
-    // TODO this is really busted; we need to have a local cache of the latest value and provide
-    // that local cache ONLY to the new listener, rather than reloading remotely and sending
-    // it to ALL existing listeners.
-    // Right now, anytime we add a listener to a task we re-run that task (!!!)
-    // Combined with the issue of adding interaction handlers, having watch() on tasks
-    // do a notification right away may simply be a bad idea?
-    channel.sendJson(SendSyntheticValueChanged(key.key))
+    requestSyntheticValueChanged(key.key)
     sub
   }
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
@@ -160,29 +186,53 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       valueListeners.values.foreach(_.close())
     }
   }
-  def completePromisesOnClose(handlers: Map[_, Promise[_]]): Unit = {
-    for (promise <- handlers.values)
+  def completePromisesOnClose(handlers: Iterable[Promise[_]]): Unit = {
+    for (promise <- handlers)
       promise.failure(new RuntimeException("Connection to sbt closed"))
   }
 
-  private class RequestManager[For <: Request] extends Closeable {
-    type R
-    private var handlers: Map[Long, Promise[R]] = Map.empty
-    def register(serial: Long): Future[R] = synchronized {
-      val listener = Promise[R]()
+  private abstract class ResponseConverter[For <: Request, Result] {
+    type Converter = PartialFunction[Response, Try[Result]]
+    def convert: Converter
+    private val realConvert = convert
+    final def complete(response: Response, promise: Promise[Result]): Unit = response match {
+      case ErrorResponse(error) =>
+        promise.tryFailure(new Exception(error))
+      case other =>
+        val result = realConvert.applyOrElse(other,
+          { _: Response => Failure(new Exception(s"Response $other not handled by ${this.getClass.getName}")) })
+        promise.tryComplete(result)
+    }
+  }
+
+  private final class ResponseHandler[Req <: Request, Result](val converter: ResponseConverter[Req, Result]) {
+    val promise = Promise[Result]()
+    def future: Future[Result] = promise.future
+    def fire(response: Response): Unit = {
+      converter.complete(response, promise)
+    }
+  }
+
+  private object responseTracker extends Closeable {
+    private var handlers: Map[Long, ResponseHandler[_, _]] = Map.empty
+    def register[Req <: Request, R](serial: Long)(implicit converter: ResponseConverter[Req, R]): Future[R] = synchronized {
+      require(!handlers.contains(serial))
+      val listener = new ResponseHandler[Req, R](converter)
       handlers += (serial -> listener)
       listener.future
     }
-    def fire(serial: Long, result: R): Unit = synchronized {
+    // returns true if the response was handled
+    def fire(serial: Long, response: Response): Boolean = synchronized {
       handlers get serial match {
         case Some(handler) =>
-          handler.success(result)
+          handler.fire(response)
           handlers -= serial
+          true
         case None =>
-          System.err.println(s"Received an unexpected reply to serial ${serial}")
+          false
       }
     }
-    override def close(): Unit = synchronized { completePromisesOnClose(handlers) }
+    override def close(): Unit = synchronized { completePromisesOnClose(handlers.values.map(_.promise)) }
   }
 
   private var executionState: ImpliedState.ExecutionEngine = ImpliedState.ExecutionEngine.empty
@@ -214,10 +264,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       valueEventManager.close()
       buildEventManager.close()
       requestHandler.close()
-      completionsManager.close()
-      keyLookupRequestManager.close()
-      analyzeExecutionRequestManager.close()
-      cancelRequestManager.close()
+      responseTracker.close()
 
       // notify close() that it can return
       closeLatch.countDown()
@@ -255,21 +302,20 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       eventManager.sendEvent(other)
       executionState
   }
-  private def handleResponse(replyTo: Long, response: Response): Unit = response match {
-    case KeyLookupResponse(key, result) =>
-      keyLookupRequestManager.fire(replyTo, result)
-    case AnalyzeExecutionResponse(analysis) =>
-      analyzeExecutionRequestManager.fire(replyTo, analysis)
-    case protocol.CommandCompletionsResponse(completions) =>
-      completionsManager.fire(replyTo, completions)
-    case protocol.ExecutionRequestReceived(executionId) =>
-      requestHandler.executionReceived(replyTo, executionId)
-    case protocol.CancelExecutionResponse(result) =>
-      cancelRequestManager.fire(replyTo, result)
-    case protocol.ErrorResponse(msg) =>
-      requestHandler.protocolError(replyTo, msg)
-    case other =>
-    // do nothing, we don't understand it
+  private def handleResponse(replyTo: Long, response: Response): Unit = {
+    // First try our generic system
+    if (!responseTracker.fire(replyTo, response)) {
+      // Then try some special-cases that should probably be
+      // moved to the above generic system. FIXME move these
+      response match {
+        case protocol.ExecutionRequestReceived(executionId) =>
+          requestHandler.executionReceived(replyTo, executionId)
+        case protocol.ErrorResponse(msg) =>
+          requestHandler.protocolError(replyTo, msg)
+        case other =>
+          System.err.println(s"Unhandled response $replyTo $response")
+      }
+    }
   }
   private def handleRequest(serial: Long, request: Request): Unit = request match {
     case protocol.ReadLineRequest(executionId, prompt, mask) =>
@@ -298,6 +344,8 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       executionState
   }
 
+  // FIXME this is only for RequestExecution requests, not
+  // all requests, so is misnamed.
   private val requestHandler = new RequestHandler()
 
   override def isClosed: Boolean = channel.isClosed
