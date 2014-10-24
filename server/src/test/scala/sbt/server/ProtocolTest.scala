@@ -402,7 +402,6 @@ class ProtocolTest {
       protocol.ConfirmRequest(43, "msg"),
       protocol.ConfirmResponse(true),
       protocol.ReceivedResponse(),
-      protocol.RequestCompleted(),
       protocol.CommandCompletionsRequest("He", 2),
       protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true))),
       protocol.ListenToEvents(),

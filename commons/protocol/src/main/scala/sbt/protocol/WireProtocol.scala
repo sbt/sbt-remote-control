@@ -24,8 +24,6 @@ private[sbt] object WireProtocol {
     msg[CancelExecutionRequest],
     msg[CancelExecutionResponse],
     msg[RegisterClientRequest],
-    msg[RequestCompleted],
-    msg[RequestFailed],
     msg[ReadLineRequest],
     msg[ReadLineResponse],
     msg[ConfirmRequest],
