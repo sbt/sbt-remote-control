@@ -589,7 +589,10 @@ class ProtocolTest {
   private case object ObjectToJson extends TripDirection
   private case object JsonToObject extends TripDirection
   private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
-    val ds = DynamicSerialization.defaultSerializations
+    import WireProtocol.{ messageReads, messageWrites }
+    val ds0 = DynamicSerialization.defaultSerializations
+    val ds = ds0.register(implicitly[Format[protocol.Message]])
+
     def oneWayTripBase[T: Manifest](t: T)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
       val path = p(baseDir)
       val formatOption = ds.lookup(implicitly[Manifest[T]])
@@ -597,6 +600,7 @@ class ProtocolTest {
         td match {
           case ObjectToJson =>
             val json = addWhatWeWereFormatting(t)(format.writes(t))
+            // IO.write(path, json.toString, IO.utf8)  
             if (path.exists) sys.error(s"$path exists already")
             else IO.write(path, json.toString, IO.utf8)
           case JsonToObject =>
@@ -664,6 +668,58 @@ class ProtocolTest {
     oneWayTrip(new Exception("fail fail fail", new RuntimeException("some cause"))) { _ / "complex" / "exception.json" }
     oneWayTrip(new protocol.CompileFailedException("the compile failed", null,
       Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
+
+    // message
+    oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
+    oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
+    oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "readline_response.json" }
+    oneWayTrip[Message](protocol.ConfirmRequest(43, "msg")) { _ / "message" / "confirm_request.json" }
+    oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "confirm_response.json" }
+    oneWayTrip[Message](protocol.ReceivedResponse()) { _ / "message" / "received_response.json" }
+    oneWayTrip[Message](protocol.RequestCompleted()) { _ / "message" / "request_completed.json" }
+    oneWayTrip[Message](protocol.CommandCompletionsRequest("He", 2)) { _ / "message" / "completion_request.json" }
+    oneWayTrip[Message](protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true)))) { _ / "message" / "completion_response.json" }
+    oneWayTrip[Message](protocol.ListenToEvents()) { _ / "message" / "listen_to_events.json" }
+    oneWayTrip[Message](protocol.ListenToBuildChange()) { _ / "message" / "listen_to_build_change.json" }
+    oneWayTrip[Message](protocol.ExecutionRequest("test command string")) { _ / "message" / "exec_request.json" }
+    oneWayTrip[Message](protocol.ListenToValue(scopedKey)) { _ / "message" / "listen_to_value.json" }
+    oneWayTrip[Message](protocol.CancelExecutionRequest(1)) { _ / "message" / "cancel_exec_request.json" }
+    oneWayTrip[Message](protocol.ErrorResponse("ZOMG")) { _ / "message" / "error_response.json" }
+    oneWayTrip[Message](protocol.CancelExecutionResponse(false)) { _ / "message" / "cancel_exec_response.json" }
+
+    // event
+    oneWayTrip[Message](protocol.TaskStarted(47, 1, Some(scopedKey))) { _ / "event" / "task_started.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), true)) { _ / "event" / "task_finished.json" }
+    oneWayTrip[Message](protocol.TaskStarted(47, 1, None)) { _ / "event" / "task_started_none.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true)) { _ / "event" / "task_finished_none.json" }
+    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
+    // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
+    //   _ / "event" / "value_changed_task_failure.json"
+    // }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI")))) { _ / "event" / "value_changed" / "string.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42)))) { _ / "event" / "value_changed" / "int.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L)))) { _ / "event" / "value_changed" / "long.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true)))) { _ / "event" / "value_changed" / "boolean.json" }
+    // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(())))) { _ / "event" / "value_changed" / "unit.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0)))) { _ / "event" / "value_changed" / "double.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f)))) { _ / "event" / "value_changed" / "float.json" }
+    oneWayTrip[Message](protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0))) { _ / "event" / "task_event.json" }
+    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO"))) { _ / "event" / "exec_waiting.json" }
+    oneWayTrip[Message](protocol.ExecutionStarting(56)) { _ / "event" / "exec_starting.json" }
+    oneWayTrip[Message](protocol.ExecutionFailure(42)) { _ / "event" / "exec_failure.json" }
+    oneWayTrip[Message](protocol.ExecutionSuccess(44)) { _ / "event" / "exec_success.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "task_log_event.json" }
+    oneWayTrip[Message](protocol.CoreLogEvent(protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "core_log_event.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST"))) { _ / "event" / "log" / "info.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST"))) { _ / "event" / "log" / "error.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST"))) { _ / "event" / "log" / "warn.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(5, protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST"))) { _ / "event" / "log" / "debug.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(6, protocol.LogStdErr("TEST"))) { _ / "event" / "log" / "log_std_err.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(7, protocol.LogStdOut("TEST2"))) { _ / "event" / "log" / "log_std_out.json" }
+    oneWayTrip[Message](protocol.TaskEvent(8, PlayStartedEvent(port = 10))) { _ / "event" / "play_started.json" }
+    oneWayTrip[Message](protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey))) { _ / "event" / "bg_started.json" }
+    oneWayTrip[Message](protocol.BackgroundJobFinished(9, 67)) { _ / "event" / "bg_finished.json" }
+    oneWayTrip[Message](protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))) { _ / "event" / "bg.json" }
 
     // stamp
     val stamps = protocol.Stamps.empty.copy(allBinaries = Set(new File("/temp/foo.class")))

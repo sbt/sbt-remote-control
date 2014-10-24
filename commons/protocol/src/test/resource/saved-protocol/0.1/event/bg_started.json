@@ -1,0 +1,1 @@
+{"executionId":9,"job":{"id":67,"humanReadableName":"foojob","spawningTask":{"key":{"name":"name","manifest":{"erasureClass":"java.lang.String","typeArguments":[]}},"scope":{"project":{"build":"file:///test/project","name":"test"}}}},"type":"BackgroundJobStarted"}

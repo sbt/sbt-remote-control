@@ -1,0 +1,1 @@
+{"key":{"key":{"name":"name","manifest":{"erasureClass":"java.lang.String","typeArguments":[]}},"scope":{"project":{"build":"file:///test/project","name":"test"}}},"value":{"success":true,"serialized":42,"stringValue":"42"},"type":"ValueChanged"}
