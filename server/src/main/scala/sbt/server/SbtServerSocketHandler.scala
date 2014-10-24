@@ -4,7 +4,6 @@ import sbt.impl.ipc
 import ipc.{ MultiClientServer => IpcServer, HandshakeException }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
-import sbt.server.{ ServerRequest, SocketMessage, SocketClosed }
 import sbt.protocol._
 import scala.util.control.NonFatal
 
@@ -39,7 +38,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           val socket = serverSocket.accept()
           log.log(s"New client attempting to connect on port: ${socket.getPort}-${socket.getLocalPort}")
           log.log(s"  Address = ${socket.getLocalSocketAddress}")
-          val server = new IpcServer(socket, WireProtocol.sendJsonFilter)
+          val server = new IpcServer(socket)
 
           val (uuid, register, registerSerial) = Envelope(server.receive()) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>

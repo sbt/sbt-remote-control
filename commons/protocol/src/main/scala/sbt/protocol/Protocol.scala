@@ -16,6 +16,9 @@ sealed trait Message {
 }
 
 object Message {
+  import play.api.libs.json._
+  import MessageSerialization._
+
   // this makes it prettier when writing json by hand e.g. in JavaScript
   private def removeDollar(s: String) = {
     val i = s.lastIndexOf('$')
@@ -35,6 +38,93 @@ object Message {
   }
   private[protocol] def makeSimpleName(klass: Class[_]): String =
     removeDollar(lastChunk(klass.getName))
+
+  private val messages: Map[Class[_], (String, Reads[_], Writes[_])] = Map(
+    msg[TaskLogEvent],
+    msg[CoreLogEvent],
+    msg[BackgroundJobLogEvent],
+    msg[KillServerRequest],
+    msg[CancelExecutionRequest],
+    msg[CancelExecutionResponse],
+    msg[RegisterClientRequest],
+    msg[ReadLineRequest],
+    msg[ReadLineResponse],
+    msg[ConfirmRequest],
+    msg[ConfirmResponse],
+    msg[ReceivedResponse],
+    msg[ExecutionRequestReceived],
+    msg[ExecutionRequest],
+    msg[KeyExecutionRequest],
+    msg[ExecutionStarting],
+    msg[ExecutionWaiting],
+    msg[ExecutionFailure],
+    msg[ExecutionSuccess],
+    msg[ListenToEvents],
+    msg[UnlistenToEvents],
+    msg[ListenToBuildChange],
+    msg[UnlistenToBuildChange],
+    msg[SendSyntheticBuildChanged],
+    msg[ListenToValue],
+    msg[UnlistenToValue],
+    msg[SendSyntheticValueChanged],
+    msg[KeyNotFound],
+    msg[BuildStructureChanged],
+    msg[ValueChanged],
+    msg[ErrorResponse],
+    msg[TaskStarted],
+    msg[TaskFinished],
+    msg[CommandCompletionsRequest],
+    msg[CommandCompletionsResponse],
+    msg[KeyLookupResponse],
+    msg[KeyLookupRequest],
+    msg[AnalyzeExecutionRequest],
+    msg[AnalyzeExecutionResponse],
+    msg[TaskEvent],
+    msg[BuildLoaded],
+    msg[BuildFailedToLoad],
+    msg[BackgroundJobStarted],
+    msg[BackgroundJobFinished],
+    msg[BackgroundJobEvent])
+
+  private val readsIndex: Map[String, Reads[_]] =
+    (for {
+      (_, (name, reads, _)) <- messages
+    } yield name -> reads).toMap
+
+  implicit object messageWrites extends Writes[Message] {
+    override def writes(t: Message): JsValue = {
+      val (name, _, writes) = try messages(t.getClass) catch {
+        case e: NoSuchElementException =>
+          throw new RuntimeException(s"No message writer known for ${t.getClass.getName}")
+      }
+      // TODO - Should the message field be something like "event" or "request"?
+      addType(writes.asInstanceOf[Writes[Message]].writes(t), name)
+    }
+  }
+
+  implicit object messageReads extends Reads[Message] {
+    // if we mess up a read/write pair we just get a cache miss, no big deal
+    @volatile
+    private var cache = Map.empty[String, Reads[_]]
+    override def reads(msg: JsValue): JsResult[Message] = {
+      val name = (msg \ "type").as[String]
+      val reader = cache.get(name) orElse {
+        readsIndex.get(name).map { created =>
+          cache += (name -> created)
+          created
+        }
+      } getOrElse { throw new RuntimeException(s"No message reader known for $name") }
+      reader.reads(msg).map(_.asInstanceOf[Message])
+    }
+  }
+
+  private def addType(json: JsValue, name: String): JsObject = json match {
+    case x: JsObject => x + ("type" -> JsString(name))
+    case value => sys.error("Unable to serialize non-object message type!")
+  }
+
+  private def msg[T <: Message](implicit f: Format[T], mf: ClassManifest[T]): (Class[T], (String, Reads[T], Writes[T])) =
+    mf.runtimeClass.asInstanceOf[Class[T]] -> (makeSimpleName(mf.runtimeClass), f, f)
 }
 
 /** Represents requests that go down into sbt. */

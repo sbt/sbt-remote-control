@@ -6,7 +6,6 @@ import java.net._
 import sbt.client._
 import sbt.protocol.RegisterClientRequest
 import sbt.protocol.ClientInfo
-import sbt.protocol.registerClientRequestWrites
 
 private[sbt] object DebugClient {
   def apply(port: Int): SbtClient = {
