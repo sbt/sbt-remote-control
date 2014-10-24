@@ -450,7 +450,8 @@ class ProtocolTest {
       protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)))
 
     for (s <- specifics) {
-      import protocol.WireProtocol.{ fromRaw, toRaw }
+      def fromRaw(j: JsValue): Option[Message] = Json.fromJson[Message](j).asOpt
+      def toRaw(m: Message): JsValue = Json.toJson(m)
       val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s)))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }

@@ -375,7 +375,7 @@ private[client] trait ListenerType[Event] {
   def onClose(): Unit = {}
 }
 /** Helper to manage registering events and telling the server we want them. */
-private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, UnlistenMsg <: Request](requestEventsMsg: RequestMsg, requestUnlistenMsg: UnlistenMsg, channel: SbtChannel)(implicit format1: play.api.libs.json.Format[RequestMsg], format2: play.api.libs.json.Format[UnlistenMsg])
+private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, UnlistenMsg <: Request](requestEventsMsg: RequestMsg, requestUnlistenMsg: UnlistenMsg, channel: SbtChannel)
   extends Closeable {
 
   def wrapListener(l: Listener, ex: ExecutionContext): ListenerType[Event]
