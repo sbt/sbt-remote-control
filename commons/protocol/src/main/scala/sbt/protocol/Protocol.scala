@@ -257,8 +257,6 @@ final case class ValueChanged(key: ScopedKey, value: TaskResult) extends Event
 final case class ErrorResponse(error: String) extends Response
 /** A notification that a given request has been received. */
 final case class ReceivedResponse() extends Response
-final case class RequestCompleted() extends Response
-final case class RequestFailed() extends Response
 
 final case class ReadLineRequest(executionId: Long, prompt: String, mask: Boolean) extends Request
 final case class ReadLineResponse(line: Option[String]) extends Response

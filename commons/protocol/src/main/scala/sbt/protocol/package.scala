@@ -219,10 +219,6 @@ package object protocol {
   implicit val receivedResponseReads = emptyObjectReads(ReceivedResponse())
   implicit val receivedResponseWrites = emptyObjectWrites[ReceivedResponse]
 
-  implicit val requestCompletedReads = emptyObjectReads(RequestCompleted())
-  implicit val requestCompletedWrites = emptyObjectWrites[RequestCompleted]
-  implicit val requestFailedReads = emptyObjectReads(RequestFailed())
-  implicit val requestFailedWrites = emptyObjectWrites[RequestFailed]
   implicit val killRequestReads = emptyObjectReads(KillServerRequest())
   implicit val killRequestWrites = emptyObjectWrites[KillServerRequest]
 
