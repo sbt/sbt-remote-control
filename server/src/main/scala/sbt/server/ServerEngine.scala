@@ -123,6 +123,37 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     PostCommandCleanup :: HandleNextServerRequest :: clearedCommand
   }
 
+  final val HandleNextRebootRequest = "server-wait-for-reboot"
+
+  /**
+   * Special state for the server when the build is broken.
+   * All commands but 'reboot' are ignored.
+   */
+  final def handleNextRebootRequest = Command.command(HandleNextRebootRequest) { state =>
+    val (requestListeners, work) = requestQueue.blockAndTakeNext
+    val next = work match {
+      case cew: CommandExecutionWork =>
+        if (cew.command == sbt.BasicCommandStrings.RebootCommand) {
+          val serverState = ServerState(requestListeners = requestListeners, lastCommand = None)
+          executionIdFinder.set(cew.id.id)
+          Some(cew.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(cew))))
+        } else None
+      case EndOfWork =>
+        Some(state.exit(ok = true))
+      case _ =>
+        eventSink.send(protocol.BuildFailedToLoad())
+        None
+    }
+
+    next match {
+      case Some(s) => s
+      case None =>
+        // Jump back into this again and wait for the next command
+        fileLogger.log("In build failed mode. Will only execute 'reboot' command if present.")
+        state.copy(remainingCommands = Seq(HandleNextRebootRequest), next = State.Continue)
+    }
+  }
+
   def handleWork(work: ServerEngineWork, state: State): State = {
     val serverState = ServerState.extract(state)
     work match {
@@ -170,13 +201,20 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           handleNextRequestCommand,
           sendReadyForRequests,
           postCommandCleanupCommand,
-          postCommandErrorHandler) ++
+          postCommandErrorHandler,
+          handleNextRebootRequest) ++
           // Override the default commands with server-specific/friendly ones.
-          BuiltinCommands.DefaultCommands.filterNot(ServerBootCommand.isOverriden) ++
+          BuiltinCommands.DefaultCommands.filterNot(ServerBootCommand.isOverridden) ++
           ServerBootCommand.commandOverrides(this, eventSink),
         // Note: We drop the default command in favor of just adding them to the state directly.
         // TODO - Should we try to handle listener requests before booting?
-        preCommands = runEarly(InitCommand) :: BootCommand :: SendReadyForRequests :: HandleNextServerRequest :: Nil)
+        preCommands =
+          runEarly(InitCommand) ::
+            sbt.BasicCommandStrings.OnFailure + " " + sbt.CommandStrings.LoadFailed ::
+            BootCommand ::
+            SendReadyForRequests ::
+            HandleNextServerRequest ::
+            Nil)
 
     fileLogger.log(s"Command engine initial remaining commands ${state.remainingCommands}")
 
