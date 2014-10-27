@@ -137,7 +137,10 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           val serverState = ServerState(requestListeners = requestListeners, lastCommand = None)
           executionIdFinder.set(cew.id.id)
           Some(cew.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(cew))))
-        } else None
+        } else {
+          eventSink.send(protocol.ExecutionFailure(cew.id.id))
+          None
+        }
       case EndOfWork =>
         Some(state.exit(ok = true))
       case _ =>
