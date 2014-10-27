@@ -67,7 +67,7 @@ private[sbt] object WireProtocol {
       (_, (name, reads, _)) <- messages
     } yield name -> reads).toMap
 
-  private implicit object messageWrites extends Writes[Message] {
+  private[sbt] implicit object messageWrites extends Writes[Message] {
     override def writes(t: Message): JsValue = {
       val (name, _, writes) = try messages(t.getClass) catch {
         case e: NoSuchElementException =>
@@ -78,7 +78,7 @@ private[sbt] object WireProtocol {
     }
   }
 
-  private implicit object messageReads extends Reads[Message] {
+  private[sbt] implicit object messageReads extends Reads[Message] {
     // if we mess up a read/write pair we just get a cache miss, no big deal
     @volatile
     private var cache = Map.empty[String, Reads[_]]

@@ -1,0 +1,1 @@
+{"allInfos":{"file:/temp/foo":{"reportedProblems":[{"category":"something","severity":"Error","message":"stuff didn't go well","position":{"lineContent":"this is some stuff on the line","line":10,"offset":11,"pointer":12,"pointerSpace":"foo","sourcePath":"/temp/bar","sourceFile":"file:/temp/bar"}}],"unreportedProblems":[]}}}
