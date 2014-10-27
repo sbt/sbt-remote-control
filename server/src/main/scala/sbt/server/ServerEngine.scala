@@ -138,21 +138,18 @@ class ServerEngine(requestQueue: ServerEngineQueue,
           executionIdFinder.set(cew.id.id)
           Some(cew.command :: ServerState.update(state, serverState.withLastCommand(LastCommand(cew))))
         } else {
+          fileLogger.log(s"Cannot execute ${cew.command} because the project build failed to load; fix any errors in your .sbt or other build files.")
           eventSink.send(protocol.ExecutionFailure(cew.id.id))
           None
         }
       case EndOfWork =>
         Some(state.exit(ok = true))
-      case _ =>
-        eventSink.send(protocol.BuildFailedToLoad())
-        None
     }
 
     next match {
       case Some(s) => s
       case None =>
         // Jump back into this again and wait for the next command
-        fileLogger.log("In build failed mode. Will only execute 'reboot' command if present.")
         state.copy(remainingCommands = Seq(HandleNextRebootRequest), next = State.Continue)
     }
   }
