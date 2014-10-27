@@ -676,7 +676,6 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.ConfirmRequest(43, "msg")) { _ / "message" / "confirm_request.json" }
     oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "confirm_response.json" }
     oneWayTrip[Message](protocol.ReceivedResponse()) { _ / "message" / "received_response.json" }
-    oneWayTrip[Message](protocol.RequestCompleted()) { _ / "message" / "request_completed.json" }
     oneWayTrip[Message](protocol.CommandCompletionsRequest("He", 2)) { _ / "message" / "completion_request.json" }
     oneWayTrip[Message](protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true)))) { _ / "message" / "completion_response.json" }
     oneWayTrip[Message](protocol.ListenToEvents()) { _ / "message" / "listen_to_events.json" }
