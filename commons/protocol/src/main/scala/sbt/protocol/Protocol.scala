@@ -525,3 +525,21 @@ object ByteArray {
 }
 
 final case class ModuleId(organization: String, name: String, attributes: Map[String, String])
+
+private[sbt] object StructurallyEqual {
+  // Exclude sourceFile from comparison
+  def equals(lhs: xsbti.Position, rhs: xsbti.Position): Boolean =
+    equals(lhs.line, rhs.line) &&
+      equals(lhs.offset, rhs.offset) &&
+      equals(lhs.pointer, rhs.pointer) &&
+      equals(lhs.pointerSpace, rhs.pointerSpace) &&
+      equals(lhs.sourcePath, rhs.sourcePath) &&
+      equals(lhs.lineContent, rhs.lineContent)
+
+  def equals[A](lhs: xsbti.Maybe[A], rhs: xsbti.Maybe[A]): Boolean =
+    if (lhs.isDefined != rhs.isDefined) false
+    else if (!lhs.isDefined) true
+    else (lhs.get == rhs.get)
+
+  def equals(lhs: String, rhs: String): Boolean = lhs == rhs
+}

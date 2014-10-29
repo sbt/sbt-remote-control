@@ -100,6 +100,10 @@ package object protocol {
     override def pointerSpace = convert(ps)
     override def sourcePath = convert(sp)
     override def sourceFile = convert(sp.map(new java.io.File(_)))
+    override def equals(o: Any): Boolean = o match {
+      case pos: xsbti.Position => protocol.StructurallyEqual.equals(this, pos)
+      case _ => false
+    }
   }
 
   def fromXsbtiPosition(in: xsbti.Position): xsbti.Position =

@@ -3,6 +3,9 @@
  */
 package sbt.server
 
+import java.io.File
+import sbt.Path._
+import sbt.IO
 import org.junit.Assert._
 import org.junit._
 import java.util.concurrent.Executors
@@ -478,6 +481,22 @@ class ProtocolTest {
     def roundtripPropTest[T: Manifest](t: T): Boolean
   }
 
+  object FakePosition extends xsbti.Position {
+    override def line = xsbti.Maybe.just(10)
+    override def offset = xsbti.Maybe.just(11)
+    override def pointer = xsbti.Maybe.just(12)
+    override def pointerSpace = xsbti.Maybe.just("foo")
+    override def sourcePath = xsbti.Maybe.just("/temp/bar")
+    override def sourceFile = xsbti.Maybe.just(new java.io.File("/temp/bar"))
+    override def lineContent = "this is some stuff on the line"
+    // note, this does not have a useful equals/hashCode with other instances of Position
+
+    override def equals(o: Any): Boolean = o match {
+      case pos: xsbti.Position => protocol.StructurallyEqual.equals(this, pos)
+      case _ => false
+    }
+  }
+
   private def roundtripTest(roundtripper: Roundtripper): Unit = {
     val ds = DynamicSerialization.defaultSerializations
 
@@ -492,16 +511,6 @@ class ProtocolTest {
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Seq(build),
       projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
-    object FakePosition extends xsbti.Position {
-      override def line = xsbti.Maybe.just(10)
-      override def offset = xsbti.Maybe.just(11)
-      override def pointer = xsbti.Maybe.just(12)
-      override def pointerSpace = xsbti.Maybe.just("foo")
-      override def sourcePath = xsbti.Maybe.just("foo")
-      override def sourceFile = xsbti.Maybe.just(new java.io.File("bar"))
-      override def lineContent = "this is some stuff on the line"
-      // note, this does not have a useful equals/hashCode with other instances of Position
-    }
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -575,6 +584,278 @@ class ProtocolTest {
     roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
     roundtrip(new protocol.CompileFailedException("the compile failed", null,
       Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
+  }
+
+  private sealed trait TripDirection
+  private case object ObjectToJson extends TripDirection
+  private case object JsonToObject extends TripDirection
+  private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
+    import WireProtocol.{ messageReads, messageWrites }
+    val ds0 = DynamicSerialization.defaultSerializations
+    val ds = ds0.register(implicitly[Format[protocol.Message]])
+
+    def oneWayTripBase[T: Manifest](t: T)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
+      val path = p(baseDir)
+      val formatOption = ds.lookup(implicitly[Manifest[T]])
+      formatOption map { format =>
+        td match {
+          case ObjectToJson =>
+            val json = addWhatWeWereFormatting(t)(format.writes(t))
+            // IO.write(path, json.toString, IO.utf8)  
+            if (path.exists) sys.error(s"$path exists already")
+            else IO.write(path, json.toString, IO.utf8)
+          case JsonToObject =>
+            if (!path.exists) { println(s"$path didn't exist, so skipping.") }
+            else {
+              val json = Json.parse(IO.read(path, IO.utf8))
+              val parsed = addWhatWeWereFormatting(t)(format.reads(json)).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
+              (t, parsed) match {
+                // Throwable has a not-very-useful equals() in this case
+                case (t: Throwable, parsed: Throwable) => e(t, parsed)
+                case _ => f(t, parsed)
+              }
+            }
+        }
+      } getOrElse { throw new AssertionError(s"No dynamic serialization for ${t.getClass.getName}: $t") }
+    }
+    def oneWayTrip[T: Manifest](t: T)(p: File => File): Unit =
+      oneWayTripBase[T](t)(p)((a, b) =>
+        if (a == b) ()
+        else sys.error(s"one-way trip of $a.\nexpected: $a\nactual: $b")) { (a, b) =>
+        assertEquals("one-way trip of message " + a.getMessage, a.getMessage, b.getMessage)
+      }
+    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val build = new java.net.URI("file:///test/project")
+    val projectRef = protocol.ProjectReference(build, "test")
+    val scope = protocol.SbtScope(project = Some(projectRef))
+    val scopedKey = protocol.ScopedKey(key, scope)
+    val buildStructure = protocol.MinimalBuildStructure(
+      builds = Seq(build),
+      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+
+    // simple data type
+    oneWayTrip("Foo") { _ / "simple" / "string.json" }
+    oneWayTrip(new java.io.File("/tmp")) { _ / "simple" / "file.json" }
+    oneWayTrip(true) { _ / "simple" / "true.json" }
+    oneWayTrip(false) { _ / "simple" / "false.json" }
+    oneWayTrip(10: Short) { _ / "simple" / "short.json" }
+    oneWayTrip(11) { _ / "simple" / "int.json" }
+    oneWayTrip(12L) { _ / "simple" / "long.json" }
+    oneWayTrip(13.0f) { _ / "simple" / "float.json" }
+    oneWayTrip(14.0) { _ / "simple" / "double.json" }
+    oneWayTrip(None: Option[String]) { _ / "simple" / "none.json" }
+    oneWayTrip(Some("Foo")) { _ / "simple" / "some_string.json" }
+    oneWayTrip(Some(true)) { _ / "simple" / "some_boolean.json" }
+    oneWayTrip(Some(10)) { _ / "simple" / "some_int.json" }
+    oneWayTrip(build) { _ / "simple" / "build.json" }
+    // arrays
+    oneWayTrip(Nil: Seq[String]) { _ / "array" / "nil.json" }
+    oneWayTrip(Seq("Bar", "Baz")) { _ / "array" / "seq_string.json" }
+    oneWayTrip(Seq(1, 2, 3)) { _ / "array" / "seq_int.json" }
+    oneWayTrip(Seq(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
+    // complex data type
+    oneWayTrip(key) { _ / "complex" / "key.json" }
+    oneWayTrip(projectRef) { _ / "complex" / "project_ref.json" }
+    oneWayTrip(scope) { _ / "complex" / "scope.json" }
+    oneWayTrip(scopedKey) { _ / "complex" / "scoped_key.json" }
+    oneWayTrip(buildStructure) { _ / "complex" / "build_structure.json" }
+    oneWayTrip(protocol.ModuleId(organization = "com.foo", name = "bar", attributes = Map("a" -> "b"))) { _ / "complex" / "moduleid.json" }
+    oneWayTrip(protocol.Stamps.empty) { _ / "complex" / "empty_stamp.json" }
+    oneWayTrip(protocol.APIs.empty) { _ / "complex" / "empty_apis.json" }
+    oneWayTrip(protocol.Relations.empty) { _ / "complex" / "empty_relations.json" }
+    oneWayTrip(protocol.SourceInfos.empty) { _ / "complex" / "empty_sourceinfos.json" }
+    oneWayTrip(protocol.Analysis.empty) { _ / "complex" / "empty_analysis.json" }
+    oneWayTrip(new Exception(null, null)) { _ / "complex" / "empty_exception.json" }
+    oneWayTrip(new Exception("fail fail fail", new RuntimeException("some cause"))) { _ / "complex" / "exception.json" }
+    oneWayTrip(new protocol.CompileFailedException("the compile failed", null,
+      Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
+
+    // message
+    oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
+    oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
+    oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "readline_response.json" }
+    oneWayTrip[Message](protocol.ConfirmRequest(43, "msg")) { _ / "message" / "confirm_request.json" }
+    oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "confirm_response.json" }
+    oneWayTrip[Message](protocol.ReceivedResponse()) { _ / "message" / "received_response.json" }
+    oneWayTrip[Message](protocol.CommandCompletionsRequest("He", 2)) { _ / "message" / "completion_request.json" }
+    oneWayTrip[Message](protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true)))) { _ / "message" / "completion_response.json" }
+    oneWayTrip[Message](protocol.ListenToEvents()) { _ / "message" / "listen_to_events.json" }
+    oneWayTrip[Message](protocol.ListenToBuildChange()) { _ / "message" / "listen_to_build_change.json" }
+    oneWayTrip[Message](protocol.ExecutionRequest("test command string")) { _ / "message" / "exec_request.json" }
+    oneWayTrip[Message](protocol.ListenToValue(scopedKey)) { _ / "message" / "listen_to_value.json" }
+    oneWayTrip[Message](protocol.CancelExecutionRequest(1)) { _ / "message" / "cancel_exec_request.json" }
+    oneWayTrip[Message](protocol.ErrorResponse("ZOMG")) { _ / "message" / "error_response.json" }
+    oneWayTrip[Message](protocol.CancelExecutionResponse(false)) { _ / "message" / "cancel_exec_response.json" }
+
+    // event
+    oneWayTrip[Message](protocol.TaskStarted(47, 1, Some(scopedKey))) { _ / "event" / "task_started.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), true)) { _ / "event" / "task_finished.json" }
+    oneWayTrip[Message](protocol.TaskStarted(47, 1, None)) { _ / "event" / "task_started_none.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true)) { _ / "event" / "task_finished_none.json" }
+    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
+    // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
+    //   _ / "event" / "value_changed_task_failure.json"
+    // }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI")))) { _ / "event" / "value_changed" / "string.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(42)))) { _ / "event" / "value_changed" / "int.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(43L)))) { _ / "event" / "value_changed" / "long.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(true)))) { _ / "event" / "value_changed" / "boolean.json" }
+    // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(())))) { _ / "event" / "value_changed" / "unit.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0)))) { _ / "event" / "value_changed" / "double.json" }
+    oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f)))) { _ / "event" / "value_changed" / "float.json" }
+    oneWayTrip[Message](protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0))) { _ / "event" / "task_event.json" }
+    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO"))) { _ / "event" / "exec_waiting.json" }
+    oneWayTrip[Message](protocol.ExecutionStarting(56)) { _ / "event" / "exec_starting.json" }
+    oneWayTrip[Message](protocol.ExecutionFailure(42)) { _ / "event" / "exec_failure.json" }
+    oneWayTrip[Message](protocol.ExecutionSuccess(44)) { _ / "event" / "exec_success.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "task_log_event.json" }
+    oneWayTrip[Message](protocol.CoreLogEvent(protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "core_log_event.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST"))) { _ / "event" / "log" / "info.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST"))) { _ / "event" / "log" / "error.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST"))) { _ / "event" / "log" / "warn.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(5, protocol.LogMessage(protocol.LogMessage.DEBUG, "TEST"))) { _ / "event" / "log" / "debug.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(6, protocol.LogStdErr("TEST"))) { _ / "event" / "log" / "log_std_err.json" }
+    oneWayTrip[Message](protocol.TaskLogEvent(7, protocol.LogStdOut("TEST2"))) { _ / "event" / "log" / "log_std_out.json" }
+    oneWayTrip[Message](protocol.TaskEvent(8, PlayStartedEvent(port = 10))) { _ / "event" / "play_started.json" }
+    oneWayTrip[Message](protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey))) { _ / "event" / "bg_started.json" }
+    oneWayTrip[Message](protocol.BackgroundJobFinished(9, 67)) { _ / "event" / "bg_finished.json" }
+    oneWayTrip[Message](protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))) { _ / "event" / "bg.json" }
+
+    // stamp
+    val stamps = protocol.Stamps.empty.copy(allBinaries = Set(new File("/temp/foo.class")))
+    oneWayTrip[Stamp](protocol.Hash(ByteArray(Array(0.toByte)))) { _ / "stamp" / "hash.json" }
+    oneWayTrip[Stamp](protocol.LastModified(1)) { _ / "stamp" / "last_modified.json" }
+    oneWayTrip[Stamp](protocol.Exists(true)) { _ / "stamp" / "exists.json" }
+    oneWayTrip[Stamps](stamps) { _ / "stamp" / "stamps.json" }
+
+    // source info
+    val problem = protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)
+    val infos = protocol.SourceInfos(Map(new File("/temp/foo") -> protocol.SourceInfo(Seq(problem), Nil)))
+    oneWayTrip(protocol.SourceInfo(Seq(problem), Nil)) { _ / "source_info" / "source_info.json" }
+    oneWayTrip(infos) { _ / "source_info" / "source_infos.json" }
+
+    // problem
+    oneWayTrip(problem) { _ / "problem" / "problem.json" }
+
+    // apis
+    val outputSetting = protocol.OutputSetting("src", "target")
+    val compilation = protocol.Compilation(0, Seq(outputSetting))
+    val annoArg = protocol.AnnotationArgument("arg1", "1")
+    val annotation = protocol.Annotation(protocol.Singleton(protocol.Path(protocol.Id("annotation") :: Nil)), Seq(annoArg))
+    val mods = protocol.Modifiers(false, false, false, false, false, false, false)
+    val definition = protocol.Definition("doSomething", protocol.Public,
+      mods, Seq(annotation))
+    val thePackage = protocol.ThePackage("com.foo.Plugin")
+    val sourceApi = protocol.SourceAPI(Seq(thePackage), Seq(definition))
+    val source = protocol.Source(compilation, ByteArray(Array(0.toByte)), sourceApi, 0, false)
+    val apis = protocol.APIs(Set("foo"), Set(new File("/temp/foo")),
+      Map(new File("/temp/foo") -> source),
+      Map("foo" -> source))
+    oneWayTrip(apis) { _ / "apis" / "apis.json" }
+
+    // the package
+    oneWayTrip(thePackage) { _ / "the_package" / "the_package.json" }
+
+    // type parameters
+    val tpe = protocol.Singleton(protocol.Path(Seq(protocol.Id("Int"))))
+    val inv = xsbti.api.Variance.values()(2)
+    val typeParam = protocol.TypeParameter("A", Seq(annotation), Seq(), inv, tpe, tpe)
+    oneWayTrip(typeParam) { _ / "type_parameter" / "type_parameter.json" }
+
+    // path
+    val path = protocol.Path(Seq(protocol.Id("Int")))
+    oneWayTrip(path) { _ / "path" / "path.json" }
+
+    // modifiers
+    oneWayTrip(mods) { _ / "modifiers" / "modifiers.json" }
+
+    // annotation argument
+    oneWayTrip(annoArg) { _ / "annotation_argument" / "annotation_argument.json" }
+
+    // annotation
+    oneWayTrip(annotation) { _ / "annotation" / "annotation.json" }
+
+    // definition
+    oneWayTrip(definition) { _ / "definition" / "definition.json" }
+
+    // source API
+    oneWayTrip(sourceApi) { _ / "source_api" / "source_api.json" }
+
+    // source
+    oneWayTrip(source) { _ / "source" / "source.json" }
+
+    // relations source
+    val relationFf = protocol.Relation(Map(new File("/temp/foo") -> Set(new File("/temp/bar"))),
+      Map(new File("/temp/bar") -> Set(new File("/temp/foo"))))
+    oneWayTrip(protocol.RelationsSource(
+      internal = relationFf,
+      external = protocol.Relation(Map(), Map()))) { _ / "relations_source" / "relations_source.json" }
+
+    // relations
+    val relationFs = protocol.Relation(Map(new File("/temp/foo") -> Set("foo")),
+      Map("foo" -> Set(new File("/temp/foo"))))
+    val relations = protocol.Relations(
+      allSources = Set(new File("/temp/foo")),
+      allProducts = Set(new File("/temp/target/foo.class")),
+      allBinaryDeps = Set(new File("/temp/target/bar.class")),
+      allInternalSrcDeps = Set(new File("/temp/bar")),
+      allExternalDeps = Set("bar"),
+      srcProd = relationFf,
+      binaryDep = relationFf,
+      internalSrcDep = relationFf,
+      externalDep = relationFs,
+      direct = None,
+      publicInherited = None,
+      classes = relationFs)
+    oneWayTrip(relations) { _ / "relations" / "relations.json" }
+
+    // output setting
+    oneWayTrip(outputSetting) { _ / "output_setting" / "output_setting.json" }
+
+    // compilation
+    oneWayTrip(compilation) { _ / "compilation" / "compilation.json" }
+    oneWayTrip(protocol.Compilations(Seq(compilation))) { _ / "compilation" / "compilations.json" }
+
+    // access
+    oneWayTrip(protocol.Public: protocol.Access) { _ / "access" / "public.json" }
+    oneWayTrip(protocol.Protected(protocol.Unqualified): protocol.Access) { _ / "access" / "protected.json" }
+    oneWayTrip(protocol.Private(protocol.Unqualified): protocol.Access) { _ / "access" / "private.json" }
+    oneWayTrip(protocol.Protected(protocol.ThisQualifier): protocol.Access) { _ / "access" / "protected_this.json" }
+    oneWayTrip(protocol.Private(protocol.ThisQualifier): protocol.Access) { _ / "access" / "private_this.json" }
+    oneWayTrip(protocol.Protected(protocol.IdQualifier("foo")): protocol.Access) { _ / "access" / "protected_foo.json" }
+    oneWayTrip(protocol.Private(protocol.IdQualifier("foo")): protocol.Access) { _ / "access" / "private_foo.json" }
+
+    // type
+    val foo_tpe = protocol.Singleton(protocol.Path(protocol.Id("Foo") :: Nil))
+    oneWayTrip(tpe: protocol.Type) { _ / "type" / "singleton.json" }
+    oneWayTrip(protocol.Singleton(protocol.Path(protocol.Super(protocol.Path(protocol.Id("Foo") :: Nil)) :: Nil)): protocol.Type) { _ / "type" / "super_foo.json" }
+    oneWayTrip(protocol.Singleton(protocol.Path(protocol.This :: Nil)): protocol.Type) { _ / "type" / "singleton_this.json" }
+    oneWayTrip(protocol.Projection(protocol.Singleton(protocol.Path(protocol.This :: Nil)), "Foo"): protocol.Type) { _ / "type" / "projection.json" }
+    oneWayTrip(
+      protocol.Parameterized(foo_tpe,
+        protocol.ParameterRef("A") :: Nil): protocol.Type) { _ / "type" / "parameterized.json" }
+    oneWayTrip(protocol.EmptyType: protocol.Type) { _ / "type" / "empty_type.json" }
+    oneWayTrip(protocol.Annotated(tpe, annotation :: Nil): protocol.Type) { _ / "type" / "annotated.json" }
+    oneWayTrip(protocol.Structure(tpe :: Nil, definition :: Nil, definition :: Nil): protocol.Type) { _ / "type" / "structure.json" }
+    oneWayTrip(protocol.Polymorphic(foo_tpe, typeParam :: Nil): protocol.Type) { _ / "type" / "polymorphic.json" }
+    oneWayTrip(protocol.Existential(foo_tpe, typeParam :: Nil): protocol.Type) { _ / "type" / "existential.json" }
+    oneWayTrip(protocol.Constant(foo_tpe, "A"): protocol.Type) { _ / "type" / "constant.json" }
+
+    // byte array
+    oneWayTrip(ByteArray(Array(0.toByte))) { _ / "byte_array" / "byte_array.json" }
+
+    // analysis
+    oneWayTrip(protocol.Analysis(
+      stamps = stamps, apis = apis, relations = relations, infos = infos,
+      compilations = protocol.Compilations(Seq(compilation)))) { _ / "analysis" / "analysis.json" }
+
+  }
+
+  @Test
+  def testSerializationStability(): Unit = {
+    val baseDir = (new File("commons")) / "protocol" / "src" / "test" / "resource" / "saved-protocol"
+    // oneWayTripTest(ObjectToJson, baseDir / "0.1")
+    oneWayTripTest(JsonToObject, baseDir / "0.1")
   }
 
   @Test

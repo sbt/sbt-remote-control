@@ -22,8 +22,12 @@ import sbt.StateOps
 object ServerBootCommand {
 
   /** A new load failed command which handles the server requirements */
-  private def serverLoadFailed(eventSink: JsonSink[protocol.BuildFailedToLoad]) =
-    Command(LoadFailed)(loadProjectParser)(doServerLoadFailed(eventSink, _, _))
+  private def serverLoadFailed(eventSink: JsonSink[protocol.ExecutionEngineEvent], engine: ServerEngine) =
+    Command(LoadFailed)(loadProjectParser) { (state, action) =>
+      state.log.error("Failed to load project.")
+      eventSink.send(protocol.BuildFailedToLoad())
+      state.copy(remainingCommands = Seq(engine.HandleNextRebootRequest), next = State.Continue)
+    }
 
   private def projectReload(engine: ServerEngine) = {
     Command(LoadProject)(_ => Project.loadActionParser) { (state, action) =>
@@ -38,19 +42,12 @@ object ServerBootCommand {
   }
 
   /** List of commands which override sbt's default commands. */
-  def commandOverrides(engine: ServerEngine, eventSink: JsonSink[protocol.BuildFailedToLoad]) = Seq(serverLoadFailed(eventSink), projectReload(engine))
+  def commandOverrides(engine: ServerEngine, eventSink: JsonSink[protocol.ExecutionEngineEvent]): Seq[Command] =
+    Seq(serverLoadFailed(eventSink, engine), projectReload(engine))
 
-  def isOverriden(cmd: Command): Boolean =
-    cmd == loadFailed
+  val overriddenCommands = Seq(loadFailed, loadProject)
 
-  /** Actual does the failing to load for the sbt server. */
-  private[this] def doServerLoadFailed(eventSink: JsonSink[protocol.BuildFailedToLoad], s: State, action: String): State = {
-    s.log.error("Failed to load project.")
-    eventSink.send(protocol.BuildFailedToLoad())
-    // this causes the command loop to exit which should make the whole server exit,
-    // though we may get fancier someday and try to reload.
-    s.exit(ok = false)
-  }
+  def isOverridden(cmd: Command): Boolean = overriddenCommands.contains(cmd)
 
   // TODO - Copied out of BuiltInCommands
   private[this] def loadProjectParser = (s: State) => matched(loadActionParser)
