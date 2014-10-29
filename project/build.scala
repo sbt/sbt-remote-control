@@ -2,6 +2,7 @@ import sbt._
 import SbtRcBuild._
 import Dependencies._
 import IvyRepositories.{localRepoArtifacts}
+import Keys._
 // NOTE - This file is only used for SBT 0.12.x, in 0.13.x we'll use build.sbt and scala libraries.
 // As such try to avoid putting stuff in here so we can see how good build.sbt is without build.scala.
 
@@ -51,6 +52,16 @@ object TheBuild extends Build {
       }).taskValue
     )
   )
+  lazy val picklerPrototype = (project in file("pickler")).
+    dependsOn(sbtServer13).
+    settings(
+      libraryDependencies ++= Seq("org.scala-lang" %% "scala-pickling" % "0.9.0",
+        "org.json4s" %% "json4s-native" % "3.2.10",
+        "org.spire-math" %% "jawn-parser" % "0.6.0",
+        "org.spire-math" %% "json4s-support" % "0.6.0",
+        "org.specs2" %% "specs2" % "2.3.11" % "test"
+      )
+    )
 
   // ================= Remote Controler main project ==========================
 
