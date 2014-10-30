@@ -590,7 +590,6 @@ class ProtocolTest {
   private case object ObjectToJson extends TripDirection
   private case object JsonToObject extends TripDirection
   private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
-    import WireProtocol.{ messageReads, messageWrites }
     val ds0 = DynamicSerialization.defaultSerializations
     val ds = ds0.register(implicitly[Format[protocol.Message]])
 
