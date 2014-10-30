@@ -1,21 +1,20 @@
 package sbt.pickling
 
-import pickling._
-
-package object json {
-  implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
-  implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
-  implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
-}
+import scala.pickling._
+import scala.pickling.internal.lookupUnpicklee
+import scala.reflect.runtime.universe._
+import definitions._
+import org.json4s._
+import scala.util.parsing.json.JSONFormat.quoteString
+import scala.collection.mutable.{StringBuilder, Stack}
+import scala.util.{ Success, Failure }
 
 package json {
-  import scala.pickling.internal.lookupUnpicklee
-  import scala.reflect.runtime.universe._
-  import definitions._
-  import org.json4s._
-  import scala.util.parsing.json.JSONFormat.quoteString
-  import scala.collection.mutable.{StringBuilder, Stack}
-  import scala.util.{ Success, Failure }
+  object `package` extends CustomPicklerUnpickler {
+    implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
+    implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
+    implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
+  }
 
   case class JSONPickle(value: String) extends Pickle {
     type ValueType = String
@@ -95,7 +94,7 @@ package json {
       FastTypeTag.Null.key ->         ((picklee: Any) => append("null")),
       FastTypeTag.Ref.key ->          ((picklee: Any) => throw new Error("fatal error: shouldn't be invoked explicitly")),
       FastTypeTag.Int.key ->          ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Long.key ->         ((picklee: Any) => append("\"" + quoteString(picklee.toString) + "\"")),
+      FastTypeTag.Long.key ->         ((picklee: Any) => append(picklee.toString)), // append("\"" + quoteString(picklee.toString) + "\"")),
       FastTypeTag.Short.key ->        ((picklee: Any) => append(picklee.toString)),
       FastTypeTag.Double.key ->       ((picklee: Any) => append(picklee.toString)),
       FastTypeTag.Float.key ->        ((picklee: Any) => append(picklee.toString)),
@@ -112,6 +111,8 @@ package json {
       FastTypeTag.ArrayFloat.key ->   ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Float]], FastTypeTag.Float)),
       FastTypeTag.ArrayDouble.key ->  ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Double]], FastTypeTag.Double))
     )
+    private def isIterable(tag: FastTypeTag[_]): Boolean =
+      tag.tpe <:< typeOf[collection.Iterable[_]]
     def beginEntry(picklee: Any): PBuilder = withHints { hints =>
       indent()
       if (hints.oid != -1) {
@@ -134,6 +135,7 @@ package json {
           //   append("}")
           //   indent()
           // }
+        } else if (isIterable(hints.tag)) { ()
         } else {
           appendLine("{")
           if (!hints.isElidedType) {
@@ -156,11 +158,13 @@ package json {
     }
     def endEntry(): Unit = {
       unindent()
-      if (primitives.contains(tags.pop().key)) () // do nothing
+      val tag = tags.pop()
+      if (primitives.contains(tag.key)) () // do nothing
+      else if (isIterable(tag)) ()
       else { appendLine(); append("}") }
     }
     def beginCollection(length: Int): PBuilder = {
-      putField("$elems", b => ())
+      // putField("$elems", b => ())
       appendLine("[")
       // indent()
       this
@@ -210,8 +214,9 @@ package json {
         case x: JValue    => unexpectedValue(x)
       }),
       FastTypeTag.Long.key -> (() => datum match {
-        case JString(s) => s.toLong
-        case x: JValue  => unexpectedValue(x)
+        case JDouble(num) => num.toLong
+        case JString(s)   => s.toLong
+        case x: JValue    => unexpectedValue(x)
       }),
       FastTypeTag.Byte.key -> (() => datum match {
         case JDouble(num) => num.toByte
@@ -250,17 +255,18 @@ package json {
             case x: JValue  => unexpectedValue(x)  
           }
       }).toArray),
-      FastTypeTag.ArrayInt.key -> (() => (datum match {
+      FastTypeTag.ArrayInt.key -> { () => (datum match {
         case JArray(arr) =>
           arr map {
             case JDouble(num) => num.toInt
             case x: JValue    => unexpectedValue(x)  
           }
-      }).toArray),
+      }).toArray },
       FastTypeTag.ArrayLong.key -> (() => (datum match {
         case JArray(arr) =>
           arr map {
-            case JString(s) => s.toLong
+            case JDouble(num) => num.toLong
+            case JString(s)   => s.toLong
             case x: JValue  => unexpectedValue(x)  
           }
       }).toArray),
@@ -285,7 +291,7 @@ package json {
             case x: JValue    => unexpectedValue(x)  
           }
       }).toArray)
-    )
+    )      
     private def unexpectedValue(value: JValue): Nothing =
       throw new PicklingException("unexpected value: " + value.toString)
     private def mkNestedReader(datum: Any) = {
@@ -326,16 +332,14 @@ package json {
       lastReadTag
     }
     def atPrimitive: Boolean = primitives.contains(lastReadTag.key)
+    private val primitiveSeqKeys: Vector[String] = Vector(
+      FastTypeTag.ArrayByte.key, FastTypeTag.ArrayShort.key, FastTypeTag.ArrayChar.key,
+      FastTypeTag.ArrayInt.key, FastTypeTag.ArrayLong.key, FastTypeTag.ArrayBoolean.key,
+      FastTypeTag.ArrayFloat.key, FastTypeTag.ArrayDouble.key
+    )
     def readPrimitive(): Any = {
       datum match {
-        case JArray(list) if lastReadTag.key != FastTypeTag.ArrayByte.key &&
-                                lastReadTag.key != FastTypeTag.ArrayShort.key &&
-                                lastReadTag.key != FastTypeTag.ArrayChar.key &&
-                                lastReadTag.key != FastTypeTag.ArrayInt.key &&
-                                lastReadTag.key != FastTypeTag.ArrayLong.key &&
-                                lastReadTag.key != FastTypeTag.ArrayBoolean.key &&
-                                lastReadTag.key != FastTypeTag.ArrayFloat.key &&
-                                lastReadTag.key != FastTypeTag.ArrayDouble.key =>
+        case JArray(list) if !primitiveSeqKeys.contains(lastReadTag.key) =>
           // now this is a hack!
           val value = mkNestedReader(list.head).primitives(lastReadTag.key)()
           datum = JArray(list.tail)
@@ -353,7 +357,7 @@ package json {
       }
     }
     def endEntry(): Unit = {}
-    def beginCollection(): PReader = readField("$elems")
+    def beginCollection(): PReader = this // readField("$elems")
     def readLength(): Int = {
       datum match {
         case JArray(list) => list.length
