@@ -28,7 +28,7 @@ class EventTrackerTest {
       ExecutionStarting(1),
       TaskStarted(1, 1, Some(scopedKey1)),
       TaskStarted(1, 2, Some(scopedKey2)),
-      TaskFinished(1, 1, key = Some(scopedKey1), success = false),
+      TaskFinished(1, 1, key = Some(scopedKey1), success = false, message = Some("Task error message")),
       BackgroundJobStarted(1, BackgroundJobInfo(id = 3, spawningTask = scopedKey2, humanReadableName = "Some job 1")),
       BackgroundJobStarted(1, BackgroundJobInfo(id = 4, spawningTask = scopedKey2, humanReadableName = "Some job 2")),
       ExecutionWaiting(2, "foobar", clientInfo),

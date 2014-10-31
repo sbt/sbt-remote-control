@@ -83,7 +83,7 @@ class TestExecution extends SbtClientTest {
           case TaskStarted(id, taskId, _) =>
             record(id)
             executionsByTask += (taskId -> id)
-          case TaskFinished(id, taskId, _, _) =>
+          case TaskFinished(id, taskId, _, _, _) =>
             record(id)
             executionsByTask -= taskId
           case TaskLogEvent(taskId, _) =>
@@ -283,7 +283,7 @@ class TestExecution extends SbtClientTest {
               assert(taskId == dep1TaskId)
           },
           {
-            case TaskFinished(id, taskId, Some(key), success) if key.key.name == "dep1" =>
+            case TaskFinished(id, taskId, Some(key), success, _) if key.key.name == "dep1" =>
               assert(id == executionId)
               assert(taskId == dep1TaskId)
               assert(success)
@@ -330,7 +330,7 @@ class TestExecution extends SbtClientTest {
               end1TaskId = taskId
           },
           {
-            case TaskFinished(id, taskId, Some(key), success) if taskId == end1TaskId && key.key.name == "end1" =>
+            case TaskFinished(id, taskId, Some(key), success, _) if taskId == end1TaskId && key.key.name == "end1" =>
               assert(id == executionId)
               assert(taskId == end1TaskId)
               assert(success)
@@ -340,7 +340,7 @@ class TestExecution extends SbtClientTest {
               assert(id == executionId)
           },
           {
-            case TaskFinished(id, _, Some(key), success) if key.key.name == "trigger1" =>
+            case TaskFinished(id, _, Some(key), success, _) if key.key.name == "trigger1" =>
               assert(id == executionId)
           },
           {
@@ -386,7 +386,7 @@ class TestExecution extends SbtClientTest {
               end1TaskId = taskId
           },
           {
-            case TaskFinished(id, taskId, Some(key), success) if taskId == end1TaskId && key.key.name == "end1" =>
+            case TaskFinished(id, taskId, Some(key), success, _) if taskId == end1TaskId && key.key.name == "end1" =>
               assert(id == executionId)
               assert(taskId == end1TaskId)
               assert(success)
@@ -520,7 +520,7 @@ class TestExecution extends SbtClientTest {
                 assert(id == executionId)
             },
             {
-              case TaskFinished(id, taskId, Some(key), success) if key.key.name == name =>
+              case TaskFinished(id, taskId, Some(key), success, _) if key.key.name == name =>
                 assert(id == executionId)
                 assert(success)
             },
@@ -594,9 +594,10 @@ class TestExecution extends SbtClientTest {
                 assert(id == executionId)
             },
             {
-              case TaskFinished(id, taskId, Some(key), success) if key.key.name == name =>
+              case TaskFinished(id, taskId, Some(key), success, messageOption) if key.key.name == name =>
                 assert(id == executionId)
                 assert(!success)
+                assert(messageOption.isDefined)
             },
             {
               case ExecutionFailure(id) =>
