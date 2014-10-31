@@ -113,6 +113,8 @@ package json {
     )
     private def isIterable(tag: FastTypeTag[_]): Boolean =
       tag.tpe <:< typeOf[collection.Iterable[_]]
+    private def isOption(tag: FastTypeTag[_]): Boolean =
+      tag.tpe <:< typeOf[Option[_]]
     def beginEntry(picklee: Any): PBuilder = withHints { hints =>
       indent()
       if (hints.oid != -1) {
@@ -135,8 +137,10 @@ package json {
           //   append("}")
           //   indent()
           // }
-        } else if (isIterable(hints.tag)) { ()
-        } else {
+        }
+        else if (isIterable(hints.tag)) ()
+        else if (isOption(hints.tag)) ()
+        else {
           appendLine("{")
           if (!hints.isElidedType) {
             // quickly decide whether we should use picklee.getClass instead
@@ -161,6 +165,7 @@ package json {
       val tag = tags.pop()
       if (primitives.contains(tag.key)) () // do nothing
       else if (isIterable(tag)) ()
+      else if (isOption(tag)) ()
       else { appendLine(); append("}") }
     }
     def beginCollection(length: Int): PBuilder = {
@@ -358,9 +363,12 @@ package json {
     }
     def endEntry(): Unit = {}
     def beginCollection(): PReader = this // readField("$elems")
+    // support readLength of non arrays for Option[A] to pretend to be a collection
     def readLength(): Int = {
       datum match {
+        case JNull        => 0 // Option[A] support
         case JArray(list) => list.length
+        case _            => 1 // Option[A] support
       }
     }
     private var i = 0
@@ -368,6 +376,7 @@ package json {
       val reader = {
         datum match {
           case JArray(list) => mkNestedReader(list(i))
+          case _            => this // Option[A] support
         }
       }
       i += 1

@@ -96,6 +96,18 @@ class PicklerSpec extends Specification {
   Vector(1.0) should
     pickle as [1.0]                                             ${pointed1[Vector, Double]}
     and unpickle from [1.0].                                    ${pointed2[Vector, Double]}
+  Some(1): Option[Int] should
+    pickle as 1                                                 ${ (Some(1): Option[Int]).pickle.value must_== "1" }
+    and unpickle from 1.                                        ${ "1".unpickle[Option[Int]] must_== Some(1) }
+  Some("a"): Option[String] should
+    pickle as "a"                                               ${ (Some("a"): Option[String]).pickle.value must_== "\"a\"" }
+    and unpickle from "a".                                      ${ "\"a\"".unpickle[Option[String]] must_== Some("a") }
+  None: Option[Int] should
+    pickle as null                                              ${ (None: Option[Int]).pickle.value must_== "null" }
+    and unpickle from null.                                     ${ "null".unpickle[Option[Int]] must_== None }
+  None: Option[String] should
+    pickle as null                                              ${ (None: Option[String]).pickle.value must_== "null" }
+    and unpickle from null.                                     ${ "null".unpickle[Option[String]] must_== None }
                                                                 """
 
   def trimLine(s: String): String =
