@@ -30,7 +30,7 @@ class HandshakeException(msg: String, cause: Exception, val socket: Socket) exte
 // This is thread-safe in that it should send/receive each message atomically,
 // but multiple threads will have to be careful that they don't send messages
 // in a nonsensical sequence.
-abstract class Peer(protected val socket: Socket, private val sendJsonFilter: (Any, JsValue) => JsValue) {
+abstract class Peer(protected val socket: Socket) {
   require(!socket.isClosed())
   require(socket.getInputStream() ne null)
   require(socket.getOutputStream() ne null)
@@ -112,7 +112,7 @@ abstract class Peer(protected val socket: Socket, private val sendJsonFilter: (A
   }
 
   private def jsonString[T: Writes](message: T): String = {
-    sendJsonFilter(message, Json.toJson(message)).toString
+    Json.toJson(message).toString
   }
 
   def sendJson[T: Writes](message: T, serial: Long): Unit = {
@@ -138,7 +138,7 @@ object Peer {
   val identitySendJsonFilter: (Any, JsValue) => JsValue = { (msg: Any, json: JsValue) => json }
 }
 
-class Server(private val serverSocket: ServerSocket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends MultiClientServer(serverSocket.accept(), sendJsonFilter) {
+class Server(private val serverSocket: ServerSocket) extends MultiClientServer(serverSocket.accept()) {
 
   handshake(ServerGreeting, ClientGreeting)
 
@@ -150,10 +150,10 @@ class Server(private val serverSocket: ServerSocket, sendJsonFilter: (Any, JsVal
   }
 }
 
-class MultiClientServer(socket: Socket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends Peer(socket, sendJsonFilter) {
+class MultiClientServer(socket: Socket) extends Peer(socket) {
   handshake(ServerGreeting, ClientGreeting)
 }
 
-class Client(socket: Socket, sendJsonFilter: (Any, JsValue) => JsValue = Peer.identitySendJsonFilter) extends Peer(socket, sendJsonFilter) {
+class Client(socket: Socket) extends Peer(socket) {
   handshake(ClientGreeting, ServerGreeting)
 }
