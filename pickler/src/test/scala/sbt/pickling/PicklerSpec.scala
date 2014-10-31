@@ -25,156 +25,112 @@ class PicklerSpec extends Specification {
     pickle as 1.0                                               ${ 1.0.pickle.value must_== "1.0" }
     and unpickle from 1.0.                                      ${ "1.0".unpickle[Double] must_== 1.0 }
   Array(1: Byte) should
-    pickle as [1]                                               ${ pointedByte1[Array]{ _.asInstanceOf[Array[Byte]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedByte2[Array]{ _.unpickle[Array[Byte]] } }
+    pickle as [1]                                               ${pointed1[Array, Byte]}
+    and unpickle from [1].                                      ${pointed2[Array, Byte]}
   Array(1: Short) should
-    pickle as [1]                                               ${ pointedShort1[Array]{ _.asInstanceOf[Array[Short]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedShort2[Array]{ _.unpickle[Array[Short]] } }
+    pickle as [1]                                               ${pointed1[Array, Short]}
+    and unpickle from [1].                                      ${pointed2[Array, Short]}
   Array('a') should
-    pickle as ["a"]                                             ${ pointedChar1[Array]{ _.asInstanceOf[Array[Char]].pickle.value } }
-    and unpickle from ["a"].                                    ${ pointedChar2[Array]{ _.unpickle[Array[Char]] } }
+    pickle as ["a"]                                             ${pointed1[Array, Char]}
+    and unpickle from ["a"].                                    ${pointed2[Array, Char]}
   Array(1) should
-    pickle as [1]                                               ${ pointedInt1[Array]{ _.asInstanceOf[Array[Int]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedInt2[Array]{ _.unpickle[Array[Int]] } }
+    pickle as [1]                                               ${pointed1[Array, Int]}
+    and unpickle from [1].                                      ${pointed2[Array, Int]}
   Array(1L) should
-    pickle as [1]                                               ${ pointedLong1[Array]{ _.asInstanceOf[Array[Long]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedLong2[Array]{ _.unpickle[Array[Long]] } }
+    pickle as [1]                                               ${pointed1[Array, Long]}
+    and unpickle from [1].                                      ${pointed2[Array, Long]}
   Array(false) should
-    pickle as [false]                                           ${ pointedBoolean1[Array]{ _.asInstanceOf[Array[Boolean]].pickle.value } }
-    and unpickle from [false].                                  ${ pointedBoolean2[Array]{ _.unpickle[Array[Boolean]] } }
+    pickle as [false]                                           ${pointed1[Array, Boolean]}
+    and unpickle from [false].                                  ${pointed2[Array, Boolean]}
   Array(1.0F) should
-    pickle as [1.0]                                             ${ pointedFloat1[Array]{ _.asInstanceOf[Array[Float]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedFloat2[Array]{ _.unpickle[Array[Float]] } }
+    pickle as [1.0]                                             ${pointed1[Array, Float]}
+    and unpickle from [1.0].                                    ${pointed2[Array, Float]}
   Array(1.0) should
-    pickle as [1.0]                                             ${ pointedDouble1[Array]{ _.asInstanceOf[Array[Double]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedDouble2[Array]{ _.unpickle[Array[Double]] } }
+    pickle as [1.0]                                             ${pointed1[Array, Double]}
+    and unpickle from [1.0].                                    ${pointed2[Array, Double]}
   List(1: Byte) should
-    pickle as [1]                                               ${ pointedByte1[::]{ _.asInstanceOf[::[Byte]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedByte2[::]{ _.unpickle[::[Byte]] } }
+    pickle as [1]                                               ${pointed1[::, Byte]}
+    and unpickle from [1].                                      ${pointed2[::, Byte]}
   List(1: Short) should
-    pickle as [1]                                               ${ pointedShort1[::]{ _.asInstanceOf[::[Short]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedShort2[::]{ _.unpickle[::[Short]] } }
+    pickle as [1]                                               ${pointed1[::, Short]}
+    and unpickle from [1].                                      ${pointed2[::, Short]}
   List('a') should
-    pickle as ["a"]                                             ${ pointedChar1[::]{ _.asInstanceOf[::[Char]].pickle.value } }
-    and unpickle from ["a"].                                    ${ pointedChar2[::]{ _.unpickle[::[Char]] } }
+    pickle as ["a"]                                             ${pointed1[::, Char]}
+    and unpickle from ["a"].                                    ${pointed2[::, Char]}
   List(1) should
-    pickle as [1]                                               ${ pointedInt1[::]{ _.asInstanceOf[::[Int]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedInt2[::]{ _.unpickle[::[Int]] } }
+    pickle as [1]                                               ${pointed1[::, Int]}
+    and unpickle from [1].                                      ${pointed2[::, Int]}
   List(1L) should
-    pickle as [1]                                               ${ pointedLong1[::]{ _.asInstanceOf[::[Long]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedLong2[::]{ _.unpickle[::[Long]] } }
+    pickle as [1]                                               ${pointed1[::, Long]}
+    and unpickle from [1].                                      ${pointed2[::, Long]}
   List(false) should
-    pickle as [false]                                           ${ pointedBoolean1[::]{ _.asInstanceOf[::[Boolean]].pickle.value } }
-    and unpickle from [false].                                  ${ pointedBoolean2[::]{ _.unpickle[::[Boolean]] } }
+    pickle as [false]                                           ${pointed1[::, Boolean]}
+    and unpickle from [false].                                  ${pointed2[::, Boolean]}
   List(1.0F) should
-    pickle as [1.0]                                             ${ pointedFloat1[::]{ _.asInstanceOf[::[Float]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedFloat2[::]{ _.unpickle[::[Float]] } }
+    pickle as [1.0]                                             ${pointed1[::, Float]}
+    and unpickle from [1.0].                                    ${pointed2[::, Float]}
   List(1.0) should
-    pickle as [1.0]                                             ${ pointedDouble1[::]{ _.asInstanceOf[::[Double]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedDouble2[::]{ _.unpickle[::[Double]] } }
+    pickle as [1.0]                                             ${pointed1[::, Double]}
+    and unpickle from [1.0].                                    ${pointed2[::, Double]}
   Vector(1: Byte) should
-    pickle as [1]                                               ${ pointedByte1[Vector]{ _.asInstanceOf[Vector[Byte]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedByte2[Vector]{ _.unpickle[Vector[Byte]] } }
+    pickle as [1]                                               ${pointed1[Vector, Byte]}
+    and unpickle from [1].                                      ${pointed2[Vector, Byte]}
   Vector(1: Short) should
-    pickle as [1]                                               ${ pointedShort1[Vector]{ _.asInstanceOf[Vector[Short]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedShort2[Vector]{ _.unpickle[Vector[Short]] } }
+    pickle as [1]                                               ${pointed1[Vector, Short]}
+    and unpickle from [1].                                      ${pointed2[Vector, Short]}
   Vector('a') should
-    pickle as ["a"]                                             ${ pointedChar1[Vector]{ _.asInstanceOf[Vector[Char]].pickle.value } }
-    and unpickle from ["a"].                                    ${ pointedChar2[Vector]{ _.unpickle[Vector[Char]] } }
+    pickle as ["a"]                                             ${pointed1[Vector, Char]}
+    and unpickle from ["a"].                                    ${pointed2[Vector, Char]}
   Vector(1) should
-    pickle as [1]                                               ${ pointedInt1[Vector]{ _.asInstanceOf[Vector[Int]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedInt2[Vector]{ _.unpickle[Vector[Int]] } }
+    pickle as [1]                                               ${pointed1[Vector, Int]}
+    and unpickle from [1].                                      ${pointed2[Vector, Int]}
   Vector(1L) should
-    pickle as [1]                                               ${ pointedLong1[Vector]{ _.asInstanceOf[Vector[Long]].pickle.value } }
-    and unpickle from [1].                                      ${ pointedLong2[Vector]{ _.unpickle[Vector[Long]] } }
+    pickle as [1]                                               ${pointed1[Vector, Long]}
+    and unpickle from [1].                                      ${pointed2[Vector, Long]}
   Vector(false) should
-    pickle as [false]                                           ${ pointedBoolean1[Vector]{ _.asInstanceOf[Vector[Boolean]].pickle.value } }
-    and unpickle from [false].                                  ${ pointedBoolean2[Vector]{ _.unpickle[Vector[Boolean]] } }
+    pickle as [false]                                           ${pointed1[Vector, Boolean]}
+    and unpickle from [false].                                  ${pointed2[Vector, Boolean]}
   Vector(1.0F) should
-    pickle as [1.0]                                             ${ pointedFloat1[Vector]{ _.asInstanceOf[Vector[Float]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedFloat2[Vector]{ _.unpickle[Vector[Float]] } }
+    pickle as [1.0]                                             ${pointed1[Vector, Float]}
+    and unpickle from [1.0].                                    ${pointed2[Vector, Float]}
   Vector(1.0) should
-    pickle as [1.0]                                             ${ pointedDouble1[Vector]{ _.asInstanceOf[Vector[Double]].pickle.value } }
-    and unpickle from [1.0].                                    ${ pointedDouble2[Vector]{ _.unpickle[Vector[Double]] } }
+    pickle as [1.0]                                             ${pointed1[Vector, Double]}
+    and unpickle from [1.0].                                    ${pointed2[Vector, Double]}
                                                                 """
-  
-  lazy val arrayIntExample = """[
-1
-]"""
-  lazy val arrayCharExample = """[
-"a"
-]"""
-  lazy val arrayBooleanExample = """[
-false
-]"""
-  lazy val arrayDoubleExample = """[
-1.0
-]"""
 
   def trimLine(s: String): String =
     (s.lines map {_.trim}).mkString("\n")
-  def pointedByte1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1: Byte))) must_== arrayIntExample
+  def pointed1[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: SPickler[F[A]], ev1: FastTypeTag[F[A]]) =
+    trimLine(m.pointed(ae.one).pickle.value) must_== ae.arrayJson
+  def pointed2[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: Unpickler[F[A]], ev1: FastTypeTag[F[A]]) =
+    ae.arrayJson.unpickle[F[A]] must_== m.pointed(ae.one)
+}
+
+trait ArrayExample[A] {
+  def one: A
+  def arrayJson: String
+}
+object ArrayExample {
+  def apply[A](one0: A, arrayJson0: String) = new ArrayExample[A] {
+    def one = one0
+    def arrayJson: String = arrayJson0
   }
-  def pointedByte2[F[_]: Pointed](f: String => F[Byte]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayIntExample) must_== m.pointed(1: Byte)
-  }
-  def pointedShort1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1: Short))) must_== arrayIntExample
-  }
-  def pointedShort2[F[_]: Pointed](f: String => F[Short]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayIntExample) must_== m.pointed(1: Short)
-  }
-  def pointedChar1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed('a'))) must_== arrayCharExample
-  }
-  def pointedChar2[F[_]: Pointed](f: String => F[Char]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayCharExample) must_== m.pointed('a')
-  }
-  def pointedInt1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1))) must_== arrayIntExample
-  }
-  def pointedInt2[F[_]: Pointed](f: String => F[Int]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayIntExample) must_== m.pointed(1)
-  }
-  def pointedLong1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1L))) must_== arrayIntExample
-  }
-  def pointedLong2[F[_]: Pointed](f: String => F[Long]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayIntExample) must_== m.pointed(1L)
-  }
-  def pointedBoolean1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(false))) must_== arrayBooleanExample
-  }
-  def pointedBoolean2[F[_]: Pointed](f: String => F[Boolean]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayBooleanExample) must_== m.pointed(false)
-  }
-  def pointedFloat1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1.0F))) must_== arrayDoubleExample
-  }
-  def pointedFloat2[F[_]: Pointed](f: String => F[Float]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayDoubleExample) must_== m.pointed(1.0F)
-  }
-  def pointedDouble1[F[_]: Pointed](f: Any => String) = {
-    val m = implicitly[Pointed[F]]
-    trimLine(f(m.pointed(1.0))) must_== arrayDoubleExample
-  }
-  def pointedDouble2[F[_]: Pointed](f: String => F[Double]) = {
-    val m = implicitly[Pointed[F]]
-    f(arrayDoubleExample) must_== m.pointed(1.0)
-  }
+  val arrayIntExample = """[
+1
+]"""
+  val arrayDoubleExample = """[
+1.0
+]"""
+  implicit val byteArrayExample: ArrayExample[Byte] = ArrayExample(1: Byte, arrayIntExample)
+  implicit val shortArrayExample: ArrayExample[Short] = ArrayExample(1: Short, arrayIntExample)
+  implicit val intArrayExample: ArrayExample[Int] = ArrayExample(1, arrayIntExample)
+  implicit val charArrayExample: ArrayExample[Char] = ArrayExample('a', """[
+"a"
+]""")
+  implicit val longArrayExample: ArrayExample[Long] = ArrayExample(1L, arrayIntExample)
+  implicit val booleanArrayExample: ArrayExample[Boolean] = ArrayExample(false, """[
+false
+]""")
+  implicit val floatArrayExample: ArrayExample[Float] = ArrayExample(1.0F, arrayDoubleExample)
+  implicit val doubleArrayExample: ArrayExample[Double] = ArrayExample(1.0, arrayDoubleExample)
 }
