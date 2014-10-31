@@ -15,6 +15,7 @@ object TheBuild extends Build {
     Project("root", file("."))  // TODO - Oddities with clean..
     aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project)):_*)
     settings(
+      javaVersionSetting,
       // Stub out commands we run frequently but don't want them to really do anything.
       Keys.publish := {},
       Keys.publishLocal := {}

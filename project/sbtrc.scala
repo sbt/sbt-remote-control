@@ -3,6 +3,7 @@ import Keys._
 import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.SbtGit
+import com.typesafe.sbt.JavaVersionCheckPlugin.autoImport._
 import Dependencies.getScalaVersionForSbtVersion
 
 object SbtRcBuild {
@@ -23,6 +24,8 @@ object SbtRcBuild {
   import sbtassembly.Plugin.AssemblyKeys._
   lazy val RepackageDep = config("repackage-dep")
 
+  def javaVersionSetting = javaVersionPrefix in javaVersionCheck := Some("1.6")
+
   def sbtrcDefaults: Seq[Setting[_]] =
     SbtScalariform.scalariformSettings ++
     Seq(
@@ -40,6 +43,7 @@ object SbtRcBuild {
       // TODO - Publish to ivy for sbt plugins, maven central otherwise?
       publishTo := Some(typesafeIvyReleases),
       publishMavenStyle := false,
+      javaVersionSetting,
       scalacOptions <<= (scalaVersion) map { sv =>
         Seq("-unchecked", "-deprecation") ++
           { if (sv.startsWith("2.9")) Seq.empty else Seq("-feature") }
