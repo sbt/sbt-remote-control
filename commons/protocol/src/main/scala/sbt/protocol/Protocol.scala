@@ -12,29 +12,12 @@ import scala.collection.immutable
  *  sbt into a client.
  */
 sealed trait Message {
-  def simpleName: String = Message.makeSimpleName(getClass)
+  def simpleName: String = MessageSerialization.makeSimpleName(getClass)
 }
 
 object Message {
-  // this makes it prettier when writing json by hand e.g. in JavaScript
-  private def removeDollar(s: String) = {
-    val i = s.lastIndexOf('$')
-    if (i >= 0)
-      s.substring(0, i)
-    else
-      s
-  }
-  // avoiding class.getSimpleName because apparently it's buggy with some
-  // Scala name manglings
-  private def lastChunk(s: String) = {
-    val i = s.lastIndexOf('.')
-    if (i >= 0)
-      s.substring(i + 1)
-    else
-      s
-  }
-  private[protocol] def makeSimpleName(klass: Class[_]): String =
-    removeDollar(lastChunk(klass.getName))
+  implicit def reads = MessageSerialization.messageReads
+  implicit def writes = MessageSerialization.messageWrites
 }
 
 /** Represents requests that go down into sbt. */
@@ -192,7 +175,7 @@ object TaskEvent {
 
   def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
     val json = implicitly[Writes[T]].writes(event)
-    TaskEvent(taskId, Message.makeSimpleName(event.getClass), json)
+    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), json)
   }
 }
 
@@ -204,7 +187,7 @@ trait TaskEventUnapply[T] {
 
   def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
-      val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
+      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != taskEvent.name) {
         None
       } else {
@@ -222,7 +205,7 @@ object BackgroundJobEvent {
 
   def apply[T: Writes](jobId: Long, event: T): BackgroundJobEvent = {
     val json = implicitly[Writes[T]].writes(event)
-    BackgroundJobEvent(jobId, Message.makeSimpleName(event.getClass), json)
+    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), json)
   }
 }
 
@@ -234,7 +217,7 @@ trait BackgroundJobEventUnapply[T] {
 
   def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
-      val name = Message.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
+      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != jobEvent.name) {
         None
       } else {

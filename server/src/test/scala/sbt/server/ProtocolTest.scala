@@ -453,7 +453,8 @@ class ProtocolTest {
       protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)))
 
     for (s <- specifics) {
-      import protocol.WireProtocol.{ fromRaw, toRaw }
+      def fromRaw(j: JsValue): Option[Message] = Json.fromJson[Message](j).asOpt
+      def toRaw(m: Message): JsValue = Json.toJson(m)
       val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s)))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
@@ -589,7 +590,6 @@ class ProtocolTest {
   private case object ObjectToJson extends TripDirection
   private case object JsonToObject extends TripDirection
   private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
-    import WireProtocol.{ messageReads, messageWrites }
     val ds0 = DynamicSerialization.defaultSerializations
     val ds = ds0.register(implicitly[Format[protocol.Message]])
 

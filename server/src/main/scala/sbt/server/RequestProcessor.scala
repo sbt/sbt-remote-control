@@ -231,7 +231,6 @@ class RequestProcessor(
             // Always notify the current client of his work. serial 0L means synthetic in-server
             // execution request with no client originating it.
             if (serial != 0L) {
-              import sbt.protocol.executionReceivedWrites
               client.reply(serial, ExecutionRequestReceived(id = work.id.id))
             }
             if (isNew) {
