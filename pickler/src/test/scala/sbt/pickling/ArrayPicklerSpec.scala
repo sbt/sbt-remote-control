@@ -1,29 +1,14 @@
-package sbt.pickling
+package sbt.pickling.spec
 
 import collection.immutable.::
 import org.specs2._
 import scala.pickling._, sbt.pickling.json._
 
-class PicklerSpec extends Specification {
+class ArrayPicklerSpec extends Specification {
   def is = args(sequential = true) ^ s2"""
 
   This is a specification to check custom JSON pickling.
 
-  1 should
-    pickle as 1                                                 ${ 1.pickle.value must_== "1" }
-    and unpickle from 1.                                        ${ "1".unpickle[Int] must_== 1 }
-  1L should
-    pickle as 1                                                 ${ 1L.pickle.value must_== "1" }
-    and unpickle from 1.                                        ${ "1".unpickle[Long] must_== 1L }
-  "a" should
-    pickle as "a"                                               ${ "a".pickle.value must_== "\"a\"" }
-    and unpickle from "a".                                      ${ "\"a\"".unpickle[String] must_== "a" }
-  false should
-    pickle as false                                             ${ false.pickle.value must_== "false" }
-    and unpickle from false.                                    ${ "false".unpickle[Boolean] must_== false }
-  1.0 should
-    pickle as 1.0                                               ${ 1.0.pickle.value must_== "1.0" }
-    and unpickle from 1.0.                                      ${ "1.0".unpickle[Double] must_== 1.0 }
   Array(1: Byte) should
     pickle as [1]                                               ${pointed1[Array, Byte]}
     and unpickle from [1].                                      ${pointed2[Array, Byte]}
@@ -128,21 +113,21 @@ object ArrayExample {
     def arrayJson: String = arrayJson0
   }
   val arrayIntExample = """[
-1
-]"""
+    |1
+    |]""".stripMargin
   val arrayDoubleExample = """[
-1.0
-]"""
+    |1.0
+    |]""".stripMargin
   implicit val byteArrayExample: ArrayExample[Byte] = ArrayExample(1: Byte, arrayIntExample)
   implicit val shortArrayExample: ArrayExample[Short] = ArrayExample(1: Short, arrayIntExample)
   implicit val intArrayExample: ArrayExample[Int] = ArrayExample(1, arrayIntExample)
   implicit val charArrayExample: ArrayExample[Char] = ArrayExample('a', """[
-"a"
-]""")
+    |"a"
+    |]""".stripMargin)
   implicit val longArrayExample: ArrayExample[Long] = ArrayExample(1L, arrayIntExample)
   implicit val booleanArrayExample: ArrayExample[Boolean] = ArrayExample(false, """[
-false
-]""")
+    |false
+    |]""".stripMargin)
   implicit val floatArrayExample: ArrayExample[Float] = ArrayExample(1.0F, arrayDoubleExample)
   implicit val doubleArrayExample: ArrayExample[Double] = ArrayExample(1.0, arrayDoubleExample)
 }

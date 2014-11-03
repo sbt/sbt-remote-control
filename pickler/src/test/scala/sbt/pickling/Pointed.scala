@@ -1,4 +1,4 @@
-package sbt.pickling
+package sbt.pickling.spec
 
 import collection.immutable.::
 
