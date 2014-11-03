@@ -325,11 +325,29 @@ package json {
             case obj: JObject if (obj findField {
               case JField("$type", _) => true
               case _ => false
-            }).isDefined => 
-              FastTypeTag(mirror, (obj \ "$type") match {
-                case JString(s) => s
-                case x          => sys.error("Unexpected field: " + x.toString)
-              })
+            }).isDefined =>
+              (obj \ "$type") match {
+                case JString(s) =>
+                  try {
+                    val tagFromJson = FastTypeTag(mirror, s)
+                    // Given sealed trait Fruit that has Apple and Orange as child type,
+                    // a) Choose Apple if json says Apple and hint says Fruit
+                    // b) Choose Orange if json says Apple and hint says Orange
+                    // c) Choose Apple if json has unknown and hint says Apple
+                    if (tagFromJson.tpe <:< hints.tag.tpe) tagFromJson
+                    else hints.tag
+                  }
+                  catch {
+                    case e: Throwable if e.getMessage contains "cannot find class" =>
+                      if (Option(hints.tag.tpe.typeSymbol) map {
+                        case sym: ClassSymbol => sym.isAbstractClass || sym.isTrait 
+                        case _  => true
+                      } getOrElse(true)) throw PicklingException(e.getMessage)
+                      else hints.tag
+                    case e: Throwable => throw e
+                  }
+                case x => sys.error("Unexpected field: " + x.toString)
+              }
             case _ => hints.tag
           }
         }
