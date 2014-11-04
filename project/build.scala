@@ -23,7 +23,7 @@ object TheBuild extends Build {
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
-  lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll, clientAll211) ++ sbt13ProbeProjects
+  lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll, clientAll211, actorClient, actorClient211) ++ sbt13ProbeProjects
 
 
   // ================= 0.13 projects ==========================
@@ -136,6 +136,27 @@ object TheBuild extends Build {
   // We load the client code from the client directory and build both a Scala 2.10 and Scala 2.11 variant.
   lazy val client: Project = makeClientProject("client-2-10", Dependencies.scalaVersion)
   lazy val client211: Project = makeClientProject("client-2-11", Dependencies.scala211Version)
+
+  def makeActorClientProject(name: String, scalaVersion: String, clientProject: Project): Project = {
+    SbtRemoteControlProject(name).
+    settings(
+       Keys.scalaVersion := scalaVersion,
+       Keys.publishArtifact in (Test, Keys.packageBin) := true,
+       Keys.libraryDependencies ++=
+         Seq(
+               akkaActor,
+               akkaTestkit,
+               playJson,
+               brokenJoda
+         )
+    ).
+    dependsOn(clientProject).
+    dependsOnSource("actor-client")
+  }
+
+  // We load the client code from the client directory and build both a Scala 2.10 and Scala 2.11 variant.
+  lazy val actorClient: Project = makeActorClientProject("actor-client-2-10", Dependencies.scalaVersion, client)
+  lazy val actorClient211: Project = makeActorClientProject("actor-client-2-11", Dependencies.scala211Version, client211)
 
   // TODO - OSGi settings for this guy...
   def makeClientAllProject(name: String, scalaVersion: String, clientProj: Project): Project = (
