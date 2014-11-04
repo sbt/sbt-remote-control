@@ -384,6 +384,7 @@ package json {
     // support readLength of non arrays for Option[A] to pretend to be a collection
     def readLength(): Int = {
       datum match {
+        case JNothing     => 0 // Option[A] support
         case JNull        => 0 // Option[A] support
         case JArray(list) => list.length
         case _            => 1 // Option[A] support
