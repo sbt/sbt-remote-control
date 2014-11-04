@@ -150,8 +150,8 @@ final class SbtConnectionProxy(connector: SbtConnector,
 
   private def closing(request: Close, awaiting: Set[ActorRef]): Receive = {
     if (awaiting.isEmpty) {
-      request.closed()
       connector.close()
+      request.closed()
       context stop self
     }
 
