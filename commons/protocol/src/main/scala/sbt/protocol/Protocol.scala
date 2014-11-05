@@ -252,8 +252,9 @@ final case class ConfirmResponse(confirmed: Boolean) extends Response
 final case class TaskStarted(executionId: Long, taskId: Long, key: Option[ScopedKey]) extends ExecutionEngineEvent
 // we really could provide taskId ONLY here, but we throw the executionId and key
 // in just for convenience so clients don't have to hash taskId if their
-// only interest is in the key and executionId
-final case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean) extends ExecutionEngineEvent
+// only interest is in the key and executionId. Also we include the error
+// message so you can get it even if you don't watch ValueChanged.
+final case class TaskFinished(executionId: Long, taskId: Long, key: Option[ScopedKey], success: Boolean, message: Option[String]) extends ExecutionEngineEvent
 
 final case class BackgroundJobInfo(id: Long, humanReadableName: String, spawningTask: ScopedKey)
 

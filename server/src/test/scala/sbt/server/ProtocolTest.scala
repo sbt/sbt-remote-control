@@ -418,11 +418,11 @@ class ProtocolTest {
       // Events
       // TODO - CompilationFailure
       protocol.TaskStarted(47, 1, Some(scopedKey)),
-      protocol.TaskFinished(48, 1, Some(scopedKey), true),
+      protocol.TaskFinished(48, 1, Some(scopedKey), true, None),
       protocol.TaskStarted(47, 1, None),
-      protocol.TaskFinished(48, 1, None, true),
+      protocol.TaskFinished(48, 1, None, true, None),
       protocol.TaskStarted(49, 2, Some(scopedKey)),
-      protocol.TaskFinished(50, 2, Some(scopedKey), true),
+      protocol.TaskFinished(50, 2, Some(scopedKey), true, None),
       protocol.BuildStructureChanged(buildStructure),
       // equals() doesn't work on Exception so we can't actually check this easily
       //protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES", protocol.BuildValue(new Exception("Exploded"), serializations))),
@@ -604,7 +604,7 @@ class ProtocolTest {
             if (path.exists) sys.error(s"$path exists already")
             else IO.write(path, json.toString, IO.utf8)
           case JsonToObject =>
-            if (!path.exists) { println(s"$path didn't exist, so skipping.") }
+            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${format.writes(t)}.") }
             else {
               val json = Json.parse(IO.read(path, IO.utf8))
               val parsed = addWhatWeWereFormatting(t)(format.reads(json)).asOpt.getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}"))
@@ -688,9 +688,10 @@ class ProtocolTest {
 
     // event
     oneWayTrip[Message](protocol.TaskStarted(47, 1, Some(scopedKey))) { _ / "event" / "task_started.json" }
-    oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), true)) { _ / "event" / "task_finished.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), true, None)) { _ / "event" / "task_finished.json" }
     oneWayTrip[Message](protocol.TaskStarted(47, 1, None)) { _ / "event" / "task_started_none.json" }
-    oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true)) { _ / "event" / "task_finished_none.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true, None)) { _ / "event" / "task_finished_none.json" }
+    oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), false, Some("error message here"))) { _ / "event" / "task_finished_failed.json" }
     oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
     // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
     //   _ / "event" / "value_changed_task_failure.json"

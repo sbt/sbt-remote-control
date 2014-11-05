@@ -79,7 +79,8 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
   def completed[T](state: S, task: Task[T], result: Result[T]): S = {
     eventSink.send(TaskFinished(state.requiredExecutionId.id,
       taskId(task),
-      protocolKeyOption(task), result.toEither.isRight))
+      protocolKeyOption(task), result.toEither.isRight,
+      result.toEither.right.toOption.collect({ case inc: Inc => inc }).map(incToCause(_).getMessage)))
 
     taskIdRecorder.unregister(task)
 
@@ -118,19 +119,9 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
         }
         TaskSuccess(serializations.buildValue(destValue)(destManifest))
 
-      case Inc(Incomplete(node, tpe, messageOption, causes, directCauseOption)) =>
+      case inc: Inc =>
 
-        // we eat "messageOption" if we have an exception.getMessage instead;
-        // not sure whether this sometimes loses information. But don't think
-        // there's any way for clients to know which to display when so we
-        // may as well simplify it here (if it causes trouble maybe we should
-        // combine the two messages or something).
-
-        val exception = directCauseOption
-          .getOrElse {
-            val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
-            new Exception(message)
-          }
+        val exception = incToCause(inc)
 
         val exceptionValue = conversions.convertWithRuntimeClass(exception) match {
           case Some((t: Throwable, throwableMf: Manifest[_])) =>
@@ -141,6 +132,21 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
 
         TaskFailure(exceptionValue)
     }
+  }
+
+  private def incToCause(inc: Inc): Throwable = inc match {
+    case Inc(Incomplete(node, tpe, messageOption, causes, directCauseOption)) =>
+      // we eat "messageOption" if we have an exception.getMessage instead;
+      // not sure whether this sometimes loses information. But don't think
+      // there's any way for clients to know which to display when so we
+      // may as well simplify it here (if it causes trouble maybe we should
+      // combine the two messages or something).
+
+      directCauseOption
+        .getOrElse {
+          val message = messageOption.getOrElse(s"Task failed node ${node} causes ${causes}")
+          new Exception(message)
+        }
   }
 
   /** All tasks have completed with the final `results` provided. */

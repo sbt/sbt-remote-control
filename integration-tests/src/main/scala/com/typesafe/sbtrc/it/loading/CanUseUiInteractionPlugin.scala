@@ -82,7 +82,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     val taskResult = Promise[Boolean]
     val executionResult = Promise[Boolean]
     (client handleEvents {
-      case TaskFinished(executionId, taskId, key, result) =>
+      case TaskFinished(executionId, taskId, key, result, messageOption) =>
         if (key.map(_.key.name) == Some("readInput")) {
           taskResult.success(result)
         }

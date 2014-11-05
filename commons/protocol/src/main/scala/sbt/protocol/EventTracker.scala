@@ -71,7 +71,7 @@ private[sbt] object ImpliedState {
         case None =>
           throw new RuntimeException(s"Received TaskStarted for an execution we don't know about")
       }
-    case TaskFinished(executionId, taskId, key, success) =>
+    case TaskFinished(executionId, taskId, key, success, messageOption) =>
       engine.started.get(executionId) match {
         case Some(oldExecution) =>
           if (oldExecution.tasks.contains(taskId)) {
@@ -112,7 +112,8 @@ private[sbt] object ImpliedState {
     TaskStarted(executionId = executionId, taskId = task.id, key = task.key)
 
   private def eventToFinishTask(executionId: Long, task: Task, success: Boolean): EventWithWrites[TaskFinished] =
-    TaskFinished(executionId = executionId, taskId = task.id, key = task.key, success = success)
+    TaskFinished(executionId = executionId, taskId = task.id, key = task.key, success = success,
+      message = if (success) None else Some("Disconnected from sbt"))
 
   private def eventToCreateExecution(execution: Execution): EventWithWrites[ExecutionWaiting] =
     ExecutionWaiting(execution.id, execution.command, execution.client)
