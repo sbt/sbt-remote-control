@@ -112,7 +112,8 @@ package json {
       FastTypeTag.ArrayDouble.key ->  ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Double]], FastTypeTag.Double))
     )
     private def isIterable(tag: FastTypeTag[_]): Boolean =
-      tag.tpe <:< typeOf[collection.Iterable[_]]
+      (tag.tpe <:< typeOf[collection.Iterable[_]]) ||
+      (tag.tpe <:< typeOf[scala.Array[_]])
     private def isOption(tag: FastTypeTag[_]): Boolean =
       tag.tpe <:< typeOf[Option[_]]
     def beginEntry(picklee: Any): PBuilder = withHints { hints =>
@@ -295,7 +296,11 @@ package json {
             case JDouble(num) => num
             case x: JValue    => unexpectedValue(x)  
           }
-      }).toArray)
+      }).toArray),
+      FakeTag.File -> (() => datum match {
+        case JString(s) => new java.io.File(s)
+        case x: JValue  => unexpectedValue(x)
+      })
     )      
     private def unexpectedValue(value: JValue): Nothing =
       throw new PicklingException("unexpected value: " + value.toString)
@@ -309,10 +314,14 @@ package json {
       nested
     }
 
-    def beginEntryNoTag(): String =
-      beginEntryNoTagDebug(false)
-
-    def beginEntryNoTagDebug(debugOn: Boolean): String = beginEntry().key
+    def beginEntryNoTag(): String = beginEntryNoTagDebug(true)
+    def beginEntryNoTagDebug(debugOn: Boolean): String =
+      if (debugOn) {
+        val tag = beginEntry()
+        if (tag == null) sys.error("tag is null")
+        tag.key
+      }
+      else beginEntry().key
     def beginEntry(): FastTypeTag[_] = withHints { hints =>
       lastReadTag = {
         if (datum == null) FastTypeTag.Null
@@ -368,7 +377,7 @@ package json {
           datum = JArray(list.tail)
           value
         case obj: JObject if lastReadTag.key != FastTypeTag.Ref.key =>
-          mkNestedReader(obj \ "value").primitives(lastReadTag.key)()
+          mkNestedReader(obj \ "$value").primitives(lastReadTag.key)()
         case _ =>
           primitives(lastReadTag.key)()
       }
@@ -402,5 +411,9 @@ package json {
       reader
     }
     def endCollection(): Unit = {}
+  }
+
+  object FakeTag {
+    val File: String = "java.io.File"
   }
 }

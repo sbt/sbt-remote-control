@@ -1,6 +1,5 @@
 package sbt.pickling.spec
 
-import collection.immutable.::
 import org.specs2._
 import scala.pickling._, sbt.pickling.json._
 
@@ -18,6 +17,9 @@ class ArrayPicklerSpec extends Specification {
   Array('a') should
     pickle as ["a"]                                             ${pointed1[Array, Char]}
     and unpickle from ["a"].                                    ${pointed2[Array, Char]}
+  Array("a") should
+    pickle as ["a"]                                             ${pointed1[Array, String]}
+    and unpickle from ["a"].                                    ${pointed2[Array, String]}
   Array(1) should
     pickle as [1]                                               ${pointed1[Array, Int]}
     and unpickle from [1].                                      ${pointed2[Array, Int]}
@@ -34,29 +36,29 @@ class ArrayPicklerSpec extends Specification {
     pickle as [1.0]                                             ${pointed1[Array, Double]}
     and unpickle from [1.0].                                    ${pointed2[Array, Double]}
   List(1: Byte) should
-    pickle as [1]                                               ${pointed1[::, Byte]}
-    and unpickle from [1].                                      ${pointed2[::, Byte]}
+    pickle as [1]                                               ${pointed1[List, Byte]}
+    and unpickle from [1].                                      ${pointed2[List, Byte]}
   List(1: Short) should
-    pickle as [1]                                               ${pointed1[::, Short]}
-    and unpickle from [1].                                      ${pointed2[::, Short]}
+    pickle as [1]                                               ${pointed1[List, Short]}
+    and unpickle from [1].                                      ${pointed2[List, Short]}
   List('a') should
-    pickle as ["a"]                                             ${pointed1[::, Char]}
-    and unpickle from ["a"].                                    ${pointed2[::, Char]}
+    pickle as ["a"]                                             ${pointed1[List, Char]}
+    and unpickle from ["a"].                                    ${pointed2[List, Char]}
   List(1) should
-    pickle as [1]                                               ${pointed1[::, Int]}
-    and unpickle from [1].                                      ${pointed2[::, Int]}
+    pickle as [1]                                               ${pointed1[List, Int]}
+    and unpickle from [1].                                      ${pointed2[List, Int]}
   List(1L) should
-    pickle as [1]                                               ${pointed1[::, Long]}
-    and unpickle from [1].                                      ${pointed2[::, Long]}
+    pickle as [1]                                               ${pointed1[List, Long]}
+    and unpickle from [1].                                      ${pointed2[List, Long]}
   List(false) should
-    pickle as [false]                                           ${pointed1[::, Boolean]}
-    and unpickle from [false].                                  ${pointed2[::, Boolean]}
+    pickle as [false]                                           ${pointed1[List, Boolean]}
+    and unpickle from [false].                                  ${pointed2[List, Boolean]}
   List(1.0F) should
-    pickle as [1.0]                                             ${pointed1[::, Float]}
-    and unpickle from [1.0].                                    ${pointed2[::, Float]}
+    pickle as [1.0]                                             ${pointed1[List, Float]}
+    and unpickle from [1.0].                                    ${pointed2[List, Float]}
   List(1.0) should
-    pickle as [1.0]                                             ${pointed1[::, Double]}
-    and unpickle from [1.0].                                    ${pointed2[::, Double]}
+    pickle as [1.0]                                             ${pointed1[List, Double]}
+    and unpickle from [1.0].                                    ${pointed2[List, Double]}
   Vector(1: Byte) should
     pickle as [1]                                               ${pointed1[Vector, Byte]}
     and unpickle from [1].                                      ${pointed2[Vector, Byte]}
@@ -118,12 +120,14 @@ object ArrayExample {
   val arrayDoubleExample = """[
     |1.0
     |]""".stripMargin
+  val arrayStringExample = """[
+    |"a"
+    |]""".stripMargin
   implicit val byteArrayExample: ArrayExample[Byte] = ArrayExample(1: Byte, arrayIntExample)
   implicit val shortArrayExample: ArrayExample[Short] = ArrayExample(1: Short, arrayIntExample)
   implicit val intArrayExample: ArrayExample[Int] = ArrayExample(1, arrayIntExample)
-  implicit val charArrayExample: ArrayExample[Char] = ArrayExample('a', """[
-    |"a"
-    |]""".stripMargin)
+  implicit val charArrayExample: ArrayExample[Char] = ArrayExample('a', arrayStringExample)
+  implicit val stringArrayExample: ArrayExample[String] = ArrayExample("a", arrayStringExample)
   implicit val longArrayExample: ArrayExample[Long] = ArrayExample(1L, arrayIntExample)
   implicit val booleanArrayExample: ArrayExample[Boolean] = ArrayExample(false, """[
     |false
