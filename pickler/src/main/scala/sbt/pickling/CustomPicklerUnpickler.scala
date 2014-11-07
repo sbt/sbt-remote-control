@@ -7,6 +7,29 @@ import scala.collection.immutable.::
 import scala.collection.generic.CanBuildFrom
 
 trait CustomPicklerUnpickler {
+  implicit def filePickler(implicit pf: PickleFormat): SPickler[File] with Unpickler[File] = new SPickler[File] with Unpickler[File] {
+    val stringPickler = implicitly[SPickler[String]]
+    val stringUnpickler = implicitly[Unpickler[String]]
+    val format: PickleFormat = pf
+
+    def pickle(value: File, builder: PBuilder): Unit = {
+      builder.beginEntry(value)
+      builder.pushHints()
+      builder.putField("$value", { b =>
+        b.hintTag(FastTypeTag.String)
+        stringPickler.pickle(value.toString, b) 
+      })
+      builder.popHints()
+      builder.endEntry()
+    }
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      preader.pushHints()
+      val result = preader.readPrimitive()
+      preader.popHints()
+      result
+    }    
+  }
+  
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
   implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
