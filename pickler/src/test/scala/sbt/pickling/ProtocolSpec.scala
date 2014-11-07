@@ -12,6 +12,9 @@ class ProtocolSpec extends Specification {
 
   basic types should
     round trip.                                                 $basicTypes
+  array types should
+    round trip.                                                 $arrayTypes
+
                                                                 """
   def basicTypes =
     {
@@ -29,6 +32,16 @@ class ProtocolSpec extends Specification {
       roundTrip(Some("Foo"): Option[String])  // roundTrip(Some("Foo")) must fail to compile
       roundTrip(Some(true): Option[Boolean])  // roundTrip(Some(true)) must fail to compile
       roundTrip(Some(10): Option[Int])        // roundTrip(Some(10)) must fail to compile
+    }
+
+  def arrayTypes =
+    {
+      // arrays
+      roundTrip(Nil: List[String])
+      roundTrip(Array(): Array[String])
+      roundTrip(Seq("Bar", "Baz").toArray)
+      // roundTrip(Seq(1, 2, 3).toVector)
+      // roundTrip(Seq(true, false, true, true, false).toVector)
     }
 
   def roundTrip[A: FastTypeTag: SPickler: Unpickler](x: A): MatchResult[Any] =

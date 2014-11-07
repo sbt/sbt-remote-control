@@ -29,7 +29,7 @@ trait CustomPicklerUnpickler {
       result
     }    
   }
-  
+
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
   implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
@@ -41,6 +41,8 @@ trait CustomPicklerUnpickler {
       coll match {
         case Nil =>
           builder.beginEntry(coll)
+          builder.beginCollection(0)
+          builder.endCollection
           builder.endEntry()
         case xs =>
           ccPickler.pickle(coll.asInstanceOf[::[A]], builder)
