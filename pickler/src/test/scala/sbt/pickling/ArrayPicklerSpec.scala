@@ -44,6 +44,9 @@ class ArrayPicklerSpec extends Specification {
   List('a') should
     pickle as ["a"]                                             ${pointed1[List, Char]}
     and unpickle from ["a"].                                    ${pointed2[List, Char]}
+  List("a") should
+    pickle as ["a"]                                             ${pointed1[List, String]}
+    and unpickle from ["a"].                                    ${pointed2[List, String]}
   List(1) should
     pickle as [1]                                               ${pointed1[List, Int]}
     and unpickle from [1].                                      ${pointed2[List, Int]}
@@ -68,6 +71,9 @@ class ArrayPicklerSpec extends Specification {
   Vector('a') should
     pickle as ["a"]                                             ${pointed1[Vector, Char]}
     and unpickle from ["a"].                                    ${pointed2[Vector, Char]}
+  Vector("a") should
+    pickle as ["a"]                                             ${pointed1[Vector, String]}
+    and unpickle from ["a"].                                    ${pointed2[Vector, String]}
   Vector(1) should
     pickle as [1]                                               ${pointed1[Vector, Int]}
     and unpickle from [1].                                      ${pointed2[Vector, Int]}

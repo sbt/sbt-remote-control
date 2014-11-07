@@ -29,7 +29,8 @@ trait CustomPicklerUnpickler {
       result
     }    
   }
-
+  implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], format: PickleFormat, cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
+    mkSeqSetPickler[T, Vector]
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
   implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
@@ -118,6 +119,11 @@ trait CustomPicklerUnpickler {
     }
   }
 
+  def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]]
+    (implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
+              pf: PickleFormat, cbf: CanBuildFrom[Coll[A], A, Coll[A]],
+              collTag: FastTypeTag[Coll[A]]): SPickler[Coll[A]] with Unpickler[Coll[A]] =
+    mkTravPickler[A, Coll[A]]
   def mkTravPickler[A: FastTypeTag, C <% Traversable[_]: FastTypeTag]
     (implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
               pf: PickleFormat, cbf: CanBuildFrom[C, A, C],

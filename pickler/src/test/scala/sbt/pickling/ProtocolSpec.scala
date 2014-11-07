@@ -39,9 +39,12 @@ class ProtocolSpec extends Specification {
       // arrays
       roundTrip(Nil: List[String])
       roundTrip(Array(): Array[String])
+      roundTrip(Vector(): Vector[String])
       roundTrip(Seq("Bar", "Baz").toArray)
-      // roundTrip(Seq(1, 2, 3).toVector)
-      // roundTrip(Seq(true, false, true, true, false).toVector)
+      roundTrip(Seq("Bar", "Baz").toVector)
+      roundTrip(Seq("Bar", "Baz").toList)
+      roundTrip(Seq(1, 2, 3).toVector)
+      roundTrip(Seq(true, false, true, true, false).toVector)
     }
 
   def roundTrip[A: FastTypeTag: SPickler: Unpickler](x: A): MatchResult[Any] =
@@ -55,7 +58,7 @@ class ProtocolSpec extends Specification {
     val json = a.pickle.value
     System.err.println(s"json: $json")
     val tag = implicitly[FastTypeTag[A]]
-    System.err.println(s"A: $tag")
+    // System.err.println(s"A: $tag")
     val parsed = json.unpickle[A]
     (a, parsed) match {
       case (a: Throwable, parsed: Throwable) => e(a, parsed)
