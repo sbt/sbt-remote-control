@@ -55,6 +55,7 @@ object TheBuild extends Build {
   lazy val picklerPrototype = (project in file("pickler")).
     dependsOn(sbtServer13).
     settings(
+      parallelExecution in Test := false,
       libraryDependencies ++= Seq("org.scala-lang" %% "scala-pickling" % "0.9.0",
         "org.json4s" %% "json4s-native" % "3.2.10",
         "org.spire-math" %% "jawn-parser" % "0.6.0",
