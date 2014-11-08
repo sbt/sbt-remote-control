@@ -4,6 +4,7 @@ import org.specs2._
 import scala.pickling._, sbt.pickling.json._
 import matcher.MatchResult
 import java.io.File
+import java.net.URI
 
 class ProtocolSpec extends Specification {
   def is = args(sequential = true) ^ s2"""
@@ -21,6 +22,7 @@ class ProtocolSpec extends Specification {
       // simple data type
       roundTrip("Foo")
       roundTrip(new File("/tmp"))
+      roundTrip(new URI("/tmp"))
       roundTrip(true)
       roundTrip(false)
       roundTrip(10: Short)

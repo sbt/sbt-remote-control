@@ -296,11 +296,7 @@ package json {
             case JDouble(num) => num
             case x: JValue    => unexpectedValue(x)  
           }
-      }).toArray),
-      FakeTag.File -> (() => datum match {
-        case JString(s) => new java.io.File(s)
-        case x: JValue  => unexpectedValue(x)
-      })
+      }).toArray)
     )      
     private def unexpectedValue(value: JValue): Nothing =
       throw new PicklingException("unexpected value: " + value.toString)
@@ -378,8 +374,12 @@ package json {
           value
         case obj: JObject if lastReadTag.key != FastTypeTag.Ref.key =>
           mkNestedReader(obj \ "$value").primitives(lastReadTag.key)()
-        case _ =>
+        case x if atPrimitive =>
           primitives(lastReadTag.key)()
+        case JString(s) =>
+          s
+        case _ =>
+          throw new PicklingException(s"""$datum cannot be read as a primitive""")
       }
     }
     def atObject: Boolean = datum.isInstanceOf[JObject]

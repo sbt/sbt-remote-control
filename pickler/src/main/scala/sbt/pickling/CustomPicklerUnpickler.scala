@@ -1,34 +1,36 @@
 package sbt.pickling
 
+import java.io.File
+import java.net.URI
 import scala.pickling._
 import scala.reflect.runtime.universe._
-import java.io.File
 import scala.collection.immutable.::
 import scala.collection.generic.CanBuildFrom
 
 trait CustomPicklerUnpickler {
-  implicit def filePickler(implicit pf: PickleFormat): SPickler[File] with Unpickler[File] = new SPickler[File] with Unpickler[File] {
+  implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A], pf: PickleFormat): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
+    val format: PickleFormat = pf
     val stringPickler = implicitly[SPickler[String]]
     val stringUnpickler = implicitly[Unpickler[String]]
-    val format: PickleFormat = pf
-
-    def pickle(value: File, builder: PBuilder): Unit = {
-      builder.beginEntry(value)
+    def pickle(a: A, builder: PBuilder): Unit = {
       builder.pushHints()
-      builder.putField("$value", { b =>
-        b.hintTag(FastTypeTag.String)
-        stringPickler.pickle(value.toString, b) 
-      })
+      builder.hintTag(FastTypeTag.String)
+      stringPickler.pickle(canToString.toString(a) , builder)
       builder.popHints()
-      builder.endEntry()
     }
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      preader.pushHints()
-      val result = preader.readPrimitive()
-      preader.popHints()
-      result
-    }    
+      val s = stringUnpickler.unpickle(FastTypeTag.String, preader).asInstanceOf[String]
+      try {
+        val result = canToString.fromString(s)
+        result
+      }
+      catch {
+        case _: Throwable => throw new PicklingException(s""""$s" is not valid ${tag.tpe}""")
+      }
+    }
   }
+  implicit def filePickler(implicit pf: PickleFormat): SPickler[File] with Unpickler[File] =
+    canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]], pf)
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], format: PickleFormat, cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
     mkSeqSetPickler[T, Vector]
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
@@ -123,7 +125,7 @@ trait CustomPicklerUnpickler {
     (implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
               pf: PickleFormat, cbf: CanBuildFrom[Coll[A], A, Coll[A]],
               collTag: FastTypeTag[Coll[A]]): SPickler[Coll[A]] with Unpickler[Coll[A]] =
-    mkTravPickler[A, Coll[A]]
+    mkTravPickler[A, Coll[A ]]
   def mkTravPickler[A: FastTypeTag, C <% Traversable[_]: FastTypeTag]
     (implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
               pf: PickleFormat, cbf: CanBuildFrom[C, A, C],
