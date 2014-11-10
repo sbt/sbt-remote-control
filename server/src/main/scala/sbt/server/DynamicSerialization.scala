@@ -1,9 +1,8 @@
 package sbt
 package server
 
-import play.api.libs.json.{ Format, Reads, Writes }
 import sbt.protocol._
-import play.api.libs.json.JsObject
+import sbt.serialization._
 
 /** Helper class lookups for serialization/deserialization. */
 private object Classes {
@@ -46,22 +45,22 @@ private object Classes {
  */
 sealed trait DynamicSerialization {
   /** Look up a serialization using its type manifest */
-  def lookup[T](implicit mf: Manifest[T]): Option[Format[T]]
+  def lookup[T](implicit mf: Manifest[T]): Option[SbtSerializer[T]]
   /** Look up by runtime class (potentially broken if the class has type parameters) */
-  def lookup[T](klass: Class[T]): Option[Format[T]]
+  def lookup[T](klass: Class[T]): Option[SbtSerializer[T]]
   /** Add a serializer, returning the new modified DynamicSerialization. */
-  def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization
+  def register[T](serializer: SbtSerializer[T])(implicit mf: Manifest[T]): DynamicSerialization
 
   // Here we need to reflectively look up the serialization of things...
   final def buildValue[T](o: T)(implicit mf: Manifest[T]): BuildValue =
     lookup(mf) map { serializer =>
-      BuildValue(serializer.writes(o), o.toString)
-    } getOrElse BuildValue(JsObject(Nil), o.toString)
+      BuildValue(JsonValue(o)(serializer.pickler), o.toString)
+    } getOrElse BuildValue(JsonValue.emptyObject, o.toString)
 
   final def buildValueUsingRuntimeClass[T](o: T): BuildValue = {
-    lookup(o.getClass) map { serializer =>
-      BuildValue(serializer.asInstanceOf[Writes[T]].writes(o), o.toString)
-    } getOrElse (BuildValue(JsObject(Nil), o.toString))
+    lookup[T](o.getClass.asInstanceOf[Class[T]]) map { serializer =>
+      BuildValue(JsonValue(o)(serializer.pickler), o.toString)
+    } getOrElse (BuildValue(JsonValue.emptyObject, o.toString))
   }
 }
 
@@ -70,31 +69,29 @@ object DynamicSerialization {
     NonTrivialSerializers.registerSerializers(ConcreteDynamicSerialization(Map.empty, Map.empty))
 }
 
-private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Format[_]], byClass: Map[Class[_], Format[_]]) extends DynamicSerialization {
-  override def register[T](serializer: Format[T])(implicit mf: Manifest[T]): DynamicSerialization =
+private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], SbtSerializer[_]], byClass: Map[Class[_], SbtSerializer[_]]) extends DynamicSerialization {
+  override def register[T](serializer: SbtSerializer[T])(implicit mf: Manifest[T]): DynamicSerialization =
     // Here we erase the original type when storing
     ConcreteDynamicSerialization(registered + (mf -> serializer), byClass + (mf.erasure -> serializer))
 
-  override def lookup[T](implicit mf: Manifest[T]): Option[Format[T]] =
+  override def lookup[T](implicit mf: Manifest[T]): Option[SbtSerializer[T]] =
     // When looking up, given the interface, it's safe to return to
     // the original type.
-    (registered get mf).asInstanceOf[Option[Format[T]]] orElse
+    (registered get mf).asInstanceOf[Option[SbtSerializer[T]]] orElse
       ConcreteDynamicSerialization.memoizedDefaultSerializer(mf)
 
-  override def lookup[T](klass: Class[T]): Option[Format[T]] =
-    (byClass get klass).asInstanceOf[Option[Format[T]]] orElse
+  override def lookup[T](klass: Class[T]): Option[SbtSerializer[T]] =
+    (byClass get klass).asInstanceOf[Option[SbtSerializer[T]]] orElse
       ConcreteDynamicSerialization.memoizedDefaultSerializer(klass)
 }
 
 private object ConcreteDynamicSerialization {
-  import sbt.GenericSerializers._
-
   private val defaultSerializationMemosByManifest =
-    scala.collection.concurrent.TrieMap[Manifest[_], Format[_]]()
+    scala.collection.concurrent.TrieMap[Manifest[_], SbtSerializer[_]]()
   private val defaultSerializationMemosByClass =
-    scala.collection.concurrent.TrieMap[Class[_], Format[_]]()
+    scala.collection.concurrent.TrieMap[Class[_], SbtSerializer[_]]()
 
-  def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[Format[T]] =
+  def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] =
     defaultSerializer(mf) match {
       case Some(s) =>
         defaultSerializationMemosByManifest.put(mf, s)
@@ -102,7 +99,7 @@ private object ConcreteDynamicSerialization {
       case None => None
     }
 
-  def memoizedDefaultSerializer[T](klass: Class[T]): Option[Format[T]] =
+  def memoizedDefaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] =
     defaultSerializer[T](klass) match {
       case Some(s) =>
         defaultSerializationMemosByClass.put(klass, s)
@@ -110,31 +107,35 @@ private object ConcreteDynamicSerialization {
       case None => None
     }
 
-  private def defaultSerializer[T](klass: Class[T]): Option[Format[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[Format[T]]) orElse {
+  private def defaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[SbtSerializer[T]]) orElse {
+    implicit val throwablePicklerI = throwablePickler
+    implicit val throwableUnpicklerI = throwableUnpickler
+
     (klass match {
-      case Classes.StringClass => Some(implicitly[Format[String]])
-      case Classes.FileClass => Some(implicitly[Format[java.io.File]])
-      case Classes.BooleanClass => Some(implicitly[Format[Boolean]])
-      case Classes.ShortClass => Some(implicitly[Format[Short]])
-      case Classes.IntClass => Some(implicitly[Format[Int]])
-      case Classes.LongClass => Some(implicitly[Format[Long]])
-      case Classes.FloatClass => Some(implicitly[Format[Float]])
-      case Classes.DoubleClass => Some(implicitly[Format[Double]])
-      case Classes.URIClass => Some(implicitly[Format[java.net.URI]])
-      case Classes.ThrowableSubClass() => Some(Format[java.lang.Throwable](throwableReads, throwableWrites))
+      case Classes.StringClass => Some(implicitly[SbtSerializer[String]])
+      case Classes.FileClass => Some(implicitly[SbtSerializer[java.io.File]])
+      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Boolean]])
+      case Classes.ShortClass => Some(implicitly[SbtSerializer[Short]])
+      case Classes.IntClass => Some(implicitly[SbtSerializer[Int]])
+      case Classes.LongClass => Some(implicitly[SbtSerializer[Long]])
+      case Classes.FloatClass => Some(implicitly[SbtSerializer[Float]])
+      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Double]])
+      case Classes.URIClass => Some(implicitly[SbtSerializer[java.net.URI]])
+      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[java.lang.Throwable]])
       case _ =>
         None
-    }).asInstanceOf[Option[Format[T]]]
+    }).asInstanceOf[Option[SbtSerializer[T]]]
   }
 
-  private def defaultSerializer[T](mf: Manifest[T]): Option[Format[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[Format[T]]) orElse
+  private def defaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[SbtSerializer[T]]) orElse
     defaultSerializer[T](mf.erasure.asInstanceOf[Class[T]]) orElse {
       (mf.erasure match {
         case Classes.OptionSubClass() =>
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
           } yield {
-            Format.optionWithNull(child)
+            //SbtSerializer.optionWithNull(child)
+            ??? /* FIXME */
           }
         // TODO - polymorphism?
         case Classes.SeqSubClass() =>
@@ -143,82 +144,81 @@ private object ConcreteDynamicSerialization {
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
           } yield {
-            val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
-            val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-            Format(reads, writes)
+            //val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
+            //val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
+            //SbtSerializer(reads, writes)
+            ??? /* FIXME */
           }
         case Classes.AttributedSubClass() =>
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
-          } yield Format(attributedReads(child), attributedWrites(child))
+          } yield ??? /* FIXME */
         case _ =>
           None
-      }).asInstanceOf[Option[Format[T]]]
+      }).asInstanceOf[Option[SbtSerializer[T]]]
     }
 }
 
 private object NonTrivialSerializers {
-  private sealed trait RegisteredFormat {
+
+  private sealed trait RegisteredSbtSerializer {
     type T
     def manifest: Manifest[T]
-    def format: Format[T]
+    def serializer: SbtSerializer[T]
   }
-  private def toRegisteredFormat[U](implicit f: Format[U], mf: Manifest[U]): RegisteredFormat = new RegisteredFormat {
+  private def toRegisteredSbtSerializer[U](implicit s: SbtSerializer[U], mf: Manifest[U]): RegisteredSbtSerializer = new RegisteredSbtSerializer {
     type T = U
-    override val format = f
+    override val serializer = s
     override val manifest = mf
   }
-  // this overload is used when we want to be able to lookup a subtype (since DynamicSerialization
-  // is only smart enough to handle exact types)
-  private def toRegisteredFormat[U, W >: U](implicit reads: Reads[U], writes: Writes[W], mf: Manifest[U]): RegisteredFormat = new RegisteredFormat {
-    type T = U
-    override val format = Format[U](reads, writes)
-    override val manifest = mf
-  }
-  def registerSerializers(base: DynamicSerialization): DynamicSerialization = {
+
+  /* FIXME This appears to lock up compilation forever, so somehow triggers infinite
+   * macro loop or something?
+   */
+  def registerSerializers(base: DynamicSerialization): DynamicSerialization = ??? /* {
     // TODO I think we only lookup by exact type, so registering an abstract type
     // here such as Type or xsbti.Problem is not useful. I think.
     // TODO we are registering some types here that aren't likely or conceivable
     // task results; we only need to register types T that appear in taskKey[T].
     // We don't have to register all the types of the fields in result types.
-    val formats = Seq(
-      toRegisteredFormat[ByteArray],
-      toRegisteredFormat[ProjectReference],
-      toRegisteredFormat[AttributeKey],
-      toRegisteredFormat[SbtScope],
-      toRegisteredFormat[ScopedKey],
-      toRegisteredFormat[MinimalBuildStructure],
-      toRegisteredFormat[Analysis],
-      toRegisteredFormat[Stamps],
-      toRegisteredFormat[SourceInfo],
-      toRegisteredFormat[SourceInfos],
-      toRegisteredFormat[xsbti.Problem],
-      toRegisteredFormat[Problem, xsbti.Problem],
-      toRegisteredFormat[APIs],
-      toRegisteredFormat[ThePackage],
-      toRegisteredFormat[TypeParameter],
-      toRegisteredFormat[Path],
-      toRegisteredFormat[Modifiers],
-      toRegisteredFormat[AnnotationArgument],
-      toRegisteredFormat[Annotation],
-      toRegisteredFormat[Definition],
-      toRegisteredFormat[SourceAPI],
-      toRegisteredFormat[Source],
-      toRegisteredFormat[RelationsSource],
-      toRegisteredFormat[Relations],
-      toRegisteredFormat[OutputSetting],
-      toRegisteredFormat[Compilation],
-      toRegisteredFormat[Compilations],
-      toRegisteredFormat[Stamp],
-      toRegisteredFormat[Qualifier],
-      toRegisteredFormat[Access],
-      toRegisteredFormat[PathComponent],
-      toRegisteredFormat[Type],
-      toRegisteredFormat[SimpleType, Type],
-      toRegisteredFormat[CompileFailedException],
-      toRegisteredFormat[ModuleId])
-    formats.foldLeft(base) { (sofar, next) =>
+    val serializers = Seq(
+      toRegisteredSbtSerializer[ByteArray],
+      toRegisteredSbtSerializer[ProjectReference],
+      toRegisteredSbtSerializer[AttributeKey],
+      toRegisteredSbtSerializer[SbtScope],
+      toRegisteredSbtSerializer[ScopedKey],
+      toRegisteredSbtSerializer[MinimalBuildStructure],
+      toRegisteredSbtSerializer[Analysis],
+      toRegisteredSbtSerializer[Stamps],
+      toRegisteredSbtSerializer[SourceInfo],
+      toRegisteredSbtSerializer[SourceInfos],
+      toRegisteredSbtSerializer[xsbti.Problem],
+      toRegisteredSbtSerializer[Problem, xsbti.Problem],
+      toRegisteredSbtSerializer[APIs],
+      toRegisteredSbtSerializer[ThePackage],
+      toRegisteredSbtSerializer[TypeParameter],
+      toRegisteredSbtSerializer[Path],
+      toRegisteredSbtSerializer[Modifiers],
+      toRegisteredSbtSerializer[AnnotationArgument],
+      toRegisteredSbtSerializer[Annotation],
+      toRegisteredSbtSerializer[Definition],
+      toRegisteredSbtSerializer[SourceAPI],
+      toRegisteredSbtSerializer[Source],
+      toRegisteredSbtSerializer[RelationsSource],
+      toRegisteredSbtSerializer[Relations],
+      toRegisteredSbtSerializer[OutputSetting],
+      toRegisteredSbtSerializer[Compilation],
+      toRegisteredSbtSerializer[Compilations],
+      toRegisteredSbtSerializer[Stamp],
+      toRegisteredSbtSerializer[Qualifier],
+      toRegisteredSbtSerializer[Access],
+      toRegisteredSbtSerializer[PathComponent],
+      toRegisteredSbtSerializer[Type],
+      toRegisteredSbtSerializer[SimpleType, Type],
+      toRegisteredSbtSerializer[CompileFailedException],
+      toRegisteredSbtSerializer[ModuleId])
+    serializers.foldLeft(base) { (sofar, next) =>
       sofar.register(next.format)(next.manifest)
     }
-  }
+  } */
 }

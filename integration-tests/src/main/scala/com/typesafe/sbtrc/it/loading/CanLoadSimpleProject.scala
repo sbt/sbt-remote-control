@@ -4,6 +4,7 @@ package loading
 
 import sbt.client._
 import sbt.protocol._
+import sbt.serialization._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
 import concurrent.ExecutionContext
@@ -11,7 +12,6 @@ import concurrent.{ Promise, Future }
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.Reads
 import scala.util.{ Success, Failure }
 
 class CanLoadSimpleProject extends SbtClientTest {
@@ -97,7 +97,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
     }
 
-    def fetchTaskResult[T](key: TaskKey[T])(implicit reads: Reads[T]): TaskResult = {
+    def fetchTaskResult[T](key: TaskKey[T])(implicit unpickler: SbtUnpickler[T]): TaskResult = {
       val resultPromise = Promise[TaskResult]()
       val sub = client.rawWatch(key in project.id) { (key, result) =>
         resultPromise.trySuccess(result)
@@ -161,7 +161,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // log compile value changed (lazily, so we don't kick off a compile yet)
     val logCompileValueSub = (client.lazyWatch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
-    })(implicitly[Reads[Analysis]], keepEventsInOrderExecutor)
+    })(implicitly[SbtUnpickler[Analysis]], keepEventsInOrderExecutor)
 
     var compileId = 0L
     val compileErrorCaptured = Promise[CompilationFailure]

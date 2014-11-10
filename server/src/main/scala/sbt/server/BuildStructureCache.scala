@@ -1,6 +1,8 @@
 package sbt
 package server
 
+import sbt.serialization._
+
 /**
  * Represents a cache of the previous build state(s), if they exist.
  *

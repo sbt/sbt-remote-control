@@ -71,11 +71,7 @@ object Dependencies {
   val akkaActor            = akkaTypsafe %% "akka-actor" % akkaVersion
   val akkaTestkit          = akkaTypsafe %% "akka-testkit" % akkaVersion
 
-  val playJson             = ("com.typesafe.play" %% "play-json" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("com.typesafe", "play-iteratees_2.11").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
-
   val jansi                = "org.fusesource.jansi" % "jansi" % "1.11"
-  val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"
-  val brokenJoda           = brokenJodaRaw % "provided"
 
   val commonsIo            = "commons-io" % "commons-io" % "2.0.1"
 

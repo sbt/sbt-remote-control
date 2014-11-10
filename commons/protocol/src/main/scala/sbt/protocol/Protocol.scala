@@ -3,9 +3,9 @@ package sbt.protocol
 // Note:  All the serialization mechanisms for this protocol is in the
 // package.scala file.
 
-import play.api.libs.json.JsValue
 import java.io.File
 import scala.collection.immutable
+import sbt.serialization._
 
 /**
  * A marker trait for *any* message that is passed back/forth from
@@ -16,8 +16,8 @@ sealed trait Message {
 }
 
 object Message {
-  implicit def reads = MessageSerialization.messageReads
-  implicit def writes = MessageSerialization.messageWrites
+  implicit def unpickler = MessageSerialization.messageUnpickler
+  implicit def pickler = MessageSerialization.messagePickler
 }
 
 /** Represents requests that go down into sbt. */
@@ -168,60 +168,52 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
 }
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
+final case class TaskEvent(taskId: Long, name: String, serialized: SerializedValue) extends Event
 
 object TaskEvent {
-  import play.api.libs.json.Writes
-
-  def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
-    val json = implicitly[Writes[T]].writes(event)
-    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), json)
+  def apply[T: SbtPickler](taskId: Long, event: T): TaskEvent = {
+    val serialized = JsonValue(event)
+    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait TaskEventUnapply[T] {
-  import play.api.libs.json.Reads
   import scala.reflect.ClassTag
-  import play.api.libs.json.Json
 
-  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: SbtUnpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != taskEvent.name) {
         None
       } else {
-        Json.fromJson[T](taskEvent.serialized).asOpt map { result => taskEvent.taskId -> result }
+        taskEvent.serialized.parse[T] map { result => taskEvent.taskId -> result }
       }
     case other => None
   }
 }
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class BackgroundJobEvent(jobId: Long, name: String, serialized: JsValue) extends Event
+final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
-  import play.api.libs.json.Writes
-
-  def apply[T: Writes](jobId: Long, event: T): BackgroundJobEvent = {
-    val json = implicitly[Writes[T]].writes(event)
-    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), json)
+  def apply[T: SbtPickler](jobId: Long, event: T): BackgroundJobEvent = {
+    val serialized = JsonValue(event)
+    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait BackgroundJobEventUnapply[T] {
-  import play.api.libs.json.Reads
   import scala.reflect.ClassTag
-  import play.api.libs.json.Json
 
-  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: SbtUnpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != jobEvent.name) {
         None
       } else {
-        Json.fromJson[T](jobEvent.serialized).asOpt map { result => jobEvent.jobId -> result }
+        jobEvent.serialized.parse[T] map { result => jobEvent.jobId -> result }
       }
     case other => None
   }
@@ -410,10 +402,6 @@ final case object This extends PathComponent
 final case class Path(components: Seq[PathComponent])
 sealed trait Type
 object Type {
-  import play.api.libs.json._
-  import play.api.libs.functional.syntax._
-  import play.api.data.validation.ValidationError
-  import JsonHelpers._
 
 }
 sealed trait SimpleType extends Type

@@ -2,8 +2,7 @@ package sbt.server
 
 import sbt.impl.ipc
 import ipc.{ MultiClientServer => IpcServer }
-import sbt.protocol.{ Envelope, Message, Request, ConfirmRequest, ConfirmResponse, ReadLineRequest, ReadLineResponse, ErrorResponse }
-import play.api.libs.json.Writes
+import sbt.protocol._
 import concurrent.{ Promise, promise }
 import java.io.EOFException
 import java.net.SocketException
@@ -112,12 +111,12 @@ class SbtClientHandler(
   }
 
   // ipc is synchronized, so this is ok.
-  override def send[T <: Message: Writes](msg: T): Unit = {
+  override def send(msg: Message): Unit = {
     wrappedSend(msg) { ipc.sendJson(msg, ipc.serialGetAndIncrement()) }
   }
   // ipc is synchronized, so this is ok.
-  override def reply[T: Writes](serial: Long, msg: T): Unit = {
-    wrappedSend(serial -> msg) { ipc.replyJson(serial, msg) }
+  override def reply(serial: Long, msg: Response): Unit = {
+    wrappedSend(serial -> msg) { ipc.replyJson[Message](serial, msg) }
   }
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =
     interactionManager.readLine(executionId, prompt, mask)
@@ -146,7 +145,7 @@ class SbtClientHandler(
         val result = Promise[Option[String]]()
         val newSerial = ipc.serialGetAndIncrement()
         readLineRequests += newSerial -> result
-        ipc.sendJson(ReadLineRequest(executionId.id, prompt, mask), newSerial)
+        ipc.sendJson[Message](ReadLineRequest(executionId.id, prompt, mask), newSerial)
         result.future
       }
     def lineRead(serial: Long, line: Option[String]): Unit =
@@ -164,7 +163,7 @@ class SbtClientHandler(
         val result = Promise[Boolean]()
         val newSerial = ipc.serialGetAndIncrement()
         confirmRequests += newSerial -> result
-        ipc.sendJson(ConfirmRequest(executionId.id, msg), newSerial)
+        ipc.sendJson[Message](ConfirmRequest(executionId.id, msg), newSerial)
         result.future
       }
 

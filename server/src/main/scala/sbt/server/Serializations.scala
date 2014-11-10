@@ -7,8 +7,8 @@ object Serializations {
   def extractOpt(state: State): Option[DynamicSerialization] = state get key
   def update(state: State): State = {
     val extracted = Project.extract(state)
-    val serializations = extracted.get(UIKeys.registeredFormats).foldLeft(DynamicSerialization.defaultSerializations) { (sofar, next) =>
-      sofar.register(next.format)(next.manifest)
+    val serializations = extracted.get(UIKeys.registeredSerializers).foldLeft(DynamicSerialization.defaultSerializations) { (sofar, next) =>
+      sofar.register(next.serializer)(next.manifest)
     }
     state.put(key, serializations)
   }
