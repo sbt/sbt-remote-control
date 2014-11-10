@@ -2,8 +2,6 @@ package sbt.server
 
 import java.net.ServerSocket
 import sbt.State
-import sbt.server.ServerEngine
-import sbt.server.SocketMessage
 import sbt.protocol
 import scala.util.control.NonFatal
 import java.util.concurrent.TimeUnit

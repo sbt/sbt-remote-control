@@ -31,10 +31,10 @@ trait ExecutionIdFinder {
 class ServerEngine(requestQueue: ServerEngineQueue,
   readOnlyStateRef: AtomicReference[State],
   fileLogger: FileLogger,
-  taskEventSink: JsonSink[TaskEvent],
-  jobEventSink: JsonSink[BackgroundJobEvent],
-  eventSink: JsonSink[ExecutionEngineEvent],
-  logSink: JsonSink[LogEvent]) {
+  taskEventSink: MessageSink[TaskEvent],
+  jobEventSink: MessageSink[BackgroundJobEvent],
+  eventSink: MessageSink[ExecutionEngineEvent],
+  logSink: MessageSink[LogEvent]) {
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new TaskEventLogger(taskIdRecorder, logSink)

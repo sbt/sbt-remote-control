@@ -3,6 +3,7 @@ package server
 
 import xsbti.Position
 import xsbti.Severity
+import sbt.serialization._
 
 class CompileReporter(
   sendEventService: SendEventService,

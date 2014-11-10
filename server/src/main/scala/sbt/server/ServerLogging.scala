@@ -7,11 +7,10 @@ import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicReference
 import sbt.protocol.CoreLogEvent
 import sbt.protocol.TaskLogEvent
-import play.api.libs.json.Writes
 import scala.annotation.tailrec
 
 // Our replacement for the global logger that allows you to swap out who is listening to events.
-private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val logSink: JsonSink[E]) extends BasicLogger {
+private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val logSink: MessageSink[E]) extends BasicLogger {
   protected val peer: AtomicReference[Option[String => Unit]] = new AtomicReference(None)
 
   def updatePeer(f: String => Unit): Unit = peer.lazySet(Some(f))
@@ -141,7 +140,7 @@ private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val lo
   }
 }
 
-private[sbt] class TaskEventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent])
+private[sbt] class TaskEventLogger(taskIdFinder: TaskIdFinder, logSink: MessageSink[protocol.LogEvent])
   extends EventLogger[protocol.LogEvent](logSink) {
   override def send(entry: protocol.LogEntry): Unit = {
     // TODO we want to get the taskIfKnown by creating a streamsManager which generates
@@ -160,7 +159,7 @@ private[sbt] class TaskEventLogger(taskIdFinder: TaskIdFinder, logSink: JsonSink
   }
 }
 
-private[sbt] class BackgroundJobEventLogger(jobId: Long, logSink: JsonSink[protocol.BackgroundJobLogEvent])
+private[sbt] class BackgroundJobEventLogger(jobId: Long, logSink: MessageSink[protocol.BackgroundJobLogEvent])
   extends EventLogger[protocol.BackgroundJobLogEvent](logSink) with java.io.Closeable {
   override def send(entry: protocol.LogEntry): Unit = {
     logSink.send(protocol.BackgroundJobLogEvent(jobId, entry))

@@ -1,14 +1,12 @@
 package sbt
 package server
 
-import play.api.libs.json.Writes
 import concurrent.Future
-import play.api.libs.json.JsValue
-import sbt.protocol.Message
+import sbt.protocol.{ ScopedKey => _, _ }
 
-trait JsonSink[-J] {
+trait MessageSink[-J <: Message] {
   /** Sends a message out.  This should be a safe call (doens't throw on bad client for example.) */
-  def send[T <: J: Writes](msg: T): Unit
+  def send(msg: J): Unit
 }
 
 /**
@@ -16,7 +14,7 @@ trait JsonSink[-J] {
  *
  * TODO - better name!
  */
-sealed trait SbtClient extends JsonSink[Message] {
+sealed trait SbtClient extends MessageSink[Message] {
   /** Creates a new client that will send events to *both* of these clients. */
   def zip(other: SbtClient): SbtClient = (this, other) match {
     case (NullSbtClient, NullSbtClient) => NullSbtClient
@@ -38,12 +36,12 @@ sealed trait SbtClient extends JsonSink[Message] {
 }
 
 object NullSbtClient extends SbtClient {
-  override final def send[T <: Message: Writes](msg: T): Unit = ()
+  override final def send(msg: Message): Unit = ()
   override def toString = "NullSbtClient"
 }
 final case class JoinedSbtClient(clients: Set[SbtClient]) extends SbtClient {
   // TODO - ignore individual failures?
-  override final def send[T <: Message: Writes](msg: T): Unit =
+  override final def send(msg: Message): Unit =
     clients foreach (_ send msg)
   override def toString = clients.mkString("Joined(", ",", ")")
 }
@@ -61,7 +59,7 @@ abstract class LiveClient extends SbtClient {
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): Future[Option[String]]
   /** Confirms a message from a client. */
   def confirm(executionId: ExecutionId, msg: String): Future[Boolean]
-  def reply[T <: Message: Writes](replyTo: Long, msg: T): Unit
+  def reply(replyTo: Long, msg: Response): Unit
 }
 
 final case class KeyValueClientListener[T](

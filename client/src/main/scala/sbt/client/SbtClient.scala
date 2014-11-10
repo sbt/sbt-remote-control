@@ -3,9 +3,8 @@ package client
 
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
-import play.api.libs.json.Format
 import sbt.protocol._
-import play.api.libs.json.Reads
+import sbt.serialization._
 
 /**
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
@@ -200,7 +199,7 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription
   /**
    * Adds a listener to a particular setting as with watch(), but does not receive immediate
    * notification of the current setting value.
@@ -212,7 +211,7 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription
   /**
    * Adds a listener for the value of a particular task.  If the evaluated task result changes, the event
    *  listener will be notified of the new value. In addition, the task will be evaluated IMMEDIATELY
@@ -230,7 +229,7 @@ trait SbtClient extends Closeable {
    * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *       for all listeners on the same SbtClient.
    */
-  def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  def watch[T](key: TaskKey[T])(l: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription
   /**
    * Like watch() except that it does NOT kick off an immediate task evaluation; it just listens
    * to any new values that result if the task is evaluated in the future.
@@ -242,7 +241,7 @@ trait SbtClient extends Closeable {
    *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
    *        for all listeners on the same SbtClient.
    */
-  def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription
 
   /**
    * Kills the running instance of the sbt server (by attempting to issue a kill message).

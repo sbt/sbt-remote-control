@@ -1,8 +1,8 @@
 package sbt
 
 import sbt.ScopeAxis.scopeAxisToScope
-import play.api.libs.json._
 import std.TaskStreams
+import sbt.serialization._
 
 /**
  * This UI plugin provides the basic settings used by plugins that want to be able to communicate with a UI.
@@ -18,12 +18,12 @@ object SbtUIPlugin extends AutoPlugin {
     UIKeys.interactionService in Global <<= (UIKeys.interactionService in Global) ?? CommandLineUIServices,
     UIKeys.sendEventService in Global <<= (UIKeys.sendEventService in Global) ?? CommandLineUIServices,
     UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
-    UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil)
+    UIKeys.registeredSerializers in Global <<= (UIKeys.registeredSerializers in Global) ?? Nil)
 
-  def registerTaskSerialization[T](key: TaskKey[T])(implicit format: Format[T], mf: Manifest[T]): Setting[_] =
-    UIKeys.registeredFormats in Global += RegisteredFormat(format)(mf)
-  def registerSettingSerialization[T](key: SettingKey[T])(implicit format: Format[T]): Setting[_] =
-    UIKeys.registeredFormats in Global += RegisteredFormat(format)(key.key.manifest)
+  def registerTaskSerialization[T](key: TaskKey[T])(implicit serializer: SbtSerializer[T], mf: Manifest[T]): Setting[_] =
+    UIKeys.registeredSerializers in Global += RegisteredSerializer(serializer)(mf)
+  def registerSettingSerialization[T](key: SettingKey[T])(implicit serializer: SbtSerializer[T]): Setting[_] =
+    UIKeys.registeredSerializers in Global += RegisteredSerializer(serializer)(key.key.manifest)
 }
 
 private[sbt] object CommandLineUIServices extends SbtPrivateInteractionService with SbtPrivateSendEventService {
@@ -31,7 +31,7 @@ private[sbt] object CommandLineUIServices extends SbtPrivateInteractionService w
     val maskChar = if (mask) Some('*') else None
     SimpleReader.readLine(prompt, maskChar)
   }
-  // TODO - Implement this better!    
+  // TODO - Implement this better!
   def confirm(msg: String): Boolean = {
     object Assent {
       def unapply(in: String): Boolean = {
@@ -43,5 +43,5 @@ private[sbt] object CommandLineUIServices extends SbtPrivateInteractionService w
       case _ => false
     }
   }
-  override def sendEvent[T: Writes](event: T): Unit = ()
+  override def sendEvent[T: SbtPickler](event: T): Unit = ()
 }
