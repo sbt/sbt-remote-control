@@ -40,7 +40,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
 
-  private implicit object completionsResponseConverter extends ResponseConverter[CommandCompletionsRequest, Set[Completion]] {
+  private implicit object completionsResponseConverter extends ResponseConverter[CommandCompletionsRequest, Vector[Completion]] {
     override def convert: Converter = {
       case protocol.CommandCompletionsResponse(completions) => Success(completions)
     }
@@ -77,7 +77,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
 
-  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]] =
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[Completion]] =
     sendRequestWithConverter(CommandCompletionsRequest(partialCommand, detailLevel))
 
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]] =

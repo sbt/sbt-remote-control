@@ -65,7 +65,7 @@ trait SbtClient extends Closeable {
    *         - the string to display to users
    *         - a flag denoting if the completion is empty.
    */
-  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[Completion]]
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[Completion]]
 
   /**
    * This tries to find whether there is a build key associated with the

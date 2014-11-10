@@ -406,7 +406,7 @@ class ProtocolTest {
       protocol.ConfirmResponse(true),
       protocol.ReceivedResponse(),
       protocol.CommandCompletionsRequest("He", 2),
-      protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true))),
+      protocol.CommandCompletionsResponse(Vector(protocol.Completion("llo", "Hello", true))),
       protocol.ListenToEvents(),
       protocol.ListenToBuildChange(),
       protocol.ExecutionRequest("test command string"),
@@ -677,7 +677,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "confirm_response.json" }
     oneWayTrip[Message](protocol.ReceivedResponse()) { _ / "message" / "received_response.json" }
     oneWayTrip[Message](protocol.CommandCompletionsRequest("He", 2)) { _ / "message" / "completion_request.json" }
-    oneWayTrip[Message](protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true)))) { _ / "message" / "completion_response.json" }
+    oneWayTrip[Message](protocol.CommandCompletionsResponse(Vector(protocol.Completion("llo", "Hello", true)))) { _ / "message" / "completion_response.json" }
     oneWayTrip[Message](protocol.ListenToEvents()) { _ / "message" / "listen_to_events.json" }
     oneWayTrip[Message](protocol.ListenToBuildChange()) { _ / "message" / "listen_to_build_change.json" }
     oneWayTrip[Message](protocol.ExecutionRequest("test command string")) { _ / "message" / "exec_request.json" }
