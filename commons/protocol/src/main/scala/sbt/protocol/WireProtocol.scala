@@ -1,7 +1,6 @@
 package sbt.protocol
 
 import sbt.impl.ipc
-import play.api.libs.json._
 import java.io.File
 import language.existentials
 
@@ -13,17 +12,9 @@ private[sbt] final case class Envelope(override val serial: Long, override val r
  */
 private[sbt] object Envelope {
   def apply(wire: ipc.WireEnvelope): Envelope = {
-    val message: Message = try {
-      // this can throw malformed json errors
-      Json.fromJson[Message](Json.parse(wire.asString)).getOrElse(sys.error("Failure deserializing json."))
-    } catch {
-      case e: Exception =>
-        //System.err.println("**** " + e.getMessage)
-        //System.err.println(e.getStackTraceString)
-        // probably a JSON parse failure
-        ErrorResponse("exception parsing json: " + e.getClass.getSimpleName + ": " + e.getMessage + "\n\nMsg: " + wire.asString)
-      // TODO - Mysetery message?
-    }
+    val message: Message = // FIXME
+      Some((???).asInstanceOf[Message]).getOrElse(ErrorResponse("exception parsing json"))
+
     new Envelope(wire.serial, wire.replyTo, message)
   }
 

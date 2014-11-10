@@ -1,6 +1,6 @@
 package sbt.protocol
 import scala.collection.immutable
-import play.api.libs.json.Writes
+import sbt.serialization._
 
 /**
  * Utilities to track the state implied by a series of events, allowing the events
@@ -10,17 +10,25 @@ import play.api.libs.json.Writes
  *  the events to "catch up" new clients to the current state.
  */
 
-private[sbt] final case class EventWithWrites[E <: Event](event: E, writes: Writes[E])
+/* FIXME we don't really need to pass the Pickler around for messages anymore
+ * because Message is a sealed trait with the writes at the base.
+ */
+private[sbt] final case class EventWithWrites[E <: Event](event: E, pickler: SbtPickler[E])
 
 private[sbt] object EventWithWrites {
-  def withWrites[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
-    EventWithWrites(event, implicitly[Writes[E]])
+  def withWrites[E <: Event](event: E)(implicit pickler: SbtPickler[E]): EventWithWrites[E] =
+    EventWithWrites(event, pickler)
 }
 
 private[sbt] object ImpliedState {
   import scala.language.implicitConversions
 
-  private implicit def writes[E <: Event, W >: E](event: E)(implicit writes: Writes[W]): EventWithWrites[E] =
+  /* FIXME this hack is because we have EventWithWrites for no good reason anymore
+   * and SPickler is invariant.
+   */
+  private implicit def writesForEvent[E <: Event]: SbtPickler[E] = implicitly[SbtPickler[Message]].asInstanceOf[SbtPickler[E]]
+
+  private implicit def writes[E <: Event, W >: E](event: E)(implicit pickler: SbtPickler[W]): EventWithWrites[E] =
     EventWithWrites.withWrites(event)
 
   final case class Task(id: Long, key: Option[ScopedKey])

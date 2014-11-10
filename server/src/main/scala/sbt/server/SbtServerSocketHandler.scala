@@ -5,6 +5,7 @@ import ipc.{ MultiClientServer => IpcServer, HandshakeException }
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
 import sbt.protocol._
+import sbt.serialization._
 import scala.util.control.NonFatal
 
 /**
@@ -14,6 +15,7 @@ import scala.util.control.NonFatal
  */
 class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessage => Unit,
   serverEngineLogFile: java.io.File) {
+
   private val running = new java.util.concurrent.atomic.AtomicBoolean(true)
   private val TIMEOUT_TO_DEATH: Int = 3 * 60 * 1000
   // TODO - This should be configurable.
@@ -43,7 +45,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           val (uuid, register, registerSerial) = Envelope(server.receive()) match {
             case Envelope(serial, replyTo, req: RegisterClientRequest) =>
               def replyAndException(message: String): Exception = {
-                server.replyJson(serial, ErrorResponse(message))
+                server.replyJson[Message](serial, ErrorResponse(message))
                 new HandshakeException(message, null, null)
               }
               clientLock.synchronized {

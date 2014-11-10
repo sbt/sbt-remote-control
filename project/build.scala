@@ -10,7 +10,9 @@ import Keys._
 object TheBuild extends Build {
 
   // ADD sbt launcher support here.
-  override def settings = super.settings ++ SbtSupport.buildSettings ++ baseVersions
+  override def settings = super.settings ++ SbtSupport.buildSettings ++ baseVersions ++
+ Seq(resolvers +=
+  "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots")
 
   val root = (
     Project("root", file("."))  // TODO - Oddities with clean..
@@ -32,24 +34,27 @@ object TheBuild extends Build {
   // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
+      dependsOnSource("commons/serialization")
+      dependsOnSource("commons/protocol")
       dependsOnSource("commons/ui-interface")
-      dependsOnRemote(playJson, brokenJodaRaw)
+      settings(libraryDependencies += pickling)
   )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
+    dependsOnSource("commons/serialization")
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/ui-interface")
     dependsOnSource("ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
-    dependsOnRemote(playJson, brokenJoda)
     settings(noCrossVersioning:_*)
     settings(
       Keys.resourceGenerators in Compile += (Def.task {
         Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
-      }).taskValue
+      }).taskValue,
+      libraryDependencies += pickling
     )
   )
   lazy val picklerPrototype = (project in file("pickler")).
@@ -130,8 +135,7 @@ object TheBuild extends Build {
        Keys.libraryDependencies ++=
          Seq(
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
-               playJson,
-               brokenJoda,
+               pickling,
                sbtLauncherInterface,
                sbtCompilerInterface
          ),
@@ -141,6 +145,7 @@ object TheBuild extends Build {
           case v => sys.error(s"Unsupported scalaBinary version: $v")
        })
     ).
+    dependsOnSource("commons/serialization").
     dependsOnSource("commons/protocol").
     dependsOnSource("client")
   }
@@ -205,6 +210,7 @@ object TheBuild extends Build {
     dependsOn(clientAll211)
     settings(
       Keys.scalaVersion := Dependencies.scala211Version,
+      libraryDependencies += pickling211,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true
       // We have to expose the jar here, because the normal exportJars value
       // causes a circular task dependency with sbt-assembly
@@ -228,8 +234,8 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
-      localRepoArtifacts += "com.typesafe.play" % "play-json_2.10" % Dependencies.playVersion,
-
+      localRepoArtifacts += pickling210,
+      localRepoArtifacts += pickling211,
       localRepoArtifacts += "org.scala-sbt" % "sbt" % Dependencies.sbt13Version,
       //localRepoArtifacts += "org.scala-sbt" % "io_2.11" % Dependencies.sbt13Version,
       //localRepoArtifacts += "org.scala-sbt" % "collections_2.11" % Dependencies.sbt13Version,

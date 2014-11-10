@@ -22,7 +22,7 @@ import sbt.StateOps
 object ServerBootCommand {
 
   /** A new load failed command which handles the server requirements */
-  private def serverLoadFailed(eventSink: JsonSink[protocol.ExecutionEngineEvent], engine: ServerEngine) =
+  private def serverLoadFailed(eventSink: MessageSink[protocol.ExecutionEngineEvent], engine: ServerEngine) =
     Command(LoadFailed)(loadProjectParser) { (state, action) =>
       state.log.error("Failed to load project.")
       eventSink.send(protocol.BuildFailedToLoad())
@@ -42,7 +42,7 @@ object ServerBootCommand {
   }
 
   /** List of commands which override sbt's default commands. */
-  def commandOverrides(engine: ServerEngine, eventSink: JsonSink[protocol.ExecutionEngineEvent]): Seq[Command] =
+  def commandOverrides(engine: ServerEngine, eventSink: MessageSink[protocol.ExecutionEngineEvent]): Seq[Command] =
     Seq(serverLoadFailed(eventSink, engine), projectReload(engine))
 
   val overriddenCommands = Seq(loadFailed, loadProject)

@@ -2,11 +2,9 @@ package sbt.protocol
 
 import java.net.URI
 import ScalaShims.ManifestFactory
-import play.api.libs.json._
 
-import Reads._
-import Writes._
-import sbt.GenericSerializers._
+import sbt.serialization._
+import scala.pickling.{ SPickler, Unpickler }
 
 /**
  *  Represents the type information we can serialize over a network
@@ -60,8 +58,8 @@ object TypeInfo {
     TypeInfo(klass.getName, Nil)
   }
 
-  implicit val reads: Reads[TypeInfo] = Json.reads[TypeInfo]
-  implicit val writes: Writes[TypeInfo] = Json.writes[TypeInfo]
+  implicit val unpickler: Unpickler[TypeInfo] = ???
+  implicit val pickler: SPickler[TypeInfo] = ???
 }
 
 /**
@@ -72,9 +70,9 @@ final case class AttributeKey(name: String, manifest: TypeInfo) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
-  require(implicitly[Reads[TypeInfo]] ne null)
-  implicit val reads: Reads[AttributeKey] = Json.reads[AttributeKey]
-  implicit val writes: OWrites[AttributeKey] = Json.writes[AttributeKey]
+  require(implicitly[Unpickler[TypeInfo]] ne null)
+  implicit val unpickler: Unpickler[AttributeKey] = ???
+  implicit val pickler: SPickler[AttributeKey] = ???
 }
 
 /**
@@ -83,9 +81,9 @@ object AttributeKey {
  */
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
-  require(implicitly[Reads[java.net.URI]] ne null)
-  implicit val reads: Reads[ProjectReference] = Json.reads[ProjectReference]
-  implicit val writes: OWrites[ProjectReference] = Json.writes[ProjectReference]
+  require(implicitly[Unpickler[java.net.URI]] ne null)
+  implicit val unpickler: Unpickler[ProjectReference] = ???
+  implicit val pickler: SPickler[ProjectReference] = ???
 }
 /**
  * Represents the scope a particular key can have in sbt.
@@ -108,11 +106,11 @@ final case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  require(implicitly[Reads[ProjectReference]] ne null)
-  require(implicitly[Reads[URI]] ne null)
-  require(implicitly[Reads[AttributeKey]] ne null)
-  implicit val reads: Reads[SbtScope] = Json.reads[SbtScope]
-  implicit val writes: OWrites[SbtScope] = Json.writes[SbtScope]
+  require(implicitly[Unpickler[ProjectReference]] ne null)
+  require(implicitly[Unpickler[URI]] ne null)
+  require(implicitly[Unpickler[AttributeKey]] ne null)
+  implicit val unpickler: Unpickler[SbtScope] = ???
+  implicit val pickler: SPickler[SbtScope] = ???
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -121,16 +119,16 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  require(implicitly[Reads[SbtScope]] ne null)
-  require(implicitly[Reads[AttributeKey]] ne null)
-  implicit val reads: Reads[ScopedKey] = Json.reads[ScopedKey]
-  implicit val writes: OWrites[ScopedKey] = Json.writes[ScopedKey]
+  require(implicitly[Unpickler[SbtScope]] ne null)
+  require(implicitly[Unpickler[AttributeKey]] ne null)
+  implicit val unpickler: Unpickler[ScopedKey] = ???
+  implicit val pickler: SPickler[ScopedKey] = ???
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Seq[ScopedKey])
 object KeyList {
-  implicit val reads: Reads[KeyList] = Json.reads[KeyList]
-  implicit val writes: OWrites[KeyList] = Json.writes[KeyList]
+  implicit val unpickler: Unpickler[KeyList] = ???
+  implicit val pickler: SPickler[KeyList] = ???
 }
 
 /** Core information returned about projects for build clients. */
@@ -139,8 +137,8 @@ final case class MinimalProjectStructure(
   // Class names of plugins used by this project.
   plugins: Seq[String])
 object MinimalProjectStructure {
-  implicit val reads: Reads[MinimalProjectStructure] = Json.reads[MinimalProjectStructure]
-  implicit val writes: OWrites[MinimalProjectStructure] = Json.writes[MinimalProjectStructure]
+  implicit val unpickler: Unpickler[MinimalProjectStructure] = ???
+  implicit val pickler: SPickler[MinimalProjectStructure] = ???
 }
 
 final case class MinimalBuildStructure(
@@ -149,6 +147,6 @@ final case class MinimalBuildStructure(
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
-  implicit val reads: Reads[MinimalBuildStructure] = Json.reads[MinimalBuildStructure]
-  implicit val writes: OWrites[MinimalBuildStructure] = Json.writes[MinimalBuildStructure]
+  implicit val unpickler: Unpickler[MinimalBuildStructure] = ???
+  implicit val pickler: SPickler[MinimalBuildStructure] = ???
 }

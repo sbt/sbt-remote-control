@@ -46,7 +46,10 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
-  val playJson             = ("com.typesafe.play" %% "play-json" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("com.typesafe", "play-iteratees_2.11").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
+  val picklingVersion = "0.9.1-SNAPSHOT"
+  val pickling210 = "org.scala-lang" % "scala-pickling_2.10" % picklingVersion
+  val pickling211 = "org.scala-lang" % "scala-pickling_2.11" % picklingVersion
+  val pickling = "org.scala-lang" %% "scala-pickling" % picklingVersion
 
   val jansi                = "org.fusesource.jansi" % "jansi" % "1.11"
   val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"

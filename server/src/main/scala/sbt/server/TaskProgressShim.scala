@@ -12,7 +12,7 @@ import protocol.{
   BuildValue
 }
 
-private[server] class ServerExecuteProgress(state: ServerState, conversions: DynamicConversion, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
+private[server] class ServerExecuteProgress(state: ServerState, conversions: DynamicConversion, serializations: DynamicSerialization, taskIdRecorder: TaskIdRecorder, eventSink: MessageSink[ExecutionEngineEvent]) extends ExecuteProgress[Task] {
   type S = ServerState
   def initial: S = state
 
@@ -150,7 +150,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
   }
 }
 object ServerExecuteProgress {
-  def getShims(state: State, taskIdRecorder: TaskIdRecorder, eventSink: JsonSink[ExecutionEngineEvent]): Seq[Setting[_]] = {
+  def getShims(state: State, taskIdRecorder: TaskIdRecorder, eventSink: MessageSink[ExecutionEngineEvent]): Seq[Setting[_]] = {
     Seq(
       Keys.executeProgress in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)

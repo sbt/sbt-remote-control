@@ -3,6 +3,7 @@ package sbt.client.impl
 
 import sbt.protocol
 import sbt.protocol._
+import sbt.serialization._
 import sbt.client.{ SbtChannel, SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, RawValueListener, SettingKey, TaskKey, Interaction }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
@@ -11,17 +12,14 @@ import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
 import java.io.Closeable
-import play.api.libs.json.Writes
 import scala.annotation.tailrec
-import play.api.libs.json.Reads
 import scala.util.{ Success, Failure, Try }
-import play.api.libs.json.Json
-import sbt.GenericSerializers
 
 /**
  * A concrete implementation of the SbtClient trait.
  */
 private[client] final class SimpleSbtClient(override val channel: SbtChannel) extends SbtClient {
+  import sbt.serialization._
 
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
@@ -29,10 +27,11 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
+
     // TODO this is really busted; we need to have a local cache of the latest build and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
-    channel.sendJson(SendSyntheticBuildChanged())
+    channel.sendJson[Message](SendSyntheticBuildChanged())
     sub
   }
 
@@ -72,7 +71,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     }
   }
 
-  private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R], writes: Writes[Req]): Future[R] = {
+  private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R], pickler: SbtPickler[Req]): Future[R] = {
     channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
 
@@ -113,7 +112,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
         // if we fail to get the value (due to e.g. no such key) we want
         // to synthesize a notification so there's a guarantee that we
         // get SOME watch notification always.
-        implicit val throwableWrites = GenericSerializers.throwableWrites
+        implicit val throwablePicklerI = throwablePickler
         valueEventManager(key).sendEvent(ValueChanged(key, TaskFailure(BuildValue(e))))
     }
   }
@@ -135,19 +134,19 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
     valueEventManager(key.key).watch(listener)(ex)
 
-  private def toRaw[T](listener: ValueListener[T])(implicit reads: Reads[T]): RawValueListener = (key: ScopedKey, taskResult: TaskResult) =>
+  private def toRaw[T](listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T]): RawValueListener = (key: ScopedKey, taskResult: TaskResult) =>
     listener(key, taskResult.result[T])
 
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key)(toRaw(listener))
 
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawLazyWatch(key)(toRaw(listener))
 
-  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key)(toRaw(listener))
 
-  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickler: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawLazyWatch(key)(toRaw(listener))
 
   // TODO - Maybe we should try a bit harder here to `kill` the server.
@@ -384,10 +383,11 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private var listeners: Set[ListenerType[Event]] = Set.empty
   private var closed = false
 
-  private def sendJson[T: Writes](message: T): Unit =
+  // TODO remove type parameter if we don't add any implicits
+  private def sendJson[T <: Message](message: T): Unit =
     // don't check the closed flag here, would be a race.
     // we fire-and-forget the returned future.
-    channel.sendJson(message)
+    channel.sendJson[Message](message)
 
   def watch(listener: Listener)(implicit ex: ExecutionContext): Subscription = {
     val helper = wrapListener(listener, ex)
@@ -406,14 +406,14 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
     } else {
       listeners += l
       if (listeningToEvents.compareAndSet(false, true)) {
-        sendJson(requestEventsMsg)
+        sendJson[Message](requestEventsMsg)
       }
     }
   }
   private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners -= l
     if (listeners.isEmpty && listeningToEvents.compareAndSet(true, false)) {
-      sendJson(requestUnlistenMsg)
+      sendJson[Message](requestUnlistenMsg)
     }
   }
   def sendEvent(e: Event): Unit = synchronized {

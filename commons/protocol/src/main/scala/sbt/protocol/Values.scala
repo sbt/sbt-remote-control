@@ -1,13 +1,14 @@
 package sbt.protocol
 
-import play.api.libs.json._
+import sbt.serialization._
 import scala.util.{ Try, Success, Failure }
+
 /**
  *  Represents a serialized value with a stringValue fallback.
  */
-final case class BuildValue(serialized: JsValue, stringValue: String) {
-  def value[T](implicit reads: Reads[T]): Option[T] =
-    reads.reads(serialized).asOpt
+final case class BuildValue(serialized: SerializedValue, stringValue: String) {
+  def value[T](implicit unpickler: SbtUnpickler[T]): Option[T] =
+    serialized.parse[T]
   override def equals(o: Any): Boolean =
     o match {
       case x: BuildValue => x.serialized == serialized
@@ -17,24 +18,8 @@ final case class BuildValue(serialized: JsValue, stringValue: String) {
 }
 
 object BuildValue {
-  def apply[T](value: T)(implicit writes: Writes[T]): BuildValue = {
-    BuildValue(serialized = Json.toJson(value), stringValue = value.toString)
-  }
-
-  // we have to hand-code these due to the apply() overload which confuses Play
-  implicit object buildValueReads extends Reads[BuildValue] {
-    def reads(map: JsValue): JsResult[BuildValue] = {
-      for {
-        stringValue <- (map \ "stringValue").validate[String]
-        serialized <- (map \ "serialized").validate[JsValue]
-      } yield BuildValue(serialized, stringValue)
-    }
-  }
-
-  implicit object buildValueWrites extends Writes[BuildValue] {
-    override def writes(t: BuildValue): JsValue = {
-      Json.obj("serialized" -> t.serialized, "stringValue" -> t.stringValue)
-    }
+  def apply[T](value: T)(implicit pickler: SbtPickler[T]): BuildValue = {
+    BuildValue(serialized = SerializedValue(value), stringValue = value.toString)
   }
 }
 
@@ -44,14 +29,14 @@ object BuildValue {
 sealed trait TaskResult {
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
-  final def result[A](implicit readResult: Reads[A]): Try[A] =
-    resultWithCustomThrowable[A, Throwable](readResult, sbt.GenericSerializers.throwableReads)
-  def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A]
+  final def result[A](implicit unpickleResult: SbtUnpickler[A]): Try[A] =
+    resultWithCustomThrowable[A, Throwable](unpickleResult, sbtUnpicklerFromUnpickler(throwableUnpickler))
+  def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A]
 }
 /** This represents that the task was run successfully. */
 final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
-  override def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A] = {
+  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A] = {
     value.value[A] match {
       case Some(v) => Success(v)
       case None => Failure(new Exception(s"Failed to deserialize ${value.serialized}"))
@@ -61,39 +46,8 @@ final case class TaskSuccess(value: BuildValue) extends TaskResult {
 
 final case class TaskFailure(cause: BuildValue) extends TaskResult {
   override def isSuccess = false
-  override def resultWithCustomThrowable[A, B <: Throwable](implicit readResult: Reads[A], readFailure: Reads[B]): Try[A] = {
-    val t = readFailure.reads(cause.serialized).asOpt.getOrElse(new Exception(cause.stringValue))
+  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A] = {
+    val t = cause.serialized.parse[B].getOrElse(new Exception(cause.stringValue))
     Failure(t)
   }
-}
-
-object TaskResult {
-  implicit val reads: Reads[TaskResult] =
-    new Reads[TaskResult] {
-      override def reads(m: JsValue): JsResult[TaskResult] = {
-        (m \ "success") match {
-          case JsBoolean(true) =>
-            Json.fromJson[BuildValue](m).map(TaskSuccess.apply)
-          case JsBoolean(false) =>
-            Json.fromJson[BuildValue](m \ "cause").map(TaskFailure.apply)
-          case _ =>
-            JsError("Unable to deserialize task result.")
-        }
-      }
-    }
-  implicit val writes: Writes[TaskResult] =
-    new Writes[TaskResult] {
-      override def writes(t: TaskResult): JsValue =
-        t match {
-          case TaskFailure(cause) =>
-            JsObject(Seq("success" -> JsBoolean(false), "cause" -> Json.toJson(cause)))
-          case TaskSuccess(value) =>
-            val base = Json.obj("success" -> true)
-            val valueJson = Json.toJson(value) match {
-              case o: JsObject => o
-              case other => throw new RuntimeException("serialized a BuildValue to non-JsObject")
-            }
-            base ++ valueJson
-        }
-    }
 }

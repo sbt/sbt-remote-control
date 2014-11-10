@@ -8,7 +8,6 @@ import concurrent.duration.Duration.Inf
 import concurrent.Await
 import concurrent.Promise
 import scala.collection.JavaConverters._
-import play.api.libs.json.Json
 import scala.util.Success
 
 // Tests using interaction...
@@ -25,14 +24,11 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     """|package com.typesafe.sbtrc
        |package it
        |package loading
-       |import play.api.libs.json._
        |import sbt.SbtUIPlugin._
        |import sbt._
-       | 
+       |import sbt.serialization._
+       |
        |final case class SerializedThing(name: String, value: Int)
-       |object SerializedThing {
-       |  implicit val format = Json.format[SerializedThing]
-       |}
        |
        |
        |object TestThingPlugin {

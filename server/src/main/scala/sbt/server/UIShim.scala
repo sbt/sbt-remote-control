@@ -1,7 +1,6 @@
 package sbt
 package server
 
-import play.api.libs.json.Writes
 import sbt.protocol.BackgroundJobEvent
 import sbt.protocol.TaskEvent
 import sbt.protocol.Event
@@ -11,6 +10,7 @@ import sbt.protocol.BackgroundJobFinished
 import sbt.protocol.CoreLogEvent
 import sbt.protocol.LogMessage
 import sbt.protocol.BackgroundJobInfo
+import sbt.serialization._
 
 private[server] class ServerInteractionService(state: ServerState) extends SbtPrivateInteractionService {
 
@@ -39,7 +39,7 @@ private[server] class ServerInteractionService(state: ServerState) extends SbtPr
     }.getOrElse(throw new java.io.IOException("No clients listening to confirm request."))
 }
 
-private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]) extends SbtPrivateSendEventService {
+private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink: MessageSink[TaskEvent]) extends SbtPrivateSendEventService {
 
   private def taskId: Long = {
     // TODO currently this depends on thread locals; we need to
@@ -49,17 +49,17 @@ private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink
     taskIdFinder.bestGuessTaskId(taskIfKnown = None)
   }
 
-  override def sendEvent[T: Writes](event: T): Unit =
+  override def sendEvent[T: SbtPickler](event: T): Unit =
     eventSink.send(TaskEvent(taskId, event))
 }
 
-private final class BackgroundJobSendEventService(jobId: Long, eventSink: JsonSink[BackgroundJobEvent])
+private final class BackgroundJobSendEventService(jobId: Long, eventSink: MessageSink[BackgroundJobEvent])
   extends SbtPrivateSendEventService {
-  override def sendEvent[T: Writes](event: T): Unit =
+  override def sendEvent[T: SbtPickler](event: T): Unit =
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
-private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent])
+private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent])
   extends AbstractBackgroundJobService {
 
   // synchronized access; store the execution ID of each job ID.
@@ -96,7 +96,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
 
 object UIShims {
 
-  private def uiServicesSettings(taskIdFinder: TaskIdFinder, eventSink: JsonSink[TaskEvent]): Seq[Setting[_]] = Seq(
+  private def uiServicesSettings(taskIdFinder: TaskIdFinder, eventSink: MessageSink[TaskEvent]): Seq[Setting[_]] = Seq(
     UIKeys.interactionService in Global := {
       val state = sbt.Keys.state.value
       new ServerInteractionService(ServerState.extract(state))
@@ -105,12 +105,12 @@ object UIShims {
       new TaskSendEventService(taskIdFinder, eventSink)
     })
 
-  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: JsonSink[protocol.LogEvent], eventSink: JsonSink[BackgroundJobEvent]): Setting[_] =
+  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent]): Setting[_] =
     UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink) }
 
-  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: JsonSink[protocol.LogEvent], taskEventSink: JsonSink[TaskEvent], jobEventSink: JsonSink[BackgroundJobEvent]): Seq[Setting[_]] =
+  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: MessageSink[protocol.LogEvent], taskEventSink: MessageSink[TaskEvent], jobEventSink: MessageSink[BackgroundJobEvent]): Seq[Setting[_]] =
     Seq(
-      UIKeys.registeredFormats in Global <<= (UIKeys.registeredFormats in Global) ?? Nil,
+      UIKeys.registeredSerializers in Global <<= (UIKeys.registeredSerializers in Global) ?? Nil,
       UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
       jobServiceSetting(executionIdFinder, logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

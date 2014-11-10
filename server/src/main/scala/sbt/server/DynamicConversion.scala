@@ -1,7 +1,7 @@
 package sbt
 package server
 
-import play.api.libs.json.{ Format, Reads, Writes }
+import sbt.protocol._
 
 /**
  * An interface representing a mechanism to convert types

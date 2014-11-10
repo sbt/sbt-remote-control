@@ -4,6 +4,7 @@ package sbt.client.impl
 import sbt.impl.ipc
 import sbt.protocol
 import sbt.protocol._
+import sbt.serialization._
 import sbt.client.{ SbtChannel, Subscription }
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import java.net.SocketException
@@ -11,7 +12,6 @@ import scala.util.control.NonFatal
 import java.io.IOException
 import java.io.EOFException
 import java.io.Closeable
-import play.api.libs.json.Writes
 
 /**
  * A concrete implementation of the SbtChannel trait.
@@ -34,22 +34,22 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   // sendJson and wrap the failure or serial in a Future
   // (this is actually a synchronous operation but we want to
   // make it look async so we don't synchronously throw)
-  private def sendJson[T: Writes](message: T, serial: Long): Future[Unit] = {
-    try Future.successful(socket.sendJson(message, serial))
+  private def sendJson[T <: Message](message: T, serial: Long): Future[Unit] = {
+    try Future.successful(socket.sendJson[Message](message, serial))
     catch {
       case NonFatal(e) =>
         Future.failed(e)
     }
   }
 
-  override def sendJson[T: Writes](message: T): Future[Unit] =
+  override def sendJson[T <: Message](message: T): Future[Unit] =
     sendJson(message, socket.serialGetAndIncrement())
 
   // sendJson, providing a registration function which provides a future
   // representing the reply. The registration function would complete its
   // future by finding a reply with the serial passed to the registration
   // function.
-  override def sendJsonWithRegistration[T: Writes, R](message: T)(registration: Long => Future[R]): Future[R] = {
+  override def sendJsonWithRegistration[T <: Message, R](message: T)(registration: Long => Future[R]): Future[R] = {
     import concurrent.ExecutionContext.Implicits.global
     val serial = socket.serialGetAndIncrement()
     val result = registration(serial)
@@ -60,8 +60,8 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
     sendJson(message, serial) flatMap { _ => result }
   }
 
-  override def replyJson[T: Writes](replyTo: Long, message: T): Future[Unit] =
-    try Future.successful(socket.replyJson(replyTo, message))
+  override def replyJson[T <: Message](replyTo: Long, message: T): Future[Unit] =
+    try Future.successful(socket.replyJson[Message](replyTo, message))
     catch {
       case NonFatal(e) => Future.failed(e)
     }
