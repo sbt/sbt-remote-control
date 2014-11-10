@@ -66,7 +66,7 @@ class ProtocolSpec extends Specification {
     roundTripMessage(protocol.ReadLineResponse(Some("line")))
     roundTripMessage(protocol.ReceivedResponse())
     roundTripMessage(protocol.CommandCompletionsRequest("He", 2))
-    // roundTripMessage(protocol.CommandCompletionsResponse(Set(protocol.Completion("llo", "Hello", true))))
+    roundTripMessage(protocol.CommandCompletionsResponse(Vector(protocol.Completion("llo", "Hello", true))))
     roundTripMessage(protocol.ListenToEvents())
     roundTripMessage(protocol.ListenToBuildChange())
     roundTripMessage(protocol.ExecutionRequest("test command string"))

@@ -369,7 +369,7 @@ class RequestProcessor(
       //// of these on project load the UI will get wonky. When the
       //// project loads they can always press tab again or whatever.
       case CommandCompletionsRequest(line, level) =>
-        client.reply(serial, CommandCompletionsResponse(results = Set.empty))
+        client.reply(serial, CommandCompletionsResponse(results = Vector.empty))
 
       case _ =>
         // Defer all other messages....
@@ -488,7 +488,7 @@ class RequestProcessor(
             c.append,
             c.display,
             c.isEmpty)
-        client.reply(serial, CommandCompletionsResponse(completions.get map convertCompletion))
+        client.reply(serial, CommandCompletionsResponse(completions.get.toVector map convertCompletion))
       case _: ConfirmRequest | _: ReadLineRequest =>
         client.reply(serial, ErrorResponse(s"Request ${request.getClass.getName} is intended to go from server to client"))
       case _: RegisterClientRequest =>

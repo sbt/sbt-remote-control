@@ -54,6 +54,9 @@ trait CustomPicklerUnpickler {
       ccUnpickler.unpickle(tag, preader).asInstanceOf[List[A]]
   }
   // Guard pickler
+  implicit def setPickler[A: FastTypeTag]: SPickler[Set[A]] with Unpickler[Set[A]] =
+    sys.error("use Vector[A] or List[A] instead")
+  // Guard pickler
   implicit def somePickler[A: FastTypeTag]: SPickler[Some[A]] with Unpickler[Some[A]] =
     sys.error("use the pickler for Option[A]")
   // Guard pickler

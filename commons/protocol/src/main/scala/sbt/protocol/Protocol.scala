@@ -83,7 +83,7 @@ final case class CommandCompletionsRequest(in: String, level: Int) extends Reque
  *  2) the full token being completed, which is useful for presenting a user with choices to select
  */
 final case class Completion(append: String, display: String, isEmpty: Boolean)
-final case class CommandCompletionsResponse(results: Set[Completion]) extends Response
+final case class CommandCompletionsResponse(results: Vector[Completion]) extends Response
 
 // Request for the server to send us all events that happen on the sbt server.
 final case class ListenToEvents() extends Request

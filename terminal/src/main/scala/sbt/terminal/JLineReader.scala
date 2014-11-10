@@ -40,7 +40,7 @@ final class RemoteJLineReader(
     concurrent.Await.result(client.possibleAutocompletions(line, level).map(convertProtocolCompletions), timeout)
   }
 
-  private def convertProtocolCompletions(cs: Set[Completion]): (Seq[String], Seq[String]) =
+  private def convertProtocolCompletions(cs: Vector[Completion]): (Seq[String], Seq[String]) =
     if (cs.isEmpty) (Nil, "{invalid input}" :: Nil)
     else {
       import sbt.complete.JLineCompletion.appendNonEmpty
