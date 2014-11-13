@@ -46,7 +46,7 @@ object ThrowableDeserializers {
 
 final case class ThrowableDeserializers(readers: Map[Manifest[_], Reads[_]] = Map.empty[Manifest[_], Reads[_]]) {
   import ThrowableDeserializers._
-  def `+`[T](implicit mf: Manifest[T], reader: Reads[T]): ThrowableDeserializers =
+  def add[T](implicit mf: Manifest[T], reader: Reads[T]): ThrowableDeserializers =
     ThrowableDeserializers(this.readers + toPair[T](mf, reader))
 
   def tryAnyReader(in: JsValue): Option[Throwable] =
