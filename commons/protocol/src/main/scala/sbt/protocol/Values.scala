@@ -40,17 +40,14 @@ object BuildValue {
 
 object ThrowableDeserializers {
   val empty: ThrowableDeserializers = ThrowableDeserializers()
-  type TypePair[T] = (Manifest[T], Reads[T])
-  def toPair[T](implicit mf: Manifest[T], reader: Reads[T]): TypePair[T] = (mf, reader)
+  private[protocol]type TypePair[T] = (Manifest[T], Reads[T])
+  private[protocol] def toPair[T](implicit mf: Manifest[T], reader: Reads[T]): TypePair[T] = (mf, reader)
 }
 
 final case class ThrowableDeserializers(readers: Map[Manifest[_], Reads[_]] = Map.empty[Manifest[_], Reads[_]]) {
   import ThrowableDeserializers._
   def `+`[T](implicit mf: Manifest[T], reader: Reads[T]): ThrowableDeserializers =
     ThrowableDeserializers(this.readers + toPair[T](mf, reader))
-
-  def tryReader[T](in: JsValue)(implicit mf: Manifest[T]): Option[T] =
-    readers.get(mf).flatMap(_.reads(in).asOpt.asInstanceOf[Option[T]])
 
   def tryAnyReader(in: JsValue): Option[Throwable] =
     readers.foldLeft[Option[Throwable]](None) {
