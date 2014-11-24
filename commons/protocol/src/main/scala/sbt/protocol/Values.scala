@@ -19,7 +19,7 @@ final case class BuildValue(serialized: SerializedValue, stringValue: String) {
 
 object BuildValue {
   def apply[T](value: T)(implicit pickler: SbtPickler[T]): BuildValue = {
-    BuildValue(serialized = SerializedValue(value), stringValue = value.toString)
+    BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 }
 

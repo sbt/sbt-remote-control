@@ -5,17 +5,12 @@ import scala.util.control.NonFatal
 package object serialization {
   import scala.pickling._
 
-  /* workaround for https://github.com/scala/pickling/issues/227 */
-  implicit def fastTypeTag[T]: FastTypeTag[T] = {
-    FastTypeTag.materializeFastTypeTag[T]
-  }
-
-  // FIXME this is a workaround for requiring a format
-  // to generate a pickler; we delete this once we update
-  // to newer pickling.
-  implicit def formatHack = scala.pickling.json.pickleFormat
+  // pickling macros need FastTypeTag$ to have been initialized;
+  // if things ever compile with this removed, it can be removed.
+  private val __forceInitializeFastTypeTagCompanion = FastTypeTag
 
   // this "newtypes" SPickler so we can require importing sbt.serialization._
+  // and avoid the need to import scala.pickling.SPickler
   // FIXME maybe this should extend AnyVal but it was causing
   // "bridge generated for member method clashes with definition
   // of the member itself" errors
@@ -25,12 +20,12 @@ package object serialization {
    * When requiring a pickler for sbt purposes, require this type instead of
    * scala.pickling.SPickler directly.
    */
-  final class SbtPickler[T] private[serialization] (val underlying: SPickler[T])
+  final class SbtPickler[T] private[serialization] (val underlying: SPickler[T], val tag: FastTypeTag[T])
 
   // this is NOT in a companion object to help mandate import
   // of sbt.serialization._ to get our custom picklers
-  implicit def sbtPicklerFromSPickler[T](implicit spickler: SPickler[T]): SbtPickler[T] =
-    new SbtPickler[T](spickler)
+  implicit def sbtPicklerFromSPickler[T](implicit spickler: SPickler[T], tag: FastTypeTag[T]): SbtPickler[T] =
+    new SbtPickler[T](spickler, tag)
 
   // FIXME maybe this should extend AnyVal but it was causing
   // "bridge generated for member method clashes with definition
@@ -75,8 +70,8 @@ package object serialization {
   }
 
   object SerializedValue {
-    def apply[T](t: T)(implicit pickler: SbtPickler[T]): SerializedValue =
-      LazyValue[T](t, pickler)
+    def apply[V](value: V)(implicit pickler: SbtPickler[V]): SerializedValue =
+      LazyValue[V](value, pickler)
   }
 
   private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
@@ -86,9 +81,9 @@ package object serialization {
   /** A value we have serialized as JSON */
   private[sbt] final case class JsonValue(json: String /* TODO a non-string ast */ ) extends SbtPrivateSerializedValue {
     override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Option[T] = {
+      implicit def ftt3: FastTypeTag[T] = ??? // FIXME remove and fix correctly
       implicit val u = unpicklerForT.underlying
-      // uncomment when formatHack removed above
-      //import scala.pickling.json.pickleFormat // TODO use our custom format
+      import scala.pickling.json.pickleFormat // TODO use our custom format
       try Some(scala.pickling.json.JSONPickle(json).unpickle[T])
       catch {
         // TODO we drop any detailed error message the pickler may have offered.
@@ -102,8 +97,8 @@ package object serialization {
   private[sbt] object JsonValue {
     def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
       implicit val p = picklerForT.underlying
-      // uncomment when formatHack removed above
-      //import scala.pickling.json.pickleFormat // TODO use our custom format
+      implicit val t = picklerForT.tag
+      import scala.pickling.json.pickleFormat // TODO use our custom format
       JsonValue(t.pickle.value)
     }
 
