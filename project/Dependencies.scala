@@ -46,6 +46,27 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
+  val picklingVersion = "0.10.0-SNAPSHOT"
+  val pickling210 = "org.scala-lang.modules" % "scala-pickling_2.10" % picklingVersion
+  val pickling211 = "org.scala-lang.modules" % "scala-pickling_2.11" % picklingVersion
+  val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion
+
+  private val jsonTuples = Seq(
+    ("org.json4s", "json4s-native", "3.2.10"),
+    ("org.spire-math", "jawn-parser", "0.6.0"),
+    ("org.spire-math", "json4s-support", "0.6.0")
+  )
+
+  val jsonDependencies = jsonTuples map {
+    case (group, mod, version) => group %% mod % version
+  }
+  val jsonDependencies210 = jsonTuples map {
+    case (group, mod, version) => group % s"${mod}_2.10" % version
+  }
+  val jsonDependencies211 = jsonTuples map {
+    case (group, mod, version) => group % s"${mod}_2.11" % version
+  }
+
   val akkaTypsafe          = "com.typesafe.akka"
   val akkaActor            = akkaTypsafe %% "akka-actor" % akkaVersion
   val akkaTestkit          = akkaTypsafe %% "akka-testkit" % akkaVersion
