@@ -67,8 +67,7 @@ object TheBuild extends Build {
       libraryDependencies ++= Seq(
         // "org.specs2" %% "specs2" % "2.3.11" % "test"
         junitInterface % "test"
-      ),
-      scalacOptions ++= Seq("-Xmax-classfile-name", "72")
+      )
     )
 
   // ================= Remote Controler main project ==========================
