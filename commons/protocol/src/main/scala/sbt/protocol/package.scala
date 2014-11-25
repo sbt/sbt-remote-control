@@ -112,4 +112,20 @@ package object protocol {
 
   implicit val compileFailedExceptionUnpickler: Unpickler[CompileFailedException] = ???
   implicit val compileFailedExceptionPickler: SPickler[CompileFailedException] = ???
+
+  implicit object serializedValuePickler extends SPickler[SerializedValue] with Unpickler[SerializedValue] {
+    import scala.pickling.{ FastTypeTag, PBuilder, PReader }
+    //val jsonPickler = implicitly[SPickler[JsonValue]]
+    //val jsonUnpickler = implicitly[Unpickler[JsonValue]]
+    def pickle(a: SerializedValue, builder: PBuilder): Unit = ??? /*TODO
+      a match {
+        case spsv: SbtPrivateSerializedValue => jsonPickler.pickle(spsv.toJson, builder)
+      }*/
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = ??? /*TODO {
+      jsonUnpickler.unpickle(tag, preader)
+    }*/
+  }
+
+  implicit val buildValuePickler: SPickler[BuildValue] = SPickler.genPickler[BuildValue]
+  implicit val buildValueUnpickler: Unpickler[BuildValue] = Unpickler.genUnpickler[BuildValue]
 }
