@@ -71,7 +71,7 @@ package object serialization {
 
   object SerializedValue {
     def apply[V](value: V)(implicit pickler: SbtPickler[V]): SerializedValue =
-      LazyValue[V](value, pickler)
+      JsonValue[V](value)(pickler)
   }
 
   private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
@@ -108,7 +108,9 @@ package object serialization {
   /**
    * A value we have the info available to serialize, but we haven't
    *  picked a format yet. Allows us to defer format selection.
+   * TODO this confuses pickling because V is an AnyRef.
    */
+  /*
   private[sbt] final case class LazyValue[V](value: V, pickler: SbtPickler[V]) extends SbtPrivateSerializedValue {
     // this could theoretically avoid the round-trip in some cases, but
     // pretty annoying to figure out what those cases are so forget
@@ -119,6 +121,30 @@ package object serialization {
 
     override def toJson = JsonValue(value)(pickler)
   }
+
+  private[sbt] object LazyValue {
+    // the macros can't generate a LazyValue pickler because it
+    // contains a value of unknown (dynamic) type, but we can
+    // create one by hand here that forces the LazyValue to be
+    // evaluated to a JSON value.
+    private val anyPickler = new SPickler[LazyValue[_]] with Unpickler[LazyValue[_]] {
+      val jsonPickler = implicitly[SPickler[JsonValue]]
+      val jsonUnpickler = implicitly[Unpickler[JsonValue]]
+      override def pickle(lv: LazyValue[_], builder: PBuilder): Unit = {
+        jsonPickler.pickle(lv.toJson, builder)
+      }
+      override def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+        jsonUnpickler.unpickle(tag, preader)
+      }
+    }
+
+    implicit def pickler[T]: SPickler[LazyValue[T]] =
+      anyPickler.asInstanceOf[SPickler[LazyValue[T]]]
+
+    implicit def unpickler[T]: Unpickler[LazyValue[T]] =
+      anyPickler.asInstanceOf[Unpickler[LazyValue[T]]]
+  }
+ */
 
   // hypothetical to show why we have the SerializedValue hierarchy - not currently used
   //private[sbt] final case class BinaryValue(bytes: Array[Byte]) extends SerializedValue

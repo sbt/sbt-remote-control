@@ -11,8 +11,8 @@ import concurrent.ExecutionContext.Implicits.global
 import sbt.protocol
 import java.net.URI
 import scala.concurrent.Future
-import play.api.libs.json._
 import sbt.client.{ SettingKey, TaskKey }
+import sbt.serialization._
 
 object SbtClientProxySpec {
   val sampleManifest = implicitly[Manifest[String]]

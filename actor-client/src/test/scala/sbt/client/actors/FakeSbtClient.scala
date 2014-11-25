@@ -11,11 +11,11 @@ import sbt.protocol
 import scala.concurrent.Future
 import akka.actor._
 import akka.util.Timeout
-import play.api.libs.json._
 import akka.pattern.ask
 import SbtClientProxy.WatchEvent
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.duration._
+import sbt.serialization._
 
 final class FakeSubscription[T](refFactory: ActorRefFactory, body: T => Unit, ex: ExecutionContext)(implicit mf: Manifest[T]) extends Subscription {
   private final val enabled = new AtomicBoolean(true)
@@ -118,8 +118,8 @@ class SubscriptionManager[T]()(implicit mf: Manifest[T]) extends Actor with Acto
 }
 
 object FakeSbtClient {
-  def emptyPossibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[protocol.Completion]] =
-    Future.successful(Set.empty[protocol.Completion])
+  def emptyPossibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[protocol.Completion]] =
+    Future.successful(Vector.empty[protocol.Completion])
 
   def emptyLookupScopedKey(name: String): Future[Seq[protocol.ScopedKey]] =
     Future.successful(Seq.empty[protocol.ScopedKey])
@@ -140,7 +140,7 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   val configName: String,
   val humanReadableName: String,
   val channel: SbtChannel = null,
-  autocompletions: (String, Int) => Future[Set[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
+  autocompletions: (String, Int) => Future[Vector[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
   scopedKeyLookup: String => Future[Seq[protocol.ScopedKey]] = FakeSbtClient.emptyLookupScopedKey,
   _analyzeExecution: String => Future[protocol.ExecutionAnalysis] = FakeSbtClient.emptyAnalyzeExecution,
   requestExecutionCommand: (String, Option[(Interaction, ExecutionContext)]) => Future[Long] = FakeSbtClient.emptyRequestExecutionCommand,
@@ -165,7 +165,7 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     watchBuild(listener)(ex)
 
-  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Set[protocol.Completion]] =
+  def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[protocol.Completion]] =
     autocompletions(partialCommand, detailLevel)
 
   def lookupScopedKey(name: String): Future[Seq[protocol.ScopedKey]] = scopedKeyLookup(name)
@@ -208,23 +208,23 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
     rawWatch(key)(listener)(ex)
 
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key) {
       case (k, v) =>
         listener(k, v.result[T])
     }
 
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
-    watch[T](key)(listener)(reads, ex)
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+    watch[T](key)(listener)(unpickle, ex)
 
-  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key) {
       case (k, v) =>
         listener(k, v.result[T])
     }
 
-  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
-    watch[T](key)(listener)(reads, ex)
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+    watch[T](key)(listener)(unpickle, ex)
 
   def watch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
     ??? // TODO stubbed until someone actually wants to use it
