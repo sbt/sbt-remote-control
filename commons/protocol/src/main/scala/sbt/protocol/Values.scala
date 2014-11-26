@@ -49,7 +49,7 @@ sealed trait TaskResult {
   def isSuccess: Boolean
 
   final def result[A](implicit unpickleResult: SbtUnpickler[A]): Try[A] =
-    resultWithCustomThrowable[A, Throwable](unpickleResult, sbtUnpicklerFromUnpickler(throwableUnpickler))
+    resultWithCustomThrowable[A, Throwable](unpickleResult, implicitly[SbtUnpickler[Throwable]])
   def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A]
   def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A]
 }

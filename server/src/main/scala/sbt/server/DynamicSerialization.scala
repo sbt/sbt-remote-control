@@ -108,9 +108,6 @@ private object ConcreteDynamicSerialization {
     }
 
   private def defaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[SbtSerializer[T]]) orElse {
-    implicit val throwablePicklerI = throwablePickler
-    implicit val throwableUnpicklerI = throwableUnpickler
-
     (klass match {
       case Classes.StringClass => Some(implicitly[SbtSerializer[String]])
       case Classes.FileClass => Some(implicitly[SbtSerializer[java.io.File]])
@@ -175,50 +172,51 @@ private object NonTrivialSerializers {
   /* FIXME This appears to lock up compilation forever, so somehow triggers infinite
    * macro loop or something?
    */
-  def registerSerializers(base: DynamicSerialization): DynamicSerialization = ??? /* {
+  def registerSerializers(base: DynamicSerialization): DynamicSerialization = {
     // TODO I think we only lookup by exact type, so registering an abstract type
     // here such as Type or xsbti.Problem is not useful. I think.
     // TODO we are registering some types here that aren't likely or conceivable
     // task results; we only need to register types T that appear in taskKey[T].
     // We don't have to register all the types of the fields in result types.
-    val serializers = Seq(
+    val serializers = Seq[RegisteredSbtSerializer](
       toRegisteredSbtSerializer[ByteArray],
       toRegisteredSbtSerializer[ProjectReference],
       toRegisteredSbtSerializer[AttributeKey],
       toRegisteredSbtSerializer[SbtScope],
       toRegisteredSbtSerializer[ScopedKey],
       toRegisteredSbtSerializer[MinimalBuildStructure],
-      toRegisteredSbtSerializer[Analysis],
-      toRegisteredSbtSerializer[Stamps],
-      toRegisteredSbtSerializer[SourceInfo],
-      toRegisteredSbtSerializer[SourceInfos],
-      toRegisteredSbtSerializer[xsbti.Problem],
-      toRegisteredSbtSerializer[Problem, xsbti.Problem],
-      toRegisteredSbtSerializer[APIs],
-      toRegisteredSbtSerializer[ThePackage],
-      toRegisteredSbtSerializer[TypeParameter],
-      toRegisteredSbtSerializer[Path],
-      toRegisteredSbtSerializer[Modifiers],
-      toRegisteredSbtSerializer[AnnotationArgument],
-      toRegisteredSbtSerializer[Annotation],
-      toRegisteredSbtSerializer[Definition],
-      toRegisteredSbtSerializer[SourceAPI],
-      toRegisteredSbtSerializer[Source],
-      toRegisteredSbtSerializer[RelationsSource],
-      toRegisteredSbtSerializer[Relations],
-      toRegisteredSbtSerializer[OutputSetting],
-      toRegisteredSbtSerializer[Compilation],
-      toRegisteredSbtSerializer[Compilations],
-      toRegisteredSbtSerializer[Stamp],
-      toRegisteredSbtSerializer[Qualifier],
-      toRegisteredSbtSerializer[Access],
-      toRegisteredSbtSerializer[PathComponent],
-      toRegisteredSbtSerializer[Type],
-      toRegisteredSbtSerializer[SimpleType, Type],
+      // TODO
+      // toRegisteredSbtSerializer[Analysis],
+      // toRegisteredSbtSerializer[Stamps],
+      // toRegisteredSbtSerializer[SourceInfo],
+      // toRegisteredSbtSerializer[SourceInfos],
+      // toRegisteredSbtSerializer[xsbti.Problem], */
+      // toRegisteredSbtSerializer[Problem, xsbti.Problem],
+      // toRegisteredSbtSerializer[APIs],
+      // toRegisteredSbtSerializer[ThePackage],
+      // toRegisteredSbtSerializer[TypeParameter],
+      // toRegisteredSbtSerializer[Path],
+      // toRegisteredSbtSerializer[Modifiers],
+      // toRegisteredSbtSerializer[AnnotationArgument],
+      // toRegisteredSbtSerializer[Annotation],
+      // toRegisteredSbtSerializer[Definition],
+      // toRegisteredSbtSerializer[SourceAPI],
+      // toRegisteredSbtSerializer[Source],
+      // toRegisteredSbtSerializer[RelationsSource],
+      // toRegisteredSbtSerializer[Relations],
+      // toRegisteredSbtSerializer[OutputSetting],
+      // toRegisteredSbtSerializer[Compilation],
+      // toRegisteredSbtSerializer[Compilations],
+      // toRegisteredSbtSerializer[Stamp],
+      // toRegisteredSbtSerializer[Qualifier],
+      // toRegisteredSbtSerializer[Access],
+      // toRegisteredSbtSerializer[PathComponent],
+      // toRegisteredSbtSerializer[Type],
+      // toRegisteredSbtSerializer[SimpleType, Type],
       toRegisteredSbtSerializer[CompileFailedException],
       toRegisteredSbtSerializer[ModuleId])
     serializers.foldLeft(base) { (sofar, next) =>
-      sofar.register(next.format)(next.manifest)
+      sofar.register(next.serializer)(next.manifest)
     }
-  } */
+  }
 }

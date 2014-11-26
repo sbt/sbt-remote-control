@@ -5,74 +5,20 @@ import ScalaShims.ManifestFactory
 
 import sbt.serialization._
 import scala.pickling.{ SPickler, Unpickler }
-
-/**
- *  Represents the type information we can serialize over a network
- *  from sbt.  We try to preserve, as much as possible, the items inside
- *  a scala.reflect.Manfiest.
- */
-final case class TypeInfo(erasureClass: String, typeArguments: Seq[TypeInfo] = Seq.empty) {
-  override def toString = erasureClass + (
-    if (typeArguments.isEmpty) ""
-    else typeArguments.mkString("[", ",", "]"))
-
-  def toManifest(cl: ClassLoader = TypeInfo.getClass.getClassLoader): Option[Manifest[_]] = {
-    val args = typeArguments.map(_.toManifest(cl))
-    if (args.forall(_.isDefined)) {
-      val realArgs = args.map(_.get)
-      // Now we look at our class....
-      erasureClass match {
-        // TODO - Special casing classes...
-        case "boolean" => Some(ManifestFactory.Boolean)
-        case "short" => Some(ManifestFactory.Short)
-        case "int" => Some(ManifestFactory.Int)
-        case "long" => Some(ManifestFactory.Long)
-        case "float" => Some(ManifestFactory.Float)
-        case "double" => Some(ManifestFactory.Double)
-        case "Unit" => Some(ManifestFactory.Unit)
-        case default => try {
-          val ourClass = cl.loadClass(erasureClass)
-          val mf =
-            if (realArgs.isEmpty) {
-              ManifestFactory.classType(ourClass)
-            } else {
-              ManifestFactory.classType(ourClass, realArgs.head, realArgs.tail: _*)
-            }
-          Some(mf.asInstanceOf[Manifest[_]])
-        } catch {
-          case _: ClassNotFoundException =>
-            None
-        }
-      }
-    } else None
-  }
-}
-object TypeInfo {
-  def fromManifest[T](mf: Manifest[T]): TypeInfo = {
-    TypeInfo(
-      mf.erasure.getName,
-      mf.typeArguments map (x => fromManifest(x)))
-  }
-
-  def fromClass[T](klass: Class[T]): TypeInfo = {
-    TypeInfo(klass.getName, Nil)
-  }
-
-  implicit val unpickler: Unpickler[TypeInfo] = ???
-  implicit val pickler: SPickler[TypeInfo] = ???
-}
+import scala.pickling.internal.AppliedType
 
 /**
  * This represents a "key" in sbt.
  *  Keys have names and "types" associated.
+ * TODO FIXME it is bad to have an internal type from pickling here
  */
-final case class AttributeKey(name: String, manifest: TypeInfo) {
+final case class AttributeKey(name: String, manifest: AppliedType) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
-  require(implicitly[Unpickler[TypeInfo]] ne null)
-  implicit val unpickler: Unpickler[AttributeKey] = ???
-  implicit val pickler: SPickler[AttributeKey] = ???
+  require(implicitly[Unpickler[AppliedType]] ne null)
+  implicit val unpickler: Unpickler[AttributeKey] = Unpickler.genUnpickler[AttributeKey]
+  implicit val pickler: SPickler[AttributeKey] = SPickler.genPickler[AttributeKey]
 }
 
 /**
@@ -82,9 +28,10 @@ object AttributeKey {
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
   require(implicitly[Unpickler[java.net.URI]] ne null)
-  implicit val unpickler: Unpickler[ProjectReference] = ???
-  implicit val pickler: SPickler[ProjectReference] = ???
+  implicit val unpickler: Unpickler[ProjectReference] = Unpickler.genUnpickler[ProjectReference]
+  implicit val pickler: SPickler[ProjectReference] = SPickler.genPickler[ProjectReference]
 }
+
 /**
  * Represents the scope a particular key can have in sbt.
  *
@@ -109,8 +56,8 @@ object SbtScope {
   require(implicitly[Unpickler[ProjectReference]] ne null)
   require(implicitly[Unpickler[URI]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
-  implicit val unpickler: Unpickler[SbtScope] = ???
-  implicit val pickler: SPickler[SbtScope] = ???
+  implicit val unpickler: Unpickler[SbtScope] = Unpickler.genUnpickler[SbtScope]
+  implicit val pickler: SPickler[SbtScope] = SPickler.genPickler[SbtScope]
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -125,10 +72,10 @@ object ScopedKey {
   implicit val pickler: SPickler[ScopedKey] = ???
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
-final case class KeyList(keys: Seq[ScopedKey])
+final case class KeyList(keys: Vector[ScopedKey])
 object KeyList {
-  implicit val unpickler: Unpickler[KeyList] = ???
-  implicit val pickler: SPickler[KeyList] = ???
+  implicit val unpickler: Unpickler[KeyList] = Unpickler.genUnpickler[KeyList]
+  implicit val pickler: SPickler[KeyList] = SPickler.genPickler[KeyList]
 }
 
 /** Core information returned about projects for build clients. */
@@ -137,8 +84,8 @@ final case class MinimalProjectStructure(
   // Class names of plugins used by this project.
   plugins: Seq[String])
 object MinimalProjectStructure {
-  implicit val unpickler: Unpickler[MinimalProjectStructure] = ???
-  implicit val pickler: SPickler[MinimalProjectStructure] = ???
+  implicit val unpickler: Unpickler[MinimalProjectStructure] = Unpickler.genUnpickler[MinimalProjectStructure]
+  implicit val pickler: SPickler[MinimalProjectStructure] = SPickler.genPickler[MinimalProjectStructure]
 }
 
 final case class MinimalBuildStructure(
@@ -147,6 +94,6 @@ final case class MinimalBuildStructure(
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
-  implicit val unpickler: Unpickler[MinimalBuildStructure] = ???
-  implicit val pickler: SPickler[MinimalBuildStructure] = ???
+  implicit val unpickler: Unpickler[MinimalBuildStructure] = Unpickler.genUnpickler[MinimalBuildStructure]
+  implicit val pickler: SPickler[MinimalBuildStructure] = SPickler.genPickler[MinimalBuildStructure]
 }

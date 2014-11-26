@@ -109,10 +109,6 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     // do a notification right away may simply be a bad idea?
     sendRequestWithConverter(SendSyntheticValueChanged(key)) onFailure {
       case e: Throwable =>
-        // if we fail to get the value (due to e.g. no such key) we want
-        // to synthesize a notification so there's a guarantee that we
-        // get SOME watch notification always.
-        implicit val throwablePicklerI = throwablePickler
         valueEventManager(key).sendEvent(ValueChanged(key, TaskFailure(BuildValue(e))))
     }
   }

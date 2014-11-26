@@ -18,6 +18,7 @@ import org.scalacheck.Prop.forAll
 import sbt.protocol
 import sbt.protocol._
 import sbt.serialization._
+import scala.pickling.internal.AppliedType
 
 object ProtocolGenerators {
   import scala.annotation.tailrec
@@ -388,7 +389,7 @@ class ProtocolTest {
 
   @Test
   def testRawStructure(): Unit = {
-    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val scope = protocol.SbtScope(project = Some(
       protocol.ProjectReference(build, "test")))
@@ -503,7 +504,7 @@ class ProtocolTest {
     def roundtrip[T: Manifest](t: T): Unit = roundtripper.roundtrip(t)
     def roundtripPropTest[T: Manifest](t: T): Boolean = roundtripper.roundtripPropTest(t)
 
-    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val projectRef = protocol.ProjectReference(build, "test")
     val scope = protocol.SbtScope(project = Some(projectRef))
@@ -623,7 +624,7 @@ class ProtocolTest {
         else sys.error(s"one-way trip of $a.\nexpected: $a\nactual: $b")) { (a, b) =>
         assertEquals("one-way trip of message " + a.getMessage, a.getMessage, b.getMessage)
       }
-    val key = protocol.AttributeKey("name", protocol.TypeInfo("java.lang.String"))
+    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val projectRef = protocol.ProjectReference(build, "test")
     val scope = protocol.SbtScope(project = Some(projectRef))
