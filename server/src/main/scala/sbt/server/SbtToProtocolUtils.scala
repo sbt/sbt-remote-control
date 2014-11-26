@@ -5,12 +5,13 @@ import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
 import scala.util.control.Exception._
+import scala.pickling.internal.AppliedType
 
 /** Helpers to map from sbt types into serializable json types. */
 object SbtToProtocolUtils {
 
-  def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
-    protocol.TypeInfo.fromManifest(mf)
+  def manifestToProtocol[T](mf: Manifest[T]): AppliedType =
+    AppliedType.parse(mf.runtimeClass.getName)._1
 
   def keyToProtocol[T](key: sbt.AttributeKey[T]): protocol.AttributeKey =
     protocol.AttributeKey(

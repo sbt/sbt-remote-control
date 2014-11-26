@@ -9,13 +9,14 @@ import sbt.protocol._
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import scala.pickling.internal.AppliedType
 
 class EventTrackerTest {
 
   @Test
   def testEventTracker(): Unit = {
-    val key1 = AttributeKey("name", TypeInfo("java.lang.String"))
-    val key2 = AttributeKey("foo", TypeInfo("java.lang.Integer"))
+    val key1 = AttributeKey("name", AppliedType("java.lang.String", Nil))
+    val key2 = AttributeKey("foo", AppliedType("java.lang.Integer", Nil))
     val build = new java.net.URI("file:///test/project")
     val scope1 = SbtScope(project = Some(
       ProjectReference(build, "test1")))
