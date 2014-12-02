@@ -14,15 +14,15 @@ import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{Try, Success, Failure}
 
 class ProtocolTest {
-  // TODO // val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
+  val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")
   val projectRef = protocol.ProjectReference(build, "test")
   val scope = protocol.SbtScope(project = Some(projectRef))
-  // TODO // val scopedKey = protocol.ScopedKey(key, scope)
+  val scopedKey = protocol.ScopedKey(key, scope)
   val buildStructure = protocol.MinimalBuildStructure(
     builds = Vector(build),
     projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
-  // TODO //val nopos = protocol.Position(None, None, None, "", None, None, None)
+  val nopos = protocol.Position(None, None, None, "", None, None, None)
   val severity = Error
 
   @Test
@@ -48,16 +48,13 @@ class ProtocolTest {
   @Test
   def testEvents: Unit = {
     // events
-    /* TODO
     roundTripMessage(protocol.TaskStarted(47, 1, Some(scopedKey)))
-    roundTripMessage(protocol.TaskFinished(48, 1, Some(scopedKey), true))
+    roundTripMessage(protocol.TaskFinished(48, 1, Some(scopedKey), true, Some("this is a message")))
     roundTripMessage(protocol.TaskStarted(47, 1, None))
-    roundTripMessage(protocol.TaskFinished(48, 1, None, true))
-    */
+    roundTripMessage(protocol.TaskFinished(48, 1, None, true, None))
     roundTripMessage(protocol.BuildStructureChanged(buildStructure))
   }
 
-/*TODO
   @Test
   def testValueChanged: Unit = {
     val taskSuccess = protocol.TaskSuccess(protocol.BuildValue("HI"))
@@ -83,7 +80,6 @@ class ProtocolTest {
     }
     roundTripMessage(v2)
   }
-*/
 
   @Test
   def testLogEvents: Unit = {
@@ -97,7 +93,6 @@ class ProtocolTest {
     roundTripMessage(protocol.TaskLogEvent(7, protocol.LogStdOut("TEST2")))
   }
 
-/*TODO
   @Test
   def testTaskEvents: Unit = {
     import protocol.CompilationFailure
@@ -127,5 +122,4 @@ class ProtocolTest {
     }
     roundTripMessage(bgje)
   }
-  */
 }

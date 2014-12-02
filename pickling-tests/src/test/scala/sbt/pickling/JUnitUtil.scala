@@ -6,7 +6,13 @@ import sbt.protocol.Message
 import scala.pickling._, sbt.pickling.json._
 
 object JUnitUtil {
-  def roundTripMessage[A <: Message: FastTypeTag: SPickler: Unpickler](a: A): Unit = {
+  private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body
+  catch {
+    case e: Throwable =>
+      throw new AssertionError(s"Crash round-tripping ${t.getClass.getName}: ${e.getMessage}", e)
+  }
+
+  def roundTripMessage[A <: Message: FastTypeTag: SPickler: Unpickler](a: A): Unit = addWhatWeWerePickling(a) {
     import scala.pickling._, sbt.pickling.json._
     val json: String = a.pickle.value
     System.err.println(s"json: $json")
@@ -19,7 +25,7 @@ object JUnitUtil {
     ) { (a, b) =>
       assertEquals(a.getMessage, b.getMessage)
     }
-  def roundTripBase[A: FastTypeTag: SPickler: Unpickler](a: A)(f: (A, A) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
+  def roundTripBase[A: FastTypeTag: SPickler: Unpickler](a: A)(f: (A, A) => Unit)(e: (Throwable, Throwable) => Unit): Unit = addWhatWeWerePickling(a) {
     import scala.pickling._, sbt.pickling.json._
     val json = a.pickle.value
     System.err.println(s"json: $json")

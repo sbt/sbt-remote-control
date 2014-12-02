@@ -8,8 +8,9 @@ import scala.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
-/* TODO
-import protocol.{ SerializedValue, TaskEventUnapply }
+
+import sbt.serialization._
+import protocol.TaskEventUnapply
 
 class SerializedValuePicklerTest {
   @Test
@@ -32,6 +33,8 @@ class SerializedValuePicklerTest {
 }
 
 final case class PlayStartedEvent(port: Int)
-object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent]
+object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
+  implicit val pickler = SPickler.genPickler[PlayStartedEvent]
+  implicit val unpickler = Unpickler.genUnpickler[PlayStartedEvent]
+}
 object PlayStartedEventBg extends protocol.BackgroundJobEventUnapply[PlayStartedEvent]
-*/

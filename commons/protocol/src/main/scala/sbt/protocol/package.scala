@@ -5,14 +5,21 @@ import sbt.protocol.TestOutcome
 
 package object protocol {
   import sbt.serialization._
+  import sbt.pickling.CanToString
   import scala.pickling.{ SPickler, Unpickler }
 
-  implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
+  //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
+  //implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???
 
-  implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???
+  private implicit val severityCanToString: CanToString[xsbti.Severity] = CanToString(
+    _.toString, {
+      case "Info" => xsbti.Severity.Info
+      case "Warn" => xsbti.Severity.Warn
+      case "Error" => xsbti.Severity.Error
+    })
 
-  implicit val severityPickler: SPickler[xsbti.Severity] = ???
-  implicit val severityUnpickler: Unpickler[xsbti.Severity] = ???
+  implicit val severityPickler: SPickler[xsbti.Severity] with Unpickler[xsbti.Severity] =
+    canToStringPickler[xsbti.Severity]
 
   private def convert[T](o: Option[T]): xsbti.Maybe[T] =
     o match {
@@ -23,32 +30,6 @@ package object protocol {
   private def convertToOption[T](o: xsbti.Maybe[T]): Option[T] =
     if (o.isDefined()) Some(o.get())
     else None
-
-  private final case class PositionDeserialized(lineContent: String, l: Option[Int], o: Option[Int], p: Option[Int],
-    ps: Option[String], sp: Option[String]) extends xsbti.Position {
-    override def line = convert(l.map(Integer.valueOf))
-    override def offset = convert(o.map(Integer.valueOf))
-    override def pointer = convert(p.map(Integer.valueOf))
-    override def pointerSpace = convert(ps)
-    override def sourcePath = convert(sp)
-    override def sourceFile = convert(sp.map(new java.io.File(_)))
-    override def equals(o: Any): Boolean = o match {
-      case pos: xsbti.Position => protocol.StructurallyEqual.equals(this, pos)
-      case _ => false
-    }
-  }
-
-  def fromXsbtiPosition(in: xsbti.Position): xsbti.Position =
-    PositionDeserialized(in.lineContent(),
-      convertToOption(in.line()).map(_.intValue),
-      convertToOption(in.offset()).map(_.intValue),
-      convertToOption(in.pointer()).map(_.intValue),
-      convertToOption(in.pointerSpace()),
-      convertToOption(in.sourcePath()))
-
-  implicit val positionUnpickler: Unpickler[xsbti.Position] = ???
-
-  implicit val positionPickler: SPickler[xsbti.Position] = ???
 
   implicit val testOutcomeUnpickler: Unpickler[TestOutcome] = ???
 
@@ -79,7 +60,7 @@ package object protocol {
 
   implicit def relationUnpickler[A, B](implicit forwardUnpickler: Unpickler[Map[A, Set[B]]], reverseUnpickler: Unpickler[Map[B, Set[A]]]): Unpickler[Relation[A, B]] = ??? /* Unpickler[Relation[A, B]] { json =>
     ((__ \ "forwardMap").read[Map[A, Set[B]]] and
-      (__ \ "reverseMap").read[Map[B, Set[A]]]).apply(Relation(_, _)).reads(json) 
+      (__ \ "reverseMap").read[Map[B, Set[A]]]).apply(Relation(_, _)).reads(json)
   }*/
   implicit def relationSPickler[A, B](implicit forwardPickler: SPickler[Map[A, Set[B]]], reversePickler: SPickler[Map[B, Set[A]]]): SPickler[Relation[A, B]] = ??? /* SPickler[Relation[A, B]] { in =>
     Json.obj("forwardMap" -> in.forwardMap, "reverseMap" -> in.reverseMap)

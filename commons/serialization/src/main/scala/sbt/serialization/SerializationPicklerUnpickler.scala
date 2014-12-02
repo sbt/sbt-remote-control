@@ -8,6 +8,9 @@ private object FakeTags {
 }
 
 trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler {
+  // TODO move this to sbt.serialization once it works to do so
+  private implicit def staticOnly = scala.pickling.static.StaticOnly
+
   private object jvaluePickler extends SPickler[JValue] with Unpickler[JValue] {
     val stringPickler = implicitly[SPickler[String]]
     val stringUnpickler = implicitly[Unpickler[String]]

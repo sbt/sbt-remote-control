@@ -20,8 +20,8 @@ private[server] object SbtDiscovery {
         (build, unit) <- extracted.structure.units
         resolved <- unit.defined.values
         ref = projectRefToProtocol(ProjectRef(build, resolved.id))
-        plugins = resolved.autoPlugins.map(getRootObjectName)
-      } yield protocol.MinimalProjectStructure(ref, plugins)).toSeq
+        plugins = resolved.autoPlugins.map(getRootObjectName).toVector
+      } yield protocol.MinimalProjectStructure(ref, plugins)).toVector
 
     val builds = projects.map(_.id.build).distinct
     protocol.MinimalBuildStructure(

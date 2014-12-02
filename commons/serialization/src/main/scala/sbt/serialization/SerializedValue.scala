@@ -57,9 +57,9 @@ private[sbt] object JsonValue {
     jawn.support.json4s.Parser.parseFromString(s)
 
   def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
-    implicit val p = picklerForT.underlying
-    implicit val t = picklerForT.tag
-    import sbt.pickling.json.pickleFormat // TODO use our custom format
+    implicit val pickler1: SPickler[T] = picklerForT.underlying
+    implicit val tag1: FastTypeTag[T] = picklerForT.tag
+    import sbt.pickling.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
     new JsonValue(parseJson(t.pickle.value).get)
   }

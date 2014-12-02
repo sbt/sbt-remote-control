@@ -11,6 +11,9 @@ import scala.pickling.internal.AppliedType
 // TODO remove PickleFormat parameters and change defs to objects and vals
 trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
 
+  // TODO move this to sbt.serialization once it works to do so
+  private implicit def staticOnly = scala.pickling.static.StaticOnly
+
   private final case class StackTraceElementDeserialized(declaringClass: String,
     methodName: String,
     fileName: String,
@@ -71,6 +74,9 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
 }
 
 trait LowPriorityCustomPicklerUnpickler {
+  // TODO move this to sbt.serialization once it works to do so
+  private implicit def staticOnly = scala.pickling.static.StaticOnly
+
   implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
     val stringPickler = implicitly[SPickler[String]]
     val stringUnpickler = implicitly[Unpickler[String]]
@@ -94,6 +100,8 @@ trait LowPriorityCustomPicklerUnpickler {
     canToStringPickler[AppliedType](implicitly[FastTypeTag[AppliedType]], implicitly[CanToString[AppliedType]])
   implicit val filePickler: SPickler[File] with Unpickler[File] =
     canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
+  implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
+    canToStringPickler[URI](implicitly[FastTypeTag[URI]], implicitly[CanToString[URI]])
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], format: PickleFormat, cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
     mkSeqSetPickler[T, Vector]
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
