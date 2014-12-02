@@ -309,10 +309,18 @@ case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
 
+final case class Position(sourcePath: Option[String],
+  sourceFile: Option[File],
+  line: Option[Int],
+  lineContent: String,
+  offset: Option[Int],
+  pointer: Option[Int],
+  pointerSpace: Option[String])
+
 /** A compilation issue from the compiler. */
 final case class CompilationFailure(
   project: ProjectReference,
-  position: xsbti.Position,
+  position: Position,
   severity: xsbti.Severity,
   message: String)
 
@@ -355,8 +363,8 @@ object Stamps {
     products = Map.empty[File, Stamp],
     classNames = Map.empty[File, String])
 }
-final case class SourceInfo(reportedProblems: Seq[xsbti.Problem],
-  unreportedProblems: Seq[xsbti.Problem])
+final case class SourceInfo(reportedProblems: Seq[Problem],
+  unreportedProblems: Seq[Problem])
 final case class SourceInfos(allInfos: Map[File, SourceInfo])
 object SourceInfos {
   val empty: SourceInfos = SourceInfos(allInfos = Map.empty[File, SourceInfo])
@@ -364,14 +372,8 @@ object SourceInfos {
 final case class Problem(category: String,
   severity: xsbti.Severity,
   message: String,
-  position: xsbti.Position) extends xsbti.Problem
-object Problem {
-  def fromXsbtiProblem(in: xsbti.Problem): Problem =
-    Problem(category = in.category,
-      severity = in.severity,
-      message = in.message,
-      position = in.position)
-}
+  position: Position)
+
 final case class APIs(allExternals: Set[String],
   allInternalSources: Set[File],
   internal: Map[File, Source],
@@ -479,7 +481,7 @@ object Compilations {
   val empty: Compilations = Compilations(allCompilations = Seq.empty[Compilation])
 }
 
-final class CompileFailedException(message: String, cause: Throwable, val problems: Seq[xsbti.Problem]) extends Exception(message, cause)
+final class CompileFailedException(message: String, cause: Throwable, val problems: Vector[Problem]) extends Exception(message, cause)
 
 sealed trait ByteArray extends immutable.Seq[Byte]
 object ByteArray {

@@ -138,38 +138,29 @@ object ProtocolGenerators {
     case None => xsbti.Maybe.nothing()
   }
 
-  private case class ConcretePosition(
-    line: xsbti.Maybe[Integer],
-    lineContent: String,
-    offset: xsbti.Maybe[Integer],
-    pointer: xsbti.Maybe[Integer],
-    pointerSpace: xsbti.Maybe[String],
-    sourcePath: xsbti.Maybe[String],
-    sourceFile: xsbti.Maybe[java.io.File]) extends xsbti.Position
-
   private def toInteger(in: Int): Integer = new java.lang.Integer(in)
 
-  implicit val arbitraryPosition: Arbitrary[xsbti.Position] = Arbitrary {
+  implicit val arbitraryPosition: Arbitrary[Position] = Arbitrary {
     for {
-      line <- genMaybe(arbitrary[Int].map(toInteger))
+      line <- Gen.option(arbitrary[Int])
       lineContent <- Gen.alphaStr
-      offset <- genMaybe(arbitrary[Int].map(toInteger))
-      pointer <- genMaybe(arbitrary[Int].map(toInteger))
-      pointerSpace <- genMaybe(Gen.alphaStr)
-      sourcePath <- genMaybe(Gen.alphaStr)
-      sourceFile <- genMaybe(arbitraryFile.arbitrary)
-    } yield protocol.fromXsbtiPosition(ConcretePosition(line,
+      offset <- Gen.option(arbitrary[Int])
+      pointer <- Gen.option(arbitrary[Int])
+      pointerSpace <- Gen.option(Gen.alphaStr)
+      sourcePath <- Gen.option(Gen.alphaStr)
+      sourceFile <- Gen.option(arbitraryFile.arbitrary)
+    } yield Position(sourcePath,
+      sourceFile,
+      line,
       lineContent,
       offset,
       pointer,
-      pointerSpace,
-      sourcePath,
-      sourceFile))
+      pointerSpace)
   }
 
   implicit val arbitrarySeverity: Arbitrary[xsbti.Severity] = Arbitrary(Gen.oneOf(xsbti.Severity.values.toSeq))
 
-  implicit val arbitraryProblem: Arbitrary[xsbti.Problem] = Arbitrary {
+  implicit val arbitraryProblem: Arbitrary[Problem] = Arbitrary {
     for {
       category <- Gen.alphaStr
       severity <- arbitrarySeverity.arbitrary
@@ -375,7 +366,8 @@ object ProtocolGenerators {
 
 final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
-  // TODO put explicit pickler/unpickler here
+  implicit val pickler = SPickler.genPickler[PlayStartedEvent]
+  implicit val unpickler = Unpickler.genUnpickler[PlayStartedEvent]
 }
 
 class ProtocolTest {
@@ -395,8 +387,8 @@ class ProtocolTest {
       protocol.ProjectReference(build, "test")))
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
-      builds = Seq(build),
-      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+      builds = Vector(build),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
 
     val specifics = Seq(
       // Requests
@@ -482,7 +474,7 @@ class ProtocolTest {
     def roundtripPropTest[T: Manifest](t: T): Boolean
   }
 
-  object FakePosition extends xsbti.Position {
+  object FakeXsbtiPosition extends xsbti.Position {
     override def line = xsbti.Maybe.just(10)
     override def offset = xsbti.Maybe.just(11)
     override def pointer = xsbti.Maybe.just(12)
@@ -498,6 +490,8 @@ class ProtocolTest {
     }
   }
 
+  val FakePosition = SbtToProtocolUtils.positionToProtocol(FakeXsbtiPosition)
+
   private def roundtripTest(roundtripper: Roundtripper): Unit = {
     val ds = DynamicSerialization.defaultSerializations
 
@@ -510,8 +504,8 @@ class ProtocolTest {
     val scope = protocol.SbtScope(project = Some(projectRef))
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
-      builds = Seq(build),
-      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+      builds = Vector(build),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -552,7 +546,7 @@ class ProtocolTest {
       property("protocol.Stamps") = forAll { x: protocol.Stamps => roundtripPropTest(x) }
       property("protocol.SourceInfo") = forAll { x: protocol.SourceInfo => roundtripPropTest(x) }
       property("protocol.SourceInfos") = forAll { x: protocol.SourceInfos => roundtripPropTest(x) }
-      property("xsbti.Problem") = forAll { x: xsbti.Problem => roundtripPropTest(x) }
+      property("Problem") = forAll { x: Problem => roundtripPropTest(x) }
       property("protocol.APIs") = forAll { x: protocol.APIs => roundtripPropTest(x) }
       property("protocol.ThePackage") = forAll { x: protocol.ThePackage => roundtripPropTest(x) }
       property("protocol.TypeParameter") = forAll { x: protocol.TypeParameter => roundtripPropTest(x) }
@@ -584,7 +578,7 @@ class ProtocolTest {
     roundtrip(new Exception(null, null))
     roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
     roundtrip(new protocol.CompileFailedException("the compile failed", null,
-      Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
+      Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
   }
 
   private sealed trait TripDirection
@@ -630,8 +624,8 @@ class ProtocolTest {
     val scope = protocol.SbtScope(project = Some(projectRef))
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
-      builds = Seq(build),
-      projects = Seq(protocol.MinimalProjectStructure(scope.project.get, Seq("com.foo.Plugin"))))
+      builds = Vector(build),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
 
     // simple data type
     oneWayTrip("Foo") { _ / "simple" / "string.json" }
@@ -668,7 +662,7 @@ class ProtocolTest {
     oneWayTrip(new Exception(null, null)) { _ / "complex" / "empty_exception.json" }
     oneWayTrip(new Exception("fail fail fail", new RuntimeException("some cause"))) { _ / "complex" / "exception.json" }
     oneWayTrip(new protocol.CompileFailedException("the compile failed", null,
-      Seq(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
+      Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
     oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }

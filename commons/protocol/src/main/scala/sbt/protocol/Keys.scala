@@ -82,15 +82,15 @@ object KeyList {
 final case class MinimalProjectStructure(
   id: ProjectReference,
   // Class names of plugins used by this project.
-  plugins: Seq[String])
+  plugins: Vector[String])
 object MinimalProjectStructure {
   implicit val unpickler: Unpickler[MinimalProjectStructure] = Unpickler.genUnpickler[MinimalProjectStructure]
   implicit val pickler: SPickler[MinimalProjectStructure] = SPickler.genPickler[MinimalProjectStructure]
 }
 
 final case class MinimalBuildStructure(
-  builds: Seq[URI],
-  projects: Seq[MinimalProjectStructure] // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
+  builds: Vector[URI],
+  projects: Vector[MinimalProjectStructure] // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {

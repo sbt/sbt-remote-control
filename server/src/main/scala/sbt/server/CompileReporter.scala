@@ -23,7 +23,7 @@ class CompileReporter(
     val errorMessage =
       protocol.CompilationFailure(
         project,
-        pos,
+        SbtToProtocolUtils.positionToProtocol(pos),
         severity,
         msg)
     sendEventService.sendEvent(errorMessage)
