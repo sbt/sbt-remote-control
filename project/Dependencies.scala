@@ -29,7 +29,7 @@ object Dependencies {
   // Make sure to update supported versions if Echo plugin version is changed
   val sbtEcho12Version = "0.1.1"
   val sbtEcho132Version = "0.1.1.3"
-  val sbtEcho135Version = "0.1.6.1"
+  val sbtEcho135Version = "0.1.6.2"
   val sbt132EchoSupportedAkkaVersion = "2.2.4"
   val sbt132EchoSupportedPlayVersion = "2.2.3"
   val sbt135EchoSupportedAkkaVersion = "2.3.4"
