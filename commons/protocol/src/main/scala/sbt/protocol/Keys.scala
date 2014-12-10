@@ -19,6 +19,11 @@ object AttributeKey {
   require(implicitly[Unpickler[AppliedType]] ne null)
   implicit val unpickler: Unpickler[AttributeKey] = Unpickler.genUnpickler[AttributeKey]
   implicit val pickler: SPickler[AttributeKey] = SPickler.genPickler[AttributeKey]
+
+  def apply[T](name: String)(implicit mf: Manifest[T]): AttributeKey = {
+    // FIXME I don't think this is really the right name we pass to AppliedType
+    AttributeKey(name, AppliedType.parse(mf.runtimeClass.getName)._1)
+  }
 }
 
 /**
@@ -68,8 +73,8 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
 object ScopedKey {
   require(implicitly[Unpickler[SbtScope]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
-  implicit val unpickler: Unpickler[ScopedKey] = ???
-  implicit val pickler: SPickler[ScopedKey] = ???
+  implicit val unpickler: Unpickler[ScopedKey] = Unpickler.genUnpickler[ScopedKey]
+  implicit val pickler: SPickler[ScopedKey] = SPickler.genPickler[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Vector[ScopedKey])

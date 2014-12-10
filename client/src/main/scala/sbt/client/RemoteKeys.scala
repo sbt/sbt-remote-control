@@ -4,7 +4,6 @@ package client
 import java.net.URI
 import protocol.{
   AttributeKey,
-  TypeInfo,
   ScopedKey, // Warning here is wrong.  We're pulling in the object.
   SbtScope
 }
@@ -16,7 +15,7 @@ import sbt.Attributed
 object RemoteKeys {
   private def attributeKey[T](name: String)(implicit mf: Manifest[T]): ScopedKey =
     ScopedKey(
-      AttributeKey(name, TypeInfo.fromManifest(mf)),
+      AttributeKey[T](name),
       SbtScope())
   def settingKey[T](name: String)(implicit mf: Manifest[T]): sbt.client.SettingKey[T] =
     sbt.client.SettingKey[T](attributeKey(name))

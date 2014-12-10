@@ -2,6 +2,7 @@ package sbt.protocol
 
 import sbt.serialization._
 import scala.util.{ Try, Success, Failure }
+import scala.pickling.{ SPickler, Unpickler }
 
 /**
  *  Represents a serialized value with a stringValue fallback.
@@ -21,6 +22,9 @@ object BuildValue {
   def apply[T](value: T)(implicit pickler: SbtPickler[T]): BuildValue = {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
+
+  implicit val pickler: SPickler[BuildValue] = SPickler.genPickler[BuildValue]
+  implicit val unpickler: Unpickler[BuildValue] = Unpickler.genUnpickler[BuildValue]
 }
 
 object ThrowableDeserializers {
@@ -53,6 +57,12 @@ sealed trait TaskResult {
   def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A]
   def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A]
 }
+
+object TaskResult {
+  implicit val pickler: SPickler[TaskResult] = SPickler.genPickler[TaskResult]
+  implicit val unpickler: Unpickler[TaskResult] = Unpickler.genUnpickler[TaskResult]
+}
+
 /** This represents that the task was run successfully. */
 final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true

@@ -176,7 +176,7 @@ object ProtocolGenerators {
     for {
       reportedProblems <- listOfN()(0, 5, arbitraryProblem.arbitrary)
       unreportedProblems <- listOfN()(0, 5, arbitraryProblem.arbitrary)
-    } yield protocol.SourceInfo(reportedProblems, unreportedProblems)
+    } yield protocol.SourceInfo(reportedProblems.toVector, unreportedProblems.toVector)
   }
 
   implicit val arbitrarySourceInfos: Arbitrary[protocol.SourceInfos] =
@@ -189,13 +189,13 @@ object ProtocolGenerators {
     for {
       time <- arbitrary[Long]
       settings <- listOfN()(0, 10, arbitraryOutputSetting.arbitrary)
-    } yield protocol.Compilation(time, settings)
+    } yield protocol.Compilation(time, settings.toVector)
   }
 
   implicit val arbitraryCompilations: Arbitrary[protocol.Compilations] = Arbitrary {
     for {
       compilations <- listOfN()(0, 10, arbitraryCompilation.arbitrary)
-    } yield protocol.Compilations(compilations)
+    } yield protocol.Compilations(compilations.toVector)
   }
 
   def genAnalysis(maxDepth: Int = 3): Gen[protocol.Analysis] =
@@ -223,7 +223,7 @@ object ProtocolGenerators {
     for {
       packages <- listOfN(maxDepth - 1)(0, 3, arbitraryPackage.arbitrary)
       definitions <- listOfN(maxDepth - 1)(0, 3, genDefinition(maxDepth - 1))
-    } yield protocol.SourceAPI(packages, definitions)
+    } yield protocol.SourceAPI(packages.toVector, definitions.toVector)
 
   def genSource(maxDepth: Int = 3): Gen[protocol.Source] =
     for {
@@ -263,7 +263,7 @@ object ProtocolGenerators {
   def genPath(maxDepth: Int = 3): Gen[protocol.Path] =
     for {
       path <- listOfN(maxDepth - 1)(0, 3, genPathComponent(maxDepth - 1))
-    } yield protocol.Path(path)
+    } yield protocol.Path(path.toVector)
 
   implicit val arbitraryPackage: Arbitrary[protocol.ThePackage] =
     Arbitrary(Gen.alphaStr.map(protocol.ThePackage.apply))
@@ -290,7 +290,7 @@ object ProtocolGenerators {
     } yield protocol.Definition(name,
       access,
       modifiers,
-      annotations)
+      annotations.toVector)
 
   implicit val arbitraryVariance: Arbitrary[xsbti.api.Variance] = Arbitrary(Gen.oneOf(xsbti.api.Variance.values.toSeq))
 
@@ -303,8 +303,8 @@ object ProtocolGenerators {
       lowerBound <- genType(maxDepth - 1)
       upperBound <- genType(maxDepth - 1)
     } yield protocol.TypeParameter(id,
-      annotations,
-      typeParameters,
+      annotations.toVector,
+      typeParameters.toVector,
       variance,
       lowerBound,
       upperBound)
@@ -317,7 +317,7 @@ object ProtocolGenerators {
     lazy val genParameterized = for {
       st <- genSimpleType(maxDepth - 1)
       args <- listOfN(maxDepth - 1)(0, 2, genType(maxDepth - 1))
-    } yield protocol.Parameterized(st, args)
+    } yield protocol.Parameterized(st, args.toVector)
     val genParameterRef = Gen.alphaStr.map(protocol.ParameterRef.apply)
 
     if (maxDepth > 0) Gen.oneOf(Gen.const(protocol.EmptyType), genSingleton, genParameterRef, genProjection, genParameterized)
@@ -328,20 +328,20 @@ object ProtocolGenerators {
     lazy val genAnnotated = for {
       typ <- genType(maxDepth - 1)
       annotations <- listOfN(maxDepth - 1)(0, 2, genAnnotation(maxDepth - 1))
-    } yield protocol.Annotated(typ, annotations)
+    } yield protocol.Annotated(typ, annotations.toVector)
     lazy val genStructure = for {
       parents <- listOfN(maxDepth - 1)(0, 2, genType(maxDepth - 1))
       declared <- listOfN(maxDepth - 1)(0, 2, genDefinition(maxDepth - 1))
       inherited <- listOfN(maxDepth - 1)(0, 2, genDefinition(maxDepth - 1))
-    } yield protocol.Structure(parents, declared, inherited)
+    } yield protocol.Structure(parents.toVector, declared.toVector, inherited.toVector)
     lazy val genPolymorphic = for {
       typ <- genType(maxDepth - 1)
       typeParameters <- listOfN(maxDepth - 1)(0, 2, genTypeParameter(maxDepth - 1))
-    } yield protocol.Polymorphic(typ, typeParameters)
+    } yield protocol.Polymorphic(typ, typeParameters.toVector)
     lazy val genExistential = for {
       typ <- genType(maxDepth - 1)
       typeParameters <- listOfN(maxDepth - 1)(0, 2, genTypeParameter(maxDepth - 1))
-    } yield protocol.Existential(typ, typeParameters)
+    } yield protocol.Existential(typ, typeParameters.toVector)
     lazy val genConstant = for {
       typ <- genType(maxDepth - 1)
       value <- Gen.alphaStr
@@ -360,12 +360,13 @@ object ProtocolGenerators {
     for {
       typ <- genType(maxDepth - 1)
       args <- listOfN(maxDepth - 1)(0, 5, arbitraryAnnotationArgument.arbitrary)
-    } yield protocol.Annotation(typ, args)
+    } yield protocol.Annotation(typ, args.toVector)
 
 }
 
 final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
+  import scala.pickling.{ SPickler, Unpickler }
   implicit val pickler = SPickler.genPickler[PlayStartedEvent]
   implicit val unpickler = Unpickler.genUnpickler[PlayStartedEvent]
 }
@@ -725,8 +726,8 @@ class ProtocolTest {
 
     // source info
     val problem = protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)
-    val infos = protocol.SourceInfos(Map(new File("/temp/foo") -> protocol.SourceInfo(Seq(problem), Nil)))
-    oneWayTrip(protocol.SourceInfo(Seq(problem), Nil)) { _ / "source_info" / "source_info.json" }
+    val infos = protocol.SourceInfos(Map(new File("/temp/foo") -> protocol.SourceInfo(Vector(problem), Vector.empty)))
+    oneWayTrip(protocol.SourceInfo(Vector(problem), Vector.empty)) { _ / "source_info" / "source_info.json" }
     oneWayTrip(infos) { _ / "source_info" / "source_infos.json" }
 
     // problem
@@ -734,14 +735,14 @@ class ProtocolTest {
 
     // apis
     val outputSetting = protocol.OutputSetting("src", "target")
-    val compilation = protocol.Compilation(0, Seq(outputSetting))
+    val compilation = protocol.Compilation(0, Vector(outputSetting))
     val annoArg = protocol.AnnotationArgument("arg1", "1")
-    val annotation = protocol.Annotation(protocol.Singleton(protocol.Path(protocol.Id("annotation") :: Nil)), Seq(annoArg))
+    val annotation = protocol.Annotation(protocol.Singleton(protocol.Path(Vector(protocol.Id("annotation")))), Vector(annoArg))
     val mods = protocol.Modifiers(false, false, false, false, false, false, false)
     val definition = protocol.Definition("doSomething", protocol.Public,
-      mods, Seq(annotation))
+      mods, Vector(annotation))
     val thePackage = protocol.ThePackage("com.foo.Plugin")
-    val sourceApi = protocol.SourceAPI(Seq(thePackage), Seq(definition))
+    val sourceApi = protocol.SourceAPI(Vector(thePackage), Vector(definition))
     val source = protocol.Source(compilation, ByteArray(Array(0.toByte)), sourceApi, 0, false)
     val apis = protocol.APIs(Set("foo"), Set(new File("/temp/foo")),
       Map(new File("/temp/foo") -> source),
@@ -752,13 +753,13 @@ class ProtocolTest {
     oneWayTrip(thePackage) { _ / "the_package" / "the_package.json" }
 
     // type parameters
-    val tpe = protocol.Singleton(protocol.Path(Seq(protocol.Id("Int"))))
+    val tpe = protocol.Singleton(protocol.Path(Vector(protocol.Id("Int"))))
     val inv = xsbti.api.Variance.values()(2)
-    val typeParam = protocol.TypeParameter("A", Seq(annotation), Seq(), inv, tpe, tpe)
+    val typeParam = protocol.TypeParameter("A", Vector(annotation), Vector.empty, inv, tpe, tpe)
     oneWayTrip(typeParam) { _ / "type_parameter" / "type_parameter.json" }
 
     // path
-    val path = protocol.Path(Seq(protocol.Id("Int")))
+    val path = protocol.Path(Vector(protocol.Id("Int")))
     oneWayTrip(path) { _ / "path" / "path.json" }
 
     // modifiers
@@ -809,7 +810,7 @@ class ProtocolTest {
 
     // compilation
     oneWayTrip(compilation) { _ / "compilation" / "compilation.json" }
-    oneWayTrip(protocol.Compilations(Seq(compilation))) { _ / "compilation" / "compilations.json" }
+    oneWayTrip(protocol.Compilations(Vector(compilation))) { _ / "compilation" / "compilations.json" }
 
     // access
     oneWayTrip(protocol.Public: protocol.Access) { _ / "access" / "public.json" }
@@ -821,19 +822,19 @@ class ProtocolTest {
     oneWayTrip(protocol.Private(protocol.IdQualifier("foo")): protocol.Access) { _ / "access" / "private_foo.json" }
 
     // type
-    val foo_tpe = protocol.Singleton(protocol.Path(protocol.Id("Foo") :: Nil))
+    val foo_tpe = protocol.Singleton(protocol.Path(Vector(protocol.Id("Foo"))))
     oneWayTrip(tpe: protocol.Type) { _ / "type" / "singleton.json" }
-    oneWayTrip(protocol.Singleton(protocol.Path(protocol.Super(protocol.Path(protocol.Id("Foo") :: Nil)) :: Nil)): protocol.Type) { _ / "type" / "super_foo.json" }
-    oneWayTrip(protocol.Singleton(protocol.Path(protocol.This :: Nil)): protocol.Type) { _ / "type" / "singleton_this.json" }
-    oneWayTrip(protocol.Projection(protocol.Singleton(protocol.Path(protocol.This :: Nil)), "Foo"): protocol.Type) { _ / "type" / "projection.json" }
+    oneWayTrip(protocol.Singleton(protocol.Path(Vector(protocol.Super(protocol.Path(Vector(protocol.Id("Foo"))))))): protocol.Type) { _ / "type" / "super_foo.json" }
+    oneWayTrip(protocol.Singleton(protocol.Path(Vector(protocol.This))): protocol.Type) { _ / "type" / "singleton_this.json" }
+    oneWayTrip(protocol.Projection(protocol.Singleton(protocol.Path(Vector(protocol.This))), "Foo"): protocol.Type) { _ / "type" / "projection.json" }
     oneWayTrip(
       protocol.Parameterized(foo_tpe,
-        protocol.ParameterRef("A") :: Nil): protocol.Type) { _ / "type" / "parameterized.json" }
+        Vector(protocol.ParameterRef("A"))): protocol.Type) { _ / "type" / "parameterized.json" }
     oneWayTrip(protocol.EmptyType: protocol.Type) { _ / "type" / "empty_type.json" }
-    oneWayTrip(protocol.Annotated(tpe, annotation :: Nil): protocol.Type) { _ / "type" / "annotated.json" }
-    oneWayTrip(protocol.Structure(tpe :: Nil, definition :: Nil, definition :: Nil): protocol.Type) { _ / "type" / "structure.json" }
-    oneWayTrip(protocol.Polymorphic(foo_tpe, typeParam :: Nil): protocol.Type) { _ / "type" / "polymorphic.json" }
-    oneWayTrip(protocol.Existential(foo_tpe, typeParam :: Nil): protocol.Type) { _ / "type" / "existential.json" }
+    oneWayTrip(protocol.Annotated(tpe, Vector(annotation)): protocol.Type) { _ / "type" / "annotated.json" }
+    oneWayTrip(protocol.Structure(Vector(tpe), Vector(definition), Vector(definition)): protocol.Type) { _ / "type" / "structure.json" }
+    oneWayTrip(protocol.Polymorphic(foo_tpe, Vector(typeParam)): protocol.Type) { _ / "type" / "polymorphic.json" }
+    oneWayTrip(protocol.Existential(foo_tpe, Vector(typeParam)): protocol.Type) { _ / "type" / "existential.json" }
     oneWayTrip(protocol.Constant(foo_tpe, "A"): protocol.Type) { _ / "type" / "constant.json" }
 
     // byte array
@@ -842,7 +843,7 @@ class ProtocolTest {
     // analysis
     oneWayTrip(protocol.Analysis(
       stamps = stamps, apis = apis, relations = relations, infos = infos,
-      compilations = protocol.Compilations(Seq(compilation)))) { _ / "analysis" / "analysis.json" }
+      compilations = protocol.Compilations(Vector(compilation)))) { _ / "analysis" / "analysis.json" }
 
   }
 

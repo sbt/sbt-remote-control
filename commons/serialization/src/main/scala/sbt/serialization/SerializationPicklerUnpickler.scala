@@ -12,6 +12,7 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
   private object jvaluePickler extends SPickler[JValue] with Unpickler[JValue] {
+    val tag = implicitly[FastTypeTag[JValue]]
     val stringPickler = implicitly[SPickler[String]]
     val stringUnpickler = implicitly[Unpickler[String]]
     def pickle(jv: JValue, builder: PBuilder): Unit = {
@@ -33,6 +34,8 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
   }
 
   implicit object jsonValuePickler extends SPickler[JsonValue] with Unpickler[JsonValue] {
+    val tag = implicitly[FastTypeTag[JsonValue]]
+
     def pickle(jv: JsonValue, builder: PBuilder): Unit = {
       builder.pushHints()
       builder.hintTag(FakeTags.JValue)
@@ -46,6 +49,8 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
   }
 
   implicit object serializedValuePickler extends SPickler[SerializedValue] with Unpickler[SerializedValue] {
+    val tag = implicitly[FastTypeTag[SerializedValue]]
+
     private val jsonPickler = implicitly[SPickler[JsonValue]]
     private val jsonUnpickler = implicitly[Unpickler[JsonValue]]
     def pickle(a: SerializedValue, builder: PBuilder): Unit =

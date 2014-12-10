@@ -8,7 +8,7 @@ import java.io.File
 import sbt.client.{ Subscription, SbtConnector, SbtClient, Interaction, SettingKey, TaskKey }
 import scala.concurrent.ExecutionContext
 import scala.util.{ Try, Success, Failure }
-import sbt.protocol.{ Analysis, CompileFailedException, TaskResult, ScopedKey, BuildValue, fromXsbtiPosition, CompilationFailure }
+import sbt.protocol.{ Analysis, CompileFailedException, TaskResult, ScopedKey, BuildValue, CompilationFailure }
 import sbt.protocol
 import scala.language.existentials, scala.language.higherKinds
 import scala.collection.TraversableOnce

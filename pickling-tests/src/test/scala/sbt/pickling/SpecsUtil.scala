@@ -1,6 +1,7 @@
 package sbt.pickling.spec
 
 import sbt.protocol.Message
+
 import scala.pickling._, sbt.pickling.json._
 // TODO this should not break!
 //import scala.pickling.static._

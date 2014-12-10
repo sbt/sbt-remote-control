@@ -26,12 +26,13 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
 
   // TODO why isn't this in LowPriority / what goes in Low and what goes here?
   implicit object throwablePicklerUnpickler extends SPickler[Throwable] with Unpickler[Throwable] {
+    val tag: FastTypeTag[Throwable] = implicitly[FastTypeTag[Throwable]]
+    private val stringTag = implicitly[FastTypeTag[String]]
     private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
+    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
     private val stringOptPickler = implicitly[SPickler[Option[String]]]
     private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
-    private val throwableTag = implicitly[FastTypeTag[Throwable]]
-    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
-    private val throwableOptPicklerUnpickler = optionPickler[Throwable](throwableTag, this, this, throwableOptTag)
+    private val throwableOptPicklerUnpickler = optionPickler[Throwable](tag, this, this, throwableOptTag)
     private val vstedTag = implicitly[FastTypeTag[Vector[StackTraceElementDeserialized]]]
     private val vstedPickler = implicitly[SPickler[Vector[StackTraceElementDeserialized]]]
     private val vstedUnpickler = implicitly[Unpickler[Vector[StackTraceElementDeserialized]]]
@@ -78,6 +79,7 @@ trait LowPriorityCustomPicklerUnpickler {
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
   implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
+    val tag = implicitly[FastTypeTag[A]]
     val stringPickler = implicitly[SPickler[String]]
     val stringUnpickler = implicitly[Unpickler[String]]
     def pickle(a: A, builder: PBuilder): Unit = {
@@ -107,7 +109,7 @@ trait LowPriorityCustomPicklerUnpickler {
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
   implicit def nilPickler(implicit pf: PickleFormat): SPickler[Nil.type] with Unpickler[Nil.type] = new SPickler[Nil.type] with Unpickler[Nil.type] {
-    val format: PickleFormat = pf
+    val tag = implicitly[FastTypeTag[Nil.type]]
     val ccUnpickler: Unpickler[::[String]] = implicitly[Unpickler[::[String]]]
     def pickle(coll: Nil.type, builder: PBuilder): Unit = {
       builder.beginEntry(coll)
@@ -122,6 +124,7 @@ trait LowPriorityCustomPicklerUnpickler {
     ccPickler: SPickler[::[A]], ccUnpickler: Unpickler[::[A]],
     collTag: FastTypeTag[List[A]],
     pf: PickleFormat): SPickler[List[A]] with Unpickler[List[A]] = new SPickler[List[A]] with Unpickler[List[A]] {
+    val tag = implicitly[FastTypeTag[List[A]]]
     val format: PickleFormat = pf
     val np = nilPickler
     def pickle(coll: List[A], builder: PBuilder): Unit =
@@ -145,9 +148,10 @@ trait LowPriorityCustomPicklerUnpickler {
   implicit lazy val nonePickler: SPickler[None.type] with Unpickler[None.type] =
     sys.error("use the pickler for Option[A]")
   implicit def optionPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Option[A]]): SPickler[Option[A]] with Unpickler[Option[A]] = new SPickler[Option[A]] with Unpickler[Option[A]] {
-    val elemTag = implicitly[FastTypeTag[A]]
-    val isPrimitive = elemTag.tpe.isEffectivelyPrimitive
-    val nullPickler = implicitly[SPickler[Null]]
+    private implicit val elemTag = implicitly[FastTypeTag[A]]
+    val tag = implicitly[FastTypeTag[Option[A]]]
+    private val isPrimitive = elemTag.tpe.isEffectivelyPrimitive
+    private val nullPickler = implicitly[SPickler[Null]]
 
     def pickle(coll: Option[A], builder: PBuilder): Unit = {
       builder.beginEntry(coll)
@@ -210,9 +214,9 @@ trait LowPriorityCustomPicklerUnpickler {
     pf: PickleFormat, cbf: CanBuildFrom[C, A, C],
     collTag: FastTypeTag[C]): SPickler[C] with Unpickler[C] =
     new SPickler[C] with Unpickler[C] {
-      val format: PickleFormat = pf
-      val elemTag = implicitly[FastTypeTag[A]]
-      val isPrimitive = elemTag.tpe.isEffectivelyPrimitive
+      private implicit val elemTag = implicitly[FastTypeTag[A]]
+      private val isPrimitive = elemTag.tpe.isEffectivelyPrimitive
+      val tag = collTag
 
       def pickle(coll: C, builder: PBuilder): Unit = {
         if (elemTag == FastTypeTag.Int) builder.hintKnownSize(coll.size * 4 + 100)

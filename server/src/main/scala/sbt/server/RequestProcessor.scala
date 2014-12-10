@@ -398,7 +398,7 @@ class RequestProcessor(
       case SendSyntheticBuildChanged() =>
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case KeyLookupRequest(key) =>
-        client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key)))
+        client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key).toVector))
       case AnalyzeExecutionRequest(command) =>
         client.reply(serial, AnalyzeExecutionResponse(analyzeExecution(buildState, command)))
       case ListenToValue(key) =>
@@ -524,7 +524,7 @@ class RequestProcessor(
           // error after this point if you try to mix input and regular tasks
           // or maybe in some other cases. But a task can always fail, too, so
           // I think we can just ignore those cases. We'll see I suppose.
-          ExecutionAnalysisKey(keys)
+          ExecutionAnalysisKey(keys.toVector)
         }
       case Left(error) =>
         ExecutionAnalysisError(error)
