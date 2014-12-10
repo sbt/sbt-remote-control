@@ -114,12 +114,12 @@ final case class ClientClosedRequest() extends Request
 final case class ClosedEvent() extends Event
 
 final case class KeyLookupRequest(name: String) extends Request
-final case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
+final case class KeyLookupResponse(name: String, key: Vector[ScopedKey]) extends Response
 
 final case class AnalyzeExecutionRequest(command: String) extends Request
 sealed trait ExecutionAnalysis
 // sbt will run ALL of these keys (aggregation)
-final case class ExecutionAnalysisKey(keys: Seq[ScopedKey]) extends ExecutionAnalysis
+final case class ExecutionAnalysisKey(keys: Vector[ScopedKey]) extends ExecutionAnalysis
 final case class ExecutionAnalysisError(message: String) extends ExecutionAnalysis
 final case class ExecutionAnalysisCommand(name: Option[String]) extends ExecutionAnalysis
 final case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Response
@@ -363,8 +363,8 @@ object Stamps {
     products = Map.empty[File, Stamp],
     classNames = Map.empty[File, String])
 }
-final case class SourceInfo(reportedProblems: Seq[Problem],
-  unreportedProblems: Seq[Problem])
+final case class SourceInfo(reportedProblems: Vector[Problem],
+  unreportedProblems: Vector[Problem])
 final case class SourceInfos(allInfos: Map[File, SourceInfo])
 object SourceInfos {
   val empty: SourceInfos = SourceInfos(allInfos = Map.empty[File, SourceInfo])
@@ -396,12 +396,12 @@ sealed trait Qualified extends Access {
 final case object Public extends Access
 final case class Protected(qualifier: Qualifier) extends Qualified
 final case class Private(qualifier: Qualifier) extends Qualified
-final case class TypeParameter(id: String, annotations: Seq[Annotation], typeParameters: Seq[TypeParameter], variance: xsbti.api.Variance, lowerBound: Type, upperBound: Type)
+final case class TypeParameter(id: String, annotations: Vector[Annotation], typeParameters: Vector[TypeParameter], variance: xsbti.api.Variance, lowerBound: Type, upperBound: Type)
 sealed trait PathComponent
 final case class Id(id: String) extends PathComponent
 final case class Super(qualifier: Path) extends PathComponent
 final case object This extends PathComponent
-final case class Path(components: Seq[PathComponent])
+final case class Path(components: Vector[PathComponent])
 sealed trait Type
 object Type {
 
@@ -409,13 +409,13 @@ object Type {
 sealed trait SimpleType extends Type
 final case class Singleton(path: Path) extends SimpleType
 final case class Projection(prefix: SimpleType, id: String) extends SimpleType
-final case class Parameterized(baseType: SimpleType, typeArguments: Seq[Type]) extends SimpleType
+final case class Parameterized(baseType: SimpleType, typeArguments: Vector[Type]) extends SimpleType
 final case class ParameterRef(id: String) extends SimpleType
 final case object EmptyType extends SimpleType
-final case class Annotated(baseType: Type, annotations: Seq[Annotation]) extends Type
-final case class Structure(parents: Seq[Type], declared: Seq[Definition], inherited: Seq[Definition]) extends Type
-final case class Polymorphic(baseType: Type, parameters: Seq[TypeParameter]) extends Type
-final case class Existential(baseType: Type, clause: Seq[TypeParameter]) extends Type
+final case class Annotated(baseType: Type, annotations: Vector[Annotation]) extends Type
+final case class Structure(parents: Vector[Type], declared: Vector[Definition], inherited: Vector[Definition]) extends Type
+final case class Polymorphic(baseType: Type, parameters: Vector[TypeParameter]) extends Type
+final case class Existential(baseType: Type, clause: Vector[TypeParameter]) extends Type
 final case class Constant(baseType: Type, value: String) extends Type
 final case class Modifiers(isAbstract: Boolean,
   isOverride: Boolean,
@@ -426,13 +426,13 @@ final case class Modifiers(isAbstract: Boolean,
   isMacro: Boolean)
 final case class AnnotationArgument(name: String, value: String)
 final case class Annotation(base: Type,
-  arguments: Seq[AnnotationArgument])
+  arguments: Vector[AnnotationArgument])
 final case class Definition(name: String,
   access: Access,
   modifiers: Modifiers,
-  annotations: Seq[Annotation])
-final case class SourceAPI(packages: Seq[ThePackage],
-  definitions: Seq[Definition])
+  annotations: Vector[Annotation])
+final case class SourceAPI(packages: Vector[ThePackage],
+  definitions: Vector[Definition])
 final case class Source(compilation: Compilation,
   hash: ByteArray,
   api: SourceAPI,
@@ -475,10 +475,10 @@ object Relations {
 final case class OutputSetting(sourceDirectory: String,
   outputDirectory: String)
 final case class Compilation(startTime: Long,
-  outputs: Seq[OutputSetting])
-final case class Compilations(allCompilations: Seq[Compilation])
+  outputs: Vector[OutputSetting])
+final case class Compilations(allCompilations: Vector[Compilation])
 object Compilations {
-  val empty: Compilations = Compilations(allCompilations = Seq.empty[Compilation])
+  val empty: Compilations = Compilations(allCompilations = Vector.empty[Compilation])
 }
 
 final class CompileFailedException(message: String, cause: Throwable, val problems: Vector[Problem]) extends Exception(message, cause)

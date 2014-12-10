@@ -124,8 +124,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     def taskKey[T: Manifest](name: String): TaskKey[T] = {
       TaskKey[T](ScopedKey(key =
-        AttributeKey(name = name,
-          manifest = TypeInfo.fromManifest(implicitly[Manifest[T]])),
+        AttributeKey[T](name = name),
         scope = SbtScope()))
     }
 
