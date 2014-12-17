@@ -109,6 +109,19 @@ class CanLoadSimpleProject extends SbtClientTest {
       }
     }
 
+    import scala.util.{ Try, Success, Failure }
+    def fetchTaskResultByName[T](name: String)(implicit reads: Reads[T]): T = {
+      val resultPromise = Promise[T]()
+      val sub = client.watch[T](name) { (key, result) =>
+        resultPromise.complete(result)
+      }
+      try {
+        waitWithError(resultPromise.future, s"waiting for result of $name")
+      } finally {
+        sub.cancel()
+      }
+    }
+
     def taskKey[T: Manifest](name: String): TaskKey[T] = {
       TaskKey[T](ScopedKey(key =
         AttributeKey(name = name,
@@ -119,6 +132,9 @@ class CanLoadSimpleProject extends SbtClientTest {
     val fortyTwoResult = fetchTaskResult(taskKey[Int]("alwaysFortyTwo"))
     assert(fortyTwoResult.isSuccess)
     assertEquals(scala.util.Success(42), fortyTwoResult.result[Int])
+
+    val fortyTwoValue = fetchTaskResultByName[Int]("alwaysFortyTwo")
+    assertEquals(42, fortyTwoValue)
 
     val failedResult = fetchTaskResult(taskKey[Int]("alwaysFails"))
     assert(!failedResult.isSuccess)
@@ -131,6 +147,12 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     val nonexistentResult = fetchTaskResult(taskKey[Int]("notARealTask"))
     assert(!nonexistentResult.isSuccess)
+
+    val nonexistentByNameThrew = try { fetchTaskResultByName[Int]("notARealTask"); false }
+    catch {
+      case t: Throwable => true
+    }
+    assert(nonexistentByNameThrew)
 
     // Now we check compilation failure messages
 
