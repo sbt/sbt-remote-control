@@ -232,6 +232,12 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   def lazyWatch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
     ??? // TODO stubbed until someone actually wants to use it
 
+  def rawWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    ??? // TODO stubbed until someone actually wants to use it
+
+  def rawLazyWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    ??? // TODO stubbed until someone actually wants to use it
+
   def requestSelfDestruct(): Unit = ()
   def isClosed: Boolean = closed.get()
 

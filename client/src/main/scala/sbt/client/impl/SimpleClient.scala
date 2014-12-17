@@ -152,10 +152,16 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     rawLazyWatch(key)(toRaw(listener))
 
   def watch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
-    nameWatchManager.watch(name, isLazy = false)(toRaw(listener))
+    rawWatch(name)(toRaw(listener))
 
   def lazyWatch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
-    nameWatchManager.watch(name, isLazy = true)(toRaw(listener))
+    rawLazyWatch(name)(toRaw(listener))
+
+  def rawWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    nameWatchManager.watch(name, isLazy = false)(listener)
+
+  def rawLazyWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    nameWatchManager.watch(name, isLazy = true)(listener)
 
   private object nameWatchManager {
     private case class Registered(name: String, isLazy: Boolean, currentSubs: List[Subscription],
