@@ -243,6 +243,52 @@ trait SbtClient extends Closeable {
    *        for all listeners on the same SbtClient.
    */
   def lazyWatch[T](key: TaskKey[T])(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  /**
+   *  Looks up the string to obtain scoped keys, if any, matching it; then sets up watches
+   *  for each matching task or setting key. If no keys match, still calls the value listener
+   *  one time with an error.
+   *  @param name       Name to look up keys for and then watch those keys.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
+   */
+  def watch[T](name: String)(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  /**
+   * Like watch(String) except that it calls lazyWatch() for each discovered key instead of watch().
+   *
+   *  @param name       Name to look up keys for and then watch those keys.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
+   */
+  def lazyWatch[T](name: String)(l: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription
+  /**
+   *  Looks up the string to obtain scoped keys, if any, matching it; then sets up watches
+   *  for each matching task or setting key. If no keys match, still calls the value listener
+   *  one time with an error.
+   *  @param name       Name to look up keys for and then watch those keys.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   * @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *       for all listeners on the same SbtClient.
+   */
+  def rawWatch(name: String)(l: RawValueListener)(implicit ex: ExecutionContext): Subscription
+  /**
+   * Like rawWatch(String) except that it calls rawLazyWatch() for each discovered key instead of rawWatch().
+   *
+   *  @param name       Name to look up keys for and then watch those keys.
+   *  @param listener  A function that is called when the setting value changes.
+   *  @param ex        The execution context on which to call the listener.
+   *
+   *  @note To preserve ordering of notifications, use the same single-threaded ExecutionContext
+   *        for all listeners on the same SbtClient.
+   */
+  def rawLazyWatch(name: String)(l: RawValueListener)(implicit ex: ExecutionContext): Subscription
 
   /**
    * Kills the running instance of the sbt server (by attempting to issue a kill message).

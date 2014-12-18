@@ -32,6 +32,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     // TODO this is really busted; we need to have a local cache of the latest build and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
+    // FIXME this is especially busted in combination with nameWatchManager's use of watchBuild
     channel.sendJson(SendSyntheticBuildChanged())
     sub
   }
@@ -149,6 +150,147 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
 
   def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
     rawLazyWatch(key)(toRaw(listener))
+
+  def watch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawWatch(name)(toRaw(listener))
+
+  def lazyWatch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+    rawLazyWatch(name)(toRaw(listener))
+
+  def rawWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    nameWatchManager.watch(name, isLazy = false)(listener)
+
+  def rawLazyWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
+    nameWatchManager.watch(name, isLazy = true)(listener)
+
+  private object nameWatchManager {
+    private case class Registered(name: String, isLazy: Boolean, currentSubs: List[Subscription],
+      listener: RawValueListener, executor: ExecutionContext)
+
+    private var buildWatch: Option[Subscription] = None
+    private val nextId = new java.util.concurrent.atomic.AtomicLong(1)
+    // these are the states a Registered can be in; each id may be in only one of these at a time.
+    // Access to them must be synchronized.
+    private var awaitingLookup = Map.empty[Long, Registered]
+    private var needsRelookup = Map.empty[Long, Registered]
+    private var currentlyWatching = Map.empty[Long, Registered]
+
+    private def updateBuildWatch(): Unit = synchronized {
+      val needBuildWatch = awaitingLookup.nonEmpty || needsRelookup.nonEmpty || currentlyWatching.nonEmpty
+      buildWatch match {
+        case Some(sub) => if (!needBuildWatch) {
+          sub.cancel()
+          buildWatch = None
+        }
+        case None => if (needBuildWatch) {
+          import scala.concurrent.ExecutionContext.Implicits.global
+          buildWatch = Some(lazyWatchBuild(_ => reloadAll()))
+        }
+      }
+    }
+
+    private def successfulLookup(id: Long, registered: Registered, scopeds: Seq[ScopedKey]): Unit = synchronized {
+      // if we were canceled, we won't be in awaitingLookup anymore
+      if (awaitingLookup.contains(id)) {
+        val subs = scopeds map { scoped =>
+          if (registered.isLazy)
+            rawLazyWatch(TaskKey[Any](scoped))(registered.listener)(registered.executor)
+          else
+            rawWatch(TaskKey[Any](scoped))(registered.listener)(registered.executor)
+        }
+        awaitingLookup -= id
+        currentlyWatching += (id -> registered.copy(currentSubs = subs.toList))
+      } else if (needsRelookup.contains(id)) {
+        needsRelookup -= id
+        startLookup(id, registered)
+      }
+    }
+
+    private def failedLookup(id: Long, registered: Registered, cause: Throwable): Unit = synchronized {
+      if (awaitingLookup.contains(id)) {
+        // Key does not currently exist; notify one failure, to
+        // keep the invariant that if you watch you always get at
+        // least one callback
+        registered.executor.execute(new Runnable() {
+          override def run(): Unit = {
+            val genericKey =
+              ScopedKey(AttributeKey(registered.name, TypeInfo.fromManifest[Any](implicitly[Manifest[Any]])), SbtScope())
+            val noKeyResult = TaskFailure(BuildValue(cause)(GenericSerializers.throwableWrites))
+            registered.listener.apply(genericKey, noKeyResult)
+          }
+        })
+        awaitingLookup -= id
+        currentlyWatching += (id -> registered.copy(currentSubs = Nil))
+      } else if (needsRelookup.contains(id)) {
+        needsRelookup -= id
+        startLookup(id, registered)
+      }
+    }
+
+    private def startLookup(id: Long, registered: Registered): Unit = {
+      synchronized {
+        needsRelookup -= id // may or may not be in there already
+        awaitingLookup += (id -> registered)
+        updateBuildWatch()
+      }
+      import scala.concurrent.ExecutionContext.Implicits.global
+      lookupScopedKey(registered.name) map { scopeds =>
+        if (scopeds.nonEmpty)
+          successfulLookup(id, registered, scopeds)
+        else
+          failedLookup(id, registered, new Exception(s"No tasks found matching '${registered.name}'"))
+      } recover {
+        case t: Throwable =>
+          failedLookup(id, registered, t)
+      }
+    }
+
+    private def cancel(id: Long): Unit = synchronized {
+      if (awaitingLookup.contains(id)) {
+        awaitingLookup -= id
+      } else if (needsRelookup.contains(id)) {
+        needsRelookup -= id
+      } else if (currentlyWatching.contains(id)) {
+        val registered = currentlyWatching(id)
+        currentlyWatching -= id
+        registered.currentSubs.foreach(_.cancel())
+      }
+      updateBuildWatch()
+    }
+
+    def watch(name: String, isLazy: Boolean)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription = {
+      val id = nextId.getAndIncrement()
+      val registered = Registered(name, isLazy, currentSubs = Nil, listener = listener, executor = ex)
+
+      startLookup(id, registered)
+
+      new Subscription() {
+        override def cancel(): Unit = {
+          nameWatchManager.cancel(id)
+        }
+      }
+    }
+
+    // on build structure changed we call this to reset everything
+    private def reloadAll(): Unit = synchronized {
+      // move pending lookups into needsRelookup
+      val waiting = awaitingLookup.toList
+      for (pair <- waiting) {
+        awaitingLookup -= pair._1
+        needsRelookup += pair
+      }
+      // cancel current watches and look them up again
+      val current = currentlyWatching.toList
+      for (pair <- current) {
+        currentlyWatching -= pair._1
+        needsRelookup += pair
+      }
+      val relookup = needsRelookup.toList
+      for (pair <- relookup) {
+        startLookup(pair._1, pair._2)
+      }
+    }
+  }
 
   // TODO - Maybe we should try a bit harder here to `kill` the server.
   // TODO this should be dropped because requestExecution("exit") now does
@@ -406,6 +548,11 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
     } else {
       listeners += l
       if (listeningToEvents.compareAndSet(false, true)) {
+        // TODO this needs to go through the sendRequestWithRegistration stuff
+        // above so that we track responses and get any error message properly.
+        // Specifically ListenToValue needs to handle KeyNotFound.
+        // Not doing it right now because it creates issues with merging
+        // branches.
         sendJson(requestEventsMsg)
       }
     }
