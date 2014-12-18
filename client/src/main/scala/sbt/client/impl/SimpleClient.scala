@@ -235,7 +235,10 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       }
       import scala.concurrent.ExecutionContext.Implicits.global
       lookupScopedKey(registered.name) map { scopeds =>
-        successfulLookup(id, registered, scopeds)
+        if (scopeds.nonEmpty)
+          successfulLookup(id, registered, scopeds)
+        else
+          failedLookup(id, registered, new Exception(s"No tasks found matching '${registered.name}'"))
       } recover {
         case t: Throwable =>
           failedLookup(id, registered, t)

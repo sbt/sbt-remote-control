@@ -150,7 +150,9 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     val nonexistentByNameThrew = try { fetchTaskResultByName[Int]("notARealTask"); false }
     catch {
-      case t: Throwable => true
+      case t: Throwable =>
+        assert(t.getMessage.equals(s"No tasks found matching 'notARealTask'"))
+        true
     }
     assert(nonexistentByNameThrew)
 
