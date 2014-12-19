@@ -282,6 +282,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
       // cancel current watches and look them up again
       val current = currentlyWatching.toList
       for (pair <- current) {
+        pair._2.currentSubs.foreach(_.cancel())
         currentlyWatching -= pair._1
         needsRelookup += pair
       }
