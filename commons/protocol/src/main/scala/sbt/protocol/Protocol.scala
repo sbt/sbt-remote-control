@@ -1,8 +1,5 @@
 package sbt.protocol
 
-// Note:  All the serialization mechanisms for this protocol is in the
-// package.scala file.
-
 import java.io.File
 import scala.collection.immutable
 import sbt.serialization._
@@ -13,11 +10,6 @@ import sbt.serialization._
  */
 sealed trait Message {
   def simpleName: String = MessageSerialization.makeSimpleName(getClass)
-}
-
-object Message {
-  implicit def unpickler = MessageSerialization.messageUnpickler
-  implicit def pickler = MessageSerialization.messagePickler
 }
 
 /** Represents requests that go down into sbt. */
@@ -227,6 +219,12 @@ final case class BuildFailedToLoad() extends ExecutionEngineEvent
 /** The build has been changed in some fashion. */
 final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 final case class ValueChanged(key: ScopedKey, value: TaskResult) extends Event
+object ValueChanged {
+  import scala.pickling.{ SPickler, Unpickler }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[ValueChanged] = SPickler.genPickler[ValueChanged]
+  implicit val unpickler: Unpickler[ValueChanged] = Unpickler.genUnpickler[ValueChanged]
+}
 
 /** can be the response to anything. */
 final case class ErrorResponse(error: String) extends Response
@@ -533,4 +531,14 @@ private[sbt] object StructurallyEqual {
     else (lhs.get == rhs.get)
 
   def equals(lhs: String, rhs: String): Boolean = lhs == rhs
+}
+
+// TODO currently due to a pickling bug caused by a Scala bug,
+// the macros won't know all the subtypes of Message if we
+// put this companion object earlier in the file.
+object Message {
+  import scala.pickling.{ SPickler, Unpickler }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[Message] = SPickler.genPickler[Message]
+  implicit val unpickler: Unpickler[Message] = Unpickler.genUnpickler[Message]
 }

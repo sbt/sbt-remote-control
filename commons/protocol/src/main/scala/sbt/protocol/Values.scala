@@ -58,11 +58,6 @@ sealed trait TaskResult {
   def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A]
 }
 
-object TaskResult {
-  implicit val pickler: SPickler[TaskResult] = SPickler.genPickler[TaskResult]
-  implicit val unpickler: Unpickler[TaskResult] = Unpickler.genUnpickler[TaskResult]
-}
-
 /** This represents that the task was run successfully. */
 final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
@@ -90,4 +85,12 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
     val t = throwableDeserializers.tryAnyReader(cause.serialized).getOrElse(new Exception(cause.stringValue))
     Failure(t)
   }
+}
+
+// TODO currently due to a pickling bug caused by a Scala bug,
+// the macros won't know all the subtypes of TaskResult if we
+// put this companion object earlier in the file.
+object TaskResult {
+  implicit val pickler: SPickler[TaskResult] = SPickler.genPickler[TaskResult]
+  implicit val unpickler: Unpickler[TaskResult] = Unpickler.genUnpickler[TaskResult]
 }

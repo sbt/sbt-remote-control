@@ -3,7 +3,10 @@ package sbt.protocol
 import sbt.serialization._
 import scala.pickling.{ SPickler, Unpickler }
 
-/** The implementation of Message serialization */
+/**
+ * TODO get rid of this object, it just holds one leftover
+ * method we probably don't need
+ */
 private[protocol] object MessageSerialization {
   // this makes it prettier when writing json by hand e.g. in JavaScript
   private def removeDollar(s: String) = {
@@ -24,8 +27,4 @@ private[protocol] object MessageSerialization {
   }
   private[protocol] def makeSimpleName(klass: Class[_]): String =
     removeDollar(lastChunk(klass.getName))
-
-  import scala.pickling.static._
-  val messagePickler: SPickler[Message] = SPickler.genPickler[Message]
-  val messageUnpickler: Unpickler[Message] = Unpickler.genUnpickler[Message]
 }

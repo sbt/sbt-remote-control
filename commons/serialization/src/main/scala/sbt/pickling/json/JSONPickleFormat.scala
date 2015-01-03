@@ -11,6 +11,7 @@ import scala.util.{ Success, Failure }
 
 package json {
   object `package` extends CustomPicklerUnpickler {
+    import scala.language.implicitConversions
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
     implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
     implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
