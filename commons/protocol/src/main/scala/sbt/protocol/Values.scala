@@ -87,6 +87,16 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
   }
 }
 
+object TaskSuccess {
+  implicit val pickler: SPickler[TaskSuccess] = AllPicklers.genPickler[TaskSuccess]
+  implicit val unpickler: Unpickler[TaskSuccess] = AllPicklers.genUnpickler[TaskSuccess]
+}
+
+object TaskFailure {
+  implicit val pickler: SPickler[TaskFailure] = AllPicklers.genPickler[TaskFailure]
+  implicit val unpickler: Unpickler[TaskFailure] = AllPicklers.genUnpickler[TaskFailure]
+}
+
 // TODO currently due to a pickling bug caused by a Scala bug,
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
