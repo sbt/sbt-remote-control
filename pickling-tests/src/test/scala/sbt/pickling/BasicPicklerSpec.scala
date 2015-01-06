@@ -4,7 +4,7 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling._, sbt.pickling.json._
+import scala.pickling._, sbt.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 

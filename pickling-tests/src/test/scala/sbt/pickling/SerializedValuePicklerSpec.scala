@@ -4,17 +4,24 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
 
-import sbt.serialization._
+import sbt.pickling._
+import sbt.pickling.json._
 import protocol.TaskEventUnapply
+import scala.pickling.AllPicklers
+
+import sbt.serialization._
+// TODO these are required, despite the wildcard import above;
+// no idea why. Try removing them and see if we can still build.
+import sbt.serialization.intPicklerUnpickler
 
 class SerializedValuePicklerTest {
   @Test
   def testRoundtripInt: Unit = {
+    import scala.pickling._
     val value: SerializedValue = SerializedValue(1)
     value.pickle.value must_== "1.0"
     value.parse[Int].get must_== 1
@@ -23,6 +30,7 @@ class SerializedValuePicklerTest {
 
   @Test
   def testRoundtripPlayStarted: Unit = {
+    import scala.pickling._
     val value = SerializedValue(PlayStartedEvent(10))
     val example = """{"port":10.0,"$type":"sbt.pickling.spec.PlayStartedEvent"}"""
     value.pickle.value must_== example
@@ -34,7 +42,7 @@ class SerializedValuePicklerTest {
 
 final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
-  implicit val pickler = SPickler.genPickler[PlayStartedEvent]
-  implicit val unpickler = Unpickler.genUnpickler[PlayStartedEvent]
+  implicit val pickler = AllPicklers.genPickler[PlayStartedEvent]
+  implicit val unpickler = AllPicklers.genUnpickler[PlayStartedEvent]
 }
 object PlayStartedEventBg extends protocol.BackgroundJobEventUnapply[PlayStartedEvent]

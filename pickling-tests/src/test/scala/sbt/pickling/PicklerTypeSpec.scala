@@ -2,7 +2,7 @@ package sbt.pickling.spec
 
 import org.junit.Assert._
 import org.junit._
-import scala.pickling._, sbt.pickling.json._
+import scala.pickling._, sbt.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 

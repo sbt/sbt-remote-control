@@ -3,10 +3,8 @@ package sbt
 import scala.util.control.NonFatal
 
 package object serialization extends sbt.serialization.SerializationPicklerUnpickler {
-  import scala.pickling._
+  import scala.pickling.{ SPickler, Unpickler, FastTypeTag }
 
-  // TODO this breaks SerializedValue but once that's fixed
-  // we should uncomment this.
   //implicit def staticOnly = scala.pickling.static.StaticOnly
 
   // pickling macros need FastTypeTag$ to have been initialized;
@@ -24,12 +22,12 @@ package object serialization extends sbt.serialization.SerializationPicklerUnpic
    * When requiring a pickler for sbt purposes, require this type instead of
    * scala.pickling.SPickler directly.
    */
-  final class SbtPickler[T] private[serialization] (val underlying: SPickler[T], val tag: FastTypeTag[T])
+  final class SbtPickler[T] private[serialization] (val underlying: SPickler[T])
 
   // this is NOT in a companion object to help mandate import
   // of sbt.serialization._ to get our custom picklers
-  implicit def sbtPicklerFromSPickler[T](implicit spickler: SPickler[T], tag: FastTypeTag[T]): SbtPickler[T] =
-    new SbtPickler[T](spickler, tag)
+  implicit def sbtPicklerFromSPickler[T](implicit spickler: SPickler[T]): SbtPickler[T] =
+    new SbtPickler[T](spickler)
 
   // FIXME maybe this should extend AnyVal but it was causing
   // "bridge generated for member method clashes with definition

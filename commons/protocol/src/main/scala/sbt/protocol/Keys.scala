@@ -4,7 +4,7 @@ import java.net.URI
 import ScalaShims.ManifestFactory
 
 import sbt.serialization._
-import scala.pickling.{ SPickler, Unpickler }
+import scala.pickling.{ SPickler, Unpickler, AllPicklers }
 import scala.pickling.internal.AppliedType
 
 /**
@@ -17,8 +17,8 @@ final case class AttributeKey(name: String, manifest: AppliedType) {
 }
 object AttributeKey {
   require(implicitly[Unpickler[AppliedType]] ne null)
-  implicit val unpickler: Unpickler[AttributeKey] = Unpickler.genUnpickler[AttributeKey]
-  implicit val pickler: SPickler[AttributeKey] = SPickler.genPickler[AttributeKey]
+  implicit val unpickler: Unpickler[AttributeKey] = AllPicklers.genUnpickler[AttributeKey]
+  implicit val pickler: SPickler[AttributeKey] = AllPicklers.genPickler[AttributeKey]
 
   def apply[T](name: String)(implicit mf: Manifest[T]): AttributeKey = {
     // FIXME I don't think this is really the right name we pass to AppliedType
@@ -33,8 +33,8 @@ object AttributeKey {
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
   require(implicitly[Unpickler[java.net.URI]] ne null)
-  implicit val unpickler: Unpickler[ProjectReference] = Unpickler.genUnpickler[ProjectReference]
-  implicit val pickler: SPickler[ProjectReference] = SPickler.genPickler[ProjectReference]
+  implicit val unpickler: Unpickler[ProjectReference] = AllPicklers.genUnpickler[ProjectReference]
+  implicit val pickler: SPickler[ProjectReference] = AllPicklers.genPickler[ProjectReference]
 }
 
 /**
@@ -61,8 +61,8 @@ object SbtScope {
   require(implicitly[Unpickler[ProjectReference]] ne null)
   require(implicitly[Unpickler[URI]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
-  implicit val unpickler: Unpickler[SbtScope] = Unpickler.genUnpickler[SbtScope]
-  implicit val pickler: SPickler[SbtScope] = SPickler.genPickler[SbtScope]
+  implicit val unpickler: Unpickler[SbtScope] = AllPicklers.genUnpickler[SbtScope]
+  implicit val pickler: SPickler[SbtScope] = AllPicklers.genPickler[SbtScope]
 }
 
 /** Represents a key attached to some scope inside sbt. */
@@ -73,14 +73,14 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
 object ScopedKey {
   require(implicitly[Unpickler[SbtScope]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
-  implicit val unpickler: Unpickler[ScopedKey] = Unpickler.genUnpickler[ScopedKey]
-  implicit val pickler: SPickler[ScopedKey] = SPickler.genPickler[ScopedKey]
+  implicit val unpickler: Unpickler[ScopedKey] = AllPicklers.genUnpickler[ScopedKey]
+  implicit val pickler: SPickler[ScopedKey] = AllPicklers.genPickler[ScopedKey]
 }
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Vector[ScopedKey])
 object KeyList {
-  implicit val unpickler: Unpickler[KeyList] = Unpickler.genUnpickler[KeyList]
-  implicit val pickler: SPickler[KeyList] = SPickler.genPickler[KeyList]
+  implicit val unpickler: Unpickler[KeyList] = AllPicklers.genUnpickler[KeyList]
+  implicit val pickler: SPickler[KeyList] = AllPicklers.genPickler[KeyList]
 }
 
 /** Core information returned about projects for build clients. */
@@ -89,8 +89,8 @@ final case class MinimalProjectStructure(
   // Class names of plugins used by this project.
   plugins: Vector[String])
 object MinimalProjectStructure {
-  implicit val unpickler: Unpickler[MinimalProjectStructure] = Unpickler.genUnpickler[MinimalProjectStructure]
-  implicit val pickler: SPickler[MinimalProjectStructure] = SPickler.genPickler[MinimalProjectStructure]
+  implicit val unpickler: Unpickler[MinimalProjectStructure] = AllPicklers.genUnpickler[MinimalProjectStructure]
+  implicit val pickler: SPickler[MinimalProjectStructure] = AllPicklers.genPickler[MinimalProjectStructure]
 }
 
 final case class MinimalBuildStructure(
@@ -99,6 +99,6 @@ final case class MinimalBuildStructure(
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
-  implicit val unpickler: Unpickler[MinimalBuildStructure] = Unpickler.genUnpickler[MinimalBuildStructure]
-  implicit val pickler: SPickler[MinimalBuildStructure] = SPickler.genPickler[MinimalBuildStructure]
+  implicit val unpickler: Unpickler[MinimalBuildStructure] = AllPicklers.genUnpickler[MinimalBuildStructure]
+  implicit val pickler: SPickler[MinimalBuildStructure] = AllPicklers.genPickler[MinimalBuildStructure]
 }
