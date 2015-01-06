@@ -553,26 +553,24 @@ private[sbt] object StructurallyEqual {
 // put this companion object earlier in the file.
 object Message {
 
-  // TODO this is a massive hack to fix directKnownSubclasses
-  // not being filled in when genPickler/genUnpickler run below
-  private def exhaustivenessForcer(m: Message): Message = m match {
-    case x: CommandCompletionsRequest => x
-    case x: ExecutionStarting => x
-    case x: ValueChanged => x
-    // TODO add more of the Message subtypes here
-  }
-
   import scala.pickling.{ SPickler, Unpickler, AllPicklers }
   import scala.pickling.static._
 
   // These imports are an attempt to make genPickler work on ValueChanged,
   // but they don't seem to help and shouldn't be needed anyhow.
-  import BuildValue.{ pickler => buildValuePickler }
-  import BuildValue.{ unpickler => buildValueUnpickler }
-  import ScopedKey.{ pickler => scopedKeyPickler }
-  import ScopedKey.{ unpickler => scopedKeyUnpickler }
-  import TaskResult.{ pickler => taskResultPickler }
-  import TaskResult.{ unpickler => taskResultUnpickler }
+  //import BuildValue.{ pickler => buildValuePickler }
+  //import BuildValue.{ unpickler => buildValueUnpickler }
+  //import ScopedKey.{ pickler => scopedKeyPickler }
+  //import ScopedKey.{ unpickler => scopedKeyUnpickler }
+  //import TaskResult.{ pickler => taskResultPickler }
+  //import TaskResult.{ unpickler => taskResultUnpickler }
+
+  // We have PRIVATE implicit picklers for all the leaf subtypes of
+  // Message, and then we have a public pickler for the entire Message
+  // trait.
+  private implicit val valueChangedPickler: SPickler[ValueChanged] = AllPicklers.genPickler[ValueChanged]
+  private implicit val valueChangedUnpickler: Unpickler[ValueChanged] = AllPicklers.genUnpickler[ValueChanged]
+  // TODO all the other subtypes
 
   // TODO currently failing with "cannot generate a pickler for sbt.protocol.ValueChanged"
   implicit val pickler: SPickler[Message] = AllPicklers.genPickler[Message]
