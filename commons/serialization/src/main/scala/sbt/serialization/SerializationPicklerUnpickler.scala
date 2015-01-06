@@ -1,5 +1,5 @@
 package sbt.serialization
-import scala.pickling._
+import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader }
 import org.json4s.{ JValue, JString }
 
 // TODO comment explaining FakeTags

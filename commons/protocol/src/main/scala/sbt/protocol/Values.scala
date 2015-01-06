@@ -2,7 +2,7 @@ package sbt.protocol
 
 import sbt.serialization._
 import scala.util.{ Try, Success, Failure }
-import scala.pickling.{ SPickler, Unpickler }
+import scala.pickling.{ SPickler, Unpickler, AllPicklers }
 
 /**
  *  Represents a serialized value with a stringValue fallback.
@@ -23,8 +23,8 @@ object BuildValue {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 
-  implicit val pickler: SPickler[BuildValue] = SPickler.genPickler[BuildValue]
-  implicit val unpickler: Unpickler[BuildValue] = Unpickler.genUnpickler[BuildValue]
+  implicit val pickler: SPickler[BuildValue] = AllPicklers.genPickler[BuildValue]
+  implicit val unpickler: Unpickler[BuildValue] = AllPicklers.genUnpickler[BuildValue]
 }
 
 object ThrowableDeserializers {
@@ -91,6 +91,6 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
 object TaskResult {
-  implicit val pickler: SPickler[TaskResult] = SPickler.genPickler[TaskResult]
-  implicit val unpickler: Unpickler[TaskResult] = Unpickler.genUnpickler[TaskResult]
+  implicit val pickler: SPickler[TaskResult] = AllPicklers.genPickler[TaskResult]
+  implicit val unpickler: Unpickler[TaskResult] = AllPicklers.genUnpickler[TaskResult]
 }

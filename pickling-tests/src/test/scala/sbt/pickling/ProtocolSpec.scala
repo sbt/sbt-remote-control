@@ -4,7 +4,6 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
@@ -12,6 +11,10 @@ import sbt.protocol.Message
 import scala.pickling.internal.AppliedType
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{Try, Success, Failure}
+import sbt.serialization._
+import sbt.pickling._
+import sbt.pickling.json._
+import scala.pickling._
 
 class ProtocolTest {
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
@@ -96,10 +99,11 @@ class ProtocolTest {
   @Test
   def testTaskEvents: Unit = {
     import protocol.CompilationFailure
+    import sbt.pickling.json._
     val taskEvent1 = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
     val recovered1 = taskEvent1.pickle.value.unpickle[protocol.TaskEvent]
     recovered1 match {
-      case PlayStartedEvent(taskId, PlayStartedEvent(port)) => port must_== 10
+      case PlayStartedEvent(port) => port must_== 10
     }
     roundTripMessage(taskEvent1)
 

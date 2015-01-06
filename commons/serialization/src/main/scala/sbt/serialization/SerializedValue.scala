@@ -58,7 +58,6 @@ private[sbt] object JsonValue {
 
   def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
     implicit val pickler1: SPickler[T] = picklerForT.underlying
-    implicit val tag1: FastTypeTag[T] = picklerForT.tag
     import sbt.pickling.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
     new JsonValue(parseJson(t.pickle.value).get)

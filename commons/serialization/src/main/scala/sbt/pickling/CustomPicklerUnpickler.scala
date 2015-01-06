@@ -2,7 +2,7 @@ package sbt.pickling
 
 import java.io.File
 import java.net.URI
-import scala.pickling._
+import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PickleFormat, PBuilder, PReader, PicklingException }
 import scala.reflect.runtime.universe._
 import scala.collection.immutable.::
 import scala.collection.generic.CanBuildFrom
@@ -74,7 +74,9 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
   }
 }
 
-trait LowPriorityCustomPicklerUnpickler {
+// TODO don't inherit CorePicklersUnpicklers wholesale; instead, add
+// defs here that whitelist in only certain things from AllPicklers?
+trait LowPriorityCustomPicklerUnpickler extends scala.pickling.CorePicklersUnpicklers {
   // TODO move this to sbt.serialization once it works to do so
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
@@ -104,9 +106,9 @@ trait LowPriorityCustomPicklerUnpickler {
     canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
   implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
     canToStringPickler[URI](implicitly[FastTypeTag[URI]], implicitly[CanToString[URI]])
-  implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], format: PickleFormat, cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
+  override implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], format: PickleFormat, cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
     mkSeqSetPickler[T, Vector]
-  implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
+  override implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], format: PickleFormat, cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
   implicit def nilPickler(implicit pf: PickleFormat): SPickler[Nil.type] with Unpickler[Nil.type] = new SPickler[Nil.type] with Unpickler[Nil.type] {
     val tag = implicitly[FastTypeTag[Nil.type]]
@@ -206,7 +208,7 @@ trait LowPriorityCustomPicklerUnpickler {
     }
   }
 
-  def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
+  override def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
     pf: PickleFormat, cbf: CanBuildFrom[Coll[A], A, Coll[A]],
     collTag: FastTypeTag[Coll[A]]): SPickler[Coll[A]] with Unpickler[Coll[A]] =
     mkTravPickler[A, Coll[A]]
