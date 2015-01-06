@@ -6,7 +6,7 @@ import sbt.protocol.TestOutcome
 package object protocol {
   import sbt.serialization._
   import sbt.pickling.CanToString
-  import scala.pickling.{ SPickler, Unpickler }
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
 
   //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
   //implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???
@@ -31,13 +31,13 @@ package object protocol {
     if (o.isDefined()) Some(o.get())
     else None
 
-  implicit val testOutcomeUnpickler: Unpickler[TestOutcome] = ???
+  implicit val testOutcomeUnpickler: Unpickler[TestOutcome] = AllPicklers.genUnpickler[TestOutcome]
 
-  implicit val testOutcomePickler: SPickler[TestOutcome] = ???
+  implicit val testOutcomePickler: SPickler[TestOutcome] = AllPicklers.genPickler[TestOutcome]
 
-  implicit val testGroupResultUnpickler: Unpickler[TestGroupResult] = ???
+  implicit val testGroupResultUnpickler: Unpickler[TestGroupResult] = AllPicklers.genUnpickler[TestGroupResult]
 
-  implicit val testGroupResultPickler: SPickler[TestGroupResult] = ???
+  implicit val testGroupResultPickler: SPickler[TestGroupResult] = AllPicklers.genPickler[TestGroupResult]
 
   implicit val immutableByteArrayUnpickler: Unpickler[ByteArray] = ???
   implicit val immutableByteArrayPickler: SPickler[ByteArray] = ???

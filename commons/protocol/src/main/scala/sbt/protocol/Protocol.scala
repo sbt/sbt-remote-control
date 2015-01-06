@@ -219,12 +219,6 @@ final case class BuildFailedToLoad() extends ExecutionEngineEvent
 /** The build has been changed in some fashion. */
 final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 final case class ValueChanged(key: ScopedKey, value: TaskResult) extends Event
-object ValueChanged {
-  import scala.pickling.{ SPickler, Unpickler }
-  import scala.pickling.static._
-  implicit val pickler: SPickler[ValueChanged] = SPickler.genPickler[ValueChanged]
-  implicit val unpickler: Unpickler[ValueChanged] = Unpickler.genUnpickler[ValueChanged]
-}
 
 /** can be the response to anything. */
 final case class ErrorResponse(error: String) extends Response
@@ -254,9 +248,19 @@ final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends E
 ///// Events below here are intended to go inside a TaskEvent
 
 final case class TestGroupStarted(name: String)
-object TestGroupStarted extends TaskEventUnapply[TestGroupStarted]
+object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[TestGroupStarted] = AllPicklers.genPickler[TestGroupStarted]
+  implicit val unpickler: Unpickler[TestGroupStarted] = AllPicklers.genUnpickler[TestGroupStarted]
+}
 final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
-object TestGroupFinished extends TaskEventUnapply[TestGroupFinished]
+object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[TestGroupFinished] = AllPicklers.genPickler[TestGroupFinished]
+  implicit val unpickler: Unpickler[TestGroupFinished] = AllPicklers.genUnpickler[TestGroupFinished]
+}
 
 sealed trait TestGroupResult {
   final def success: Boolean = this == TestGroupPassed
@@ -270,11 +274,22 @@ case object TestGroupFailed extends TestGroupResult {
 case object TestGroupError extends TestGroupResult {
   override def toString = "error"
 }
+object TestGroupResult {
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[TestGroupResult] = AllPicklers.genPickler[TestGroupResult]
+  implicit val unpickler: Unpickler[TestGroupResult] = AllPicklers.genUnpickler[TestGroupResult]
+}
 
 /** A build test has done something useful and we're being notified of it. */
 final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
 
-object TestEvent extends TaskEventUnapply[TestEvent]
+object TestEvent extends TaskEventUnapply[TestEvent] {
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.static._
+  implicit val pickler: SPickler[TestEvent] = AllPicklers.genPickler[TestEvent]
+  implicit val unpickler: Unpickler[TestEvent] = AllPicklers.genUnpickler[TestEvent]
+}
 
 sealed trait TestOutcome {
   final def success: Boolean = {
@@ -537,8 +552,27 @@ private[sbt] object StructurallyEqual {
 // the macros won't know all the subtypes of Message if we
 // put this companion object earlier in the file.
 object Message {
-  import scala.pickling.{ SPickler, Unpickler }
+
+  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
   import scala.pickling.static._
-  implicit val pickler: SPickler[Message] = SPickler.genPickler[Message]
-  implicit val unpickler: Unpickler[Message] = Unpickler.genUnpickler[Message]
+
+  // These imports are an attempt to make genPickler work on ValueChanged,
+  // but they don't seem to help and shouldn't be needed anyhow.
+  //import BuildValue.{ pickler => buildValuePickler }
+  //import BuildValue.{ unpickler => buildValueUnpickler }
+  //import ScopedKey.{ pickler => scopedKeyPickler }
+  //import ScopedKey.{ unpickler => scopedKeyUnpickler }
+  //import TaskResult.{ pickler => taskResultPickler }
+  //import TaskResult.{ unpickler => taskResultUnpickler }
+
+  // We have PRIVATE implicit picklers for all the leaf subtypes of
+  // Message, and then we have a public pickler for the entire Message
+  // trait.
+  private implicit val valueChangedPickler: SPickler[ValueChanged] = AllPicklers.genPickler[ValueChanged]
+  private implicit val valueChangedUnpickler: Unpickler[ValueChanged] = AllPicklers.genUnpickler[ValueChanged]
+  // TODO all the other subtypes
+
+  // TODO currently failing with "cannot generate a pickler for sbt.protocol.ValueChanged"
+  implicit val pickler: SPickler[Message] = AllPicklers.genPickler[Message]
+  implicit val unpickler: Unpickler[Message] = AllPicklers.genUnpickler[Message]
 }

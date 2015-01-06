@@ -4,7 +4,6 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling._, sbt.pickling.json._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
@@ -12,6 +11,19 @@ import sbt.protocol.Message
 import scala.pickling.internal.AppliedType
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{Try, Success, Failure}
+import sbt.pickling._
+import sbt.pickling.json._
+import scala.pickling.{ PickleOps, SPickler, Unpickler }
+import sbt.serialization._
+// TODO these are required, despite the wildcard import above;
+// no idea why. Try removing them and see if we can still build.
+import sbt.serialization.stringPicklerUnpickler
+import sbt.serialization.intPicklerUnpickler
+import sbt.serialization.longPicklerUnpickler
+import sbt.serialization.throwablePicklerUnpickler
+import sbt.serialization.booleanPicklerUnpickler
+import sbt.serialization.doublePicklerUnpickler
+import sbt.serialization.floatPicklerUnpickler
 
 class ProtocolTest {
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
@@ -58,8 +70,11 @@ class ProtocolTest {
   @Test
   def testValueChanged: Unit = {
     val taskSuccess = protocol.TaskSuccess(protocol.BuildValue("HI"))
-    val v1 = protocol.ValueChanged(scopedKey, taskSuccess)
-    val recovered1 = v1.pickle.value.unpickle[protocol.ValueChanged]
+    val v1: Message = protocol.ValueChanged(scopedKey, taskSuccess)
+    val recovered1 = v1.pickle.value.unpickle[protocol.Message] match {
+      case v: protocol.ValueChanged => v
+      case other => throw new AssertionError(s"expecting ValueChanged got $other")
+    }
     recovered1.value.result[String] match {
       case Success("HI") => ()
       case _             => sys.error("unexpected failure")
@@ -72,8 +87,11 @@ class ProtocolTest {
     roundTripMessage(protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0))))
     roundTripMessage(protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))))
     val taskFailure = protocol.TaskFailure(protocol.BuildValue(new Exception("bam"): Throwable))
-    val v2 = protocol.ValueChanged(scopedKey, taskFailure)
-    val recovered2 = v2.pickle.value.unpickle[protocol.ValueChanged]
+    val v2: Message = protocol.ValueChanged(scopedKey, taskFailure)
+    val recovered2 = v2.pickle.value.unpickle[protocol.Message] match {
+      case v: protocol.ValueChanged => v
+      case other => throw new AssertionError(s"expecting ValueChanged got $other")
+    }
     recovered2.value.result[Int] match {
       case Failure(e) => e.getMessage must_== "bam"
       case Success(_) => sys.error("unexpected success")
@@ -96,6 +114,7 @@ class ProtocolTest {
   @Test
   def testTaskEvents: Unit = {
     import protocol.CompilationFailure
+    import sbt.pickling.json._
     val taskEvent1 = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
     val recovered1 = taskEvent1.pickle.value.unpickle[protocol.TaskEvent]
     recovered1 match {
@@ -115,8 +134,16 @@ class ProtocolTest {
     roundTripMessage(protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey)))
     roundTripMessage(protocol.BackgroundJobFinished(9, 67))
 
+    // TODO these imports should not be needed!
+    import PlayStartedEvent.pickler
+    import protocol.Message.pickler
+    import protocol.Message.unpickler
     val bgje = protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))
-    val recovered3 = bgje.pickle.value.unpickle[protocol.BackgroundJobEvent]
+    val pickled = SpecsUtil.pickleMessage(bgje)
+    val recovered3 = SpecsUtil.parseMessage(pickled) match {
+      case e: protocol.BackgroundJobEvent => e
+      case other => throw new AssertionError("did not unpickle the right thing: " + other)
+    }
     recovered3 match {
       case PlayStartedEventBg(taskId, PlayStartedEvent(port)) => port must_== 10
     }

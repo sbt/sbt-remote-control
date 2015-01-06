@@ -2,11 +2,11 @@ package sbt.pickling.spec
 
 import sbt.protocol.Message
 
-import scala.pickling._, sbt.pickling.json._
-// TODO this should not break!
-//import scala.pickling.static._
+import scala.pickling.PickleOps, sbt.pickling._, sbt.pickling.json._, sbt.serialization._
+import scala.pickling.static._
 
 object SpecsUtil {
+  // TODO get rid of pickleMessage and parseMessage once pickle/unpickle are not macros
   def pickleMessage(m: Message): String =
     m.pickle.value
 

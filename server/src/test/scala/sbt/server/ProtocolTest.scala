@@ -367,8 +367,8 @@ object ProtocolGenerators {
 final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
   import scala.pickling.{ SPickler, Unpickler }
-  implicit val pickler = SPickler.genPickler[PlayStartedEvent]
-  implicit val unpickler = Unpickler.genUnpickler[PlayStartedEvent]
+  implicit val pickler = AllPicklers.genPickler[PlayStartedEvent]
+  implicit val unpickler = AllPicklers.genUnpickler[PlayStartedEvent]
 }
 
 class ProtocolTest {
