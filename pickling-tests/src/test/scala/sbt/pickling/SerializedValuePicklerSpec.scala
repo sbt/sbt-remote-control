@@ -8,10 +8,15 @@ import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
 
-import sbt.serialization._
 import sbt.pickling._
 import sbt.pickling.json._
 import protocol.TaskEventUnapply
+import scala.pickling.AllPicklers
+
+import sbt.serialization._
+// TODO these are required, despite the wildcard import above;
+// no idea why. Try removing them and see if we can still build.
+import sbt.serialization.intPicklerUnpickler
 
 class SerializedValuePicklerTest {
   @Test

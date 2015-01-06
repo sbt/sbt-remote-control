@@ -219,12 +219,6 @@ final case class BuildFailedToLoad() extends ExecutionEngineEvent
 /** The build has been changed in some fashion. */
 final case class BuildStructureChanged(structure: MinimalBuildStructure) extends Event
 final case class ValueChanged(key: ScopedKey, value: TaskResult) extends Event
-object ValueChanged {
-  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
-  import scala.pickling.static._
-  implicit val pickler: SPickler[ValueChanged] = AllPicklers.genPickler[ValueChanged]
-  implicit val unpickler: Unpickler[ValueChanged] = AllPicklers.genUnpickler[ValueChanged]
-}
 
 /** can be the response to anything. */
 final case class ErrorResponse(error: String) extends Response
@@ -558,8 +552,29 @@ private[sbt] object StructurallyEqual {
 // the macros won't know all the subtypes of Message if we
 // put this companion object earlier in the file.
 object Message {
+
+  // TODO this is a massive hack to fix directKnownSubclasses
+  // not being filled in when genPickler/genUnpickler run below
+  private def exhaustivenessForcer(m: Message): Message = m match {
+    case x: CommandCompletionsRequest => x
+    case x: ExecutionStarting => x
+    case x: ValueChanged => x
+    // TODO add more of the Message subtypes here
+  }
+
   import scala.pickling.{ SPickler, Unpickler, AllPicklers }
   import scala.pickling.static._
+
+  // These imports are an attempt to make genPickler work on ValueChanged,
+  // but they don't seem to help and shouldn't be needed anyhow.
+  import BuildValue.{ pickler => buildValuePickler }
+  import BuildValue.{ unpickler => buildValueUnpickler }
+  import ScopedKey.{ pickler => scopedKeyPickler }
+  import ScopedKey.{ unpickler => scopedKeyUnpickler }
+  import TaskResult.{ pickler => taskResultPickler }
+  import TaskResult.{ unpickler => taskResultUnpickler }
+
+  // TODO currently failing with "cannot generate a pickler for sbt.protocol.ValueChanged"
   implicit val pickler: SPickler[Message] = AllPicklers.genPickler[Message]
   implicit val unpickler: Unpickler[Message] = AllPicklers.genUnpickler[Message]
 }

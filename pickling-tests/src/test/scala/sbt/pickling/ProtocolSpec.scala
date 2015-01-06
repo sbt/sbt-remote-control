@@ -11,10 +11,19 @@ import sbt.protocol.Message
 import scala.pickling.internal.AppliedType
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{Try, Success, Failure}
-import sbt.serialization._
 import sbt.pickling._
 import sbt.pickling.json._
-import scala.pickling._
+import scala.pickling.{ PickleOps, SPickler, Unpickler }
+import sbt.serialization._
+// TODO these are required, despite the wildcard import above;
+// no idea why. Try removing them and see if we can still build.
+import sbt.serialization.stringPicklerUnpickler
+import sbt.serialization.intPicklerUnpickler
+import sbt.serialization.longPicklerUnpickler
+import sbt.serialization.throwablePicklerUnpickler
+import sbt.serialization.booleanPicklerUnpickler
+import sbt.serialization.doublePicklerUnpickler
+import sbt.serialization.floatPicklerUnpickler
 
 class ProtocolTest {
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
@@ -103,7 +112,7 @@ class ProtocolTest {
     val taskEvent1 = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
     val recovered1 = taskEvent1.pickle.value.unpickle[protocol.TaskEvent]
     recovered1 match {
-      case PlayStartedEvent(port) => port must_== 10
+      case PlayStartedEvent(taskId, PlayStartedEvent(port)) => port must_== 10
     }
     roundTripMessage(taskEvent1)
 
@@ -119,8 +128,16 @@ class ProtocolTest {
     roundTripMessage(protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey)))
     roundTripMessage(protocol.BackgroundJobFinished(9, 67))
 
+    // TODO these imports should not be needed!
+    import PlayStartedEvent.pickler
+    import protocol.Message.pickler
+    import protocol.Message.unpickler
     val bgje = protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))
-    val recovered3 = bgje.pickle.value.unpickle[protocol.BackgroundJobEvent]
+    val pickled = SpecsUtil.pickleMessage(bgje)
+    val recovered3 = SpecsUtil.parseMessage(pickled) match {
+      case e: protocol.BackgroundJobEvent => e
+      case other => throw new AssertionError("did not unpickle the right thing: " + other)
+    }
     recovered3 match {
       case PlayStartedEventBg(taskId, PlayStartedEvent(port)) => port must_== 10
     }
