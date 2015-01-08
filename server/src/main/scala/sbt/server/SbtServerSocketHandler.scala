@@ -70,12 +70,12 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
                   throw replyAndException(s"Invalid UUID format: '${req.info.uuid}'")
               }
             case Envelope(serial, _, wtf) =>
-              server.replyJson(serial, ErrorResponse("First message must be a RegisterClientRequest"))
+              server.replyJson[Message](serial, ErrorResponse("First message must be a RegisterClientRequest"))
               throw new HandshakeException(s"First message from client was ${wtf} instead of register request",
                 null, null)
           }
 
-          server.replyJson(registerSerial, ReceivedResponse())
+          server.replyJson[Message](registerSerial, ReceivedResponse())
 
           log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName}")
 

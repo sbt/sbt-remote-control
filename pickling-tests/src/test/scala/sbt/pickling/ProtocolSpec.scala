@@ -17,6 +17,7 @@ import scala.pickling.{ PickleOps, SPickler, Unpickler }
 import sbt.serialization._
 // TODO these are required, despite the wildcard import above;
 // no idea why. Try removing them and see if we can still build.
+// The need may go away when we drop SbtUnpickler and just use Unpickler
 import sbt.serialization.stringPicklerUnpickler
 import sbt.serialization.intPicklerUnpickler
 import sbt.serialization.longPicklerUnpickler
@@ -26,6 +27,7 @@ import sbt.serialization.doublePicklerUnpickler
 import sbt.serialization.floatPicklerUnpickler
 
 class ProtocolTest {
+
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")
   val projectRef = protocol.ProjectReference(build, "test")
@@ -115,15 +117,21 @@ class ProtocolTest {
   def testTaskEvents: Unit = {
     import protocol.CompilationFailure
     import sbt.pickling.json._
-    val taskEvent1 = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
-    val recovered1 = taskEvent1.pickle.value.unpickle[protocol.TaskEvent]
+    val taskEvent1: Message = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
+    val recovered1 = taskEvent1.pickle.value.unpickle[protocol.Message] match {
+      case x: protocol.TaskEvent => x
+      case other => throw new AssertionError(s"Expected TaskEvent got $other")
+    }
     recovered1 match {
-      case PlayStartedEvent(taskId, PlayStartedEvent(port)) => port must_== 10
+      case PlayStartedEvent(taskId, playStarted) => playStarted.port must_== 10
     }
     roundTripMessage(taskEvent1)
 
-    val taskEvent2 = protocol.TaskEvent(9, CompilationFailure(projectRef, nopos, severity, "aww snap"))
-    val recovered2 = taskEvent2.pickle.value.unpickle[protocol.TaskEvent]
+    val taskEvent2: Message = protocol.TaskEvent(9, CompilationFailure(projectRef, nopos, severity, "aww snap"))
+    val recovered2 = taskEvent2.pickle.value.unpickle[protocol.Message] match {
+      case x: protocol.TaskEvent => x
+      case other => throw new AssertionError(s"Expected TaskEvent got $other")
+    }
     val failure = recovered2.serialized.parse[CompilationFailure].get
     failure.message must_== "aww snap"
     roundTripMessage(taskEvent2)
@@ -145,7 +153,7 @@ class ProtocolTest {
       case other => throw new AssertionError("did not unpickle the right thing: " + other)
     }
     recovered3 match {
-      case PlayStartedEventBg(taskId, PlayStartedEvent(port)) => port must_== 10
+      case PlayStartedEventBg(taskId, playStarted) => playStarted.port must_== 10
     }
     roundTripMessage(bgje)
   }

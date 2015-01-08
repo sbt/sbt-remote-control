@@ -2,11 +2,31 @@ package sbt.pickling.spec
 
 import org.junit.Assert._
 import org.junit._
-import scala.pickling._, sbt.pickling._, sbt.pickling.json._
+import scala.pickling.{ PickleOps, UnpickleOps, PicklingException }
+import sbt.pickling._, sbt.pickling.json._
+import sbt.serialization._
 import SpecsUtil._
 import JUnitUtil._
 
+sealed trait Fruit
+case class Apple(x: Int) extends Fruit
+object Apple {
+  implicit val pickler = genPickler[Apple]
+  implicit val unpickler = genUnpickler[Apple]
+}
+case class Orange(x: Int) extends Fruit
+object Orange {
+  implicit val pickler = genPickler[Orange]
+  implicit val unpickler = genUnpickler[Orange]
+}
+
+object Fruit {
+  implicit val pickler = genPickler[Fruit]
+  implicit val unpickler = genUnpickler[Fruit]
+}
+
 class PicklerTypeTest {
+
   @Test
   def testPickleApple: Unit = {
     Apple(1).pickle.value must_== appleExample
@@ -20,11 +40,6 @@ class PicklerTypeTest {
   @Test
   def testUnpickleFruit: Unit = {
     appleExample.unpickle[Fruit] must_== Apple(1)
-  }
-
-  @Test
-  def testUnpickleAny: Unit = {
-    appleExample.unpickle[Any] must_== Apple(1)
   }
 
   @Test
@@ -56,7 +71,3 @@ class PicklerTypeTest {
     |  "x": 1
     |}""".stripMargin
 }
-
-sealed trait Fruit
-case class Apple(x: Int) extends Fruit
-case class Orange(x: Int) extends Fruit

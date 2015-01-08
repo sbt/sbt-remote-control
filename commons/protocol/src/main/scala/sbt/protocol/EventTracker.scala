@@ -11,13 +11,14 @@ import sbt.serialization._
  */
 
 /* FIXME we don't really need to pass the Pickler around for messages anymore
- * because Message is a sealed trait with the writes at the base.
+ * because Message is a sealed trait with the writes at the base. Therefore
+ * this whole EventWithWrites thing is pointless - get rid of it.
  */
-private[sbt] final case class EventWithWrites[E <: Event](event: E, pickler: SbtPickler[E])
+private[sbt] final case class EventWithWrites[E <: Event](event: E)
 
 private[sbt] object EventWithWrites {
-  def withWrites[E <: Event](event: E)(implicit pickler: SbtPickler[E]): EventWithWrites[E] =
-    EventWithWrites(event, pickler)
+  def withWrites[E <: Event](event: E): EventWithWrites[E] =
+    EventWithWrites(event)
 }
 
 private[sbt] object ImpliedState {
@@ -28,7 +29,7 @@ private[sbt] object ImpliedState {
    */
   private implicit def writesForEvent[E <: Event]: SbtPickler[E] = implicitly[SbtPickler[Message]].asInstanceOf[SbtPickler[E]]
 
-  private implicit def writes[E <: Event, W >: E](event: E)(implicit pickler: SbtPickler[W]): EventWithWrites[E] =
+  private implicit def writes[E <: Event](event: E): EventWithWrites[E] =
     EventWithWrites.withWrites(event)
 
   final case class Task(id: Long, key: Option[ScopedKey])

@@ -1,12 +1,11 @@
 package sbt
 
 import scala.util.control.NonFatal
-import sbt.protocol.TestOutcome
 
 package object protocol {
   import sbt.serialization._
   import sbt.pickling.CanToString
-  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.{ SPickler, Unpickler }
 
   //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
   //implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???
@@ -30,17 +29,6 @@ package object protocol {
   private def convertToOption[T](o: xsbti.Maybe[T]): Option[T] =
     if (o.isDefined()) Some(o.get())
     else None
-
-  implicit val testOutcomeUnpickler: Unpickler[TestOutcome] = AllPicklers.genUnpickler[TestOutcome]
-
-  implicit val testOutcomePickler: SPickler[TestOutcome] = AllPicklers.genPickler[TestOutcome]
-
-  implicit val testGroupResultUnpickler: Unpickler[TestGroupResult] = AllPicklers.genUnpickler[TestGroupResult]
-
-  implicit val testGroupResultPickler: SPickler[TestGroupResult] = AllPicklers.genPickler[TestGroupResult]
-
-  implicit val immutableByteArrayUnpickler: Unpickler[ByteArray] = ???
-  implicit val immutableByteArrayPickler: SPickler[ByteArray] = ???
 
   implicit def fileMapUnpickler[T](implicit tUnpickler: Unpickler[T]): Unpickler[Map[java.io.File, T]] = ??? /* Unpickler[Map[java.io.File, T]] { json =>
     val stringMapUnpickler = implicitly[Unpickler[Map[String, T]]]
@@ -66,17 +54,19 @@ package object protocol {
     Json.obj("forwardMap" -> in.forwardMap, "reverseMap" -> in.reverseMap)
   }*/
 
-  implicit val stampUnpickler: Unpickler[Stamp] = ???
-  implicit val stampPickler: SPickler[Stamp] = ???
+  // TODO these are defs just so we don't run ??? for now
+  // TODO we probably want to drop all/most Analysis-related stuff
+  implicit def stampUnpickler: Unpickler[Stamp] = ???
+  implicit def stampPickler: SPickler[Stamp] = ???
 
-  implicit val qualifierUnpickler: Unpickler[Qualifier] = ???
-  implicit val qualifierPickler: SPickler[Qualifier] = ???
+  implicit def qualifierUnpickler: Unpickler[Qualifier] = ???
+  implicit def qualifierPickler: SPickler[Qualifier] = ???
 
-  implicit val accessPickler: SPickler[Access] = ???
-  implicit val accessUnpickler: Unpickler[Access] = ???
+  implicit def accessPickler: SPickler[Access] = ???
+  implicit def accessUnpickler: Unpickler[Access] = ???
 
-  implicit val variancePickler: SPickler[xsbti.api.Variance] = ???
-  implicit val varianceUnpickler: Unpickler[xsbti.api.Variance] = ???
+  implicit def variancePickler: SPickler[xsbti.api.Variance] = ???
+  implicit def varianceUnpickler: Unpickler[xsbti.api.Variance] = ???
   // lazy needed to avoid NPE
   implicit lazy val pathComponentPickler: SPickler[PathComponent] = ???
   implicit lazy val pathComponentUnpickler: Unpickler[PathComponent] = ???
@@ -91,6 +81,14 @@ package object protocol {
   // lazy needed to avoid NPE
   implicit lazy val typePickler: SPickler[Type] = ???
 
-  implicit val compileFailedExceptionUnpickler: Unpickler[CompileFailedException] = ???
-  implicit val compileFailedExceptionPickler: SPickler[CompileFailedException] = ???
+  // TODO these should be vals and implemented
+  implicit def compileFailedExceptionUnpickler: Unpickler[CompileFailedException] = ???
+  implicit def compileFailedExceptionPickler: SPickler[CompileFailedException] = ???
+
+  // TODO there's no real logic to why these are here and others are in
+  // companion objects.
+  implicit val positionPickler = genPickler[Position]
+  implicit val positionUnpickler = genUnpickler[Position]
+  implicit val compilationFailurePickler = genPickler[CompilationFailure]
+  implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
 }

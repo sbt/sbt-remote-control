@@ -2,9 +2,17 @@ package sbt.pickling.spec
 
 import org.junit.Assert._
 import org.junit._
-import scala.pickling._, sbt.pickling._, sbt.pickling.json._
+import scala.pickling.{ PickleOps, UnpickleOps }
+import sbt.pickling._, sbt.pickling.json._
+import sbt.serialization._
 import SpecsUtil._
 import JUnitUtil._
+
+case class Foo(x: Int, y: Option[Int])
+object Foo {
+  implicit val pickler = genPickler[Foo]
+  implicit val unpickler = genUnpickler[Foo]
+}
 
 class PicklerGrowableTest {
   @Test
@@ -28,5 +36,3 @@ class PicklerGrowableTest {
     |  "x": 1
     |}""".stripMargin
 }
-
-case class Foo(x: Int, y: Option[Int])
