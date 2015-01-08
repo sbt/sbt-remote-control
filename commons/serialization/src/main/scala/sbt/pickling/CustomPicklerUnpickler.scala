@@ -208,6 +208,10 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
     canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
   implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
     canToStringPickler[URI](implicitly[FastTypeTag[URI]], implicitly[CanToString[URI]])
+
+  // TODO this is sort of a weird implementation detail of pickling,
+  // that will hopefully not be necessary at some point
+  implicit val refUnpickler: Unpickler[scala.pickling.refs.Ref] = mkPrimitivePicklerUnpickler[scala.pickling.refs.Ref]
 }
 
 trait LowPriorityCustomPicklerUnpickler {

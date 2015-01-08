@@ -59,7 +59,7 @@ private final class BackgroundJobSendEventService(jobId: Long, eventSink: Messag
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
-private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent])
+private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent], startedSink: MessageSink[BackgroundJobStarted], finishedSink: MessageSink[BackgroundJobFinished])
   extends AbstractBackgroundJobService {
 
   // synchronized access; store the execution ID of each job ID.
@@ -76,7 +76,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
   protected override def onAddJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
     executionIdFinder.currentExecutionId map { executionId =>
       synchronized { executionIds += job.id -> executionId }
-      sendEventService.sendEvent(BackgroundJobStarted(executionId,
+      startedSink.send(BackgroundJobStarted(executionId,
         BackgroundJobInfo(id = job.id,
           humanReadableName = job.humanReadableName,
           spawningTask = SbtToProtocolUtils.scopedKeyToProtocol(job.spawningTask))))
@@ -86,7 +86,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
   }
   protected override def onRemoveJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
     synchronized { executionIds.get(job.id) } map { executionId =>
-      sendEventService.sendEvent(BackgroundJobFinished(executionId = executionId, jobId = job.id))
+      finishedSink.send(BackgroundJobFinished(executionId = executionId, jobId = job.id))
       synchronized { executionIds -= job.id }
     } getOrElse {
       logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
@@ -105,12 +105,12 @@ object UIShims {
       new TaskSendEventService(taskIdFinder, eventSink)
     })
 
-  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent]): Setting[_] =
-    UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink) }
+  private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent], startedSink: MessageSink[BackgroundJobStarted], finishedSink: MessageSink[BackgroundJobFinished]): Setting[_] =
+    UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink, startedSink, finishedSink) }
 
-  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: MessageSink[protocol.LogEvent], taskEventSink: MessageSink[TaskEvent], jobEventSink: MessageSink[BackgroundJobEvent]): Seq[Setting[_]] =
+  def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: MessageSink[protocol.LogEvent], taskEventSink: MessageSink[TaskEvent], jobEventSink: MessageSink[BackgroundJobEvent], startedSink: MessageSink[BackgroundJobStarted], finishedSink: MessageSink[BackgroundJobFinished]): Seq[Setting[_]] =
     Seq(
       UIKeys.registeredSerializers in Global <<= (UIKeys.registeredSerializers in Global) ?? Nil,
       UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
-      jobServiceSetting(executionIdFinder, logSink, jobEventSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
+      jobServiceSetting(executionIdFinder, logSink, jobEventSink, startedSink, finishedSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

@@ -4,7 +4,9 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling._, sbt.pickling.json._
+import scala.pickling.{ PickleOps, UnpickleOps }
+import sbt.pickling._, sbt.pickling.json._
+import sbt.serialization._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
@@ -27,7 +29,6 @@ class AppliedTypePicklerTest {
     roundTrip(value)
   }
 
-/*TODO
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")
   val projectRef = protocol.ProjectReference(build, "test")
@@ -48,5 +49,4 @@ class AppliedTypePicklerTest {
   def testRoundtripScopedKey: Unit = {
     roundTrip(scopedKey)
   }
-*/
 }

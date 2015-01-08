@@ -11,7 +11,6 @@ import sbt.protocol
 import sbt.pickling._
 import sbt.pickling.json._
 import protocol.TaskEventUnapply
-import scala.pickling.AllPicklers
 
 import sbt.serialization._
 // TODO these are required, despite the wildcard import above;
@@ -19,6 +18,7 @@ import sbt.serialization._
 import sbt.serialization.intPicklerUnpickler
 
 class SerializedValuePicklerTest {
+
   @Test
   def testRoundtripInt: Unit = {
     import scala.pickling._
@@ -39,10 +39,3 @@ class SerializedValuePicklerTest {
     roundTrip(SerializedValue(PlayStartedEvent(10)))
   }
 }
-
-final case class PlayStartedEvent(port: Int)
-object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
-  implicit val pickler = AllPicklers.genPickler[PlayStartedEvent]
-  implicit val unpickler = AllPicklers.genUnpickler[PlayStartedEvent]
-}
-object PlayStartedEventBg extends protocol.BackgroundJobEventUnapply[PlayStartedEvent]

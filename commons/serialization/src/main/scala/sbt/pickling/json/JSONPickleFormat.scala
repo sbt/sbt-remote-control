@@ -1,8 +1,23 @@
 package sbt.pickling
 
-import scala.pickling._
+import sbt.pickling._
+import scala.pickling.{
+  FastTypeTag,
+  Output,
+  PBuilder,
+  PReader,
+  Pickle,
+  PickleFormat,
+  PickleTools,
+  PicklingException,
+  SPickler,
+  StringOutput,
+  Unpickler,
+  UnpickleOps
+}
 import scala.pickling.internal.lookupUnpicklee
-import scala.reflect.runtime.universe._
+// FIXME this isn't threadsafe right? we need to get rid of its use.
+import scala.reflect.runtime.universe.{ Mirror, ClassSymbol, definitions }
 import definitions._
 import org.json4s._
 import scala.util.parsing.json.JSONFormat.quoteString
@@ -10,9 +25,10 @@ import scala.collection.mutable.{ StringBuilder, Stack }
 import scala.util.{ Success, Failure }
 
 package json {
-  object `package` extends CustomPicklerUnpickler {
+  object `package` {
     import scala.language.implicitConversions
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
+    // TODO both of these are pretty sketchy probably?
     implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
     implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
   }

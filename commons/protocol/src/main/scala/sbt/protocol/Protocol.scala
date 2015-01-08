@@ -185,7 +185,7 @@ trait TaskEventUnapply[T] {
   }
 }
 
-/** A custom event from a task. "name" is conventionally the simplified class name. */
+/** A custom event from a job. "name" is conventionally the simplified class name. */
 final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
@@ -554,6 +554,28 @@ object ByteArray {
     }
   }
   def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
+
+  // TODO what a mess, this isn't quite right I'm sure, but probably we just
+  // don't need byte arrays anyhow (we don't need all of Analysis)
+  import scala.pickling.{ SPickler, Unpickler, PBuilder, PReader, FastTypeTag, PicklingException }
+  implicit val picklerUnpickler: SPickler[ByteArray] with Unpickler[ByteArray] = new SPickler[ByteArray] with Unpickler[ByteArray] {
+    private implicit val arrayPickler = implicitly[SPickler[Array[Byte]]]
+    private implicit val arrayUnpickler = implicitly[Unpickler[Array[Byte]]]
+    override val tag = implicitly[FastTypeTag[ByteArray]]
+
+    def pickle(array: ByteArray, builder: PBuilder): Unit = {
+      val concrete = array match {
+        case c: ConcreteByteArray => c
+      }
+      arrayPickler.pickle(concrete.ary, builder)
+    }
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      arrayUnpickler.unpickle(tag, preader) match {
+        case ary: Array[_] => new ConcreteByteArray(ary.asInstanceOf[Array[Byte]])
+        case other => throw new PicklingException(s"expected byte array got $other")
+      }
+    }
+  }
 }
 
 final case class ModuleId(organization: String, name: String, attributes: Map[String, String])
@@ -589,12 +611,10 @@ object Message {
 
   // Picklers for types that appear in messages
 
-  private implicit val positionPickler = genPickler[Position]
-  private implicit val positionUnpickler = genUnpickler[Position]
+  private implicit val backgroundJobInfoPickler = genPickler[BackgroundJobInfo]
+  private implicit val backgroundJobInfoUnpickler = genUnpickler[BackgroundJobInfo]
   private implicit val clientInfoPickler = genPickler[ClientInfo]
   private implicit val clientInfoUnpickler = genUnpickler[ClientInfo]
-  private implicit val compilationFailurePickler = genPickler[CompilationFailure]
-  private implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
   private implicit val completionPickler = genPickler[Completion]
   private implicit val completionUnpickler = genUnpickler[Completion]
   private implicit val executionAnalysisCommandPickler = genPickler[ExecutionAnalysisCommand]
@@ -629,8 +649,6 @@ object Message {
   private implicit val backgroundJobEventUnpickler = genUnpickler[BackgroundJobEvent]
   private implicit val backgroundJobFinishedPickler = genPickler[BackgroundJobFinished]
   private implicit val backgroundJobFinishedUnpickler = genUnpickler[BackgroundJobFinished]
-  private implicit val backgroundJobInfoPickler = genPickler[BackgroundJobInfo]
-  private implicit val backgroundJobInfoUnpickler = genUnpickler[BackgroundJobInfo]
   private implicit val backgroundJobLogEventPickler = genPickler[BackgroundJobLogEvent]
   private implicit val backgroundJobLogEventUnpickler = genUnpickler[BackgroundJobLogEvent]
   private implicit val backgroundJobStartedPickler = genPickler[BackgroundJobStarted]
