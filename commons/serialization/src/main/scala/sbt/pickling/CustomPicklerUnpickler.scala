@@ -10,137 +10,63 @@ import scala.pickling.internal.AppliedType
 
 // TODO change defs to objects and vals when possible
 trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
+  import scala.language.experimental.macros
 
   // TODO move this to sbt.serialization once it works to do so
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
-  private final case class StackTraceElementDeserialized(declaringClass: String,
-    methodName: String,
-    fileName: String,
-    lineNumber: Int)
+  // non-implicit aliases of pickling's gen macros
+  def genPickler[T]: SPickler[T] = macro scala.pickling.Compat.PicklerMacros_impl[T]
+  def genUnpickler[T]: Unpickler[T] with scala.pickling.Generated = macro scala.pickling.Compat.UnpicklerMacros_impl[T]
 
-  private final case class ThrowableDeserialized(message: Option[String],
-    cause: Option[ThrowableDeserialized],
-    stackTrace: Vector[StackTraceElementDeserialized])
-    extends Throwable(message.orNull, cause.orNull)
+  /*  === Begin cut-and-paste of primitive picklers from pickling === */
 
-  // TODO why isn't this in LowPriority / what goes in Low and what goes here?
-  implicit object throwablePicklerUnpickler extends SPickler[Throwable] with Unpickler[Throwable] {
-    val tag: FastTypeTag[Throwable] = implicitly[FastTypeTag[Throwable]]
-    private val stringTag = implicitly[FastTypeTag[String]]
-    private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
-    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
-    private val stringOptPickler = implicitly[SPickler[Option[String]]]
-    private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
-    private val throwableOptPicklerUnpickler = optionPickler[Throwable](tag, this, this, throwableOptTag)
-    private val vstedTag = implicitly[FastTypeTag[Vector[StackTraceElementDeserialized]]]
-    private val vstedPickler = implicitly[SPickler[Vector[StackTraceElementDeserialized]]]
-    private val vstedUnpickler = implicitly[Unpickler[Vector[StackTraceElementDeserialized]]]
-
-    def pickle(a: Throwable, builder: PBuilder): Unit = {
-      builder.beginEntry(a)
-      builder.putField("message", { b =>
-        b.hintTag(stringOptTag)
-        stringOptPickler.pickle(Option(a.getMessage), b)
-      })
-      builder.putField("cause", { b =>
-        b.hintTag(throwableOptTag)
-        throwableOptPicklerUnpickler.pickle(Option(a.getCause), b)
-      })
-      builder.putField("stackTrace", { b =>
-        b.hintTag(vstedTag)
-        vstedPickler.pickle(a.getStackTrace.toVector map { x =>
-          StackTraceElementDeserialized(x.getClassName, x.getMethodName, x.getFileName, x.getLineNumber)
-        }, b)
-      })
+  // this isn't exactly cut-and-paste because we remove the runtime pickler registration
+  private class PrimitivePicklerUnpickler[T: FastTypeTag](name: String) extends SPickler[T] with Unpickler[T] {
+    override def tag: FastTypeTag[T] = implicitly[FastTypeTag[T]]
+    override def pickle(picklee: T, builder: PBuilder): Unit = {
+      builder.beginEntry(picklee)
       builder.endEntry()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      val reader1 = preader.readField("message")
-      reader1.hintTag(stringOptTag)
-      val message = stringOptUnpickler.unpickle(stringOptTag, reader1).asInstanceOf[Option[String]]
-      val reader2 = preader.readField("cause")
-      reader2.hintTag(throwableOptTag)
-      val cause = throwableOptPicklerUnpickler.unpickle(throwableOptTag, reader2).asInstanceOf[Option[ThrowableDeserialized]]
-      val reader3 = preader.readField("stackTrace")
-      reader3.hintTag(vstedTag)
-      val stackTrace = vstedUnpickler.unpickle(vstedTag, reader3).asInstanceOf[Vector[StackTraceElementDeserialized]]
-      val result = ThrowableDeserialized(message, cause, stackTrace)
-      result.setStackTrace((stackTrace map { x =>
-        new StackTraceElement(x.declaringClass, x.methodName, x.fileName, x.lineNumber)
-      }).toArray)
-      result
-    }
-  }
-}
-
-// TODO don't inherit CorePicklersUnpicklers wholesale; instead, add
-// defs here that whitelist in only certain things from AllPicklers?
-trait LowPriorityCustomPicklerUnpickler extends scala.pickling.CorePicklersUnpicklers {
-  // TODO move this to sbt.serialization once it works to do so
-  private implicit def staticOnly = scala.pickling.static.StaticOnly
-
-  implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
-    val tag = implicitly[FastTypeTag[A]]
-    val stringPickler = implicitly[SPickler[String]]
-    val stringUnpickler = implicitly[Unpickler[String]]
-    def pickle(a: A, builder: PBuilder): Unit = {
-      builder.pushHints()
-      builder.hintTag(FastTypeTag.String)
-      stringPickler.pickle(canToString.toString(a), builder)
-      builder.popHints()
-    }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      val s = stringUnpickler.unpickle(FastTypeTag.String, preader).asInstanceOf[String]
+    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
       try {
-        val result = canToString.fromString(s)
-        result
+        reader.readPrimitive()
       } catch {
-        case _: Throwable => throw new PicklingException(s""""$s" is not valid ${tag.tpe}""")
+        case PicklingException(msg, cause) =>
+          throw PicklingException(s"""error in unpickle of primitive unpickler '$name':
+                                    |tag in unpickle: '${tag.key}'
+                                    |message:
+                                    |$msg""".stripMargin, cause)
       }
     }
   }
-  implicit val appliedTypePickler: SPickler[AppliedType] with Unpickler[AppliedType] =
-    canToStringPickler[AppliedType](implicitly[FastTypeTag[AppliedType]], implicitly[CanToString[AppliedType]])
-  implicit val filePickler: SPickler[File] with Unpickler[File] =
-    canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
-  implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
-    canToStringPickler[URI](implicitly[FastTypeTag[URI]], implicitly[CanToString[URI]])
-  override implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
-    mkSeqSetPickler[T, Vector]
-  override implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
-    mkTravPickler[A, Array[A]]
-  implicit val nilPickler: SPickler[Nil.type] with Unpickler[Nil.type] = new SPickler[Nil.type] with Unpickler[Nil.type] {
-    val tag = implicitly[FastTypeTag[Nil.type]]
-    val ccUnpickler: Unpickler[::[String]] = implicitly[Unpickler[::[String]]]
-    def pickle(coll: Nil.type, builder: PBuilder): Unit = {
-      builder.beginEntry(coll)
-      builder.beginCollection(0)
-      builder.endCollection
-      builder.endEntry()
-    }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any =
-      ccUnpickler.unpickle(tag, preader).asInstanceOf[Nil.type]
-  }
-  implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
-    ccPickler: SPickler[::[A]], ccUnpickler: Unpickler[::[A]],
-    collTag: FastTypeTag[List[A]]): SPickler[List[A]] with Unpickler[List[A]] = new SPickler[List[A]] with Unpickler[List[A]] {
-    val tag = implicitly[FastTypeTag[List[A]]]
-    val np = nilPickler
-    def pickle(coll: List[A], builder: PBuilder): Unit =
-      coll match {
-        case Nil => np.pickle(Nil, builder)
-        case xs: ::[A] => ccPickler.pickle(xs, builder)
-      }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any =
-      ccUnpickler.unpickle(tag, preader).asInstanceOf[List[A]]
-  }
-  // Guard pickler
-  implicit def seqPickler[A: FastTypeTag]: SPickler[Seq[A]] with Unpickler[Seq[A]] =
-    sys.error("use Vector[A] or List[A] instead")
-  // Guard pickler
-  implicit def setPickler[A: FastTypeTag]: SPickler[Set[A]] with Unpickler[Set[A]] =
-    sys.error("use Vector[A] or List[A] instead")
+
+  private def mkPrimitivePicklerUnpickler[T: FastTypeTag]: SPickler[T] with Unpickler[T] =
+    new PrimitivePicklerUnpickler[T](FastTypeTag.valueTypeName(implicitly[FastTypeTag[T]]))
+
+  implicit val bytePicklerUnpickler: SPickler[Byte] with Unpickler[Byte] = mkPrimitivePicklerUnpickler[Byte]
+  implicit val shortPicklerUnpickler: SPickler[Short] with Unpickler[Short] = mkPrimitivePicklerUnpickler[Short]
+  implicit val charPicklerUnpickler: SPickler[Char] with Unpickler[Char] = mkPrimitivePicklerUnpickler[Char]
+  implicit val intPicklerUnpickler: SPickler[Int] with Unpickler[Int] = mkPrimitivePicklerUnpickler[Int]
+  implicit val longPicklerUnpickler: SPickler[Long] with Unpickler[Long] = mkPrimitivePicklerUnpickler[Long]
+  implicit val booleanPicklerUnpickler: SPickler[Boolean] with Unpickler[Boolean] = mkPrimitivePicklerUnpickler[Boolean]
+  implicit val floatPicklerUnpickler: SPickler[Float] with Unpickler[Float] = mkPrimitivePicklerUnpickler[Float]
+  implicit val doublePicklerUnpickler: SPickler[Double] with Unpickler[Double] = mkPrimitivePicklerUnpickler[Double]
+  implicit val nullPicklerUnpickler: SPickler[Null] with Unpickler[Null] = mkPrimitivePicklerUnpickler[Null]
+  implicit val stringPicklerUnpickler: SPickler[String] with Unpickler[String] = mkPrimitivePicklerUnpickler[String]
+  implicit val unitPicklerUnpickler: SPickler[Unit] with Unpickler[Unit] = mkPrimitivePicklerUnpickler[Unit]
+
+  implicit val byteArrPicklerUnpickler: SPickler[Array[Byte]] with Unpickler[Array[Byte]] = mkPrimitivePicklerUnpickler[Array[Byte]]
+  implicit val shortArrPicklerUnpickler: SPickler[Array[Short]] with Unpickler[Array[Short]] = mkPrimitivePicklerUnpickler[Array[Short]]
+  implicit val charArrPicklerUnpickler: SPickler[Array[Char]] with Unpickler[Array[Char]] = mkPrimitivePicklerUnpickler[Array[Char]]
+  implicit val intArrPicklerUnpickler: SPickler[Array[Int]] with Unpickler[Array[Int]] = mkPrimitivePicklerUnpickler[Array[Int]]
+  implicit val longArrPicklerUnpickler: SPickler[Array[Long]] with Unpickler[Array[Long]] = mkPrimitivePicklerUnpickler[Array[Long]]
+  implicit val booleanArrPicklerUnpickler: SPickler[Array[Boolean]] with Unpickler[Array[Boolean]] = mkPrimitivePicklerUnpickler[Array[Boolean]]
+  implicit val floatArrPicklerUnpickler: SPickler[Array[Float]] with Unpickler[Array[Float]] = mkPrimitivePicklerUnpickler[Array[Float]]
+  implicit val doubleArrPicklerUnpickler: SPickler[Array[Double]] with Unpickler[Array[Double]] = mkPrimitivePicklerUnpickler[Array[Double]]
+
+  /*  === End cut-and-paste of primitive picklers from pickling === */
+
   // Guard pickler
   implicit def somePickler[A: FastTypeTag]: SPickler[Some[A]] with Unpickler[Some[A]] =
     sys.error("use the pickler for Option[A]")
@@ -197,6 +123,113 @@ trait LowPriorityCustomPicklerUnpickler extends scala.pickling.CorePicklersUnpic
     }
   }
 
+  private final case class StackTraceElementDeserialized(declaringClass: String,
+    methodName: String,
+    fileName: String,
+    lineNumber: Int)
+
+  private object StackTraceElementDeserialized {
+    implicit val pickler = genPickler[StackTraceElementDeserialized]
+    implicit val unpickler = genUnpickler[StackTraceElementDeserialized]
+  }
+
+  // TODO why isn't this in LowPriority / what goes in Low and what goes here?
+  implicit object throwablePicklerUnpickler extends SPickler[Throwable] with Unpickler[Throwable] {
+    val tag: FastTypeTag[Throwable] = implicitly[FastTypeTag[Throwable]]
+    private val stringTag = implicitly[FastTypeTag[String]]
+    private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
+    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
+    private val stringOptPickler = implicitly[SPickler[Option[String]]]
+    private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
+    private val throwableOptPicklerUnpickler = optionPickler[Throwable](tag, this, this, throwableOptTag)
+    private val vstedTag = implicitly[FastTypeTag[Vector[StackTraceElementDeserialized]]]
+    private val vstedPickler = implicitly[SPickler[Vector[StackTraceElementDeserialized]]]
+    private val vstedUnpickler = implicitly[Unpickler[Vector[StackTraceElementDeserialized]]]
+
+    def pickle(a: Throwable, builder: PBuilder): Unit = {
+      builder.beginEntry(a)
+      builder.putField("message", { b =>
+        b.hintTag(stringOptTag)
+        stringOptPickler.pickle(Option(a.getMessage), b)
+      })
+      builder.putField("cause", { b =>
+        b.hintTag(throwableOptTag)
+        throwableOptPicklerUnpickler.pickle(Option(a.getCause), b)
+      })
+      builder.putField("stackTrace", { b =>
+        b.hintTag(vstedTag)
+        vstedPickler.pickle(a.getStackTrace.toVector map { x =>
+          StackTraceElementDeserialized(x.getClassName, x.getMethodName, x.getFileName, x.getLineNumber)
+        }, b)
+      })
+      builder.endEntry()
+    }
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      val reader1 = preader.readField("message")
+      reader1.hintTag(stringOptTag)
+      val message = stringOptUnpickler.unpickle(stringOptTag, reader1).asInstanceOf[Option[String]]
+      val reader2 = preader.readField("cause")
+      reader2.hintTag(throwableOptTag)
+      val cause = throwableOptPicklerUnpickler.unpickle(throwableOptTag, reader2).asInstanceOf[Option[Throwable]]
+      val reader3 = preader.readField("stackTrace")
+      reader3.hintTag(vstedTag)
+      val stackTrace = vstedUnpickler.unpickle(vstedTag, reader3).asInstanceOf[Vector[StackTraceElementDeserialized]]
+      val result = new Exception(message.orNull, cause.orNull)
+      result.setStackTrace((stackTrace map { x =>
+        new StackTraceElement(x.declaringClass, x.methodName, x.fileName, x.lineNumber)
+      }).toArray)
+      result
+    }
+  }
+
+  implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
+    val tag = implicitly[FastTypeTag[A]]
+    val stringPickler = implicitly[SPickler[String]]
+    val stringUnpickler = implicitly[Unpickler[String]]
+    def pickle(a: A, builder: PBuilder): Unit = {
+      builder.pushHints()
+      builder.hintTag(FastTypeTag.String)
+      stringPickler.pickle(canToString.toString(a), builder)
+      builder.popHints()
+    }
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      val s = stringUnpickler.unpickle(FastTypeTag.String, preader).asInstanceOf[String]
+      try {
+        val result = canToString.fromString(s)
+        result
+      } catch {
+        case _: Throwable => throw new PicklingException(s""""$s" is not valid ${tag.tpe}""")
+      }
+    }
+  }
+  implicit val appliedTypePickler: SPickler[AppliedType] with Unpickler[AppliedType] =
+    canToStringPickler[AppliedType](implicitly[FastTypeTag[AppliedType]], implicitly[CanToString[AppliedType]])
+  implicit val filePickler: SPickler[File] with Unpickler[File] =
+    canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
+  implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
+    canToStringPickler[URI](implicitly[FastTypeTag[URI]], implicitly[CanToString[URI]])
+}
+
+trait LowPriorityCustomPicklerUnpickler {
+  // TODO move this to sbt.serialization once it works to do so
+  private implicit def staticOnly = scala.pickling.static.StaticOnly
+
+  implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
+    mkSeqSetPickler[T, Vector]
+  implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
+    mkTravPickler[A, Array[A]]
+
+  implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
+    collTag: FastTypeTag[List[A]]): SPickler[List[A]] with Unpickler[List[A]] =
+    mkTravPickler[A, List[A]]
+
+  // Guard pickler
+  implicit def seqPickler[A: FastTypeTag]: SPickler[Seq[A]] with Unpickler[Seq[A]] =
+    sys.error("use Vector[A] or List[A] instead")
+  // Guard pickler
+  implicit def setPickler[A: FastTypeTag]: SPickler[Set[A]] with Unpickler[Set[A]] =
+    sys.error("use Vector[A] or List[A] instead")
+
   implicit class RichType(tpe: scala.reflect.api.Universe#Type) {
     import definitions._
     def isEffectivelyPrimitive: Boolean = tpe match {
@@ -206,7 +239,7 @@ trait LowPriorityCustomPicklerUnpickler extends scala.pickling.CorePicklersUnpic
     }
   }
 
-  override def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
+  def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
     cbf: CanBuildFrom[Coll[A], A, Coll[A]],
     collTag: FastTypeTag[Coll[A]]): SPickler[Coll[A]] with Unpickler[Coll[A]] =
     mkTravPickler[A, Coll[A]]
