@@ -26,7 +26,6 @@ private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
 /** A value we have serialized as JSON */
 private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializedValue {
   override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Option[T] = {
-    implicit def ftt3: FastTypeTag[T] = ??? // FIXME remove and fix correctly
     implicit val u = unpicklerForT.underlying
     import sbt.pickling.json.pickleFormat
     import sbt.pickling.json.JSONPickle
