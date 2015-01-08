@@ -332,6 +332,24 @@ case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
 
+object TestOutcome {
+  import scala.pickling.{ SPickler, Unpickler, PicklingException }
+  import scala.pickling.static._
+  import sbt.pickling.CanToString
+
+  private implicit val resultToString = CanToString[TestOutcome](_.toString,
+    {
+      case "passed" => TestPassed
+      case "failed" => TestFailed
+      case "error" => TestError
+      case "skipped" => TestSkipped
+      case other => throw new PicklingException(s"Unrecognized TestOutcome $other")
+    })
+
+  implicit val picklerUnpickler: SPickler[TestOutcome] with Unpickler[TestOutcome] =
+    canToStringPickler[TestOutcome]
+}
+
 final case class Position(sourcePath: Option[String],
   sourceFile: Option[File],
   line: Option[Int],
@@ -566,23 +584,153 @@ object Message {
   import scala.pickling.{ SPickler, Unpickler }
   import scala.pickling.static._
 
-  // These imports are an attempt to make genPickler work on ValueChanged,
-  // but they don't seem to help and shouldn't be needed anyhow.
-  //import BuildValue.{ pickler => buildValuePickler }
-  //import BuildValue.{ unpickler => buildValueUnpickler }
-  //import ScopedKey.{ pickler => scopedKeyPickler }
-  //import ScopedKey.{ unpickler => scopedKeyUnpickler }
-  //import TaskResult.{ pickler => taskResultPickler }
-  //import TaskResult.{ unpickler => taskResultUnpickler }
+  // These various picklers are mostly alphabetical except when
+  // they have to be sorted in dependency order.
+
+  // Picklers for types that appear in messages
+
+  private implicit val positionPickler = genPickler[Position]
+  private implicit val positionUnpickler = genUnpickler[Position]
+  private implicit val clientInfoPickler = genPickler[ClientInfo]
+  private implicit val clientInfoUnpickler = genUnpickler[ClientInfo]
+  private implicit val compilationFailurePickler = genPickler[CompilationFailure]
+  private implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
+  private implicit val completionPickler = genPickler[Completion]
+  private implicit val completionUnpickler = genUnpickler[Completion]
+  private implicit val executionAnalysisCommandPickler = genPickler[ExecutionAnalysisCommand]
+  private implicit val executionAnalysisCommandUnpickler = genUnpickler[ExecutionAnalysisCommand]
+  private implicit val executionAnalysisErrorPickler = genPickler[ExecutionAnalysisError]
+  private implicit val executionAnalysisErrorUnpickler = genUnpickler[ExecutionAnalysisError]
+  private implicit val executionAnalysisKeyPickler = genPickler[ExecutionAnalysisKey]
+  private implicit val executionAnalysisKeyUnpickler = genUnpickler[ExecutionAnalysisKey]
+  private implicit val executionAnalysisPickler = genPickler[ExecutionAnalysis]
+  private implicit val executionAnalysisUnpickler = genUnpickler[ExecutionAnalysis]
+  private implicit val logMessagePickler = genPickler[LogMessage]
+  private implicit val logMessageUnpickler = genUnpickler[LogMessage]
+  private implicit val logStdErrPickler = genPickler[LogStdErr]
+  private implicit val logStdErrUnpickler = genUnpickler[LogStdErr]
+  private implicit val logStdOutPickler = genPickler[LogStdOut]
+  private implicit val logStdOutUnpickler = genUnpickler[LogStdOut]
+  private implicit val logSuccessPickler = genPickler[LogSuccess]
+  private implicit val logSuccessUnpickler = genUnpickler[LogSuccess]
+  private implicit val logTracePickler = genPickler[LogTrace]
+  private implicit val logTraceUnpickler = genUnpickler[LogTrace]
+  private implicit val logEntryPickler = genPickler[LogEntry]
+  private implicit val logEntryUnpickler = genUnpickler[LogEntry]
 
   // We have PRIVATE implicit picklers for all the leaf subtypes of
   // Message, and then we have a public pickler for the entire Message
   // trait.
-  private implicit val valueChangedPickler: SPickler[ValueChanged] = genPickler[ValueChanged]
-  private implicit val valueChangedUnpickler: Unpickler[ValueChanged] = genUnpickler[ValueChanged]
-  // TODO all the other subtypes
+  private implicit val analyzeExecutionRequestPickler = genPickler[AnalyzeExecutionRequest]
+  private implicit val analyzeExecutionRequestUnpickler = genUnpickler[AnalyzeExecutionRequest]
+  private implicit val analyzeExecutionResponsePickler = genPickler[AnalyzeExecutionResponse]
+  private implicit val analyzeExecutionResponseUnpickler = genUnpickler[AnalyzeExecutionResponse]
+  private implicit val backgroundJobEventPickler = genPickler[BackgroundJobEvent]
+  private implicit val backgroundJobEventUnpickler = genUnpickler[BackgroundJobEvent]
+  private implicit val backgroundJobFinishedPickler = genPickler[BackgroundJobFinished]
+  private implicit val backgroundJobFinishedUnpickler = genUnpickler[BackgroundJobFinished]
+  private implicit val backgroundJobInfoPickler = genPickler[BackgroundJobInfo]
+  private implicit val backgroundJobInfoUnpickler = genUnpickler[BackgroundJobInfo]
+  private implicit val backgroundJobLogEventPickler = genPickler[BackgroundJobLogEvent]
+  private implicit val backgroundJobLogEventUnpickler = genUnpickler[BackgroundJobLogEvent]
+  private implicit val backgroundJobStartedPickler = genPickler[BackgroundJobStarted]
+  private implicit val backgroundJobStartedUnpickler = genUnpickler[BackgroundJobStarted]
+  private implicit val buildFailedToLoadPickler = genPickler[BuildFailedToLoad]
+  private implicit val buildFailedToLoadUnpickler = genUnpickler[BuildFailedToLoad]
+  private implicit val buildLoadedPickler = genPickler[BuildLoaded]
+  private implicit val buildLoadedUnpickler = genUnpickler[BuildLoaded]
+  private implicit val buildStructureChangedPickler = genPickler[BuildStructureChanged]
+  private implicit val buildStructureChangedUnpickler = genUnpickler[BuildStructureChanged]
+  private implicit val cancelExecutionRequestPickler = genPickler[CancelExecutionRequest]
+  private implicit val cancelExecutionRequestUnpickler = genUnpickler[CancelExecutionRequest]
+  private implicit val cancelExecutionResponsePickler = genPickler[CancelExecutionResponse]
+  private implicit val cancelExecutionResponseUnpickler = genUnpickler[CancelExecutionResponse]
+  private implicit val clientClosedRequestPickler = genPickler[ClientClosedRequest]
+  private implicit val clientClosedRequestUnpickler = genUnpickler[ClientClosedRequest]
+  private implicit val closedEventPickler = genPickler[ClosedEvent]
+  private implicit val closedEventUnpickler = genUnpickler[ClosedEvent]
+  private implicit val commandCompletionsRequestPickler = genPickler[CommandCompletionsRequest]
+  private implicit val commandCompletionsRequestUnpickler = genUnpickler[CommandCompletionsRequest]
+  private implicit val commandCompletionsResponsePickler = genPickler[CommandCompletionsResponse]
+  private implicit val commandCompletionsResponseUnpickler = genUnpickler[CommandCompletionsResponse]
+  private implicit val confirmRequestPickler = genPickler[ConfirmRequest]
+  private implicit val confirmRequestUnpickler = genUnpickler[ConfirmRequest]
+  private implicit val confirmResponsePickler = genPickler[ConfirmResponse]
+  private implicit val confirmResponseUnpickler = genUnpickler[ConfirmResponse]
+  private implicit val coreLogEventPickler = genPickler[CoreLogEvent]
+  private implicit val coreLogEventUnpickler = genUnpickler[CoreLogEvent]
+  private implicit val errorResponsePickler = genPickler[ErrorResponse]
+  private implicit val errorResponseUnpickler = genUnpickler[ErrorResponse]
+  private implicit val executionFailurePickler = genPickler[ExecutionFailure]
+  private implicit val executionFailureUnpickler = genUnpickler[ExecutionFailure]
+  private implicit val executionRequestPickler = genPickler[ExecutionRequest]
+  private implicit val executionRequestReceivedPickler = genPickler[ExecutionRequestReceived]
+  private implicit val executionRequestReceivedUnpickler = genUnpickler[ExecutionRequestReceived]
+  private implicit val executionRequestUnpickler = genUnpickler[ExecutionRequest]
+  private implicit val executionStartingPickler = genPickler[ExecutionStarting]
+  private implicit val executionStartingUnpickler = genUnpickler[ExecutionStarting]
+  private implicit val executionSuccessPickler = genPickler[ExecutionSuccess]
+  private implicit val executionSuccessUnpickler = genUnpickler[ExecutionSuccess]
+  private implicit val executionWaitingPickler = genPickler[ExecutionWaiting]
+  private implicit val executionWaitingUnpickler = genUnpickler[ExecutionWaiting]
+  private implicit val keyExecutionRequestPickler = genPickler[KeyExecutionRequest]
+  private implicit val keyExecutionRequestUnpickler = genUnpickler[KeyExecutionRequest]
+  private implicit val keyLookupRequestPickler = genPickler[KeyLookupRequest]
+  private implicit val keyLookupRequestUnpickler = genUnpickler[KeyLookupRequest]
+  private implicit val keyLookupResponsePickler = genPickler[KeyLookupResponse]
+  private implicit val keyLookupResponseUnpickler = genUnpickler[KeyLookupResponse]
+  private implicit val keyNotFoundPickler = genPickler[KeyNotFound]
+  private implicit val keyNotFoundUnpickler = genUnpickler[KeyNotFound]
+  private implicit val killServerRequestPickler = genPickler[KillServerRequest]
+  private implicit val killServerRequestUnpickler = genUnpickler[KillServerRequest]
+  private implicit val listenToBuildChangePickler = genPickler[ListenToBuildChange]
+  private implicit val listenToBuildChangeUnpickler = genUnpickler[ListenToBuildChange]
+  private implicit val listenToEventsPickler = genPickler[ListenToEvents]
+  private implicit val listenToEventsUnpickler = genUnpickler[ListenToEvents]
+  private implicit val listenToValuePickler = genPickler[ListenToValue]
+  private implicit val listenToValueUnpickler = genUnpickler[ListenToValue]
+  private implicit val taskLogEventPickler = genPickler[TaskLogEvent]
+  private implicit val taskLogEventUnpickler = genUnpickler[TaskLogEvent]
+  private implicit val logEventPickler = genPickler[LogEvent]
+  private implicit val logEventUnpickler = genUnpickler[LogEvent]
+  private implicit val readLineRequestPickler = genPickler[ReadLineRequest]
+  private implicit val readLineRequestUnpickler = genUnpickler[ReadLineRequest]
+  private implicit val readLineResponsePickler = genPickler[ReadLineResponse]
+  private implicit val readLineResponseUnpickler = genUnpickler[ReadLineResponse]
+  private implicit val receivedResponsePickler = genPickler[ReceivedResponse]
+  private implicit val receivedResponseUnpickler = genUnpickler[ReceivedResponse]
+  private implicit val registerClientRequestPickler = genPickler[RegisterClientRequest]
+  private implicit val registerClientRequestUnpickler = genUnpickler[RegisterClientRequest]
+  private implicit val sendSyntheticBuildChangedPickler = genPickler[SendSyntheticBuildChanged]
+  private implicit val sendSyntheticBuildChangedUnpickler = genUnpickler[SendSyntheticBuildChanged]
+  private implicit val sendSyntheticValueChangedPickler = genPickler[SendSyntheticValueChanged]
+  private implicit val sendSyntheticValueChangedUnpickler = genUnpickler[SendSyntheticValueChanged]
+  private implicit val taskEventPickler = genPickler[TaskEvent]
+  private implicit val taskEventUnpickler = genUnpickler[TaskEvent]
+  private implicit val taskFinishedPickler = genPickler[TaskFinished]
+  private implicit val taskFinishedUnpickler = genUnpickler[TaskFinished]
+  private implicit val taskStartedPickler = genPickler[TaskStarted]
+  private implicit val taskStartedUnpickler = genUnpickler[TaskStarted]
+  private implicit val testEventPickler = genPickler[TestEvent]
+  private implicit val testEventUnpickler = genUnpickler[TestEvent]
+  private implicit val unlistenToBuildChangePickler = genPickler[UnlistenToBuildChange]
+  private implicit val unlistenToBuildChangeUnpickler = genUnpickler[UnlistenToBuildChange]
+  private implicit val unlistenToEventsPickler = genPickler[UnlistenToEvents]
+  private implicit val unlistenToEventsUnpickler = genUnpickler[UnlistenToEvents]
+  private implicit val unlistenToValuePickler = genPickler[UnlistenToValue]
+  private implicit val unlistenToValueUnpickler = genUnpickler[UnlistenToValue]
+  private implicit val valueChangedPickler = genPickler[ValueChanged]
+  private implicit val valueChangedUnpickler = genUnpickler[ValueChanged]
 
-  // TODO currently failing with "cannot generate a pickler for sbt.protocol.ValueChanged"
+  private implicit val requestPickler = genPickler[Request]
+  private implicit val requestUnpickler = genUnpickler[Request]
+  private implicit val responsePickler = genPickler[Response]
+  private implicit val responseUnpickler = genUnpickler[Response]
+  private implicit val executionEngineEventPickler = genPickler[ExecutionEngineEvent]
+  private implicit val executionEngineEventUnpickler = genUnpickler[ExecutionEngineEvent]
+  private implicit val eventPickler = genPickler[Event]
+  private implicit val eventUnpickler = genUnpickler[Event]
+
   implicit val pickler: SPickler[Message] = genPickler[Message]
   implicit val unpickler: Unpickler[Message] = genUnpickler[Message]
 }
