@@ -625,8 +625,6 @@ object Message {
   private implicit val executionAnalysisKeyUnpickler = genUnpickler[ExecutionAnalysisKey]
   private implicit val executionAnalysisPickler = genPickler[ExecutionAnalysis]
   private implicit val executionAnalysisUnpickler = genUnpickler[ExecutionAnalysis]
-  private implicit val logMessagePickler = genPickler[LogMessage]
-  private implicit val logMessageUnpickler = genUnpickler[LogMessage]
   private implicit val logStdErrPickler = genPickler[LogStdErr]
   private implicit val logStdErrUnpickler = genUnpickler[LogStdErr]
   private implicit val logStdOutPickler = genPickler[LogStdOut]
@@ -635,6 +633,8 @@ object Message {
   private implicit val logSuccessUnpickler = genUnpickler[LogSuccess]
   private implicit val logTracePickler = genPickler[LogTrace]
   private implicit val logTraceUnpickler = genUnpickler[LogTrace]
+  private implicit val logMessagePickler = genPickler[LogMessage]
+  private implicit val logMessageUnpickler = genUnpickler[LogMessage]
   private implicit val logEntryPickler = genPickler[LogEntry]
   private implicit val logEntryUnpickler = genUnpickler[LogEntry]
 
