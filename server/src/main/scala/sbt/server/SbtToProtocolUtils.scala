@@ -11,7 +11,8 @@ import scala.pickling.internal.AppliedType
 object SbtToProtocolUtils {
 
   def manifestToProtocol[T](mf: Manifest[T]): AppliedType =
-    AppliedType.parse(mf.runtimeClass.getName)._1
+    AppliedType(mf.runtimeClass.getName,
+      mf.typeArguments.map(manifestToProtocol(_)))
 
   def keyToProtocol[T](key: sbt.AttributeKey[T]): protocol.AttributeKey =
     protocol.AttributeKey(
@@ -70,11 +71,14 @@ object SbtToProtocolUtils {
   }
 
   def analysisToProtocol(in: sbt.inc.Analysis): protocol.Analysis =
+    protocol.Analysis() // FIXME put the proper fields in Analysis
+  /*
     protocol.Analysis(stamps = stampsToProtocol(in.stamps),
       apis = apisToProtocol(in.apis),
       relations = relationsToProtocol(in.relations),
       infos = sourceInfosToProtocol(in.infos),
       compilations = compilationsToProtocol(in.compilations))
+*/
 
   def stampToProtocol(in: sbt.inc.Stamp): protocol.Stamp = in match {
     case x: sbt.inc.Hash => hashToProtocol(x)

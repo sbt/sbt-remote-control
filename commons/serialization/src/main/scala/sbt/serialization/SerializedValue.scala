@@ -11,7 +11,7 @@ import scala.util.Try
  * which library we use to do it.
  */
 sealed trait SerializedValue {
-  def parse[T](implicit unpickler: SbtUnpickler[T]): Option[T]
+  def parse[T](implicit unpickler: SbtUnpickler[T]): Try[T]
 }
 
 object SerializedValue {
@@ -25,18 +25,13 @@ private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
 
 /** A value we have serialized as JSON */
 private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializedValue {
-  override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Option[T] = {
+  override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Try[T] = {
     implicit val u = unpicklerForT.underlying
     import sbt.pickling.json.pickleFormat
     import sbt.pickling.json.JSONPickle
     import org.json4s.native.JsonMethods._
     // TODO don't convert the AST to a string before parsing it!
-    try Some(JSONPickle(compact(render(json))).unpickle[T])
-    catch {
-      // TODO we drop any detailed error message the pickler may have offered.
-      // Make read return a Try? Or do we care what the error was, maybe not...
-      case NonFatal(e) => None
-    }
+    Try { JSONPickle(compact(render(json))).unpickle[T] }
   }
   override def toJson = this
 
@@ -52,14 +47,20 @@ private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializ
 }
 
 private[sbt] object JsonValue {
-  private def parseJson(s: String): Try[JValue] =
+  private def parseJValue(s: String): Try[JValue] =
     jawn.support.json4s.Parser.parseFromString(s)
 
+  private[sbt] def parseJson(s: String): Try[JsonValue] =
+    parseJValue(s) map { json => new JsonValue(json) }
+
+  // this is sort of dangerous because if you call it on a String
+  // expecting to get the parseJson scenario above, you won't
+  // get that, you'll get the JSON string pickled into JSON.
   def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
     implicit val pickler1: SPickler[T] = picklerForT.underlying
     import sbt.pickling.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
-    new JsonValue(parseJson(t.pickle.value).get)
+    parseJson(t.pickle.value).get
   }
 
   val emptyObject = JsonValue(org.json4s.JObject(Nil))

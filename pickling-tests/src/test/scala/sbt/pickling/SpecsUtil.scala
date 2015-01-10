@@ -6,6 +6,8 @@ import scala.pickling.PickleOps, sbt.pickling._, sbt.pickling.json._, sbt.serial
 import scala.pickling.static._
 
 object SpecsUtil {
+  import JUnitUtil._
+
   // TODO get rid of pickleMessage and parseMessage once pickle/unpickle are not macros
   def pickleMessage(m: Message): String =
     m.pickle.value

@@ -11,6 +11,7 @@ import SpecsUtil._
 import JUnitUtil._
 
 class ArrayPicklerTest {
+
   @Test
   def testArrays: Unit = {
     // Array(1: Byte) should pickle as [1]

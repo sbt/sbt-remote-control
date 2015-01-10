@@ -9,7 +9,7 @@ import scala.pickling.{ SPickler, Unpickler, AllPicklers }
  */
 final case class BuildValue(serialized: SerializedValue, stringValue: String) {
   def value[T](implicit unpickler: SbtUnpickler[T]): Option[T] =
-    serialized.parse[T]
+    serialized.parse[T].toOption
   override def equals(o: Any): Boolean =
     o match {
       case x: BuildValue => x.serialized == serialized
@@ -40,7 +40,7 @@ final case class ThrowableDeserializers(readers: Map[Manifest[_], SbtUnpickler[_
 
   def tryAnyReader(in: SerializedValue): Option[Throwable] =
     readers.foldLeft[Option[Throwable]](None) {
-      case (None, (_, reader)) => in.parse(reader).map(_.asInstanceOf[Throwable])
+      case (None, (_, reader)) => in.parse(reader).toOption.map(_.asInstanceOf[Throwable])
       case (x, _) => x
     }
 }

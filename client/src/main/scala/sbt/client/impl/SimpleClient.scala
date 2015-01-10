@@ -71,7 +71,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     }
   }
 
-  private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R], pickler: SbtPickler[Req]): Future[R] = {
+  private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R]): Future[R] = {
     channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
 

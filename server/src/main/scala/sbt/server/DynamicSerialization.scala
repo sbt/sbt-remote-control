@@ -15,7 +15,9 @@ private object Classes {
   val FloatClass = classOf[Float]
   val DoubleClass = classOf[Double]
   val OptionClass = classOf[Option[_]]
-  val SeqClass = classOf[Seq[_]]
+  val VectorClass = classOf[Vector[_]]
+  val ListClass = classOf[List[_]]
+  val NilClass = Nil.getClass
   val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
   val ThrowableClass = classOf[Throwable]
@@ -29,7 +31,8 @@ private object Classes {
   }
 
   object OptionSubClass extends SubClass(OptionClass)
-  object SeqSubClass extends SubClass(SeqClass)
+  object VectorSubClass extends SubClass(VectorClass)
+  object ListSubClass extends SubClass(ListClass)
   object AttributedSubClass extends SubClass(AttributedClass)
   object ThrowableSubClass extends SubClass(ThrowableClass)
 }
@@ -72,7 +75,7 @@ object DynamicSerialization {
 private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], SbtSerializer[_]], byClass: Map[Class[_], SbtSerializer[_]]) extends DynamicSerialization {
   override def register[T](serializer: SbtSerializer[T])(implicit mf: Manifest[T]): DynamicSerialization =
     // Here we erase the original type when storing
-    ConcreteDynamicSerialization(registered + (mf -> serializer), byClass + (mf.erasure -> serializer))
+    ConcreteDynamicSerialization(registered + (mf -> serializer), byClass + (mf.runtimeClass -> serializer))
 
   override def lookup[T](implicit mf: Manifest[T]): Option[SbtSerializer[T]] =
     // When looking up, given the interface, it's safe to return to
@@ -109,6 +112,7 @@ private object ConcreteDynamicSerialization {
 
   private def defaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[SbtSerializer[T]]) orElse {
     (klass match {
+      case Classes.NilClass => Some(implicitly[SbtSerializer[List[String]]]) // String is arbitrary
       case Classes.StringClass => Some(implicitly[SbtSerializer[String]])
       case Classes.FileClass => Some(implicitly[SbtSerializer[java.io.File]])
       case Classes.BooleanClass => Some(implicitly[SbtSerializer[Boolean]])
@@ -124,28 +128,66 @@ private object ConcreteDynamicSerialization {
     }).asInstanceOf[Option[SbtSerializer[T]]]
   }
 
+  private def defaultSerializerForOption[T](klass: Class[T]): Option[SbtSerializer[Option[T]]] = {
+    (klass match {
+      case Classes.StringClass => Some(implicitly[SbtSerializer[Option[String]]])
+      case Classes.FileClass => Some(implicitly[SbtSerializer[Option[java.io.File]]])
+      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Option[Boolean]]])
+      case Classes.ShortClass => Some(implicitly[SbtSerializer[Option[Short]]])
+      case Classes.IntClass => Some(implicitly[SbtSerializer[Option[Int]]])
+      case Classes.LongClass => Some(implicitly[SbtSerializer[Option[Long]]])
+      case Classes.FloatClass => Some(implicitly[SbtSerializer[Option[Float]]])
+      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Option[Double]]])
+      case Classes.URIClass => Some(implicitly[SbtSerializer[Option[java.net.URI]]])
+      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Option[java.lang.Throwable]]])
+      case _ =>
+        None
+    }).asInstanceOf[Option[SbtSerializer[Option[T]]]]
+  }
+
+  private def defaultSerializerForVector[T](klass: Class[T]): Option[SbtSerializer[Vector[T]]] = {
+    (klass match {
+      case Classes.StringClass => Some(implicitly[SbtSerializer[Vector[String]]])
+      case Classes.FileClass => Some(implicitly[SbtSerializer[Vector[java.io.File]]])
+      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Vector[Boolean]]])
+      case Classes.ShortClass => Some(implicitly[SbtSerializer[Vector[Short]]])
+      case Classes.IntClass => Some(implicitly[SbtSerializer[Vector[Int]]])
+      case Classes.LongClass => Some(implicitly[SbtSerializer[Vector[Long]]])
+      case Classes.FloatClass => Some(implicitly[SbtSerializer[Vector[Float]]])
+      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Vector[Double]]])
+      case Classes.URIClass => Some(implicitly[SbtSerializer[Vector[java.net.URI]]])
+      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Vector[java.lang.Throwable]]])
+      case _ =>
+        None
+    }).asInstanceOf[Option[SbtSerializer[Vector[T]]]]
+  }
+
+  private def defaultSerializerForList[T](klass: Class[T]): Option[SbtSerializer[List[T]]] = {
+    (klass match {
+      case Classes.StringClass => Some(implicitly[SbtSerializer[List[String]]])
+      case Classes.FileClass => Some(implicitly[SbtSerializer[List[java.io.File]]])
+      case Classes.BooleanClass => Some(implicitly[SbtSerializer[List[Boolean]]])
+      case Classes.ShortClass => Some(implicitly[SbtSerializer[List[Short]]])
+      case Classes.IntClass => Some(implicitly[SbtSerializer[List[Int]]])
+      case Classes.LongClass => Some(implicitly[SbtSerializer[List[Long]]])
+      case Classes.FloatClass => Some(implicitly[SbtSerializer[List[Float]]])
+      case Classes.DoubleClass => Some(implicitly[SbtSerializer[List[Double]]])
+      case Classes.URIClass => Some(implicitly[SbtSerializer[List[java.net.URI]]])
+      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[List[java.lang.Throwable]]])
+      case _ =>
+        None
+    }).asInstanceOf[Option[SbtSerializer[List[T]]]]
+  }
+
   private def defaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[SbtSerializer[T]]) orElse
-    defaultSerializer[T](mf.erasure.asInstanceOf[Class[T]]) orElse {
-      (mf.erasure match {
+    defaultSerializer[T](mf.runtimeClass.asInstanceOf[Class[T]]) orElse {
+      (mf.runtimeClass match {
         case Classes.OptionSubClass() =>
-          for {
-            child <- memoizedDefaultSerializer(mf.typeArguments(0))
-          } yield {
-            //SbtSerializer.optionWithNull(child)
-            ??? /* FIXME */
-          }
-        // TODO - polymorphism?
-        case Classes.SeqSubClass() =>
-          // Now we need to find the first type arguments structure:
-          import collection.generic.CanBuildFrom
-          for {
-            child <- memoizedDefaultSerializer(mf.typeArguments(0))
-          } yield {
-            //val reads = Reads.traversableReads[Seq, Any](collection.breakOut, child.asInstanceOf[Reads[Any]])
-            //val writes = Writes.traversableWrites(child.asInstanceOf[Writes[Any]])
-            //SbtSerializer(reads, writes)
-            ??? /* FIXME */
-          }
+          defaultSerializerForOption(mf.typeArguments(0).runtimeClass)
+        case Classes.VectorSubClass() =>
+          defaultSerializerForVector(mf.typeArguments(0).runtimeClass)
+        case Classes.ListSubClass() =>
+          defaultSerializerForList(mf.typeArguments(0).runtimeClass)
         case Classes.AttributedSubClass() =>
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
@@ -185,8 +227,7 @@ private object NonTrivialSerializers {
       toRegisteredSbtSerializer[SbtScope],
       toRegisteredSbtSerializer[ScopedKey],
       toRegisteredSbtSerializer[MinimalBuildStructure],
-      // TODO
-      // toRegisteredSbtSerializer[Analysis],
+      toRegisteredSbtSerializer[Analysis],
       // toRegisteredSbtSerializer[Stamps],
       // toRegisteredSbtSerializer[SourceInfo],
       // toRegisteredSbtSerializer[SourceInfos],

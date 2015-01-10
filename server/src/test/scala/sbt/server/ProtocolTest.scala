@@ -198,7 +198,10 @@ object ProtocolGenerators {
     } yield protocol.Compilations(compilations.toVector)
   }
 
+  // FIXME what fields in Analysis do we need
   def genAnalysis(maxDepth: Int = 3): Gen[protocol.Analysis] =
+    protocol.Analysis()
+  /*
     for {
       stamps <- arbitraryStamps.arbitrary
       apis <- genAPIs(maxDepth - 1)
@@ -210,6 +213,7 @@ object ProtocolGenerators {
       relations,
       infos,
       compilations)
+*/
 
   def genAPIs(maxDepth: Int = 3): Gen[protocol.APIs] =
     for {
@@ -367,17 +371,23 @@ object ProtocolGenerators {
 final case class PlayStartedEvent(port: Int)
 object PlayStartedEvent extends protocol.TaskEventUnapply[PlayStartedEvent] {
   import scala.pickling.{ SPickler, Unpickler }
-  implicit val pickler = AllPicklers.genPickler[PlayStartedEvent]
-  implicit val unpickler = AllPicklers.genUnpickler[PlayStartedEvent]
+  implicit val pickler = genPickler[PlayStartedEvent]
+  implicit val unpickler = genUnpickler[PlayStartedEvent]
 }
 
 class ProtocolTest {
   import ProtocolGenerators._
 
-  private def addWhatWeWereFormatting[T, U](t: T)(body: => U): U = try body
+  private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body
   catch {
     case e: Throwable =>
-      throw new AssertionError(s"Crash formatting ${t.getClass.getName}: ${e.getMessage}", e)
+      throw new AssertionError(s"Crash pickling ${t.getClass.getName}: ${e.getMessage}", e)
+  }
+
+  private def addWhatWeWereUnpickling[U](json: String)(body: => U): U = try body
+  catch {
+    case e: Throwable =>
+      throw new AssertionError(s"Crash unpickling: ${e.getMessage}: json was ${json}", e)
   }
 
   @Test
@@ -447,9 +457,11 @@ class ProtocolTest {
       protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)))
 
     for (s <- specifics) {
-      def fromRaw(j: SerializedValue): Option[Message] = j.parse[Message]
-      def toRaw(m: Message): SerializedValue = SerializedValue(m)
-      val roundtrippedOption = addWhatWeWereFormatting(s)(fromRaw(toRaw(s)))
+      def fromRaw(j: JsonValue): Option[Message] =
+        addWhatWeWereUnpickling(j.renderCompact)(j.parse[Message].toOption)
+      def toRaw(m: Message): JsonValue =
+        addWhatWeWerePickling(m)(JsonValue(m))
+      val roundtrippedOption = fromRaw(toRaw(s))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
     }
     /* //TODO commented out because it crashes the compiler
@@ -521,16 +533,23 @@ class ProtocolTest {
     roundtrip(Some("Foo"))
     roundtrip(Some(true))
     roundtrip(Some(10))
-    roundtrip(Nil: Seq[String])
-    roundtrip(Seq("Bar", "Baz"))
-    roundtrip(Seq(1, 2, 3))
-    roundtrip(Seq(true, false, true, true, false))
+    roundtrip(Nil: List[String])
+    roundtrip(List("Bar", "Baz"))
+    roundtrip(List(1, 2, 3))
+    roundtrip(List(true, false, true, true, false))
+    roundtrip(Vector("Bar", "Baz"))
+    roundtrip(Vector(1, 2, 3))
+    roundtrip(Vector(true, false, true, true, false))
     roundtrip(key)
     roundtrip(build)
     roundtrip(projectRef)
     roundtrip(scope)
     roundtrip(scopedKey)
     roundtrip(buildStructure)
+    roundtrip(new Exception(null, null))
+    roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
+    roundtrip(new protocol.CompileFailedException("the compile failed", null,
+      Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
     roundtrip(protocol.ModuleId(organization = "com.foo", name = "bar", attributes = Map("a" -> "b")))
     object NonTrivialProtocol extends Properties("NonTrivialProtocol") {
       implicit val arbitraryAnalysis: Arbitrary[protocol.Analysis] = Arbitrary(genAnalysis())
@@ -576,10 +595,6 @@ class ProtocolTest {
     roundtrip(protocol.Relations.empty)
     roundtrip(protocol.SourceInfos.empty)
     roundtrip(protocol.Analysis.empty)
-    roundtrip(new Exception(null, null))
-    roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
-    roundtrip(new protocol.CompileFailedException("the compile failed", null,
-      Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition))))
   }
 
   private sealed trait TripDirection
@@ -595,15 +610,15 @@ class ProtocolTest {
       formatOption map { format =>
         td match {
           case ObjectToJson =>
-            val json = addWhatWeWereFormatting(t)(SerializedValue(t)(format.pickler))
-            // IO.write(path, json.toString, IO.utf8)  
+            val json = addWhatWeWerePickling(t)(SerializedValue(t)(format.pickler))
+            // IO.write(path, json.toString, IO.utf8)
             if (path.exists) sys.error(s"$path exists already")
             else IO.write(path, json.toString, IO.utf8)
           case JsonToObject =>
             if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler)}.") }
             else {
-              val json = JsonValue(IO.read(path, IO.utf8))
-              val parsed = addWhatWeWereFormatting(t)(json.parse[T](format.unpickler).getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}")))
+              val json = JsonValue.parseJson(IO.read(path, IO.utf8)).get
+              val parsed = addWhatWeWereUnpickling(json.renderCompact)(json.parse[T](format.unpickler).get)
               (t, parsed) match {
                 // Throwable has a not-very-useful equals() in this case
                 case (t: Throwable, parsed: Throwable) => e(t, parsed)
@@ -616,7 +631,7 @@ class ProtocolTest {
     def oneWayTrip[T: Manifest](t: T)(p: File => File): Unit =
       oneWayTripBase[T](t)(p)((a, b) =>
         if (a == b) ()
-        else sys.error(s"one-way trip of $a.\nexpected: $a\nactual: $b")) { (a, b) =>
+        else sys.error(s"one-way trip of $a.\nexpected: $a: ${a.getClass.getName}\nactual: $b: ${b.getClass.getName}\nfile: ${p(baseDir)}")) { (a, b) =>
         assertEquals("one-way trip of message " + a.getMessage, a.getMessage, b.getMessage)
       }
     val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
@@ -644,10 +659,13 @@ class ProtocolTest {
     oneWayTrip(Some(10)) { _ / "simple" / "some_int.json" }
     oneWayTrip(build) { _ / "simple" / "build.json" }
     // arrays
-    oneWayTrip(Nil: Seq[String]) { _ / "array" / "nil.json" }
-    oneWayTrip(Seq("Bar", "Baz")) { _ / "array" / "seq_string.json" }
-    oneWayTrip(Seq(1, 2, 3)) { _ / "array" / "seq_int.json" }
-    oneWayTrip(Seq(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
+    oneWayTrip(Nil: List[String]) { _ / "array" / "nil.json" }
+    oneWayTrip(List("Bar", "Baz")) { _ / "array" / "seq_string.json" }
+    oneWayTrip(List(1, 2, 3)) { _ / "array" / "seq_int.json" }
+    oneWayTrip(List(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
+    oneWayTrip(Vector("Bar", "Baz")) { _ / "array" / "seq_string.json" }
+    oneWayTrip(Vector(1, 2, 3)) { _ / "array" / "seq_int.json" }
+    oneWayTrip(Vector(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
     // complex data type
     oneWayTrip(key) { _ / "complex" / "key.json" }
     oneWayTrip(projectRef) { _ / "complex" / "project_ref.json" }
@@ -841,15 +859,18 @@ class ProtocolTest {
     oneWayTrip(ByteArray(Array(0.toByte))) { _ / "byte_array" / "byte_array.json" }
 
     // analysis
-    oneWayTrip(protocol.Analysis(
+    // FIXME which fields do we need in analysis
+    oneWayTrip(protocol.Analysis()) { _ / "analysis" / "analysis.json" }
+    /*    oneWayTrip(protocol.Analysis(
       stamps = stamps, apis = apis, relations = relations, infos = infos,
       compilations = protocol.Compilations(Vector(compilation)))) { _ / "analysis" / "analysis.json" }
-
+*/
   }
 
   @Test
   def testSerializationStability(): Unit = {
     val baseDir = (new File("commons")) / "protocol" / "src" / "test" / "resource" / "saved-protocol"
+    // uncomment this line to write new files
     // oneWayTripTest(ObjectToJson, baseDir / "0.1")
     oneWayTripTest(JsonToObject, baseDir / "0.1")
   }
@@ -860,9 +881,9 @@ class ProtocolTest {
     def roundtripBase[U, T: Manifest](t: T)(f: (T, T) => U)(e: (Throwable, Throwable) => U): U = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
-        val json = addWhatWeWereFormatting(t)(SerializedValue(t)(format.pickler))
+        val json = addWhatWeWerePickling(t)(JsonValue(t)(format.pickler))
         //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
-        val parsed = addWhatWeWereFormatting(t)(json.parse[T](format.unpickler).getOrElse(throw new AssertionError(s"could not re-parse ${json} for ${t}")))
+        val parsed = addWhatWeWereUnpickling(json.renderCompact)(json.parse[T](format.unpickler).get)
         (t, parsed) match {
           // Throwable has a not-very-useful equals() in this case
           case (t: Throwable, parsed: Throwable) => e(t, parsed)

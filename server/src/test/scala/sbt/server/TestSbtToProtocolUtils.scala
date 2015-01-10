@@ -26,7 +26,7 @@ class TestSbtToProtocolUtils {
         build = Some(new java.net.URI("file:///home/")))
     val expected = protocol.ScopedKey(expectedKey, expectedScope)
     val actual = SbtToProtocolUtils.scopedKeyToProtocol(nameInRef.scopedKey)
-    assertEquals("Failed to covnert sbt key:", expected, actual)
+    assertEquals("Failed to convert sbt key:", expected, actual)
   }
 
   @Test

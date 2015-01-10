@@ -191,8 +191,6 @@ class CanLoadSimpleProject extends SbtClientTest {
     val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.id.name}/baseDirectory")
     val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
 
-    import sbt.GenericSerializers._
-
     val baseDirectoryPromise = concurrent.Promise[File]
     client.watch(SettingKey[File](baseDirectoryKeys.head)) { (a, b) =>
       baseDirectoryPromise.tryComplete(b)

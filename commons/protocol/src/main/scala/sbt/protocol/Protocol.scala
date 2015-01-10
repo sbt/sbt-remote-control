@@ -179,7 +179,7 @@ trait TaskEventUnapply[T] {
       if (name != taskEvent.name) {
         None
       } else {
-        taskEvent.serialized.parse[T] map { result => taskEvent.taskId -> result }
+        taskEvent.serialized.parse[T].toOption map { result => taskEvent.taskId -> result }
       }
     case other => None
   }
@@ -205,7 +205,7 @@ trait BackgroundJobEventUnapply[T] {
       if (name != jobEvent.name) {
         None
       } else {
-        jobEvent.serialized.parse[T] map { result => jobEvent.jobId -> result }
+        jobEvent.serialized.parse[T].toOption map { result => jobEvent.jobId -> result }
       }
     case other => None
   }
@@ -372,17 +372,21 @@ object CompilationFailure extends TaskEventUnapply[CompilationFailure]
  * there are a bunch of super-generic names like Analysis, API, Package, etc.
  */
 
-final case class Analysis(stamps: Stamps,
+// TODO what fields are truly needed in Analysis?
+final case class Analysis( /* stamps: Stamps,
   apis: APIs,
   relations: Relations,
   infos: SourceInfos,
-  compilations: Compilations)
+  compilations: Compilations */ )
 object Analysis {
-  val empty: Analysis = Analysis(stamps = Stamps.empty,
+  val empty: Analysis = Analysis() /*stamps = Stamps.empty,
     apis = APIs.empty,
     relations = Relations.empty,
     infos = SourceInfos.empty,
-    compilations = Compilations.empty)
+    compilations = Compilations.empty) */
+
+  implicit val pickler = genPickler[Analysis]
+  implicit val unpickler = genUnpickler[Analysis]
 }
 sealed trait Stamp
 final case class Hash(value: ByteArray) extends Stamp
@@ -414,6 +418,10 @@ final case class Problem(category: String,
   severity: xsbti.Severity,
   message: String,
   position: Position)
+object Problem {
+  implicit val pickler = genPickler[Problem]
+  implicit val unpickler = genUnpickler[Problem]
+}
 
 final case class APIs(allExternals: Set[String],
   allInternalSources: Set[File],
@@ -523,6 +531,51 @@ object Compilations {
 }
 
 final class CompileFailedException(message: String, cause: Throwable, val problems: Vector[Problem]) extends Exception(message, cause)
+
+object CompileFailedException {
+  import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader }
+  implicit object picklerUnpickler extends SPickler[CompileFailedException] with Unpickler[CompileFailedException] {
+    val tag: FastTypeTag[CompileFailedException] = implicitly[FastTypeTag[CompileFailedException]]
+    private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
+    private val stringOptPickler = implicitly[SPickler[Option[String]]]
+    private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
+    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
+    private val throwableOptPickler = implicitly[SPickler[Option[Throwable]]]
+    private val throwableOptUnpickler = implicitly[Unpickler[Option[Throwable]]]
+    private val vectorProblemTag = implicitly[FastTypeTag[Vector[Problem]]]
+    private val vectorProblemPickler = implicitly[SPickler[Vector[Problem]]]
+    private val vectorProblemUnpickler = implicitly[Unpickler[Vector[Problem]]]
+
+    def pickle(a: CompileFailedException, builder: PBuilder): Unit = {
+      builder.beginEntry(a)
+      builder.putField("message", { b =>
+        b.hintTag(stringOptTag)
+        stringOptPickler.pickle(Option(a.getMessage), b)
+      })
+      builder.putField("cause", { b =>
+        b.hintTag(throwableOptTag)
+        throwableOptPickler.pickle(Option(a.getCause), b)
+      })
+      builder.putField("problems", { b =>
+        b.hintTag(vectorProblemTag)
+        vectorProblemPickler.pickle(a.problems, b)
+      })
+      builder.endEntry()
+    }
+    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      val reader1 = preader.readField("message")
+      reader1.hintTag(stringOptTag)
+      val message = stringOptUnpickler.unpickle(stringOptTag, reader1).asInstanceOf[Option[String]]
+      val reader2 = preader.readField("cause")
+      reader2.hintTag(throwableOptTag)
+      val cause = throwableOptUnpickler.unpickle(throwableOptTag, reader2).asInstanceOf[Option[Throwable]]
+      val reader3 = preader.readField("problems")
+      reader3.hintTag(vectorProblemTag)
+      val problems = vectorProblemUnpickler.unpickle(vectorProblemTag, reader3).asInstanceOf[Vector[Problem]]
+      new CompileFailedException(message.orNull, cause.orNull, problems)
+    }
+  }
+}
 
 sealed trait ByteArray extends immutable.Seq[Byte]
 object ByteArray {
