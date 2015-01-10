@@ -26,11 +26,11 @@ import scala.util.{ Success, Failure }
 
 package json {
   object `package` {
-    import scala.language.implicitConversions
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
     // TODO both of these are pretty sketchy probably?
-    implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
-    implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
+    // import scala.language.implicitConversions
+    //implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
+    //implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
   }
 
   case class JSONPickle(value: String) extends Pickle {
@@ -405,13 +405,14 @@ package json {
           datum = JArray(list.tail)
           value
         case obj: JObject if lastReadTag.key != FastTypeTag.Ref.key =>
-          mkNestedReader(obj \ "$value").primitives(lastReadTag.key)()
+          mkNestedReader(obj \ "$value").primitives.get(lastReadTag.key)
+            .getOrElse(throw new PicklingException(s"$lastReadTag cannot be read as a primitive from $obj"))()
         case x if atPrimitive =>
           primitives(lastReadTag.key)()
         case JString(s) =>
           s
-        case _ =>
-          throw new PicklingException(s"""$datum cannot be read as a primitive""")
+        case other =>
+          throw new PicklingException(s"""$lastReadTag cannot be read as a primitive from $other""")
       }
     }
     def atObject: Boolean = datum.isInstanceOf[JObject]
@@ -443,9 +444,5 @@ package json {
       reader
     }
     def endCollection(): Unit = {}
-  }
-
-  object FakeTag {
-    val File: String = "java.io.File"
   }
 }

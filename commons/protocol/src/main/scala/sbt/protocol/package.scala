@@ -81,10 +81,6 @@ package object protocol {
   // lazy needed to avoid NPE
   implicit lazy val typePickler: SPickler[Type] = ???
 
-  // TODO these should be vals and implemented
-  implicit def compileFailedExceptionUnpickler: Unpickler[CompileFailedException] = ???
-  implicit def compileFailedExceptionPickler: SPickler[CompileFailedException] = ???
-
   // TODO there's no real logic to why these are here and others are in
   // companion objects.
   implicit val positionPickler = genPickler[Position]

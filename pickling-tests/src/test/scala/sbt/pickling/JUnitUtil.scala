@@ -66,4 +66,10 @@ object JUnitUtil {
   implicit class AnyOp[A](a: A) {
     def must_==(b: A): Unit = assertEquals(b, a)
   }
+
+  import scala.language.implicitConversions
+  import sbt.pickling.json.JSONPickle
+  import scala.pickling.UnpickleOps
+  implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
+  implicit def toUnpickleOps(value: String): UnpickleOps = new JSONPickle(value)
 }

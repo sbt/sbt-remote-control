@@ -29,7 +29,11 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import sbt.serialization._
        |
        |final case class SerializedThing(name: String, value: Int)
-       |
+       |object SerializedThing {
+       |import sbt.serialization._
+       |  implicit val pickler = genPickler[SerializedThing]
+       |  implicit val unpickler = genUnpickler[SerializedThing]
+       |}
        |
        |object TestThingPlugin {
        |   val makeTestThing = taskKey[SerializedThing]("makes a test thing")
@@ -47,7 +51,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import com.typesafe.sbtrc.it.loading.TestThingPlugin
        |
        | val readInput = taskKey[Unit]("Quick interaction with server test.")
-       |  
+       |
        | readInput := {
        |   val contex = (interactionService in Global).?.value
        |   contex match {
@@ -96,7 +100,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, s"Execution was never queued up, got ${eventSet}")
     assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")
 
-    // Now we try to grab the value of maketestThing 
+    // Now we try to grab the value of maketestThing
     // To do this we had to create the client with serializer SerializedThing.format
     val testThingValuePromise = Promise[sbt.protocol.TaskResult]
     client.lookupScopedKey("makeTestThing").foreach {

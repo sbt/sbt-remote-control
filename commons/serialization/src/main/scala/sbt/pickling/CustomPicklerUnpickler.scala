@@ -68,10 +68,18 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
   /*  === End cut-and-paste of primitive picklers from pickling === */
 
   // Guard pickler
+  implicit def nilPickler: SPickler[Nil.type] with Unpickler[Nil.type] =
+    sys.error("Use the pickler for List[A] not Nil")
+
+  // Guard pickler
+  implicit def consPickler[A]: SPickler[::[A]] with Unpickler[::[A]] =
+    sys.error("Use the pickler for List[A] not ::")
+
+  // Guard pickler
   implicit def somePickler[A: FastTypeTag]: SPickler[Some[A]] with Unpickler[Some[A]] =
     sys.error("use the pickler for Option[A]")
   // Guard pickler
-  implicit lazy val nonePickler: SPickler[None.type] with Unpickler[None.type] =
+  implicit def nonePickler: SPickler[None.type] with Unpickler[None.type] =
     sys.error("use the pickler for Option[A]")
   implicit def optionPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Option[A]]): SPickler[Option[A]] with Unpickler[Option[A]] = new SPickler[Option[A]] with Unpickler[Option[A]] {
     private implicit val elemTag = implicitly[FastTypeTag[A]]
@@ -198,7 +206,8 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
         val result = canToString.fromString(s)
         result
       } catch {
-        case _: Throwable => throw new PicklingException(s""""$s" is not valid ${tag.tpe}""")
+        case e: PicklingException => throw e
+        case e: Throwable => throw PicklingException(s""""$s" is not valid ${tag.tpe}""", Some(e))
       }
     }
   }
@@ -223,7 +232,7 @@ trait LowPriorityCustomPicklerUnpickler {
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
 
-  implicit def listUnpickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
+  implicit def listPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
     collTag: FastTypeTag[List[A]]): SPickler[List[A]] with Unpickler[List[A]] =
     mkTravPickler[A, List[A]]
 

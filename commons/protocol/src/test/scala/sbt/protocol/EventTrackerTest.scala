@@ -15,13 +15,13 @@ class EventTrackerTest {
 
   @Test
   def testEventTracker(): Unit = {
+    val build = new java.net.URI("file:///test/project")
+    val projectRef1 = ProjectReference(build, "test1")
+    val projectRef2 = ProjectReference(build, "test2")
     val key1 = AttributeKey("name", AppliedType("java.lang.String", Nil))
     val key2 = AttributeKey("foo", AppliedType("java.lang.Integer", Nil))
-    val build = new java.net.URI("file:///test/project")
-    val scope1 = SbtScope(project = Some(
-      ProjectReference(build, "test1")))
-    val scope2 = SbtScope(project = Some(
-      ProjectReference(build, "test2")))
+    val scope1 = SbtScope(project = Some(projectRef1))
+    val scope2 = SbtScope(project = Some(projectRef2))
     val scopedKey1 = ScopedKey(key1, scope1)
     val scopedKey2 = ScopedKey(key2, scope2)
     val clientInfo = ClientInfo(java.util.UUID.randomUUID.toString(), "clientyclient", "Client Test")

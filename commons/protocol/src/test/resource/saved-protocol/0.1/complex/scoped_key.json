@@ -1,1 +1,1 @@
-{"key":{"name":"name","manifest":{"erasureClass":"java.lang.String","typeArguments":[]}},"scope":{"project":{"build":"file:///test/project","name":"test"}}}
+{"key":{"name":"name","manifest": "java.lang.String"},"scope":{"project":{"build":"file:///test/project","name":"test"}}}
