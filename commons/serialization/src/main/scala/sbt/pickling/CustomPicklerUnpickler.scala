@@ -227,6 +227,35 @@ trait LowPriorityCustomPicklerUnpickler {
   // TODO move this to sbt.serialization once it works to do so
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
+  // FIXME this could theoretically work for M<:Map[String,A] and use a CanBuildFrom for M?
+  implicit def stringMapPickler[A](implicit valuePickler: SPickler[A], valueUnpickler: Unpickler[A], valueTag: FastTypeTag[A], mapTag: FastTypeTag[Map[String, A]]): SPickler[Map[String, A]] with Unpickler[Map[String, A]] = new SPickler[Map[String, A]] with Unpickler[Map[String, A]] {
+    override val tag = mapTag
+
+    def pickle(m: Map[String, A], builder: PBuilder): Unit = {
+      builder.beginEntry(m)
+      builder.pushHints()
+
+      m foreach { kv =>
+        builder.putField(kv._1, { b =>
+          b.hintTag(valueTag)
+          valuePickler.pickle(kv._2, b)
+        })
+      }
+
+      builder.popHints()
+      builder.endEntry()
+    }
+
+    def unpickle(tpe: => FastTypeTag[_], reader: PReader): Any = {
+      reader.pushHints()
+
+      /** FIXME this needs implementing. */
+
+      reader.popHints()
+      Map.empty[String, A]
+    }
+  }
+
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
     mkSeqSetPickler[T, Vector]
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =

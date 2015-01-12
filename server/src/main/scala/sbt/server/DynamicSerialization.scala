@@ -254,8 +254,8 @@ private object NonTrivialSerializers {
       // toRegisteredSbtSerializer[PathComponent],
       // toRegisteredSbtSerializer[Type],
       // toRegisteredSbtSerializer[SimpleType, Type],
-      toRegisteredSbtSerializer[CompileFailedException] // FIXME ModuleId requires a Map[String,String] static pickler
-      /* toRegisteredSbtSerializer[ModuleId] */ )
+      toRegisteredSbtSerializer[CompileFailedException],
+      toRegisteredSbtSerializer[ModuleId])
     serializers.foldLeft(base) { (sofar, next) =>
       sofar.register(next.serializer)(next.manifest)
     }
