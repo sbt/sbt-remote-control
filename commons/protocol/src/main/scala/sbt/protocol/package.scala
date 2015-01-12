@@ -87,4 +87,6 @@ package object protocol {
   implicit val positionUnpickler = genUnpickler[Position]
   implicit val compilationFailurePickler = genPickler[CompilationFailure]
   implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
+  implicit val moduleIdPickler = genPickler[ModuleId]
+  implicit val moduleIdUnpickler = genUnpickler[ModuleId]
 }
