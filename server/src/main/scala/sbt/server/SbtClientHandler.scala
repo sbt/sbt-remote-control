@@ -101,7 +101,8 @@ class SbtClientHandler(
       try block
       catch {
         case NonFatal(e) =>
-          log.log(s"Dropping message ${msg} because client $configName-$uuid appears to be closed ${e.getClass.getName}: ${e.getMessage}")
+          log.log(s"Dropping message ${msg} because client $configName-$uuid of an exception serializing and sending: ${e.getClass.getName}: ${e.getMessage}")
+          log.error(s"stack trace sending message was ", e)
           // double-ensure close, in case Java wants to be annoying and not terminate our read()
           ipc.close()
       }
@@ -112,7 +113,7 @@ class SbtClientHandler(
 
   // ipc is synchronized, so this is ok.
   override def send(msg: Message): Unit = {
-    wrappedSend(msg) { ipc.sendJson(msg, ipc.serialGetAndIncrement()) }
+    wrappedSend(msg) { ipc.sendJson[Message](msg, ipc.serialGetAndIncrement()) }
   }
   // ipc is synchronized, so this is ok.
   override def reply(serial: Long, msg: Response): Unit = {
