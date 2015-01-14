@@ -67,20 +67,6 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
 
   /*  === End cut-and-paste of primitive picklers from pickling === */
 
-  // Guard pickler
-  implicit def nilPickler: SPickler[Nil.type] with Unpickler[Nil.type] =
-    sys.error("Use the pickler for List[A] not Nil")
-
-  // Guard pickler
-  implicit def consPickler[A]: SPickler[::[A]] with Unpickler[::[A]] =
-    sys.error("Use the pickler for List[A] not ::")
-
-  // Guard pickler
-  implicit def somePickler[A: FastTypeTag]: SPickler[Some[A]] with Unpickler[Some[A]] =
-    sys.error("use the pickler for Option[A]")
-  // Guard pickler
-  implicit def nonePickler: SPickler[None.type] with Unpickler[None.type] =
-    sys.error("use the pickler for Option[A]")
   implicit def optionPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Option[A]]): SPickler[Option[A]] with Unpickler[Option[A]] = new SPickler[Option[A]] with Unpickler[Option[A]] {
     private implicit val elemTag = implicitly[FastTypeTag[A]]
     val tag = implicitly[FastTypeTag[Option[A]]]
@@ -265,12 +251,9 @@ trait LowPriorityCustomPicklerUnpickler {
     collTag: FastTypeTag[List[A]]): SPickler[List[A]] with Unpickler[List[A]] =
     mkTravPickler[A, List[A]]
 
-  // Guard pickler
-  implicit def seqPickler[A: FastTypeTag]: SPickler[Seq[A]] with Unpickler[Seq[A]] =
-    sys.error("use Vector[A] or List[A] instead")
-  // Guard pickler
-  implicit def setPickler[A: FastTypeTag]: SPickler[Set[A]] with Unpickler[Set[A]] =
-    sys.error("use Vector[A] or List[A] instead")
+  // Ideally we wouldn't have this one, but it some sbt tasks return Seq
+  implicit def seqPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Seq[T]], cbf: CanBuildFrom[Seq[T], T, Seq[T]]): SPickler[Seq[T]] with Unpickler[Seq[T]] =
+    mkSeqSetPickler[T, Seq]
 
   implicit class RichType(tpe: scala.reflect.api.Universe#Type) {
     import definitions._
