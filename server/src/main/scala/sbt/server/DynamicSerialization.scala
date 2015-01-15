@@ -60,12 +60,18 @@ sealed trait DynamicSerialization {
   final def buildValue[T](o: T)(implicit mf: Manifest[T]): BuildValue =
     lookup(mf) map { serializer =>
       BuildValue(JsonValue(o)(serializer.pickler), o.toString)
-    } getOrElse BuildValue(JsonValue.emptyObject, o.toString)
+    } getOrElse {
+      System.err.println(s"No dynamic serializer found (using manifest) for $o")
+      BuildValue(JsonValue.emptyObject, o.toString)
+    }
 
   final def buildValueUsingRuntimeClass[T](o: T): BuildValue = {
     lookup[T](o.getClass.asInstanceOf[Class[T]]) map { serializer =>
       BuildValue(JsonValue(o)(serializer.pickler), o.toString)
-    } getOrElse (BuildValue(JsonValue.emptyObject, o.toString))
+    } getOrElse {
+      System.err.println(s"No dynamic serializer found (using runtime class) for $o")
+      BuildValue(JsonValue.emptyObject, o.toString)
+    }
   }
 }
 
