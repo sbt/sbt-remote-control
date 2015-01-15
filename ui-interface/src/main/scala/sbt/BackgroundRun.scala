@@ -138,7 +138,7 @@ private class BackgroundThreadPool extends java.io.Closeable {
   private val executor = new java.util.concurrent.ThreadPoolExecutor(0, /* corePoolSize */
     32, /* maxPoolSize, max # of bg tasks */
     2, java.util.concurrent.TimeUnit.SECONDS, /* keep alive unused threads this long (if corePoolSize < maxPoolSize) */
-    new java.util.concurrent.LinkedBlockingQueue[Runnable](),
+    new java.util.concurrent.SynchronousQueue[Runnable](),
     threadFactory)
 
   private class BackgroundRunnable(val taskName: String, body: () => Unit)
