@@ -13,6 +13,9 @@ object ManifestUtil {
       case x if x.key startsWith "scala.collection.immutable.Vector[" => true
       case x if x.key startsWith "scala.collection.immutable.$colon$colon[" => true
       case x if x.key startsWith "scala.collection.immutable.List[" => true
+      case x if x.key startsWith "scala.collection.Seq[" => true
+      case x if x.key startsWith "scala.collection.immutable.Seq[" => true
+      case x if x.key startsWith "scala.collection.mutable.ArrayBuffer[" => true
       case x =>
         val mitr = implicitly[Manifest[Iterable[Any]]]
         toManifest(tag, cl) map {
