@@ -25,6 +25,9 @@ import scala.collection.mutable.{ StringBuilder, Stack }
 import scala.util.{ Success, Failure }
 
 package json {
+
+  import scala.pickling.Hints
+
   object `package` {
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
     // TODO both of these are pretty sketchy probably?
@@ -41,13 +44,130 @@ package json {
   class JSONPickleFormat extends PickleFormat {
     type PickleType = JSONPickle
     type OutputType = Output[String]
-    def createBuilder() = new JSONPickleBuilder(this, new StringOutput)
-    def createBuilder(out: Output[String]): PBuilder = new JSONPickleBuilder(this, out)
+    def createBuilder() = new VerifyingJSONPickleBuilder(this, new StringOutput)
+    def createBuilder(out: Output[String]): PBuilder = new VerifyingJSONPickleBuilder(this, out)
     def createReader(pickle: JSONPickle, mirror: Mirror) = {
       jawn.support.json4s.Parser.parseFromString(pickle.value) match {
         case Success(json) => new JSONPickleReader(json, mirror, this)
         case Failure(e) => throw new PicklingException("failed to parse \"" + pickle.value + "\" as JSON: " + e.getMessage)
       }
+    }
+  }
+
+  sealed trait BuilderState {
+    def previous: BuilderState
+  }
+  case class CollectionState(val previous: BuilderState, numElements: Int, var idx: Int = -1) extends BuilderState
+  case class RawEntryState(previous: BuilderState, picklee: Any, hints: Hints, var wasCollectionOrMap: Boolean = false) extends BuilderState
+  case class MapEntryState(val previous: BuilderState) extends BuilderState
+  case class RefEntryState(val previous: BuilderState) extends BuilderState
+  object EmptyState extends BuilderState {
+    def previous = this
+  }
+
+  // A slow implementation of of a pickle builder
+  // This uses a TON of branch statements to ensure the builder is in the correct state for any call
+  // and to programatically enforce constraints of SPickler implementations.
+  // We use this just to verify our own picklers.
+  class VerifyingJSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
+    var state: BuilderState = EmptyState
+    // Here we get notified of object/value-like things.
+    override def beginEntry(picklee: Any): PBuilder = withHints { hints =>
+      // Here we check to see if we need to serialize a reference.  These are used to avoid circular object
+      // dependencies for picklers which have circluarly-references objects.
+      if (hints.oid != -1) {
+        buf.put("""{"$ref":""" + hints.oid + "}")
+        state = RefEntryState(state)
+      } else {
+        state = new RawEntryState(state, picklee, hints)
+      }
+      this
+    }
+    override def putField(name: String, pickler: (PBuilder) => Unit): PBuilder = {
+      state match {
+        case x: RawEntryState =>
+          x.wasCollectionOrMap = true
+          // Now we know we're in a map state, so we swap into map state.
+          state = MapEntryState(x.previous)
+          buf.put("{")
+        case _: MapEntryState =>
+          // here we just need another ,
+          buf.put(",")
+        case _ => sys.error("Cannot put a field when not in entry state!")
+      }
+      // Here we must append all the stringy things around the field.
+      buf.put('"' + name + "\":")
+      pickler(this)
+      this
+    }
+    override def endEntry(): Unit = {
+      state match {
+        case RawEntryState(prev, _, _, true) =>
+          // Here we do nothing because we were a collection or a map.
+          state = prev
+        case RawEntryState(prev, picklee, hints, false) =>
+          // Here we have to actually serialize the thing, as we're not a collection or a map.
+          if (primitives.contains(hints.tag.key))
+            primitives(hints.tag.key)(picklee)
+          else sys.error(s"Pickle type ${hints.tag.key} is not a primitive for JSON!!!")
+          state = prev
+        case MapEntryState(prev) =>
+          buf.put("}")
+          state = prev
+        case RefEntryState(prev) =>
+          state = prev
+        case _ => sys.error("Unable to endEntry() when not in entry state!")
+      }
+    }
+
+    private val primitives = Map[String, Any => Unit](
+      FastTypeTag.Unit.key -> ((picklee: Any) => buf.put("\"()\"")),
+      FastTypeTag.Null.key -> ((picklee: Any) => buf.put("null")),
+      FastTypeTag.Ref.key -> ((picklee: Any) => throw new Error("fatal error: shouldn't be invoked explicitly")),
+      FastTypeTag.Int.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Long.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Short.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Double.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Float.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Boolean.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Byte.key -> ((picklee: Any) => buf.put(picklee.toString)),
+      FastTypeTag.Char.key -> ((picklee: Any) => buf.put("\"" + quoteString(picklee.toString) + "\"")),
+      FastTypeTag.String.key -> ((picklee: Any) => buf.put("\"" + quoteString(picklee.toString) + "\"")) // Note we've removed all Array knowledge in favor of traeting this NOT as primitive types, but instead
+      // provide a collection pickler for them.
+      )
+
+    override def beginCollection(length: Int): PBuilder = {
+      state match {
+        case x: RawEntryState =>
+          x.wasCollectionOrMap = true
+          state = CollectionState(x, length)
+          buf.put("[")
+          this
+        case _ => sys.error(s"Unable to begin collection when in unknown state: $state")
+      }
+    }
+    override def putElement(pickler: (PBuilder) => Unit): PBuilder =
+      state match {
+        case s: CollectionState =>
+          // TODO - Verify
+          s.idx += 1
+          pickler(this)
+          if (s.idx <= s.numElements) buf.put(",")
+          this
+        case _ => sys.error("Cannot put an element without first specifying a collection.")
+      }
+    override def endCollection(): Unit =
+      state match {
+        case s: CollectionState =>
+          buf.put("]")
+          state = s.previous
+        case _ => sys.error("cannot end a collection when not in collection state!")
+      }
+
+    override def result(): JSONPickle = {
+      // TODO - verify everything is done, and we have no state stack...
+      if (state != EmptyState) sys.error("Failed to close/end all entries and collections!")
+      JSONPickle(buf.toString)
     }
   }
 
@@ -131,7 +251,12 @@ package json {
     private def isIterable(tag: FastTypeTag[_]): Boolean =
       ManifestUtil.isApproxIterable(tag)
     private def isOption(tag: FastTypeTag[_]): Boolean =
-      (tag.key startsWith "scala.Option[")
+      // TODO - While this uses JDK reflection, is it unsafe to grab the class out of Scala reflection?
+      tag.tpe.erasure.typeSymbol match {
+        case x if x.isClass => classOf[Option[_]].isAssignableFrom(tag.mirror.runtimeClass(x.asClass))
+        case _ => false
+      }
+    //(tag.key startsWith "scala.Option[")
     private def isJValue(tag: FastTypeTag[_]): Boolean =
       (tag.key startsWith "org.json4s.JsonAST.")
 
