@@ -243,7 +243,7 @@ trait LowPriorityCustomPicklerUnpickler {
   }
 
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
-    mkSeqSetPickler[T, Vector]
+    mkTravPickler[T, Vector[T]]
   implicit def arrayPickler[A >: Null: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Array[A]], cbf: CanBuildFrom[Array[A], A, Array[A]]): SPickler[Array[A]] with Unpickler[Array[A]] =
     mkTravPickler[A, Array[A]]
 
@@ -252,8 +252,8 @@ trait LowPriorityCustomPicklerUnpickler {
     mkTravPickler[A, List[A]]
 
   // Ideally we wouldn't have this one, but it some sbt tasks return Seq
-  implicit def seqPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Seq[T]], cbf: CanBuildFrom[Seq[T], T, Seq[T]]): SPickler[Seq[T]] with Unpickler[Seq[T]] =
-    mkSeqSetPickler[T, Seq]
+  implicit def seqPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Seq[A]], cbf: CanBuildFrom[Seq[A], A, Seq[A]]): SPickler[Seq[A]] with Unpickler[Seq[A]] =
+    mkTravPickler[A, Seq[A]]
 
   implicit class RichType(tpe: scala.reflect.api.Universe#Type) {
     import definitions._
@@ -264,10 +264,6 @@ trait LowPriorityCustomPicklerUnpickler {
     }
   }
 
-  def mkSeqSetPickler[A: FastTypeTag, Coll[_] <: Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
-    cbf: CanBuildFrom[Coll[A], A, Coll[A]],
-    collTag: FastTypeTag[Coll[A]]): SPickler[Coll[A]] with Unpickler[Coll[A]] =
-    mkTravPickler[A, Coll[A]]
   def mkTravPickler[A: FastTypeTag, C <% Traversable[_]: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], cbf: CanBuildFrom[C, A, C],
     collTag: FastTypeTag[C]): SPickler[C] with Unpickler[C] =
     new SPickler[C] with Unpickler[C] {

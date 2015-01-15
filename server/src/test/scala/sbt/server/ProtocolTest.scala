@@ -537,9 +537,15 @@ class ProtocolTest {
     roundtrip(List("Bar", "Baz"))
     roundtrip(List(1, 2, 3))
     roundtrip(List(true, false, true, true, false))
+    roundtrip(List(new java.io.File("/foo"), new java.io.File("/bar")))
     roundtrip(Vector("Bar", "Baz"))
     roundtrip(Vector(1, 2, 3))
     roundtrip(Vector(true, false, true, true, false))
+    roundtrip(Vector(new java.io.File("/foo"), new java.io.File("/bar")))
+    roundtrip(Seq("Bar", "Baz"))
+    roundtrip(Seq(1, 2, 3))
+    roundtrip(Seq(true, false, true, true, false))
+    roundtrip(Seq(new java.io.File("/foo"), new java.io.File("/bar")))
     roundtrip(key)
     roundtrip(build)
     roundtrip(projectRef)
@@ -666,6 +672,9 @@ class ProtocolTest {
     oneWayTrip(Vector("Bar", "Baz")) { _ / "array" / "seq_string.json" }
     oneWayTrip(Vector(1, 2, 3)) { _ / "array" / "seq_int.json" }
     oneWayTrip(Vector(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
+    oneWayTrip(Seq("Bar", "Baz")) { _ / "array" / "seq_string.json" }
+    oneWayTrip(Seq(1, 2, 3)) { _ / "array" / "seq_int.json" }
+    oneWayTrip(Seq(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
     // complex data type
     oneWayTrip(key) { _ / "complex" / "key.json" }
     oneWayTrip(projectRef) { _ / "complex" / "project_ref.json" }

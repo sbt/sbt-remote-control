@@ -17,6 +17,7 @@ private object Classes {
   val OptionClass = classOf[Option[_]]
   val VectorClass = classOf[Vector[_]]
   val ListClass = classOf[List[_]]
+  val SeqClass = classOf[Seq[_]]
   val NilClass = Nil.getClass
   val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
@@ -33,6 +34,7 @@ private object Classes {
   object OptionSubClass extends SubClass(OptionClass)
   object VectorSubClass extends SubClass(VectorClass)
   object ListSubClass extends SubClass(ListClass)
+  object SeqSubClass extends SubClass(SeqClass)
   object AttributedSubClass extends SubClass(AttributedClass)
   object ThrowableSubClass extends SubClass(ThrowableClass)
 }
@@ -179,15 +181,37 @@ private object ConcreteDynamicSerialization {
     }).asInstanceOf[Option[SbtSerializer[List[T]]]]
   }
 
+  private def defaultSerializerForSeq[T](klass: Class[T]): Option[SbtSerializer[Seq[T]]] = {
+    (klass match {
+      case Classes.StringClass => Some(implicitly[SbtSerializer[Seq[String]]])
+      case Classes.FileClass => Some(implicitly[SbtSerializer[Seq[java.io.File]]])
+      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Seq[Boolean]]])
+      case Classes.ShortClass => Some(implicitly[SbtSerializer[Seq[Short]]])
+      case Classes.IntClass => Some(implicitly[SbtSerializer[Seq[Int]]])
+      case Classes.LongClass => Some(implicitly[SbtSerializer[Seq[Long]]])
+      case Classes.FloatClass => Some(implicitly[SbtSerializer[Seq[Float]]])
+      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Seq[Double]]])
+      case Classes.URIClass => Some(implicitly[SbtSerializer[Seq[java.net.URI]]])
+      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Seq[java.lang.Throwable]]])
+      case _ =>
+        None
+    }).asInstanceOf[Option[SbtSerializer[Seq[T]]]]
+  }
+
   private def defaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[SbtSerializer[T]]) orElse
     defaultSerializer[T](mf.runtimeClass.asInstanceOf[Class[T]]) orElse {
+      // TODO these SubClass tests are sort of BS since picklers are invariant
       (mf.runtimeClass match {
         case Classes.OptionSubClass() =>
           defaultSerializerForOption(mf.typeArguments(0).runtimeClass)
+        // TODO there's no real point having Vector and List special-cased
+        // here if we pickle them the same way as Seq anyhow.
         case Classes.VectorSubClass() =>
           defaultSerializerForVector(mf.typeArguments(0).runtimeClass)
         case Classes.ListSubClass() =>
           defaultSerializerForList(mf.typeArguments(0).runtimeClass)
+        case Classes.SeqSubClass() =>
+          defaultSerializerForSeq(mf.typeArguments(0).runtimeClass)
         case Classes.AttributedSubClass() =>
           for {
             child <- memoizedDefaultSerializer(mf.typeArguments(0))
