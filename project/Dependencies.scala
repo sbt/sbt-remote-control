@@ -25,17 +25,17 @@ object Dependencies {
   }
 
   // Reference versions
-  val sbt13Version = "0.13.6"
+  val sbt13Version = "0.13.7"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
   // Here are the versions used for the core project
   val scalaVersion = "2.10.4"
-  val scala211Version = "2.11.2"
+  val scala211Version = "2.11.5"
   val sbtMainVersion = sbt13Version
-  val playVersion = "2.3.3"
+  val playVersion = "2.3.4"
   val scalaCheckVersion = "1.11.5"
-  val akkaVersion = "2.3.6"
+  val akkaVersion = "2.3.8"
 
   // Here we declare our dependencies normally
   val sbtOrg               = "org.scala-sbt"
