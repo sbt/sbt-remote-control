@@ -47,8 +47,14 @@ private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializ
 }
 
 private[sbt] object JsonValue {
-  private def parseJValue(s: String): Try[JValue] =
-    jawn.support.json4s.Parser.parseFromString(s)
+  private def parseJValue(s: String): Try[JValue] = {
+    jawn.support.json4s.Parser.parseFromString(s) recover {
+      case e @ jawn.ParseException(msg, _, line, col) =>
+        throw PicklingException(s"Parse error line $line column $col '$msg' in $s", Some(e))
+      case e @ jawn.IncompleteParseException(msg) =>
+        throw PicklingException(s"Incomplete json '$msg' in $s", Some(e))
+    }
+  }
 
   private[sbt] def parseJson(s: String): Try[JsonValue] =
     parseJValue(s) map { json => new JsonValue(json) }
