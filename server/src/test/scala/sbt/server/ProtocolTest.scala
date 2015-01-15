@@ -454,7 +454,10 @@ class ProtocolTest {
       protocol.TaskEvent(8, PlayStartedEvent(port = 10)),
       protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey)),
       protocol.BackgroundJobFinished(9, 67),
-      protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)))
+      protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10)),
+      protocol.AnalyzeExecutionResponse(ExecutionAnalysisKey(Vector(scopedKey))),
+      protocol.AnalyzeExecutionResponse(ExecutionAnalysisError("blah blah")),
+      protocol.AnalyzeExecutionResponse(ExecutionAnalysisCommand(Some("foobar"))))
 
     for (s <- specifics) {
       def fromRaw(j: JsonValue): Option[Message] =
