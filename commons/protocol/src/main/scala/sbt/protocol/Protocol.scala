@@ -3,6 +3,7 @@ package sbt.protocol
 import java.io.File
 import scala.collection.immutable
 import sbt.serialization._
+import scala.pickling.directSubclasses
 
 /**
  * A marker trait for *any* message that is passed back/forth from
@@ -109,6 +110,9 @@ final case class KeyLookupRequest(name: String) extends Request
 final case class KeyLookupResponse(name: String, key: Vector[ScopedKey]) extends Response
 
 final case class AnalyzeExecutionRequest(command: String) extends Request
+
+@directSubclasses(Array(classOf[ExecutionAnalysisKey], classOf[ExecutionAnalysisError],
+  classOf[ExecutionAnalysisCommand]))
 sealed trait ExecutionAnalysis
 // sbt will run ALL of these keys (aggregation)
 final case class ExecutionAnalysisKey(keys: Vector[ScopedKey]) extends ExecutionAnalysis
@@ -125,6 +129,11 @@ final case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends R
  * represent things that occur during the processing of requests.
  */
 
+// knownDirectSubclasses doesn't seem to come out right for LogEntry,
+// but only nondeterministically (one compile will work, another won't),
+// so be very careful about removing this.
+@directSubclasses(Array(classOf[LogStdOut], classOf[LogStdErr], classOf[LogSuccess],
+  classOf[LogTrace], classOf[LogMessage]))
 sealed trait LogEntry {
   def message: String
 }
