@@ -381,12 +381,14 @@ class ProtocolTest {
   private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body
   catch {
     case e: Throwable =>
+      e.printStackTrace()
       throw new AssertionError(s"Crash pickling ${t.getClass.getName}: ${e.getMessage}", e)
   }
 
   private def addWhatWeWereUnpickling[U](json: String)(body: => U): U = try body
   catch {
     case e: Throwable =>
+      e.printStackTrace()
       throw new AssertionError(s"Crash unpickling: ${e.getMessage}: json was ${json}", e)
   }
 

@@ -30,6 +30,7 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
     }
     override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
       try {
+        reader.hintTag(tag)
         reader.readPrimitive()
       } catch {
         case PicklingException(msg, cause) =>
@@ -72,26 +73,19 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
     val tag = implicitly[FastTypeTag[Option[A]]]
     private val isPrimitive = elemTag.tpe.isEffectivelyPrimitive
     private val nullPickler = implicitly[SPickler[Null]]
-
+    private val nullTag = implicitly[FastTypeTag[Null]]
     def pickle(coll: Option[A], builder: PBuilder): Unit = {
-      builder.beginEntry(coll)
-      builder.pushHints()
-
+      // Here we cheat the "entry" so that the notion of option
+      // is erased for "null"
       coll match {
         case Some(elem) =>
-          if (isPrimitive) {
-            builder.hintStaticallyElidedType()
-            builder.hintTag(elemTag)
-            builder.pinHints()
-          } else builder.hintTag(elemTag)
+          builder.hintTag(elemTag)
           elemPickler.pickle(elem, builder)
         case None =>
-          builder.hintTag(FastTypeTag.Null)
-          nullPickler.pickle(null, builder)
+          builder.hintTag(nullTag)
+          builder.beginEntry(null)
+          builder.endEntry()
       }
-
-      builder.popHints()
-      builder.endEntry()
     }
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
       val reader = preader.beginCollection()
@@ -214,13 +208,21 @@ trait LowPriorityCustomPicklerUnpickler {
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
   // FIXME this could theoretically work for M<:Map[String,A] and use a CanBuildFrom for M?
-  implicit def stringMapPickler[A](implicit valuePickler: SPickler[A], valueUnpickler: Unpickler[A], valueTag: FastTypeTag[A], mapTag: FastTypeTag[Map[String, A]]): SPickler[Map[String, A]] with Unpickler[Map[String, A]] = new SPickler[Map[String, A]] with Unpickler[Map[String, A]] {
+  implicit def stringMapPickler[A](implicit valuePickler: SPickler[A], valueUnpickler: Unpickler[A], valueTag: FastTypeTag[A],
+    mapTag: FastTypeTag[Map[String, A]],
+    keysPickler: SPickler[List[String]], keysUnpickler: Unpickler[List[String]]): SPickler[Map[String, A]] with Unpickler[Map[String, A]] = new SPickler[Map[String, A]] with Unpickler[Map[String, A]] {
     override val tag = mapTag
 
     def pickle(m: Map[String, A], builder: PBuilder): Unit = {
+      builder.hintTag(mapTag)
       builder.beginEntry(m)
       builder.pushHints()
-
+      // This is a pseudo-field that the JSON format will ignore reading, but
+      // the binary format WILL write.
+      // TODO - We should have this be a "hintDynamicKeys" instead.
+      builder.putField("$keys", { b =>
+        keysPickler.pickle(m.keys.toList.sorted, b)
+      })
       m foreach { kv =>
         builder.putField(kv._1, { b =>
           b.hintTag(valueTag)
@@ -234,11 +236,23 @@ trait LowPriorityCustomPicklerUnpickler {
 
     def unpickle(tpe: => FastTypeTag[_], reader: PReader): Any = {
       reader.pushHints()
-
-      /** FIXME this needs implementing. */
-
+      val keys = {
+        val nested = reader.readField("$keys")
+        nested.beginEntry()
+        val result = keysUnpickler.unpickle(tpe, nested).asInstanceOf[List[String]]
+        nested.endEntry()
+        result
+      }
+      val results = for (key <- keys) yield {
+        val nested = reader.readField(key)
+        nested.hintTag(valueTag)
+        nested.beginEntry()
+        val value = valueUnpickler.unpickle(valueTag, nested)
+        nested.endEntry()
+        key -> value.asInstanceOf[A]
+      }
       reader.popHints()
-      Map.empty[String, A]
+      results.toMap
     }
   }
 

@@ -32,7 +32,7 @@ class SerializedValuePicklerTest {
   def testRoundtripPlayStarted: Unit = {
     import scala.pickling._
     val value = SerializedValue(PlayStartedEvent(10))
-    val example = """{"port":10.0,"$type":"sbt.pickling.spec.PlayStartedEvent"}"""
+    val example = """{"$type":"sbt.pickling.spec.PlayStartedEvent","port":10.0}"""
     value.pickle.value must_== example
     val recovered = example.unpickle[SerializedValue]
     recovered.parse[PlayStartedEvent].get must_== PlayStartedEvent(10)

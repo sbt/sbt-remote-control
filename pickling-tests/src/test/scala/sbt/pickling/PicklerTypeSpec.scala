@@ -29,7 +29,7 @@ class PicklerTypeTest {
 
   @Test
   def testPickleApple: Unit = {
-    Apple(1).pickle.value must_== appleExample
+    assertEquals("Apple(1)", appleExample, Apple(1).pickle.value)
   }
 
   @Test
@@ -62,10 +62,7 @@ class PicklerTypeTest {
     }
   }
 
-  lazy val appleExample = """{
-    |  "$type": "sbt.pickling.spec.Apple",
-    |  "x": 1
-    |}""".stripMargin
+  lazy val appleExample = """{"x":1,"$type":"sbt.pickling.spec.Apple"}""".stripMargin
   lazy val unknownTypeExample = """{
     |  "$type": "something_unknown",
     |  "x": 1

@@ -57,9 +57,9 @@ package json {
   sealed trait BuilderState {
     def previous: BuilderState
   }
-  case class CollectionState(val previous: BuilderState, numElements: Int, var idx: Int = -1) extends BuilderState
+  case class CollectionState(val previous: BuilderState, numElements: Int, hasInput: Boolean) extends BuilderState
   case class RawEntryState(previous: BuilderState, picklee: Any, hints: Hints, var wasCollectionOrMap: Boolean = false) extends BuilderState
-  case class MapEntryState(val previous: BuilderState) extends BuilderState
+  case class MapEntryState(val previous: BuilderState, picklee: Any, hints: Hints) extends BuilderState
   case class RefEntryState(val previous: BuilderState) extends BuilderState
   object EmptyState extends BuilderState {
     def previous = this
@@ -71,6 +71,9 @@ package json {
   // We use this just to verify our own picklers.
   class VerifyingJSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
     var state: BuilderState = EmptyState
+    //(tag.key startsWith "scala.Option[")
+    private def isJValue(tag: FastTypeTag[_]): Boolean =
+      (tag.key startsWith "org.json4s.JsonAST.")
     // Here we get notified of object/value-like things.
     override def beginEntry(picklee: Any): PBuilder = withHints { hints =>
       // Here we check to see if we need to serialize a reference.  These are used to avoid circular object
@@ -88,7 +91,7 @@ package json {
         case x: RawEntryState =>
           x.wasCollectionOrMap = true
           // Now we know we're in a map state, so we swap into map state.
-          state = MapEntryState(x.previous)
+          state = MapEntryState(x.previous, x.picklee, x.hints)
           buf.put("{")
         case _: MapEntryState =>
           // here we just need another ,
@@ -103,21 +106,68 @@ package json {
     override def endEntry(): Unit = {
       state match {
         case RawEntryState(prev, _, _, true) =>
-          // Here we do nothing because we were a collection or a map.
+          // Here we do nothing because it was a collection.
           state = prev
         case RawEntryState(prev, picklee, hints, false) =>
           // Here we have to actually serialize the thing, as we're not a collection or a map.
           if (primitives.contains(hints.tag.key))
             primitives(hints.tag.key)(picklee)
-          else sys.error(s"Pickle type ${hints.tag.key} is not a primitive for JSON!!!")
+          else if (primitiveArrays.contains(hints.tag.key)) {
+            primitiveArrays(hints.tag.key)(picklee)
+          } else if (isJValue(hints.tag)) {
+            // TODO - Serialize it.
+            import org.json4s.native.JsonMethods._
+            buf.put(compact(render(picklee.asInstanceOf[JValue])))
+          } else {
+            //sys.error(s"Pickle type ${hints.tag.key} is not a primitive for JSON!!!")
+            // Note: It's possible the object is empty, so we just put an empty object here,
+            // as the type we're serializing may not have any contents.
+            // we also serialize the "$type" here if needed.
+            // Ignore isStaticallyElidedType. Always output $type.
+            val ts =
+              if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
+              else hints.tag.key
+            buf.put(s"""{ "$$type": "$ts" }""")
+          }
           state = prev
-        case MapEntryState(prev) =>
+        case MapEntryState(prev, picklee, hints) =>
+          // TODO - we need to serialize the "$type" here.
+          val ts =
+            if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
+            else hints.tag.key
+          buf.put(",\"$type\":\"" + ts + "\"")
           buf.put("}")
           state = prev
         case RefEntryState(prev) =>
           state = prev
         case _ => sys.error("Unable to endEntry() when not in entry state!")
       }
+    }
+
+    // We cover ararys of primitives separately here.
+    // NOTE: these are special cased in the core pickler design (probably for binary encoding efficiency)
+    private val primitiveArrays = Map[String, Any => Unit](
+      FastTypeTag.ArrayByte.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Byte]], FastTypeTag.Byte)),
+      FastTypeTag.ArrayShort.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Short]], FastTypeTag.Short)),
+      FastTypeTag.ArrayChar.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Char]], FastTypeTag.Char)),
+      FastTypeTag.ArrayInt.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Int]], FastTypeTag.Int)),
+      FastTypeTag.ArrayLong.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Long]], FastTypeTag.Long)),
+      FastTypeTag.ArrayBoolean.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Boolean]], FastTypeTag.Boolean)),
+      FastTypeTag.ArrayFloat.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Float]], FastTypeTag.Float)),
+      FastTypeTag.ArrayDouble.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Double]], FastTypeTag.Double)))
+    private def pickleArray(arr: Array[_], tag: FastTypeTag[_]) = {
+      beginCollection(arr.length)
+      pushHints()
+      hintStaticallyElidedType()
+      hintTag(tag)
+      pinHints()
+      var i = 0
+      while (i < arr.length) {
+        putElement(b => b.beginEntry(arr(i)).endEntry())
+        i += 1
+      }
+      popHints()
+      endCollection()
     }
 
     private val primitives = Map[String, Any => Unit](
@@ -140,7 +190,7 @@ package json {
       state match {
         case x: RawEntryState =>
           x.wasCollectionOrMap = true
-          state = CollectionState(x, length)
+          state = CollectionState(x, length, false)
           buf.put("[")
           this
         case _ => sys.error(s"Unable to begin collection when in unknown state: $state")
@@ -150,9 +200,10 @@ package json {
       state match {
         case s: CollectionState =>
           // TODO - Verify
-          s.idx += 1
+          if (s.hasInput) { buf.put(",") } else {
+            state = s.copy(hasInput = true)
+          }
           pickler(this)
-          if (s.idx <= s.numElements) buf.put(",")
           this
         case _ => sys.error("Cannot put an element without first specifying a collection.")
       }
@@ -167,177 +218,6 @@ package json {
     override def result(): JSONPickle = {
       // TODO - verify everything is done, and we have no state stack...
       if (state != EmptyState) sys.error("Failed to close/end all entries and collections!")
-      JSONPickle(buf.toString)
-    }
-  }
-
-  class JSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
-    private var nindent = 0
-    private def indent() = nindent += 1
-    private def unindent() = nindent -= 1
-    private var pendingIndent = false
-    private var lastIsBrace = false
-    private var lastIsBracket = false
-    private def append(s: String) = {
-      val sindent = if (pendingIndent) "  " * nindent else ""
-      buf.put(sindent + s)
-      pendingIndent = false
-      val trimmed = s.trim
-      if (trimmed.nonEmpty) {
-        val lastChar = trimmed.last
-        lastIsBrace = lastChar == '{'
-        lastIsBracket = lastChar == '['
-      }
-    }
-    private def appendLine(s: String = "") = {
-      append(s + "\n")
-      pendingIndent = true
-    }
-    private val tags = new Stack[FastTypeTag[_]]()
-    private def pickleArray(arr: Array[_], tag: FastTypeTag[_]) = {
-      unindent()
-      appendLine("[")
-      pushHints()
-      hintStaticallyElidedType()
-      hintTag(tag)
-      pinHints()
-      var i = 0
-      while (i < arr.length) {
-        putElement(b => b.beginEntry(arr(i)).endEntry())
-        i += 1
-      }
-      popHints()
-      appendLine("")
-      append("]")
-      indent()
-    }
-    private def pickleSeq(seq: Seq[_], tag: FastTypeTag[_]) = {
-      unindent()
-      appendLine("[")
-      pushHints()
-      hintStaticallyElidedType()
-      hintTag(tag)
-      pinHints()
-      seq foreach { x =>
-        putElement(b => b.beginEntry(x).endEntry())
-      }
-      popHints()
-      appendLine("")
-      append("]")
-      indent()
-    }
-    private val primitives = Map[String, Any => Unit](
-      FastTypeTag.Unit.key -> ((picklee: Any) => append("\"()\"")),
-      FastTypeTag.Null.key -> ((picklee: Any) => append("null")),
-      FastTypeTag.Ref.key -> ((picklee: Any) => throw new Error("fatal error: shouldn't be invoked explicitly")),
-      FastTypeTag.Int.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Long.key -> ((picklee: Any) => append(picklee.toString)), // append("\"" + quoteString(picklee.toString) + "\"")),
-      FastTypeTag.Short.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Double.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Float.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Boolean.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Byte.key -> ((picklee: Any) => append(picklee.toString)),
-      FastTypeTag.Char.key -> ((picklee: Any) => append("\"" + quoteString(picklee.toString) + "\"")),
-      FastTypeTag.String.key -> ((picklee: Any) => append("\"" + quoteString(picklee.toString) + "\"")),
-      FastTypeTag.ArrayByte.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Byte]], FastTypeTag.Byte)),
-      FastTypeTag.ArrayShort.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Short]], FastTypeTag.Short)),
-      FastTypeTag.ArrayChar.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Char]], FastTypeTag.Char)),
-      FastTypeTag.ArrayInt.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Int]], FastTypeTag.Int)),
-      FastTypeTag.ArrayLong.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Long]], FastTypeTag.Long)),
-      FastTypeTag.ArrayBoolean.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Boolean]], FastTypeTag.Boolean)),
-      FastTypeTag.ArrayFloat.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Float]], FastTypeTag.Float)),
-      FastTypeTag.ArrayDouble.key -> ((picklee: Any) => pickleArray(picklee.asInstanceOf[Array[Double]], FastTypeTag.Double)))
-
-    private def isIterable(tag: FastTypeTag[_]): Boolean =
-      ManifestUtil.isApproxIterable(tag)
-    private def isOption(tag: FastTypeTag[_]): Boolean =
-      // TODO - While this uses JDK reflection, is it unsafe to grab the class out of Scala reflection?
-      tag.tpe.erasure.typeSymbol match {
-        case x if x.isClass => classOf[Option[_]].isAssignableFrom(tag.mirror.runtimeClass(x.asClass))
-        case _ => false
-      }
-    //(tag.key startsWith "scala.Option[")
-    private def isJValue(tag: FastTypeTag[_]): Boolean =
-      (tag.key startsWith "org.json4s.JsonAST.")
-
-    def beginEntry(picklee: Any): PBuilder = withHints { hints =>
-      indent()
-      if (hints.oid != -1) {
-        tags.push(FastTypeTag.Ref)
-        append("{ \"$ref\": " + hints.oid + " }")
-      } else {
-        tags.push(hints.tag)
-        if (primitives.contains(hints.tag.key)) {
-          primitives(hints.tag.key)(picklee)
-          // if (hints.isElidedType) primitives(hints.tag.key)(picklee)
-          // else {
-          //   appendLine("{")
-          //   appendLine("\"$type\": \"" + hints.tag.key + "\",")
-          //   append("\"value\": ")
-          //   indent()
-          //   primitives(hints.tag.key)(picklee)
-          //   unindent()
-          //   appendLine("")
-          //   unindent()
-          //   append("}")
-          //   indent()
-          // }
-        } else if (isJValue(hints.tag)) {
-          appendJson(picklee match {
-            case json: JValue => json
-            case _ => throw new PicklingException("json expected but found: " + picklee.toString)
-          })
-        } else if (isIterable(hints.tag)) ()
-        else if (isOption(hints.tag)) ()
-        else {
-          appendLine("{")
-          // Ignore isStaticallyElidedType. Always output $type.
-          val ts =
-            if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
-            else hints.tag.key
-          append("\"$type\": \"" + ts + "\"")
-        }
-      }
-      this
-    }
-    def appendJson(json: JValue): Unit = {
-      import org.json4s.native.JsonMethods._
-      append(compact(render(json)))
-    }
-    def putField(name: String, pickler: PBuilder => Unit): PBuilder = {
-      // assert(!primitives.contains(tags.top.key), tags.top)
-      if (!lastIsBrace) appendLine(",") // TODO: very inefficient, but here we don't care much about performance
-      append("\"" + name + "\": ")
-      pickler(this)
-      this
-    }
-    def endEntry(): Unit = {
-      unindent()
-      val tag = tags.pop()
-      if (primitives.contains(tag.key)) () // do nothing
-      else if (isJValue(tag)) ()
-      else if (isIterable(tag)) ()
-      else if (isOption(tag)) ()
-      else { appendLine(); append("}") }
-    }
-    def beginCollection(length: Int): PBuilder = {
-      // putField("$elems", b => ())
-      appendLine("[")
-      // indent()
-      this
-    }
-    def putElement(pickler: PBuilder => Unit): PBuilder = {
-      if (!lastIsBracket) appendLine(",") // TODO: very inefficient, but here we don't care much about performance
-      pickler(this)
-      this
-    }
-    def endCollection(): Unit = {
-      appendLine()
-      append("]")
-      // unindent()
-    }
-    def result(): JSONPickle = {
-      assert(tags.isEmpty, tags)
       JSONPickle(buf.toString)
     }
   }
@@ -543,6 +423,11 @@ package json {
     def atObject: Boolean = datum.isInstanceOf[JObject]
     def readField(name: String): JSONPickleReader = {
       datum match {
+        // Handle the  magic "keys" field.
+        case obj: JObject if "$keys" == name =>
+          mkNestedReader(JArray(obj.values.keys.filterNot { k =>
+            ("$keys" == k || "$type" == k)
+          }.map(k => JString(k)).toList))
         case obj: JObject => mkNestedReader(obj \ name)
       }
     }

@@ -143,7 +143,7 @@ class ArrayPicklerTest {
   def trimLine(s: String): String =
     (s.lines map {_.trim}).mkString("\n")
   def pointed1[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: SPickler[F[A]], ev1: FastTypeTag[F[A]]) =
-    trimLine(m.pointed(ae.one).pickle.value) must_== ae.arrayJson
+    assertEquals(s"With type $ev1", ae.arrayJson, (trimLine(m.pointed(ae.one).pickle.value))) 
   def pointed2[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: Unpickler[F[A]], ev1: FastTypeTag[F[A]]) =
     ae.arrayJson.unpickle[F[A]] must_== m.pointed(ae.one)
 }
@@ -157,24 +157,16 @@ object ArrayExample {
     def one = one0
     def arrayJson: String = arrayJson0
   }
-  val arrayIntExample = """[
-    |1
-    |]""".stripMargin
-  val arrayDoubleExample = """[
-    |1.0
-    |]""".stripMargin
-  val arrayStringExample = """[
-    |"a"
-    |]""".stripMargin
+  val arrayIntExample = """[1]"""
+  val arrayDoubleExample = """[1.0]"""
+  val arrayStringExample = """["a"]"""
   implicit val byteArrayExample: ArrayExample[Byte] = ArrayExample(1: Byte, arrayIntExample)
   implicit val shortArrayExample: ArrayExample[Short] = ArrayExample(1: Short, arrayIntExample)
   implicit val intArrayExample: ArrayExample[Int] = ArrayExample(1, arrayIntExample)
   implicit val charArrayExample: ArrayExample[Char] = ArrayExample('a', arrayStringExample)
   implicit val stringArrayExample: ArrayExample[String] = ArrayExample("a", arrayStringExample)
   implicit val longArrayExample: ArrayExample[Long] = ArrayExample(1L, arrayIntExample)
-  implicit val booleanArrayExample: ArrayExample[Boolean] = ArrayExample(false, """[
-    |false
-    |]""".stripMargin)
+  implicit val booleanArrayExample: ArrayExample[Boolean] = ArrayExample(false, """[false]""".stripMargin)
   implicit val floatArrayExample: ArrayExample[Float] = ArrayExample(1.0F, arrayDoubleExample)
   implicit val doubleArrayExample: ArrayExample[Double] = ArrayExample(1.0, arrayDoubleExample)
 }
