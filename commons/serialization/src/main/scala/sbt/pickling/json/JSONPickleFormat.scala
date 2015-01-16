@@ -134,16 +134,17 @@ package json {
             // Note: It's possible the object is empty, so we just put an empty object here,
             // as the type we're serializing may not have any contents.
             // we also serialize the "$type" here if needed.
-            // Ignore isStaticallyElidedType. Always output $type.
             buf.put("{")
-            appendTagString(picklee, hints)
+            if (!hints.isStaticallyElidedType) appendTagString(picklee, hints)
             buf.put("}")
           }
           state = prev
         case MapEntryState(prev, picklee, hints) =>
-          // Ignore isStaticallyElidedType and always send the $type down.
-          buf.put(",")
-          appendTagString(picklee, hints)
+          // Add the type tag if we don't know it statically.
+          if (!hints.isStaticallyElidedType) {
+            buf.put(",")
+            appendTagString(picklee, hints)
+          }
           buf.put("}")
           state = prev
         case RefEntryState(prev) =>

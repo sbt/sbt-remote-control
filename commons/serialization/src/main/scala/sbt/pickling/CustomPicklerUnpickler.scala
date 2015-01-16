@@ -215,6 +215,7 @@ trait LowPriorityCustomPicklerUnpickler {
 
     def pickle(m: Map[String, A], builder: PBuilder): Unit = {
       builder.hintTag(mapTag)
+      builder.hintStaticallyElidedType()
       builder.beginEntry(m)
       builder.pushHints()
       // This is a pseudo-field that the JSON format will ignore reading, but

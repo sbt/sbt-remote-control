@@ -1,1 +1,1 @@
-{"$type":"sbt.protocol.ExecutionWaiting","client":{"$type":"sbt.protocol.ClientInfo","humanReadableName":"FOO","configName":"foo","uuid":"350954c2-6bf0-4925-b066-3bf20f32906b"},"command":"foo","id":41.0}
+{"$type":"sbt.protocol.ExecutionWaiting","client":{"humanReadableName":"FOO","configName":"foo","uuid":"350954c2-6bf0-4925-b066-3bf20f32906b"},"command":"foo","id":41.0}
