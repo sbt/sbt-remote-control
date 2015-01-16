@@ -1,5 +1,6 @@
 package sbt
 
+import scala.pickling.{ PReader, FastTypeTag }
 import scala.util.control.NonFatal
 
 package object protocol {
@@ -88,5 +89,6 @@ package object protocol {
   implicit val compilationFailurePickler = genPickler[CompilationFailure]
   implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
   implicit val moduleIdPickler = genPickler[ModuleId]
+  import sbt.serialization.stringMapPickler
   implicit val moduleIdUnpickler = genUnpickler[ModuleId]
 }

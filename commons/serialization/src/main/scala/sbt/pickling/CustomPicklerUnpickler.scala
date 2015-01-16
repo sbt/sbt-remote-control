@@ -88,13 +88,19 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       }
     }
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      // Note - if we call beginEntry we should see JNothing or JNull show up if the option is empty.
       val reader = preader.beginCollection()
       preader.pushHints()
+      // TODO - we may be ALWAYS eliding the type, so we shouldn't use an isPrimitive hack here.
       if (isPrimitive) {
         reader.hintStaticallyElidedType()
         reader.hintTag(elemTag)
         reader.pinHints()
       } else reader.hintTag(elemTag)
+      // NOTE - This aspect of option pickling is super customer and relies
+      //        on the JSON format returning a length for the field.
+      //        JSON also special cases readElement for this scenario.
+      // TODO - We should find an alternative mechanism of handling this.
       val length = reader.readLength
       val result: Option[A] =
         if (length == 0) None
@@ -177,11 +183,18 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
     def pickle(a: A, builder: PBuilder): Unit = {
       builder.pushHints()
       builder.hintTag(FastTypeTag.String)
+      builder.hintStaticallyElidedType()
       stringPickler.pickle(canToString.toString(a), builder)
       builder.popHints()
     }
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+      preader.pushHints()
+      preader.hintTag(FastTypeTag.String)
+      preader.hintStaticallyElidedType()
+      preader.pinHints()
       val s = stringUnpickler.unpickle(FastTypeTag.String, preader).asInstanceOf[String]
+      preader.unpinHints()
+      preader.popHints()
       try {
         val result = canToString.fromString(s)
         result
@@ -214,10 +227,10 @@ trait LowPriorityCustomPicklerUnpickler {
     override val tag = mapTag
 
     def pickle(m: Map[String, A], builder: PBuilder): Unit = {
+      builder.pushHints()
       builder.hintTag(mapTag)
       builder.hintStaticallyElidedType()
       builder.beginEntry(m)
-      builder.pushHints()
       // This is a pseudo-field that the JSON format will ignore reading, but
       // the binary format WILL write.
       // TODO - We should have this be a "hintDynamicKeys" instead.
@@ -230,16 +243,20 @@ trait LowPriorityCustomPicklerUnpickler {
           valuePickler.pickle(kv._2, b)
         })
       }
-
-      builder.popHints()
       builder.endEntry()
+      builder.popHints()
     }
 
     def unpickle(tpe: => FastTypeTag[_], reader: PReader): Any = {
+      System.err.println(s"DEBUG ME - UNPICKLING String-Map")
       reader.pushHints()
+      reader.hintStaticallyElidedType()
+      reader.hintTag(mapTag)
+      reader.hintStaticallyElidedType()
+      reader.beginEntry()
       val keys = {
         val nested = reader.readField("$keys")
-        nested.beginEntry()
+        nested.beginEntryNoTag()
         val result = keysUnpickler.unpickle(tpe, nested).asInstanceOf[List[String]]
         nested.endEntry()
         result
@@ -247,14 +264,16 @@ trait LowPriorityCustomPicklerUnpickler {
       val results = for (key <- keys) yield {
         val nested = reader.readField(key)
         nested.hintTag(valueTag)
-        nested.beginEntry()
+        nested.beginEntryNoTag()
         val value = valueUnpickler.unpickle(valueTag, nested)
         nested.endEntry()
         key -> value.asInstanceOf[A]
       }
+      reader.endEntry()
       reader.popHints()
       results.toMap
     }
+    override def toString = "StringMapPicklerUnpickler"
   }
 
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =
@@ -304,13 +323,14 @@ trait LowPriorityCustomPicklerUnpickler {
             elemPickler.pickle(elem, b)
           }
         }
-
+        if (isPrimitive) builder.unpinHints()
         builder.popHints()
         builder.endCollection()
         builder.endEntry()
       }
 
       def unpickle(tpe: => FastTypeTag[_], preader: PReader): Any = {
+        System.err.println(s"Unpickling Collectoin type.")
         val reader = preader.beginCollection()
 
         preader.pushHints()
@@ -334,7 +354,7 @@ trait LowPriorityCustomPicklerUnpickler {
           builder += elem.asInstanceOf[A]
           i = i + 1
         }
-
+        reader.unpinHints()
         preader.popHints()
         preader.endCollection()
         builder.result
