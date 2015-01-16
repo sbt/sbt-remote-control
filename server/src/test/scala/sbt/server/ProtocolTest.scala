@@ -388,7 +388,6 @@ class ProtocolTest {
   private def addWhatWeWereUnpickling[U](json: String)(body: => U): U = try body
   catch {
     case e: Throwable =>
-      //e.printStackTrace()
       throw new AssertionError(s"Crash unpickling: ${e.getMessage} \n\t * json was ${json}\n", e)
   }
 
@@ -462,13 +461,26 @@ class ProtocolTest {
       protocol.AnalyzeExecutionResponse(ExecutionAnalysisCommand(Some("foobar"))))
 
     for (s <- specifics) {
-      def fromRaw(j: JsonValue): Option[Message] =
-        addWhatWeWereUnpickling(j.renderCompact)(j.parse[Message].toOption)
+      def fromRaw(j: JsonValue): Message =
+        addWhatWeWereUnpickling(j.renderCompact)(j.parse[Message].get)
       def toRaw(m: Message): JsonValue =
         addWhatWeWerePickling(m)(JsonValue(m))
       val roundtrippedOption = fromRaw(toRaw(s))
-      assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n", Some(s), roundtrippedOption)
+      assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n${s.getClass}\n\n$roundtrippedOption\n\n", s, roundtrippedOption)
     }
+
+    /*
+[error] Test sbt.server.ProtocolTest.testRawStructure failed: Failed to serialize:
+[error] ReadLineRequest(42,HI,true)
+[error]
+[error] {"$type":"sbt.protocol.ReadLineRequest","mask":true,"prompt":"HI","executionId":42.0}
+[error]
+[error] class sbt.protocol.ReadLineRequest
+[error]
+[error] None expected:<Some(ReadLineRequest(42,HI,true))> but was:<None>
+
+     */
+
     /* //TODO commented out because it crashes the compiler
     protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some("bar"), 0)) match {
       case protocol.TestEvent(taskId, test) =>
@@ -950,7 +962,7 @@ class ProtocolTest {
     }
 
     def roundtripBuildValue[T: Manifest](t: T): Unit =
-      roundtripBuild[Unit, T](t)((x, y) => assertEquals("round trip of Serialized( " + implicitly[Manifest[T]] + ")", x, y))((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
+      roundtripBuild[Unit, T](t)((x, y) => assertEquals("round trip of Serialized( " + implicitly[Manifest[T]] + ") [" + t + "]", x, y))((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
 
     def roundtripBuildValueTest[T: Manifest](t: T): Boolean =
       roundtripBuild[Boolean, T](t) { (a, b) =>

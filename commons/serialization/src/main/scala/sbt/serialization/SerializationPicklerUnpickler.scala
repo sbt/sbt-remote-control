@@ -50,9 +50,9 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
 
   // This pickler just serialized the JValue, ignoring what may have originally been there.
   implicit object serializedValuePickler extends SPickler[SerializedValue] with Unpickler[SerializedValue] {
-    // TODO - Should this tag just be the cheater tag?
-    val tag = implicitly[FastTypeTag[SerializedValue]]
     val cheaterTag = implicitly[FastTypeTag[JValue]]
+    // TODO - This is super hacky mechanism to avoid issues w/ pinned types.
+    override val tag = cheaterTag.asInstanceOf[FastTypeTag[SerializedValue]]
     def pickle(a: SerializedValue, builder: PBuilder): Unit =
       a match {
         case spsv: SbtPrivateSerializedValue =>
@@ -66,7 +66,7 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
       preader.hintTag(cheaterTag)
       preader.hintStaticallyElidedType()
-      preader.beginEntry()
+      preader.beginEntryNoTag()
       // TODO - Check beginEntry returns cheaterTag
       val value = preader.readPrimitive().asInstanceOf[JValue]
       preader.endEntry()

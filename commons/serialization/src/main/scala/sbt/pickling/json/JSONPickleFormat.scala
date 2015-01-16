@@ -135,7 +135,6 @@ package json {
           else if (primitiveArrays.contains(hints.tag.key)) {
             primitiveArrays(hints.tag.key)(picklee)
           } else if (isJValue(hints.tag)) {
-            // TODO - Serialize it.
             import org.json4s.native.JsonMethods._
             buf.put(compact(render(picklee.asInstanceOf[JValue])))
           } else {
@@ -262,7 +261,7 @@ package json {
   case class RawJsValue(current: JValue, previous: ReaderState) extends ReaderState
   // The state in which we've attempted to read a type tag.
   //  i.e. this means beginEntry has been called.
-  case class JsValueWithTag(current: JValue, tag: FastTypeTag[_], previous: ReaderState) extends ReaderState
+  case class JsValueWithTag(current: JValue, tagKey: String, previous: ReaderState) extends ReaderState
   // The initial state where we pass parsed JSON and begin parsing.
   case class IniitalReaderState(current: JValue) extends ReaderState {
     def previous: ReaderState = this
@@ -294,18 +293,37 @@ package json {
     // Start/stop notifcation of pickling.  We use this to migrate
     // to/from certain states.
     override def beginEntry(): FastTypeTag[_] = withHints { hints =>
-      //System.err.println(s"beginEntry()")
-      val tag = currentTag(state.current, hints)
-      // We ignore the previous state w/ no tag.
-      state = JsValueWithTag(state.current, tag, state.previous)
+      // First we read the runtime tag stream, then we use runtime reflection
+      // to instantiate the FastTypeTag.
+      val tagString = beginEntryNoTag()
+      val tag = try {
+        val tagFromJson = FastTypeTag(mirror, tagString)
+        // Given sealed trait Fruit that has Apple and Orange as child type,
+        // a) Choose Apple if json says Apple and hint says Fruit
+        // b) Choose Orange if json says Apple and hint says Orange
+        // c) Choose Apple if json has unknown and hint says Apple
+        // TODO - Ideally we avoid runtime reflection like this.
+        if (ManifestUtil.isApproxSubType(tagFromJson, hints.tag)) tagFromJson
+        else hints.tag
+      } catch {
+        case e: Throwable if e.getMessage contains "cannot find class" =>
+          if (Option(hints.tag.tpe.typeSymbol) map {
+            // TODO - Ideally we can avoid scala reflection here too.
+            case sym: ClassSymbol => sym.isAbstractClass || sym.isTrait
+            case _ => true
+          } getOrElse (true)) throw PicklingException(e.getMessage)
+          else hints.tag
+        case e: Throwable => throw e
+      }
       tag
     }
     override def beginEntryNoTagDebug(debugOn: Boolean): String = beginEntryNoTag()
-    override def beginEntryNoTag(): String = {
-      // TODO - Does this make sense?   We just avoid reading any tags,
-      //        which means readPrimitive may not work, but reading an object would.
-      //implicitly[FastTypeTag[Any]].key
-      beginEntry().key
+    override def beginEntryNoTag(): String = withHints { hints =>
+      // This should be the default for static picklers.  We don't need runtime reflection,
+      // so we just grab tag strings and use that to match known/sealed class hierarchies.
+      val tag = currentTag(state.current, hints)
+      state = JsValueWithTag(state.current, tag, state.previous)
+      tag
     }
     override def endEntry(): Unit = {
       //System.err.println(s"endEntry()")
@@ -316,28 +334,30 @@ package json {
     // Check for primitive at current state.
     override def atPrimitive: Boolean = state match {
       case JsValueWithTag(_, tag, _) =>
-        primitives.contains(tag.key)
+        primitives.contains(tag)
       case _ => false
     }
 
     // Check if the user is aksing for a raw "JValue" so we don't deserialize it.
     private def atJValue: Boolean =
       state match {
-        case JsValueWithTag(_, tag, _) => (tag.key startsWith "org.json4s.JsonAST.")
+        case JsValueWithTag(_, tag, _) => (tag startsWith "org.json4s.JsonAST.")
         case _ => false
       }
 
     override def readPrimitive(): Any = {
       //System.err.println(s"readPrimitive()")
-      def unpickleHelper(value: JValue, tag: FastTypeTag[_]): Any = {
-        if (tag.key startsWith "org.json4s.JsonAST.") value
-        else if (primitives.contains(tag.key)) primitives(tag.key)(value)
+      def unpickleHelper(value: JValue, tag: String): Any = {
+        if (tag startsWith "org.json4s.JsonAST.") value
+        else if (primitives.contains(tag)) primitives(tag)(value)
         // NOTE - This is a dirty, rotten hack when the tag.key does not lineup with the data.
         //        We need to figure out hwat's wrong with our SPickles that would case this.
         else value match {
           case x: JString => x.values
           //case x: JDouble => x.values
           case x: JBool => x.value
+          // TODO - We need to understand why the tag doesn't say JsonAST here...
+          case x: JObject => x
           case _ =>
             // TODO - check to see if we need the old primitiveSeqKeys handling
             // to read a primtiive out of a JArray
@@ -352,7 +372,7 @@ package json {
         //   assume the statically hinted type is the right one
         case _: IniitalReaderState | _: RawJsValue =>
           withHints { hints =>
-            unpickleHelper(state.current, hints.tag)
+            unpickleHelper(state.current, hints.tag.key)
           }
         // TODO - Do we need a state where we can read a value if we're in a collection reading state?
         case state =>
@@ -556,50 +576,29 @@ package json {
      * Note: This will use some runtime reflection to check if the pickled type still exists.  If it does not,
      * this will use the type hint provided if we're deserializing a known subclass (not an abstract/trait)
      */
-    private def readTypeTagKey(obj: JObject, hints: Hints): FastTypeTag[_] = {
+    private def readTypeTagKey(obj: JObject, hints: Hints): String = {
       (obj \ TYPE_TAG_FIELD) match {
-        case JString(s) =>
-          try {
-            val tagFromJson = FastTypeTag(mirror, s)
-            // Given sealed trait Fruit that has Apple and Orange as child type,
-            // a) Choose Apple if json says Apple and hint says Fruit
-            // b) Choose Orange if json says Apple and hint says Orange
-            // c) Choose Apple if json has unknown and hint says Apple
-            // TODO - Ideally we avoid runtime reflection like this.
-            if (ManifestUtil.isApproxSubType(tagFromJson, hints.tag)) tagFromJson
-            else hints.tag
-          } catch {
-            case e: Throwable if e.getMessage contains "cannot find class" =>
-              if (Option(hints.tag.tpe.typeSymbol) map {
-                // TODO - Ideally we can avoid scala reflection here too.
-                case sym: ClassSymbol => sym.isAbstractClass || sym.isTrait
-                case _ => true
-              } getOrElse (true)) throw PicklingException(e.getMessage)
-              else hints.tag
-            case e: Throwable => throw e
-          }
-        case found =>
-          // TODO - If we have no runtime type information, we assume static is ok....  This feels a bit wrong.
-          //val e = new PicklingException(s"Unable to read type tag ($TYPE_TAG_FIELD) found $found, elided: ${hints.isElidedType}, tag: ${hints.tag}, obj: $obj")
-          //e.printStackTrace()
-          //throw e
-          hints.tag
+        case JString(s) => s
+        case found => hints.tag.key
       }
     }
     /** Helper to read (or return elided) type tag for the given entry. */
-    private def currentTag(current: JValue, hints: Hints): FastTypeTag[_] = {
+    private def currentTag(current: JValue, hints: Hints): String = {
       current match {
-        case JNull => FastTypeTag.Null
-        case JNothing => FastTypeTag.Nothing
+        case JNull => FastTypeTag.Null.key
+        case JNothing => FastTypeTag.Nothing.key
         case obj: JObject =>
           (obj \ REF_ID_FIELD) match {
-            case JDouble(num) => FastTypeTag.Ref
+            case JDouble(num) => FastTypeTag.Ref.key
             // Not a reference type.
             case _ =>
-              if (hints.isElidedType) hints.tag
+              if (hints.isElidedType || hints.isStaticallyElidedType || hints.isDynamicallyElidedType) hints.tag.key
               else readTypeTagKey(obj, hints)
           }
-        case _ => hints.tag
+        case _ if (hints.tag != null) => hints.tag.key
+        case _ =>
+          // TODO - This should be an error.  We need  a tag and we have NO IDEA what we are.
+          throw new PicklingException(s"Attempting to find tag in $current, but hints has ${hints.tag}")
       }
     }
   }

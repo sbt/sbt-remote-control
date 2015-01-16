@@ -92,7 +92,7 @@ package object protocol {
   implicit val moduleIdPickler = genPickler[ModuleId]
   import sbt.serialization.stringMapPickler
   implicit object moduleIdUnpickler extends Unpickler[ModuleId] {
-    private val stringUnpickler = implicitly[Unpickler[String]]
+    private val stringUnpickler = sbt.serialization.stringPicklerUnpickler
     private val attrsUnpickler = sbt.serialization.stringMapPickler[String]
     override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
       reader.pushHints()
@@ -100,10 +100,10 @@ package object protocol {
       reader.hintStaticallyElidedType()
       reader.beginEntryNoTag()
       def readString(field: String): String = {
-        val sr = reader.readField("organization")
+        val sr = reader.readField(field)
         sr.hintTag(stringUnpickler.tag)
         sr.hintStaticallyElidedType()
-        stringUnpickler.unpickle(stringUnpickler.tag, reader).toString
+        stringUnpickler.unpickle(stringUnpickler.tag, sr).toString
       }
       val org = readString("organization")
       val n = readString("name")
