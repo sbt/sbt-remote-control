@@ -1,0 +1,1 @@
+{"$type":"sbt.protocol.TaskLogEvent","entry":{"$type":"sbt.protocol.LogStdOut","message":"Hello, world"},"taskId":1.0}

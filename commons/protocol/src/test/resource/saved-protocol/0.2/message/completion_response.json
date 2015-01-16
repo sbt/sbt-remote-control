@@ -1,0 +1,1 @@
+{"$type":"sbt.protocol.CommandCompletionsResponse","results":[{"$type":"sbt.protocol.Completion","isEmpty":true,"display":"Hello","append":"llo"}]}

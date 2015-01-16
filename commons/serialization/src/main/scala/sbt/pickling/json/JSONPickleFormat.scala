@@ -53,6 +53,16 @@ package json {
       }
     }
   }
+  object JSONPickleFormat {
+    private[json] val TYPE_TAG_FIELD = "$type"
+    private[json] val DYNAMIC_KEY_FIELD = "$keys"
+    private[json] val REF_ID_FIELD = "$ref"
+
+    private[json] def isSpecialField(name: String): Boolean =
+      (TYPE_TAG_FIELD == name) || (DYNAMIC_KEY_FIELD == name) || (REF_ID_FIELD == name)
+    private[json] def isElidedField(name: String): Boolean =
+      (DYNAMIC_KEY_FIELD == name)
+  }
 
   sealed trait BuilderState {
     def previous: BuilderState
@@ -70,6 +80,7 @@ package json {
   // and to programatically enforce constraints of SPickler implementations.
   // We use this just to verify our own picklers.
   class VerifyingJSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
+    import JSONPickleFormat._
     var state: BuilderState = EmptyState
     //(tag.key startsWith "scala.Option[")
     private def isJValue(tag: FastTypeTag[_]): Boolean =
@@ -79,30 +90,31 @@ package json {
       // Here we check to see if we need to serialize a reference.  These are used to avoid circular object
       // dependencies for picklers which have circluarly-references objects.
       if (hints.oid != -1) {
-        buf.put("""{"$ref":""" + hints.oid + "}")
+        buf.put("{\"" + REF_ID_FIELD + "\":" + hints.oid + "}")
         state = RefEntryState(state)
       } else {
         state = new RawEntryState(state, picklee, hints)
       }
       this
     }
-    override def putField(name: String, pickler: (PBuilder) => Unit): PBuilder = {
-      state match {
-        case x: RawEntryState =>
-          x.wasCollectionOrMap = true
-          // Now we know we're in a map state, so we swap into map state.
-          state = MapEntryState(x.previous, x.picklee, x.hints)
-          buf.put("{")
-        case _: MapEntryState =>
-          // here we just need another ,
-          buf.put(",")
-        case _ => sys.error("Cannot put a field when not in entry state!")
-      }
-      // Here we must append all the stringy things around the field.
-      buf.put('"' + name + "\":")
-      pickler(this)
-      this
-    }
+    override def putField(name: String, pickler: (PBuilder) => Unit): PBuilder =
+      if (!isElidedField(name)) {
+        state match {
+          case x: RawEntryState =>
+            x.wasCollectionOrMap = true
+            // Now we know we're in a map state, so we swap into map state.
+            state = MapEntryState(x.previous, x.picklee, x.hints)
+            buf.put("{")
+          case _: MapEntryState =>
+            // here we just need another ,
+            buf.put(",")
+          case _ => sys.error("Cannot put a field when not in entry state!")
+        }
+        // Here we must append all the stringy things around the field.
+        buf.put('"' + name + "\":")
+        pickler(this)
+        this
+      } else this
     override def endEntry(): Unit = {
       state match {
         case RawEntryState(prev, _, _, true) =>
@@ -119,23 +131,19 @@ package json {
             import org.json4s.native.JsonMethods._
             buf.put(compact(render(picklee.asInstanceOf[JValue])))
           } else {
-            //sys.error(s"Pickle type ${hints.tag.key} is not a primitive for JSON!!!")
             // Note: It's possible the object is empty, so we just put an empty object here,
             // as the type we're serializing may not have any contents.
             // we also serialize the "$type" here if needed.
             // Ignore isStaticallyElidedType. Always output $type.
-            val ts =
-              if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
-              else hints.tag.key
-            buf.put(s"""{ "$$type": "$ts" }""")
+            buf.put("{")
+            appendTagString(picklee, hints)
+            buf.put("}")
           }
           state = prev
         case MapEntryState(prev, picklee, hints) =>
-          // TODO - we need to serialize the "$type" here.
-          val ts =
-            if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
-            else hints.tag.key
-          buf.put(",\"$type\":\"" + ts + "\"")
+          // Ignore isStaticallyElidedType and always send the $type down.
+          buf.put(",")
+          appendTagString(picklee, hints)
           buf.put("}")
           state = prev
         case RefEntryState(prev) =>
@@ -143,6 +151,11 @@ package json {
         case _ => sys.error("Unable to endEntry() when not in entry state!")
       }
     }
+    private def appendTagString(picklee: Any, hints: Hints): Unit =
+      buf.put("\"" + TYPE_TAG_FIELD + "\":\"" + makeTagString(picklee, hints) + "\"")
+    private def makeTagString(picklee: Any, hints: Hints): String =
+      if (hints.tag.key.contains("anonfun$")) picklee.getClass.getName
+      else hints.tag.key
 
     // We cover ararys of primitives separately here.
     // NOTE: these are special cased in the core pickler design (probably for binary encoding efficiency)
@@ -223,13 +236,14 @@ package json {
   }
 
   class JSONPickleReader(var datum: Any, val mirror: Mirror, format: JSONPickleFormat) extends PReader with PickleTools {
+    import JSONPickleFormat._
     private var lastReadTag: FastTypeTag[_] = null
     private val primitives = Map[String, () => Any](
       FastTypeTag.Unit.key -> (() => ()),
       FastTypeTag.Null.key -> (() => null),
       FastTypeTag.Ref.key -> (() => lookupUnpicklee(datum match {
         case obj: JObject =>
-          (obj \ "$ref") match {
+          (obj \ REF_ID_FIELD) match {
             case JDouble(num) => num.toInt
             case x: JValue => unexpectedValue(x)
           }
@@ -355,14 +369,14 @@ package json {
         else {
           datum match {
             case obj: JObject if (obj findField {
-              case JField("$ref", _) => true
+              case JField(REF_ID_FIELD, _) => true
               case _ => false
             }).isDefined => FastTypeTag.Ref
             case obj: JObject if (obj findField {
-              case JField("$type", _) => true
+              case JField(TYPE_TAG_FIELD, _) => true
               case _ => false
             }).isDefined =>
-              (obj \ "$type") match {
+              (obj \ TYPE_TAG_FIELD) match {
                 case JString(s) =>
                   try {
                     val tagFromJson = FastTypeTag(mirror, s)
@@ -424,10 +438,8 @@ package json {
     def readField(name: String): JSONPickleReader = {
       datum match {
         // Handle the  magic "keys" field.
-        case obj: JObject if "$keys" == name =>
-          mkNestedReader(JArray(obj.values.keys.filterNot { k =>
-            ("$keys" == k || "$type" == k)
-          }.map(k => JString(k)).toList))
+        case obj: JObject if DYNAMIC_KEY_FIELD == name =>
+          mkNestedReader(JArray(obj.values.keys.filterNot(isSpecialField).map(k => JString(k)).toList))
         case obj: JObject => mkNestedReader(obj \ name)
       }
     }

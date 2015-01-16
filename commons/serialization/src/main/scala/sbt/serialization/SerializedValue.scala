@@ -44,6 +44,8 @@ private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializ
     import org.json4s.native.JsonMethods._
     pretty(render(json))
   }
+
+  override def toString = renderCompact
 }
 
 private[sbt] object JsonValue {
