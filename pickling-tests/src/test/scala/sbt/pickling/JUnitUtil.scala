@@ -10,6 +10,7 @@ object JUnitUtil {
   private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body
   catch {
     case e: Throwable =>
+      e.printStackTrace()
       throw new AssertionError(s"Crash round-tripping ${t.getClass.getName}: value was: ${t}", e)
   }
 
@@ -51,7 +52,7 @@ object JUnitUtil {
     roundTripBase[A](x)((a, b) =>
       assertEquals(a, b)
     ) { (a, b) =>
-      assertEquals(a.getMessage, b.getMessage)
+      assertEquals(s"Failed to round trip $x via ${implicitly[SPickler[A]]} and ${implicitly[Unpickler[A]]}", a.getMessage, b.getMessage)
     }
   def roundTripBase[A: SPickler: Unpickler](a: A)(f: (A, A) => Unit)(e: (Throwable, Throwable) => Unit): Unit = addWhatWeWerePickling(a) {
     import scala.pickling._, sbt.pickling.json._

@@ -71,6 +71,7 @@ package json {
   case class RawEntryState(previous: BuilderState, picklee: Any, hints: Hints, var wasCollectionOrMap: Boolean = false) extends BuilderState
   case class MapEntryState(val previous: BuilderState, picklee: Any, hints: Hints) extends BuilderState
   case class RefEntryState(val previous: BuilderState) extends BuilderState
+  case class WriteOptionState(val previous: BuilderState) extends BuilderState
   object EmptyState extends BuilderState {
     def previous = this
   }
@@ -85,6 +86,9 @@ package json {
     //(tag.key startsWith "scala.Option[")
     private def isJValue(tag: FastTypeTag[_]): Boolean =
       (tag.key startsWith "org.json4s.JsonAST.")
+    // Hackery so we elide option collection types.
+    private def isOption(tag: FastTypeTag[_]): Boolean =
+      (tag.key startsWith "scala.Option")
 
     // Here we get notified of object/value-like things.
     override def beginEntry(picklee: Any): PBuilder = withHints { hints =>
@@ -93,6 +97,9 @@ package json {
       if (hints.oid != -1) {
         buf.put("{\"" + REF_ID_FIELD + "\":" + hints.oid + "}")
         state = RefEntryState(state)
+      } else if (isOption(hints.tag)) {
+        // We expect to be writing a collection, we just ignore the collection aspect.
+        state = WriteOptionState(RawEntryState(state, picklee, hints, true))
       } else {
         state = new RawEntryState(state, picklee, hints)
       }
@@ -208,6 +215,10 @@ package json {
           state = CollectionState(x, length, false)
           buf.put("[")
           this
+        case x: WriteOptionState =>
+          // We need to serialize None
+          if (length == 0) buf.put("null")
+          this
         case _ => sys.error(s"Unable to begin collection when in unknown state: $state")
       }
     }
@@ -220,12 +231,18 @@ package json {
           }
           pickler(this)
           this
+        case s: WriteOptionState =>
+          // Cheater methods to serialize options as raw values.
+          pickler(this)
+          this
         case _ => sys.error("Cannot put an element without first specifying a collection.")
       }
     override def endCollection(): Unit =
       state match {
         case s: CollectionState =>
           buf.put("]")
+          state = s.previous
+        case s: WriteOptionState =>
           state = s.previous
         case _ => sys.error("cannot end a collection when not in collection state!")
       }
@@ -258,26 +275,26 @@ package json {
 
     // Debugging hints
     override def hintTag(tag: FastTypeTag[_]): this.type = {
-      System.err.println(s"hintTag($tag)")
+      //System.err.println(s"hintTag($tag)")
       super.hintTag(tag)
     }
     override def hintStaticallyElidedType(): this.type = {
-      System.err.println(s"hintStaticallyElidedType()")
+      //System.err.println(s"hintStaticallyElidedType()")
       super.hintStaticallyElidedType()
     }
     override def pinHints(): this.type = {
-      System.err.println(s"pinHints()")
+      //System.err.println(s"pinHints()")
       super.pinHints()
     }
     override def unpinHints(): this.type = {
-      System.err.println(s"unpinHints()")
+      //System.err.println(s"unpinHints()")
       super.pinHints()
     }
 
     // Start/stop notifcation of pickling.  We use this to migrate
     // to/from certain states.
     override def beginEntry(): FastTypeTag[_] = withHints { hints =>
-      System.err.println(s"beginEntry()")
+      //System.err.println(s"beginEntry()")
       val tag = currentTag(state.current, hints)
       // We ignore the previous state w/ no tag.
       state = JsValueWithTag(state.current, tag, state.previous)
@@ -291,7 +308,7 @@ package json {
       beginEntry().key
     }
     override def endEntry(): Unit = {
-      System.err.println(s"endEntry()")
+      //System.err.println(s"endEntry()")
       // TODO - validate state is correct before we pop the stack.
       state = state.previous
     }
@@ -311,7 +328,7 @@ package json {
       }
 
     override def readPrimitive(): Any = {
-      System.err.println(s"readPrimitive()")
+      //System.err.println(s"readPrimitive()")
       def unpickleHelper(value: JValue, tag: FastTypeTag[_]): Any = {
         if (tag.key startsWith "org.json4s.JsonAST.") value
         else if (primitives.contains(tag.key)) primitives(tag.key)(value)
@@ -324,7 +341,9 @@ package json {
           case _ =>
             // TODO - check to see if we need the old primitiveSeqKeys handling
             // to read a primtiive out of a JArray
-            throw new PicklingException(s"Not a primitive: $tag, found $value")
+            val e = new PicklingException(s"Not a primitive: $tag, found $value")
+            e.printStackTrace()
+            throw e
         }
       }
       state match {
@@ -346,7 +365,7 @@ package json {
       // TODO - Check for legit state
       state.current.isInstanceOf[JObject]
     override def readField(name: String): PReader = {
-      System.err.println(s"readField($name)")
+      //System.err.println(s"readField($name)")
       // TODO - assert(atObject) && we're in legit state to read fields...
       val nextState = if (name == DYNAMIC_KEY_FIELD) {
         // TODO - Should we sort here?
@@ -367,14 +386,14 @@ package json {
 
     // Methods around reading collections.
     override def beginCollection(): PReader = {
-      System.err.println(s"beginCollection()")
+      //System.err.println(s"beginCollection()")
       // For now we just migrate into collection reading state.
       state = CollectionReadingState(state.current, 0, state)
       this
     }
     override def readLength(): Int = state match {
       case CollectionReadingState(value, 0, _) =>
-        System.err.println(s"readLength()")
+        //System.err.println(s"readLength()")
         value match {
           case JNothing => 0
           case JNull => 0 // Hackery for Option handling
@@ -385,22 +404,26 @@ package json {
     }
     override def readElement(): PReader = state match {
       case cs @ CollectionReadingState(value, idx, _) =>
-        System.err.println(s"readElement()")
-        value match {
+        //System.err.println(s"readElement()")
+        // First advance internal state.
+        state = cs.copy(idx = idx + 1)
+        val subState = value match {
           case x: JArray =>
-            state = RawJsValue(x.apply(idx), cs.copy(idx = idx + 1))
-          case _ =>
-            state = RawJsValue(value, cs)
+            RawJsValue(x.apply(idx), state)
+          case _ if idx == 0 =>
+            RawJsValue(value, state)
         }
-        this
+        val tmp = new VerifyingJSONPickleReader(mirror, format, subState)
+        tmp.hints = this.hints // TODO - is this correct?
+        tmp
       case x => throw new PicklingException(s"Cannot read an element when not in collection reading state.")
     }
     override def endCollection(): Unit = state match {
       case CollectionReadingState(value, idx, prev) =>
-        System.err.println(s"endCollection()")
+        //System.err.println(s"endCollection()")
         // TODO - Warn if we haven't read all value, maybe
         state = prev
-      case _ => throw new PicklingException(s"Cannot end reading a collection when we never started.")
+      case _ => throw new PicklingException(s"Cannot end reading a collection when we never started, state: $state")
     }
 
     // IMPLEMENTATION DETAILS
@@ -548,7 +571,7 @@ package json {
           } catch {
             case e: Throwable if e.getMessage contains "cannot find class" =>
               if (Option(hints.tag.tpe.typeSymbol) map {
-                // TODO - Ideally we can avoid scala rflection here too.
+                // TODO - Ideally we can avoid scala reflection here too.
                 case sym: ClassSymbol => sym.isAbstractClass || sym.isTrait
                 case _ => true
               } getOrElse (true)) throw PicklingException(e.getMessage)
@@ -556,9 +579,11 @@ package json {
             case e: Throwable => throw e
           }
         case found =>
-          val e = new PicklingException(s"Unable to read type tag ($TYPE_TAG_FIELD) from $obj, found $found, elided: ${hints.isElidedType}, tag: ${hints.tag}")
-          e.printStackTrace()
-          throw e
+          // TODO - If we have no runtime type information, we assume static is ok....  This feels a bit wrong.
+          //val e = new PicklingException(s"Unable to read type tag ($TYPE_TAG_FIELD) found $found, elided: ${hints.isElidedType}, tag: ${hints.tag}, obj: $obj")
+          //e.printStackTrace()
+          //throw e
+          hints.tag
       }
     }
     /** Helper to read (or return elided) type tag for the given entry. */

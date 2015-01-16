@@ -5,7 +5,7 @@ import scala.util.control.NonFatal
 package object serialization extends sbt.serialization.SerializationPicklerUnpickler {
   import scala.pickling.{ SPickler, Unpickler, FastTypeTag }
 
-  //implicit def staticOnly = scala.pickling.static.StaticOnly
+  implicit val StaticOnly = scala.pickling.static.StaticOnly
 
   // pickling macros need FastTypeTag$ to have been initialized;
   // if things ever compile with this removed, it can be removed.

@@ -5,6 +5,7 @@ import scala.util.control.NonFatal
 
 package object protocol {
   import sbt.serialization._
+  import sbt.serialization.StaticOnly
   import sbt.pickling.CanToString
   import scala.pickling.{ SPickler, Unpickler }
 
@@ -90,5 +91,32 @@ package object protocol {
   implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
   implicit val moduleIdPickler = genPickler[ModuleId]
   import sbt.serialization.stringMapPickler
-  implicit val moduleIdUnpickler = genUnpickler[ModuleId]
+  implicit object moduleIdUnpickler extends Unpickler[ModuleId] {
+    private val stringUnpickler = implicitly[Unpickler[String]]
+    private val attrsUnpickler = sbt.serialization.stringMapPickler[String]
+    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
+      reader.pushHints()
+      reader.hintTag(tag)
+      reader.hintStaticallyElidedType()
+      reader.beginEntryNoTag()
+      def readString(field: String): String = {
+        val sr = reader.readField("organization")
+        sr.hintTag(stringUnpickler.tag)
+        sr.hintStaticallyElidedType()
+        stringUnpickler.unpickle(stringUnpickler.tag, reader).toString
+      }
+      val org = readString("organization")
+      val n = readString("name")
+      val attrs = {
+        val sr = reader.readField("attributes")
+        sr.hintTag(attrsUnpickler.tag)
+        sr.hintStaticallyElidedType()
+        attrsUnpickler.unpickle(attrsUnpickler.tag, sr).asInstanceOf[Map[String, String]]
+      }
+      reader.endEntry()
+      reader.popHints()
+      ModuleId(org, n, attrs)
+    }
+    override val tag: FastTypeTag[ModuleId] = implicitly[FastTypeTag[ModuleId]]
+  }
 }

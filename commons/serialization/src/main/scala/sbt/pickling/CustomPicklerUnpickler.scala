@@ -31,7 +31,9 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
     override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
       try {
         reader.hintTag(tag)
+        reader.beginEntry()
         reader.readPrimitive()
+        reader.endEntry()
       } catch {
         case PicklingException(msg, cause) =>
           throw PicklingException(s"""error in unpickle of primitive unpickler '$name':
@@ -79,16 +81,29 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       // is erased for "null"
       coll match {
         case Some(elem) =>
-          builder.hintTag(elemTag)
-          elemPickler.pickle(elem, builder)
+          builder.hintTag(tag)
+          builder.beginEntry(coll)
+          builder.beginCollection(1)
+          builder.putElement { b =>
+            b.hintTag(elemTag)
+            b.hintStaticallyElidedType()
+            elemPickler.pickle(elem, b)
+          }
+          builder.endCollection()
+          builder.endEntry()
         case None =>
-          builder.hintTag(nullTag)
-          builder.beginEntry(null)
+          // TODO - Json Format shoudl special case this.
+          builder.hintTag(tag)
+          builder.beginEntry(None)
+          builder.beginCollection(0)
+          builder.endCollection()
           builder.endEntry()
       }
     }
     def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
       // Note - if we call beginEntry we should see JNothing or JNull show up if the option is empty.
+      preader.hintTag(tag)
+      preader.beginEntryNoTag()
       val reader = preader.beginCollection()
       preader.pushHints()
       // TODO - we may be ALWAYS eliding the type, so we shouldn't use an isPrimitive hack here.
@@ -97,22 +112,18 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
         reader.hintTag(elemTag)
         reader.pinHints()
       } else reader.hintTag(elemTag)
-      // NOTE - This aspect of option pickling is super customer and relies
-      //        on the JSON format returning a length for the field.
-      //        JSON also special cases readElement for this scenario.
-      // TODO - We should find an alternative mechanism of handling this.
       val length = reader.readLength
       val result: Option[A] =
         if (length == 0) None
         else {
           val r = reader.readElement()
-          r.beginEntryNoTag()
           val elem = elemUnpickler.unpickle(elemTag, r)
-          r.endEntry()
           Some(elem.asInstanceOf[A])
         }
+      if (isPrimitive) preader.unpinHints()
       preader.popHints()
-      preader.endCollection()
+      reader.endCollection()
+      preader.endEntry()
       result
     }
   }

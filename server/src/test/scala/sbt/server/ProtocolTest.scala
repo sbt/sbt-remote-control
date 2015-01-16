@@ -950,7 +950,7 @@ class ProtocolTest {
     }
 
     def roundtripBuildValue[T: Manifest](t: T): Unit =
-      roundtripBuild[Unit, T](t)(assertEquals)((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
+      roundtripBuild[Unit, T](t)((x, y) => assertEquals("round trip of Serialized( " + implicitly[Manifest[T]] + ")", x, y))((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
 
     def roundtripBuildValueTest[T: Manifest](t: T): Boolean =
       roundtripBuild[Boolean, T](t) { (a, b) =>
