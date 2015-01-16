@@ -1,1 +1,1 @@
-{"type":"KillServerRequest"}
+{"$type":"sbt.protocol.KillServerRequest"}

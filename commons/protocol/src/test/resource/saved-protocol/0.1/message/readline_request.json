@@ -1,1 +1,1 @@
-{"executionId":42,"prompt":"HI","mask":true,"type":"ReadLineRequest"}
+{"$type":"sbt.protocol.ReadLineRequest","mask":true,"prompt":"HI","executionId":42.0}

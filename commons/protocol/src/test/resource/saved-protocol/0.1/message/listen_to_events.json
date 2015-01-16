@@ -1,1 +1,1 @@
-{"type":"ListenToEvents"}
+{"$type":"sbt.protocol.ListenToEvents"}

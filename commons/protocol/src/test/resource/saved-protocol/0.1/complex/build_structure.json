@@ -1,1 +1,1 @@
-{"builds":["file:///test/project"],"projects":[{"id":{"build":"file:///test/project","name":"test"},"plugins":["com.foo.Plugin"]}]}
+{"$type":"sbt.protocol.MinimalBuildStructure","projects":[{"$type":"sbt.protocol.MinimalProjectStructure","plugins":["com.foo.Plugin"],"id":{"$type":"sbt.protocol.ProjectReference","name":"test","build":"file:///test/project"}}],"builds":["file:///test/project"]}

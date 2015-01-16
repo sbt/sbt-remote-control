@@ -1,1 +1,1 @@
-{"id":1,"type":"CancelExecutionRequest"}
+{"$type":"sbt.protocol.CancelExecutionRequest","id":1.0}

@@ -1,1 +1,1 @@
-{"project":{"build":"file:///test/project","name":"test"}}
+{"$type":"sbt.protocol.SbtScope","task":null,"config":null,"project":{"$type":"sbt.protocol.ProjectReference","name":"test","build":"file:///test/project"},"build":null}

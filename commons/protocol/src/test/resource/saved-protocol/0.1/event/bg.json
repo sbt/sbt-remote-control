@@ -1,1 +1,1 @@
-{"jobId":67,"name":"PlayStartedEvent","serialized":{"port":10},"type":"BackgroundJobEvent"}
+{"$type":"sbt.protocol.BackgroundJobEvent","serialized":{"port":10.0,"$type":"sbt.server.PlayStartedEvent"},"name":"PlayStartedEvent","jobId":67.0}

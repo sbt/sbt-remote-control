@@ -674,10 +674,12 @@ class ProtocolTest {
     oneWayTrip(Nil: List[String]) { _ / "array" / "nil.json" }
     oneWayTrip(List("Bar", "Baz")) { _ / "array" / "seq_string.json" }
     oneWayTrip(List(1, 2, 3)) { _ / "array" / "seq_int.json" }
+    oneWayTrip(List(1.0, 2, 3.0)) { _ / "array" / "seq_double.json" }
     oneWayTrip(List(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
     oneWayTrip(Vector("Bar", "Baz")) { _ / "array" / "seq_string.json" }
     oneWayTrip(Vector(1, 2, 3)) { _ / "array" / "seq_int.json" }
     oneWayTrip(Vector(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
+    oneWayTrip(Vector(1.0, 2, 3.0)) { _ / "array" / "seq_double.json" }
     oneWayTrip(Seq("Bar", "Baz")) { _ / "array" / "seq_string.json" }
     oneWayTrip(Seq(1, 2, 3)) { _ / "array" / "seq_int.json" }
     oneWayTrip(Seq(true, false, true, true, false)) { _ / "array" / "seq_boolean.json" }
@@ -886,12 +888,8 @@ class ProtocolTest {
   def testSerializationStability(): Unit = {
     val baseDir = (new File("commons")) / "protocol" / "src" / "test" / "resource" / "saved-protocol"
     // uncomment this line to write new files
-    //oneWayTripTest(ObjectToJson, baseDir / "0.2")
-    oneWayTripTest(JsonToObject, baseDir / "0.2")
-    // NOTE: this fails because "type" was translated to "$type" and we use fully qualified names.
-    // We could fix this via hacking the Message protocol, but probably not worth dragging around
-    // the play serialization.
-    //oneWayTripTest(JsonToObject, baseDir / "0.1")
+    //oneWayTripTest(ObjectToJson, baseDir / "0.1")
+    oneWayTripTest(JsonToObject, baseDir / "0.1")
   }
 
   @Test

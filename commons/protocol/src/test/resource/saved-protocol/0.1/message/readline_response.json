@@ -1,1 +1,1 @@
-{"line":"line","type":"ReadLineResponse"}
+{"$type":"sbt.protocol.ReadLineResponse","line":"line"}

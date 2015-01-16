@@ -1,1 +1,0 @@
-{"$type":"sbt.protocol.ModuleId","attributes":{"$type":"scala.collection.immutable.Map[java.lang.String,java.lang.String]","a":"b"},"name":"bar","organization":"com.foo"}

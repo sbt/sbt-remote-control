@@ -1,1 +1,1 @@
-{"executionId":9,"jobId":67,"type":"BackgroundJobFinished"}
+{"$type":"sbt.protocol.BackgroundJobFinished","jobId":67.0,"executionId":9.0}

@@ -1,1 +1,1 @@
-{"id":42,"type":"ExecutionFailure"}
+{"$type":"sbt.protocol.ExecutionFailure","id":42.0}
