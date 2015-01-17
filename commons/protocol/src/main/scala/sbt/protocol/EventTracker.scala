@@ -1,6 +1,8 @@
 package sbt.protocol
-import scala.collection.immutable
+
 import sbt.serialization._
+import scala.collection.immutable
+import scala.pickling.SPickler
 
 /**
  * Utilities to track the state implied by a series of events, allowing the events
@@ -27,7 +29,7 @@ private[sbt] object ImpliedState {
   /* FIXME this hack is because we have EventWithWrites for no good reason anymore
    * and SPickler is invariant.
    */
-  private implicit def writesForEvent[E <: Event]: SbtPickler[E] = implicitly[SbtPickler[Message]].asInstanceOf[SbtPickler[E]]
+  private implicit def writesForEvent[E <: Event]: SPickler[E] = implicitly[SPickler[Message]].asInstanceOf[SPickler[E]]
 
   private implicit def writes[E <: Event](event: E): EventWithWrites[E] =
     EventWithWrites.withWrites(event)

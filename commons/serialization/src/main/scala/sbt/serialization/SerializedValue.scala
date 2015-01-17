@@ -11,11 +11,11 @@ import scala.util.Try
  * which library we use to do it.
  */
 sealed trait SerializedValue {
-  def parse[T](implicit unpickler: SbtUnpickler[T]): Try[T]
+  def parse[T](implicit unpickler: Unpickler[T]): Try[T]
 }
 
 object SerializedValue {
-  def apply[V](value: V)(implicit pickler: SbtPickler[V]): SerializedValue =
+  def apply[V](value: V)(implicit pickler: SPickler[V]): SerializedValue =
     JsonValue[V](value)(pickler)
 }
 
@@ -25,8 +25,7 @@ private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
 
 /** A value we have serialized as JSON */
 private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializedValue {
-  override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Try[T] = {
-    implicit val u = unpicklerForT.underlying
+  override def parse[T](implicit unpicklerForT: Unpickler[T]): Try[T] = {
     import sbt.pickling.json.pickleFormat
     import sbt.pickling.json.JSONPickle
     import org.json4s.native.JsonMethods._
@@ -64,8 +63,7 @@ private[sbt] object JsonValue {
   // this is sort of dangerous because if you call it on a String
   // expecting to get the parseJson scenario above, you won't
   // get that, you'll get the JSON string pickled into JSON.
-  def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
-    implicit val pickler1: SPickler[T] = picklerForT.underlying
+  def apply[T](t: T)(implicit picklerForT: SPickler[T]): JsonValue = {
     import sbt.pickling.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
     parseJson(t.pickle.value).get
@@ -80,12 +78,12 @@ private[sbt] object JsonValue {
  * TODO this confuses pickling because V is an AnyRef.
  */
 /*
-private[sbt] final case class LazyValue[V](value: V, pickler: SbtPickler[V]) extends SbtPrivateSerializedValue {
+private[sbt] final case class LazyValue[V](value: V, pickler: SPickler[V]) extends SbtPrivateSerializedValue {
   // this could theoretically avoid the round-trip in some cases, but
   // pretty annoying to figure out what those cases are so forget
   // it. Not expecting to actually call this really anyway because
   // we use LazyValue on the "send" side.
-  override def parse[T](implicit unpickler: SbtUnpickler[T]): Option[T] =
+  override def parse[T](implicit unpickler: Unpickler[T]): Option[T] =
     toJson.parse[T]
 
   override def toJson = JsonValue(value)(pickler)

@@ -17,7 +17,7 @@ import scala.pickling.{ PickleOps, SPickler, Unpickler }
 import sbt.serialization._
 // TODO these are required, despite the wildcard import above;
 // no idea why. Try removing them and see if we can still build.
-// The need may go away when we drop SbtUnpickler and just use Unpickler
+// The need may go away when we drop Unpickler and just use Unpickler
 import sbt.serialization.stringPicklerUnpickler
 import sbt.serialization.intPicklerUnpickler
 import sbt.serialization.longPicklerUnpickler

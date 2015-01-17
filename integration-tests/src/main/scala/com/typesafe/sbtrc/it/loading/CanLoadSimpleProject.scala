@@ -5,14 +5,13 @@ package loading
 import sbt.client._
 import sbt.protocol._
 import sbt.serialization._
-import concurrent.duration.Duration.Inf
-import concurrent.Await
-import concurrent.ExecutionContext
-import concurrent.{ Promise, Future }
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
+import scala.concurrent.duration.Duration.Inf
+import scala.concurrent.{ Await, ExecutionContext, Promise, Future }
 import scala.util.{ Success, Failure }
+import scala.pickling.Unpickler
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -97,7 +96,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
     }
 
-    def fetchTaskResult[T](key: TaskKey[T])(implicit unpickler: SbtUnpickler[T]): TaskResult = {
+    def fetchTaskResult[T](key: TaskKey[T])(implicit unpickler: Unpickler[T]): TaskResult = {
       val resultPromise = Promise[TaskResult]()
       val sub = client.rawWatch(key in project.id) { (key, result) =>
         resultPromise.trySuccess(result)
@@ -110,7 +109,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     import scala.util.{ Try, Success, Failure }
-    def fetchTaskResultByName[T](name: String)(implicit reads: Reads[T]): T = {
+    def fetchTaskResultByName[T](name: String)(implicit unpickler: Unpickler[T]): T = {
       val resultPromise = Promise[T]()
       val sub = client.watch[T](name) { (key, result) =>
         resultPromise.complete(result)
@@ -160,7 +159,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // log compile value changed (lazily, so we don't kick off a compile yet)
     val logCompileValueSub = (client.lazyWatch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
-    })(implicitly[SbtUnpickler[Analysis]], keepEventsInOrderExecutor)
+    })(implicitly[Unpickler[Analysis]], keepEventsInOrderExecutor)
 
     var compileId = 0L
     val compileErrorCaptured = Promise[CompilationFailure]

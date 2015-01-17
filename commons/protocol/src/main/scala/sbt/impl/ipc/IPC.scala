@@ -12,6 +12,7 @@ import java.io.InputStream
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicInteger
 import sbt.serialization._
+import scala.pickling.SPickler
 
 trait Envelope[T] {
   def serial: Long
@@ -111,15 +112,15 @@ abstract class Peer(protected val socket: Socket) {
     reply(replyTo, message.getBytes(utf8))
   }
 
-  private def jsonString[T: SbtPickler](message: T): String = {
+  private def jsonString[T: SPickler](message: T): String = {
     JsonValue(message).renderCompact
   }
 
-  def sendJson[T: SbtPickler](message: T, serial: Long): Unit = {
+  def sendJson[T: SPickler](message: T, serial: Long): Unit = {
     sendString(jsonString(message), serial)
   }
 
-  def replyJson[T: SbtPickler](replyTo: Long, message: T): Unit = {
+  def replyJson[T: SPickler](replyTo: Long, message: T): Unit = {
     require(replyTo != 0L)
     replyString(replyTo, jsonString(message))
   }

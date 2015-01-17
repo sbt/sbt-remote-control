@@ -8,7 +8,7 @@ import scala.pickling.{ SPickler, Unpickler, AllPicklers }
  *  Represents a serialized value with a stringValue fallback.
  */
 final case class BuildValue(serialized: SerializedValue, stringValue: String) {
-  def value[T](implicit unpickler: SbtUnpickler[T]): Option[T] =
+  def value[T](implicit unpickler: Unpickler[T]): Option[T] =
     serialized.parse[T].toOption
   override def equals(o: Any): Boolean =
     o match {
@@ -19,7 +19,7 @@ final case class BuildValue(serialized: SerializedValue, stringValue: String) {
 }
 
 object BuildValue {
-  def apply[T](value: T)(implicit pickler: SbtPickler[T]): BuildValue = {
+  def apply[T](value: T)(implicit pickler: SPickler[T]): BuildValue = {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 
@@ -29,13 +29,13 @@ object BuildValue {
 
 object ThrowableDeserializers {
   val empty: ThrowableDeserializers = ThrowableDeserializers()
-  private[protocol]type TypePair[T] = (Manifest[T], SbtUnpickler[T])
-  private[protocol] def toPair[T](implicit mf: Manifest[T], reader: SbtUnpickler[T]): TypePair[T] = (mf, reader)
+  private[protocol]type TypePair[T] = (Manifest[T], Unpickler[T])
+  private[protocol] def toPair[T](implicit mf: Manifest[T], reader: Unpickler[T]): TypePair[T] = (mf, reader)
 }
 
-final case class ThrowableDeserializers(readers: Map[Manifest[_], SbtUnpickler[_]] = Map.empty[Manifest[_], SbtUnpickler[_]]) {
+final case class ThrowableDeserializers(readers: Map[Manifest[_], Unpickler[_]] = Map.empty[Manifest[_], Unpickler[_]]) {
   import ThrowableDeserializers._
-  def add[T](implicit mf: Manifest[T], reader: SbtUnpickler[T]): ThrowableDeserializers =
+  def add[T](implicit mf: Manifest[T], reader: Unpickler[T]): ThrowableDeserializers =
     ThrowableDeserializers(this.readers + toPair[T](mf, reader))
 
   def tryAnyReader(in: SerializedValue): Option[Throwable] =
@@ -52,22 +52,22 @@ sealed trait TaskResult {
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
 
-  final def result[A](implicit unpickleResult: SbtUnpickler[A]): Try[A] =
-    resultWithCustomThrowable[A, Throwable](unpickleResult, implicitly[SbtUnpickler[Throwable]])
-  def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A]
-  def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A]
+  final def result[A](implicit unpickleResult: Unpickler[A]): Try[A] =
+    resultWithCustomThrowable[A, Throwable](unpickleResult, implicitly[Unpickler[Throwable]])
+  def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A]
+  def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A]
 }
 
 /** This represents that the task was run successfully. */
 final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
-  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A] = {
+  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A] = {
     value.value[A] match {
       case Some(v) => Success(v)
       case None => Failure(new Exception(s"Failed to deserialize ${value.serialized}"))
     }
   }
-  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A] = {
+  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A] = {
     value.value[A] match {
       case Some(v) => Success(v)
       case None => Failure(new Exception(s"Failed to deserialize ${value.serialized}"))
@@ -77,11 +77,11 @@ final case class TaskSuccess(value: BuildValue) extends TaskResult {
 
 final case class TaskFailure(cause: BuildValue) extends TaskResult {
   override def isSuccess = false
-  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: SbtUnpickler[A], unpickleFailure: SbtUnpickler[B]): Try[A] = {
+  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A] = {
     val t = cause.serialized.parse[B].getOrElse(new Exception(cause.stringValue))
     Failure(t)
   }
-  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: SbtUnpickler[A]): Try[A] = {
+  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A] = {
     val t = throwableDeserializers.tryAnyReader(cause.serialized).getOrElse(new Exception(cause.stringValue))
     Failure(t)
   }

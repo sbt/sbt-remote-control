@@ -3,7 +3,7 @@ package sbt.protocol
 import java.io.File
 import scala.collection.immutable
 import sbt.serialization._
-import scala.pickling.directSubclasses
+import scala.pickling.{ directSubclasses, SPickler, Unpickler }
 
 /**
  * A marker trait for *any* message that is passed back/forth from
@@ -172,7 +172,7 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
 final case class TaskEvent(taskId: Long, name: String, serialized: SerializedValue) extends Event
 
 object TaskEvent {
-  def apply[T: SbtPickler](taskId: Long, event: T): TaskEvent = {
+  def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
     val serialized = JsonValue(event)
     TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
@@ -182,7 +182,7 @@ object TaskEvent {
 trait TaskEventUnapply[T] {
   import scala.reflect.ClassTag
 
-  def unapply(event: Event)(implicit unpickler: SbtUnpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != taskEvent.name) {
@@ -198,7 +198,7 @@ trait TaskEventUnapply[T] {
 final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
-  def apply[T: SbtPickler](jobId: Long, event: T): BackgroundJobEvent = {
+  def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
     val serialized = JsonValue(event)
     BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
@@ -208,7 +208,7 @@ object BackgroundJobEvent {
 trait BackgroundJobEventUnapply[T] {
   import scala.reflect.ClassTag
 
-  def unapply(event: Event)(implicit unpickler: SbtUnpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != jobEvent.name) {

@@ -5,17 +5,18 @@ package sbt.client.actors
 
 import sbt.client.{ Subscription, SbtConnector, SbtClient, Interaction, SettingKey, TaskKey, SbtChannel }
 import sbt.client.{ BuildStructureListener, RawValueListener, ValueListener, EventListener }
-import java.util.UUID
-import scala.concurrent.ExecutionContext
 import sbt.protocol
-import scala.concurrent.Future
+import sbt.serialization._
+import SbtClientProxy.WatchEvent
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import akka.actor._
 import akka.util.Timeout
 import akka.pattern.ask
-import SbtClientProxy.WatchEvent
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.concurrent.duration._
-import sbt.serialization._
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.pickling.Unpickler
 
 final class FakeSubscription[T](refFactory: ActorRefFactory, body: T => Unit, ex: ExecutionContext)(implicit mf: Manifest[T]) extends Subscription {
   private final val enabled = new AtomicBoolean(true)
@@ -208,28 +209,28 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   def rawLazyWatch(key: TaskKey[_])(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =
     rawWatch(key)(listener)(ex)
 
-  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: Unpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key) {
       case (k, v) =>
         listener(k, v.result[T])
     }
 
-  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+  def lazyWatch[T](key: SettingKey[T])(listener: ValueListener[T])(implicit unpickle: Unpickler[T], ex: ExecutionContext): Subscription =
     watch[T](key)(listener)(unpickle, ex)
 
-  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+  def watch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: Unpickler[T], ex: ExecutionContext): Subscription =
     rawWatch(key) {
       case (k, v) =>
         listener(k, v.result[T])
     }
 
-  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: SbtUnpickler[T], ex: ExecutionContext): Subscription =
+  def lazyWatch[T](key: TaskKey[T])(listener: ValueListener[T])(implicit unpickle: Unpickler[T], ex: ExecutionContext): Subscription =
     watch[T](key)(listener)(unpickle, ex)
 
-  def watch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def watch[T](name: String)(listener: ValueListener[T])(implicit unpickler: Unpickler[T], ex: ExecutionContext): Subscription =
     ??? // TODO stubbed until someone actually wants to use it
 
-  def lazyWatch[T](name: String)(listener: ValueListener[T])(implicit reads: Reads[T], ex: ExecutionContext): Subscription =
+  def lazyWatch[T](name: String)(listener: ValueListener[T])(implicit unpickler: Unpickler[T], ex: ExecutionContext): Subscription =
     ??? // TODO stubbed until someone actually wants to use it
 
   def rawWatch(name: String)(listener: RawValueListener)(implicit ex: ExecutionContext): Subscription =

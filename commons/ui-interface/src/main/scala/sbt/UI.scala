@@ -1,6 +1,7 @@
 package sbt
 
 import sbt.serialization._
+import scala.pickling.SPickler
 
 sealed trait InteractionService {
   /** Prompts the user for input, optionally with a mask for characters. */
@@ -13,7 +14,7 @@ sealed trait InteractionService {
 
 sealed trait SendEventService {
   /** Sends an event out to all registered event listeners. */
-  def sendEvent[T: SbtPickler](event: T): Unit
+  def sendEvent[T: SPickler](event: T): Unit
 }
 
 /**
