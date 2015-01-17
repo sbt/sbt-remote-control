@@ -18,7 +18,6 @@ import org.scalacheck.Prop.forAll
 import sbt.protocol
 import sbt.protocol._
 import sbt.serialization._
-import scala.pickling.internal.AppliedType
 
 object ProtocolGenerators {
   import scala.annotation.tailrec

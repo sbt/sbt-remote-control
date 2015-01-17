@@ -2,7 +2,7 @@ package sbt.pickling
 
 import sbt.protocol.ScalaShims.ManifestFactory
 import scala.pickling.FastTypeTag
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 
 object ManifestUtil {
   def isApproxIterable(tag: FastTypeTag[_], cl: ClassLoader = ManifestUtil.getClass.getClassLoader): Boolean =

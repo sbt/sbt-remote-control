@@ -209,7 +209,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
         registered.executor.execute(new Runnable() {
           override def run(): Unit = {
             val genericKey =
-              ScopedKey(AttributeKey(registered.name, scala.pickling.internal.AppliedType("java.lang.Object", Nil)), SbtScope())
+              ScopedKey(AttributeKey(registered.name, AppliedType("java.lang.Object", Nil)), SbtScope())
             val noKeyResult = TaskFailure(BuildValue(cause))
             registered.listener.apply(genericKey, noKeyResult)
           }

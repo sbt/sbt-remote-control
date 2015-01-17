@@ -2,7 +2,7 @@ package sbt.pickling
 
 import java.io.File
 import java.net.URI
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 import xsbti.Severity
 import xsbti.Severity.{ Info, Warn, Error }
 

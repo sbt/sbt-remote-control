@@ -6,7 +6,7 @@ import sbt.protocol
 import sbt.ConfigKey.configurationToKey
 import sbt.Scoped.inputScopedToKey
 import sbt.Scoped.taskScopedToKey
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 
 class TestSbtToProtocolUtils {
 
