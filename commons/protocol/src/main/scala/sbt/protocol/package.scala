@@ -1,6 +1,8 @@
 package sbt
 
 import scala.pickling.{ PReader, FastTypeTag }
+// Needed for genPickler for now.
+import scala.pickling.ops._
 import scala.util.control.NonFatal
 
 package object protocol {
@@ -94,16 +96,14 @@ package object protocol {
   implicit object moduleIdUnpickler extends Unpickler[ModuleId] {
     private val stringUnpickler = sbt.serialization.stringPicklerUnpickler
     private val attrsUnpickler = sbt.serialization.stringMapPickler[String]
-    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
+    override def unpickle(tag: String, reader: PReader): Any = {
       reader.pushHints()
-      reader.hintTag(tag)
+      reader.hintTag(this.tag)
       reader.hintStaticallyElidedType()
-      reader.beginEntryNoTag()
+      // TODO - this was already called...
+      reader.beginEntry()
       def readString(field: String): String = {
-        val sr = reader.readField(field)
-        sr.hintTag(stringUnpickler.tag)
-        sr.hintStaticallyElidedType()
-        stringUnpickler.unpickle(stringUnpickler.tag, sr).toString
+        stringUnpickler.unpickleEntry(reader.readField(field)).toString
       }
       val org = readString("organization")
       val n = readString("name")
@@ -111,7 +111,7 @@ package object protocol {
         val sr = reader.readField("attributes")
         sr.hintTag(attrsUnpickler.tag)
         sr.hintStaticallyElidedType()
-        attrsUnpickler.unpickle(attrsUnpickler.tag, sr).asInstanceOf[Map[String, String]]
+        attrsUnpickler.unpickle(attrsUnpickler.tag.key, sr).asInstanceOf[Map[String, String]]
       }
       reader.endEntry()
       reader.popHints()

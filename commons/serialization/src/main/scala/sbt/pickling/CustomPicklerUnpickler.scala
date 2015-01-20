@@ -8,6 +8,9 @@ import scala.collection.immutable.::
 import scala.collection.generic.CanBuildFrom
 import scala.pickling.internal.AppliedType
 
+// Needed for genPickler for now.
+import scala.pickling.ops._
+
 // TODO change defs to objects and vals when possible
 trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
   import scala.language.experimental.macros
@@ -30,18 +33,14 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       builder.beginEntry(picklee)
       builder.endEntry()
     }
-    override def unpickle(tag: => FastTypeTag[_], reader: PReader): Any = {
+    override def unpickle(tag: String, reader: PReader): Any = {
       try {
-        reader.hintTag(tag)
-        reader.hintStaticallyElidedType()
-        reader.beginEntryNoTag()
         val result = reader.readPrimitive()
-        reader.endEntry()
         result
       } catch {
         case PicklingException(msg, cause) =>
           throw PicklingException(s"""error in unpickle of primitive unpickler '$name':
-                                    |tag in unpickle: '${tag.key}'
+                                    |tag in unpickle: '${tag}'
                                     |message:
                                     |  $msg""".stripMargin, cause)
       }
@@ -104,10 +103,8 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
           builder.endEntry()
       }
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+    def unpickle(tag: String, preader: PReader): Any = {
       // Note - if we call beginEntry we should see JNothing or JNull show up if the option is empty.
-      preader.hintTag(tag)
-      preader.beginEntryNoTag()
       val reader = preader.beginCollection()
       preader.pushHints()
       // TODO - we may be ALWAYS eliding the type, so we shouldn't use an isPrimitive hack here.
@@ -120,14 +117,12 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       val result: Option[A] =
         if (length == 0) None
         else {
-          val r = reader.readElement()
-          val elem = elemUnpickler.unpickle(elemTag, r)
+          val elem = elemUnpickler.unpickleEntry(reader.readElement())
           Some(elem.asInstanceOf[A])
         }
       if (isPrimitive) preader.unpinHints()
       preader.popHints()
       reader.endCollection()
-      preader.endEntry()
       result
     }
   }
@@ -173,16 +168,10 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       })
       builder.endEntry()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      val reader1 = preader.readField("message")
-      reader1.hintTag(stringOptTag)
-      val message = stringOptUnpickler.unpickle(stringOptTag, reader1).asInstanceOf[Option[String]]
-      val reader2 = preader.readField("cause")
-      reader2.hintTag(throwableOptTag)
-      val cause = throwableOptPicklerUnpickler.unpickle(throwableOptTag, reader2).asInstanceOf[Option[Throwable]]
-      val reader3 = preader.readField("stackTrace")
-      reader3.hintTag(vstedTag)
-      val stackTrace = vstedUnpickler.unpickle(vstedTag, reader3).asInstanceOf[Vector[StackTraceElementDeserialized]]
+    def unpickle(tag: String, preader: PReader): Any = {
+      val message = stringOptUnpickler.unpickleEntry(preader.readField("message")).asInstanceOf[Option[String]]
+      val cause = throwableOptPicklerUnpickler.unpickleEntry(preader.readField("cause")).asInstanceOf[Option[Throwable]]
+      val stackTrace = vstedUnpickler.unpickleEntry(preader.readField("stackTrace")).asInstanceOf[Vector[StackTraceElementDeserialized]]
       val result = new Exception(message.orNull, cause.orNull)
       result.setStackTrace((stackTrace map { x =>
         new StackTraceElement(x.declaringClass, x.methodName, x.fileName, x.lineNumber)
@@ -202,12 +191,12 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
       stringPickler.pickle(canToString.toString(a), builder)
       builder.popHints()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+    def unpickle(tag: String, preader: PReader): Any = {
       preader.pushHints()
       preader.hintTag(FastTypeTag.String)
       preader.hintStaticallyElidedType()
       preader.pinHints()
-      val s = stringUnpickler.unpickle(FastTypeTag.String, preader).asInstanceOf[String]
+      val s = stringUnpickler.unpickle(FastTypeTag.String.key, preader).asInstanceOf[String]
       preader.unpinHints()
       preader.popHints()
       try {
@@ -215,7 +204,7 @@ trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {
         result
       } catch {
         case e: PicklingException => throw e
-        case e: Throwable => throw PicklingException(s""""$s" is not valid ${tag.tpe}""", Some(e))
+        case e: Throwable => throw PicklingException(s""""$s" is not valid ${tag}""", Some(e))
       }
     }
   }
@@ -262,22 +251,15 @@ trait LowPriorityCustomPicklerUnpickler {
       builder.popHints()
     }
 
-    def unpickle(tpe: => FastTypeTag[_], reader: PReader): Any = {
+    def unpickle(tpe: String, reader: PReader): Any = {
       reader.pushHints()
       reader.hintStaticallyElidedType()
       reader.hintTag(mapTag)
       reader.hintStaticallyElidedType()
-      reader.beginEntryNoTag()
-      val keys = {
-        val nested = reader.readField("$keys")
-        nested.hintTag(keysUnpickler.tag)
-        val result = keysUnpickler.unpickle(keysUnpickler.tag, nested).asInstanceOf[List[String]]
-        result
-      }
+      reader.beginEntry()
+      val keys = keysUnpickler.unpickleEntry(reader.readField("$keys")).asInstanceOf[List[String]]
       val results = for (key <- keys) yield {
-        val nested = reader.readField(key)
-        nested.hintTag(valueTag)
-        val value = valueUnpickler.unpickle(valueTag, nested)
+        val value = valueUnpickler.unpickleEntry(reader.readField(key))
         key -> value.asInstanceOf[A]
       }
       reader.endEntry()
@@ -340,7 +322,7 @@ trait LowPriorityCustomPicklerUnpickler {
         builder.endEntry()
       }
 
-      def unpickle(tpe: => FastTypeTag[_], preader: PReader): Any = {
+      def unpickle(tpe: String, preader: PReader): Any = {
         val reader = preader.beginCollection()
 
         preader.pushHints()
@@ -357,10 +339,7 @@ trait LowPriorityCustomPicklerUnpickler {
         val builder = cbf.apply()
         var i = 0
         while (i < length) {
-          val r = reader.readElement()
-          r.beginEntryNoTag()
-          val elem = elemUnpickler.unpickle(elemTag, r)
-          r.endEntry()
+          val elem = elemUnpickler.unpickleEntry(reader.readElement())
           builder += elem.asInstanceOf[A]
           i = i + 1
         }

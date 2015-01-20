@@ -13,6 +13,7 @@ import sbt.pickling.json._
 import protocol.TaskEventUnapply
 
 import sbt.serialization._
+import scala.pickling.ops._
 // TODO these are required, despite the wildcard import above;
 // no idea why. Try removing them and see if we can still build.
 import sbt.serialization.intPicklerUnpickler

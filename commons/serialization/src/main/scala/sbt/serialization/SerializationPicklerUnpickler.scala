@@ -11,6 +11,8 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
   // TODO move this to sbt.serialization once it works to do so
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
+  // TODO - this shoudl only be available if the json format is implciitly available...
+  //  ALso this can probably just extend Primitive Pcikler
   private object jvaluePickler extends SPickler[JValue] with Unpickler[JValue] {
     val tag = implicitly[FastTypeTag[JValue]]
     val stringPickler = implicitly[SPickler[String]]
@@ -22,17 +24,11 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
       builder.endEntry()
       builder.popHints()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      preader.pushHints()
-      preader.hintTag(tag)
-      preader.beginEntryNoTag()
+    def unpickle(tag: String, preader: PReader): Any = {
       val result = preader.readPrimitive
-      preader.endEntry
-      preader.popHints()
       result
     }
   }
-
   implicit object jsonValuePickler extends SPickler[JsonValue] with Unpickler[JsonValue] {
     val tag = implicitly[FastTypeTag[JsonValue]]
 
@@ -42,13 +38,12 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
       jvaluePickler.pickle(jv.json, builder)
       builder.popHints()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      val json = jvaluePickler.unpickle(FakeTags.JValue, preader).asInstanceOf[JValue]
+    def unpickle(tag: String, preader: PReader): Any = {
+      val json = jvaluePickler.unpickle(FakeTags.JValue.key, preader).asInstanceOf[JValue]
       JsonValue(json)
     }
   }
 
-  // This pickler just serialized the JValue, ignoring what may have originally been there.
   implicit object serializedValuePickler extends SPickler[SerializedValue] with Unpickler[SerializedValue] {
     val cheaterTag = implicitly[FastTypeTag[JValue]]
     // TODO - This is super hacky mechanism to avoid issues w/ pinned types.
@@ -63,10 +58,10 @@ trait SerializationPicklerUnpickler extends sbt.pickling.CustomPicklerUnpickler 
           builder.endEntry()
         //jsonPickler.pickle(spsv.toJson, builder)
       }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+    def unpickle(tag: String, preader: PReader): Any = {
       preader.hintTag(cheaterTag)
       preader.hintStaticallyElidedType()
-      preader.beginEntryNoTag()
+      preader.beginEntry()
       // TODO - Check beginEntry returns cheaterTag
       val value = preader.readPrimitive().asInstanceOf[JValue]
       preader.endEntry()

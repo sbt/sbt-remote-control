@@ -4,6 +4,7 @@ import scala.util.control.NonFatal
 
 package object serialization extends sbt.serialization.SerializationPicklerUnpickler {
   import scala.pickling.{ SPickler, Unpickler, FastTypeTag }
+  import scala.pickling.ops._
 
   implicit val StaticOnly = scala.pickling.static.StaticOnly
 

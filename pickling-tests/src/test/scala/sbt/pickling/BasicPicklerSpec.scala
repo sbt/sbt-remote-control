@@ -9,6 +9,7 @@ import sbt.pickling._, sbt.pickling.json._
 import sbt.serialization._
 import SpecsUtil._
 import JUnitUtil._
+import scala.pickling.ops._
 
 class BasicPicklerTest {
   @Test

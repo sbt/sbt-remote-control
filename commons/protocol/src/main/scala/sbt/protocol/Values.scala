@@ -2,8 +2,9 @@ package sbt.protocol
 
 import sbt.serialization._
 import scala.util.{ Try, Success, Failure }
-import scala.pickling.{ SPickler, Unpickler, AllPicklers }
-
+import scala.pickling.{ SPickler, Unpickler, allPicklers }
+// TODO - needed for genPickler
+import scala.pickling.ops._
 /**
  *  Represents a serialized value with a stringValue fallback.
  */
@@ -23,8 +24,8 @@ object BuildValue {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 
-  implicit val pickler: SPickler[BuildValue] = AllPicklers.genPickler[BuildValue]
-  implicit val unpickler: Unpickler[BuildValue] = AllPicklers.genUnpickler[BuildValue]
+  implicit val pickler: SPickler[BuildValue] = allPicklers.genPickler[BuildValue]
+  implicit val unpickler: Unpickler[BuildValue] = allPicklers.genUnpickler[BuildValue]
 }
 
 object ThrowableDeserializers {
@@ -88,19 +89,19 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
 }
 
 object TaskSuccess {
-  implicit val pickler: SPickler[TaskSuccess] = AllPicklers.genPickler[TaskSuccess]
-  implicit val unpickler: Unpickler[TaskSuccess] = AllPicklers.genUnpickler[TaskSuccess]
+  implicit val pickler: SPickler[TaskSuccess] = allPicklers.genPickler[TaskSuccess]
+  implicit val unpickler: Unpickler[TaskSuccess] = allPicklers.genUnpickler[TaskSuccess]
 }
 
 object TaskFailure {
-  implicit val pickler: SPickler[TaskFailure] = AllPicklers.genPickler[TaskFailure]
-  implicit val unpickler: Unpickler[TaskFailure] = AllPicklers.genUnpickler[TaskFailure]
+  implicit val pickler: SPickler[TaskFailure] = allPicklers.genPickler[TaskFailure]
+  implicit val unpickler: Unpickler[TaskFailure] = allPicklers.genUnpickler[TaskFailure]
 }
 
 // TODO currently due to a pickling bug caused by a Scala bug,
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
 object TaskResult {
-  implicit val pickler: SPickler[TaskResult] = AllPicklers.genPickler[TaskResult]
-  implicit val unpickler: Unpickler[TaskResult] = AllPicklers.genUnpickler[TaskResult]
+  implicit val pickler: SPickler[TaskResult] = allPicklers.genPickler[TaskResult]
+  implicit val unpickler: Unpickler[TaskResult] = allPicklers.genUnpickler[TaskResult]
 }

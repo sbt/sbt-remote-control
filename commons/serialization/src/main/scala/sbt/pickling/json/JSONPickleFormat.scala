@@ -17,8 +17,6 @@ import scala.pickling.{
 }
 import scala.pickling.internal.lookupUnpicklee
 // FIXME this isn't threadsafe right? we need to get rid of its use.
-import scala.reflect.runtime.universe.{ Mirror, ClassSymbol, definitions }
-import definitions._
 import org.json4s._
 import scala.util.parsing.json.JSONFormat.quoteString
 import scala.collection.mutable.{ StringBuilder, Stack }
@@ -46,9 +44,9 @@ package json {
     type OutputType = Output[String]
     def createBuilder() = new VerifyingJSONPickleBuilder(this, new StringOutput)
     def createBuilder(out: Output[String]): PBuilder = new VerifyingJSONPickleBuilder(this, out)
-    def createReader(pickle: JSONPickle, mirror: Mirror) = {
+    def createReader(pickle: JSONPickle) = {
       jawn.support.json4s.Parser.parseFromString(pickle.value) match {
-        case Success(json) => new VerifyingJSONPickleReader(mirror, this, IniitalReaderState(json))
+        case Success(json) => new VerifyingJSONPickleReader(this, IniitalReaderState(json))
         case Failure(e) => throw new PicklingException("failed to parse \"" + pickle.value + "\" as JSON: " + e.getMessage)
       }
     }
@@ -269,7 +267,7 @@ package json {
   // The state where we are reading elements from a collection.
   case class CollectionReadingState(current: JValue, idx: Int, previous: ReaderState) extends ReaderState
 
-  class VerifyingJSONPickleReader(val mirror: Mirror, format: JSONPickleFormat, var state: ReaderState) extends PReader with PickleTools {
+  class VerifyingJSONPickleReader(format: JSONPickleFormat, var state: ReaderState) extends PReader with PickleTools {
     import JSONPickleFormat._
 
     // Debugging hints
@@ -290,35 +288,7 @@ package json {
       super.pinHints()
     }
 
-    // Start/stop notifcation of pickling.  We use this to migrate
-    // to/from certain states.
-    override def beginEntry(): FastTypeTag[_] = withHints { hints =>
-      // First we read the runtime tag stream, then we use runtime reflection
-      // to instantiate the FastTypeTag.
-      val tagString = beginEntryNoTag()
-      val tag = try {
-        val tagFromJson = FastTypeTag(mirror, tagString)
-        // Given sealed trait Fruit that has Apple and Orange as child type,
-        // a) Choose Apple if json says Apple and hint says Fruit
-        // b) Choose Orange if json says Apple and hint says Orange
-        // c) Choose Apple if json has unknown and hint says Apple
-        // TODO - Ideally we avoid runtime reflection like this.
-        if (ManifestUtil.isApproxSubType(tagFromJson, hints.tag)) tagFromJson
-        else hints.tag
-      } catch {
-        case e: Throwable if e.getMessage contains "cannot find class" =>
-          if (Option(hints.tag.tpe.typeSymbol) map {
-            // TODO - Ideally we can avoid scala reflection here too.
-            case sym: ClassSymbol => sym.isAbstractClass || sym.isTrait
-            case _ => true
-          } getOrElse (true)) throw PicklingException(e.getMessage)
-          else hints.tag
-        case e: Throwable => throw e
-      }
-      tag
-    }
-    override def beginEntryNoTagDebug(debugOn: Boolean): String = beginEntryNoTag()
-    override def beginEntryNoTag(): String = withHints { hints =>
+    override def beginEntry(): String = withHints { hints =>
       // This should be the default for static picklers.  We don't need runtime reflection,
       // so we just grab tag strings and use that to match known/sealed class hierarchies.
       val tag = currentTag(state.current, hints)
@@ -393,7 +363,7 @@ package json {
           state.current.asInstanceOf[JObject].values.keys.toList.sorted.map(k => JString(k))
         RawJsValue(JArray(keys), state)
       } else RawJsValue(state.current.asInstanceOf[JObject] \ name, state)
-      val nested = new VerifyingJSONPickleReader(mirror, format, nextState)
+      val nested = new VerifyingJSONPickleReader(format, nextState)
       if (this.areHintsPinned) {
         nested.pinHints()
         nested.hints = hints
@@ -433,7 +403,7 @@ package json {
           case _ if idx == 0 =>
             RawJsValue(value, state)
         }
-        val tmp = new VerifyingJSONPickleReader(mirror, format, subState)
+        val tmp = new VerifyingJSONPickleReader(format, subState)
         tmp.hints = this.hints // TODO - is this correct?
         tmp
       case x => throw new PicklingException(s"Cannot read an element when not in collection reading state.")

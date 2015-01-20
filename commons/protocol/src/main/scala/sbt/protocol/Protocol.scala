@@ -258,14 +258,14 @@ final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends E
 
 final case class TestGroupStarted(name: String)
 object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
-  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.{ SPickler, Unpickler }
   import scala.pickling.static._
   implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
   implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
 }
 final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
-  import scala.pickling.{ SPickler, Unpickler, AllPicklers }
+  import scala.pickling.{ SPickler, Unpickler }
   import scala.pickling.static._
   implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
   implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
@@ -571,16 +571,12 @@ object CompileFailedException {
       })
       builder.endEntry()
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
-      val reader1 = preader.readField("message")
-      reader1.hintTag(stringOptTag)
-      val message = stringOptUnpickler.unpickle(stringOptTag, reader1).asInstanceOf[Option[String]]
-      val reader2 = preader.readField("cause")
-      reader2.hintTag(throwableOptTag)
-      val cause = throwableOptUnpickler.unpickle(throwableOptTag, reader2).asInstanceOf[Option[Throwable]]
-      val reader3 = preader.readField("problems")
-      reader3.hintTag(vectorProblemTag)
-      val problems = vectorProblemUnpickler.unpickle(vectorProblemTag, reader3).asInstanceOf[Vector[Problem]]
+    def unpickle(tag: String, preader: PReader): Any = {
+      // TODO - hint statically elided types...
+      preader.hintStaticallyElidedType()
+      val message = stringOptUnpickler.unpickleEntry(preader.readField("message")).asInstanceOf[Option[String]]
+      val cause = throwableOptUnpickler.unpickleEntry(preader.readField("cause")).asInstanceOf[Option[Throwable]]
+      val problems = vectorProblemUnpickler.unpickleEntry(preader.readField("problems")).asInstanceOf[Vector[Problem]]
       new CompileFailedException(message.orNull, cause.orNull, problems)
     }
   }
@@ -631,7 +627,7 @@ object ByteArray {
       }
       arrayPickler.pickle(concrete.ary, builder)
     }
-    def unpickle(tag: => FastTypeTag[_], preader: PReader): Any = {
+    def unpickle(tag: String, preader: PReader): Any = {
       arrayUnpickler.unpickle(tag, preader) match {
         case ary: Array[_] => new ConcreteByteArray(ary.asInstanceOf[Array[Byte]])
         case other => throw new PicklingException(s"expected byte array got $other")

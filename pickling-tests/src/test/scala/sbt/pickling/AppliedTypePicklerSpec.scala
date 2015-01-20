@@ -11,6 +11,7 @@ import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
 import scala.pickling.internal.AppliedType
+import scala.pickling.ops._
 
 class AppliedTypePicklerTest {
   @Test

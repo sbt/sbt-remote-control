@@ -7,6 +7,8 @@ import sbt.serialization._
 import scala.pickling.{ SPickler, Unpickler }
 import scala.pickling.internal.AppliedType
 
+// TODO - needed for genPickler for now.
+import scala.pickling.ops._
 /**
  * This represents a "key" in sbt.
  *  Keys have names and "types" associated.

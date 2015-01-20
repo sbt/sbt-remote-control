@@ -19,6 +19,8 @@ import sbt.protocol
 import sbt.protocol._
 import sbt.serialization._
 import scala.pickling.internal.AppliedType
+// TODO - put this in serialziatoin package or something.
+import scala.pickling.ops._
 
 object ProtocolGenerators {
   import scala.annotation.tailrec

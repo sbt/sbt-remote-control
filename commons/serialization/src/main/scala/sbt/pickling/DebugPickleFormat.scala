@@ -14,9 +14,7 @@ class DebugPickleFormat extends PickleFormat {
   type OutputType = Output[String]
   def createBuilder() = new DebugPickleBuilder()
   def createBuilder(out: Output[String]): PBuilder = new DebugPickleBuilder()
-  override def createReader(pickle: PickleType, mirror: Mirror) = {
-    new DebugPickleReader()
-  }
+  override def createReader(pickle: PickleType) = ???
 }
 
 class DebugPickleBuilder(indent: Int = 0) extends PBuilder {
@@ -102,20 +100,4 @@ class DebugPickleBuilder(indent: Int = 0) extends PBuilder {
     System.err.println(s"unpinHints()")
     this
   }
-}
-
-class DebugPickleReader extends PReader with PickleTools {
-  override def mirror: Mirror = null
-  override def readPrimitive(): Any = ???
-  override def beginCollection(): PReader = this
-  override def readField(name: String): PReader = this
-  override def endEntry(): Unit = ???
-  override def atPrimitive: Boolean = ???
-  override def readElement(): PReader = ???
-  override def beginEntry(): FastTypeTag[_] = ???
-  override def readLength(): Int = ???
-  override def beginEntryNoTagDebug(debugOn: Boolean): String = ???
-  override def atObject: Boolean = ???
-  override def beginEntryNoTag(): String = ???
-  override def endCollection(): Unit = ???
 }

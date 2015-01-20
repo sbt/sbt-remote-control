@@ -4,6 +4,8 @@ import org.json4s.JValue
 import scala.pickling._
 import scala.util.control.NonFatal
 import scala.util.Try
+// Needed for pickle/unpickle methods.
+import scala.pickling.ops._
 
 /**
  * We serialize to and from this opaque type. The idea is to

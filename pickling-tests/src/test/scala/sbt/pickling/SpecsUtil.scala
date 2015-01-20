@@ -4,6 +4,7 @@ import sbt.protocol.Message
 
 import scala.pickling.PickleOps, sbt.pickling._, sbt.pickling.json._, sbt.serialization._
 import scala.pickling.static._
+import scala.pickling.ops._
 
 object SpecsUtil {
   import JUnitUtil._
