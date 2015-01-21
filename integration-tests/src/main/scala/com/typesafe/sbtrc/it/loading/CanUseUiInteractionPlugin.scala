@@ -26,17 +26,17 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |package loading
        |import sbt.SbtUIPlugin._
        |import sbt._
-       |import sbt.serialization._
-       |import scala.pickling.Defaults._
        |
        |final case class SerializedThing(name: String, value: Int)
        |object SerializedThing {
-       |import sbt.serialization._
-       |  implicit val pickler = genPickler[SerializedThing]
-       |  implicit val unpickler = genUnpickler[SerializedThing]
+       |  import sbt.serialization._
+       |  // TODO - we don't want this to gunky everything up.
+       |  import sbt.protocol.CoreProtocol._
+       |  implicit val pickler: scala.pickling.SPickler[SerializedThing] = scala.pickling.Defaults.genPickler[SerializedThing]
+       |  implicit val unpickler: scala.pickling.Unpickler[SerializedThing] = scala.pickling.Defaults.genUnpickler[SerializedThing]
        |}
-       |
        |object TestThingPlugin {
+       |   import sbt.protocol.CoreProtocol._  // For SbtSerializer
        |   val makeTestThing = taskKey[SerializedThing]("makes a test thing")
        |   def settings: Seq[Setting[_]] =
        |     Seq(
