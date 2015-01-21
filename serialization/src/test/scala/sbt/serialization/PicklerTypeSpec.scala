@@ -8,7 +8,7 @@ import JUnitUtil._
 import scala.pickling.ops._
 
 object Fruits {
-  val coreProtocol: CustomPicklerUnpickler = new CustomPicklerUnpickler {}
+  val coreProtocol: CustomPicklers = new CustomPicklers {}
   import coreProtocol._
 
   sealed trait Fruit

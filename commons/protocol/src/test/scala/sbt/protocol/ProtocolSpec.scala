@@ -1,7 +1,7 @@
 package sbt.protocol.spec
 
 import sbt.protocol
-import sbt.protocol.Message
+import sbt.protocol.{ Message, CoreProtocol }
 import org.junit.Assert._
 import org.junit._
 import java.io.File
@@ -17,18 +17,8 @@ import scala.pickling.{ PickleOps, SPickler, Unpickler }
 import sbt.serialization._
 import scala.pickling.ops._
 
-// TODO these are required, despite the wildcard import above;
-// no idea why. Try removing them and see if we can still build.
-// The need may go away when we drop Unpickler and just use Unpickler
-import sbt.serialization.stringPicklerUnpickler
-import sbt.serialization.intPicklerUnpickler
-import sbt.serialization.longPicklerUnpickler
-import sbt.serialization.throwablePicklerUnpickler
-import sbt.serialization.booleanPicklerUnpickler
-import sbt.serialization.doublePicklerUnpickler
-import sbt.serialization.floatPicklerUnpickler
-
 class ProtocolTest {
+  import CoreProtocol._
 
   val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")

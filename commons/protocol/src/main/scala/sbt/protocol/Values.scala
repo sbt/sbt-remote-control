@@ -1,10 +1,9 @@
 package sbt.protocol
 
-import sbt.serialization._
+import sbt.serialization._, sbt.serialization.functions._
 import scala.util.{ Try, Success, Failure }
-import scala.pickling.{ SPickler, Unpickler, allPicklers }
-// TODO - needed for genPickler
-import scala.pickling.ops._
+import scala.pickling.{ SPickler, Unpickler }
+
 /**
  *  Represents a serialized value with a stringValue fallback.
  */
@@ -20,12 +19,13 @@ final case class BuildValue(serialized: SerializedValue, stringValue: String) {
 }
 
 object BuildValue {
+  import CoreProtocol._
   def apply[T](value: T)(implicit pickler: SPickler[T]): BuildValue = {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 
-  implicit val pickler: SPickler[BuildValue] = allPicklers.genPickler[BuildValue]
-  implicit val unpickler: Unpickler[BuildValue] = allPicklers.genUnpickler[BuildValue]
+  implicit val pickler: SPickler[BuildValue] = genPickler[BuildValue]
+  implicit val unpickler: Unpickler[BuildValue] = genUnpickler[BuildValue]
 }
 
 object ThrowableDeserializers {
@@ -50,6 +50,8 @@ final case class ThrowableDeserializers(readers: Map[Manifest[_], Unpickler[_]] 
  * Represents the outcome of a task. The outcome can be a value or an exception.
  */
 sealed trait TaskResult {
+  import CoreProtocol._
+
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
 
@@ -89,19 +91,22 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
 }
 
 object TaskSuccess {
-  implicit val pickler: SPickler[TaskSuccess] = allPicklers.genPickler[TaskSuccess]
-  implicit val unpickler: Unpickler[TaskSuccess] = allPicklers.genUnpickler[TaskSuccess]
+  import CoreProtocol._
+  implicit val pickler: SPickler[TaskSuccess] = genPickler[TaskSuccess]
+  implicit val unpickler: Unpickler[TaskSuccess] = genUnpickler[TaskSuccess]
 }
 
 object TaskFailure {
-  implicit val pickler: SPickler[TaskFailure] = allPicklers.genPickler[TaskFailure]
-  implicit val unpickler: Unpickler[TaskFailure] = allPicklers.genUnpickler[TaskFailure]
+  import CoreProtocol._
+  implicit val pickler: SPickler[TaskFailure] = genPickler[TaskFailure]
+  implicit val unpickler: Unpickler[TaskFailure] = genUnpickler[TaskFailure]
 }
 
 // TODO currently due to a pickling bug caused by a Scala bug,
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
 object TaskResult {
-  implicit val pickler: SPickler[TaskResult] = allPicklers.genPickler[TaskResult]
-  implicit val unpickler: Unpickler[TaskResult] = allPicklers.genUnpickler[TaskResult]
+  import CoreProtocol._
+  implicit val pickler: SPickler[TaskResult] = genPickler[TaskResult]
+  implicit val unpickler: Unpickler[TaskResult] = genUnpickler[TaskResult]
 }

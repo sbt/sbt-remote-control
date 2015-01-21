@@ -13,6 +13,8 @@ import scala.pickling.internal.AppliedType
 import scala.pickling.ops._
 
 class AppliedTypePicklerTest {
+  import protocol.CoreProtocol._
+
   @Test
   def testRoundtripStringType: Unit = {
     val value = AppliedType.parse("java.lang.String")._1

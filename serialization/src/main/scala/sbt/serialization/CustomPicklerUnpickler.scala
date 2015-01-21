@@ -5,6 +5,7 @@ import sbt.serialization.pickler.{
   PrimitivePicklers,
   PrimitiveArrayPicklers,
   OptionPicklers,
+  ThrowablePicklers,
   RefPicklers,
   VectorPicklers,
   ListPicklers,
@@ -14,14 +15,15 @@ import sbt.serialization.pickler.{
   CanToStringPicklers
 }
 
-trait CustomPicklerUnpickler extends PrimitivePicklers
+trait CustomPicklers extends PrimitivePicklers
   with PrimitiveArrayPicklers
   with OptionPicklers
+  with ThrowablePicklers
   with CanToStringPicklers
   with RefPicklers
-  with LowPriorityCustomPicklerUnpickler {}
+  with LowPriorityCustomPicklers {}
 
-trait LowPriorityCustomPicklerUnpickler extends VectorPicklers
+trait LowPriorityCustomPicklers extends VectorPicklers
   with ListPicklers
   with ArrayPicklers
   with SeqPicklers

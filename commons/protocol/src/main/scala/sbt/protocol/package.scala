@@ -5,9 +5,11 @@ import scala.pickling.{ PReader, FastTypeTag }
 import scala.pickling.ops._
 import scala.util.control.NonFatal
 
+import sbt.serialization._
+import sbt.serialization.functions._
+
 package object protocol {
-  import sbt.serialization._
-  import sbt.serialization.StaticOnly
+  import CoreProtocol._
   import sbt.serialization.CanToString
   import scala.pickling.{ SPickler, Unpickler }
 
@@ -92,10 +94,9 @@ package object protocol {
   implicit val compilationFailurePickler = genPickler[CompilationFailure]
   implicit val compilationFailureUnpickler = genUnpickler[CompilationFailure]
   implicit val moduleIdPickler = genPickler[ModuleId]
-  import sbt.serialization.stringMapPickler
   implicit object moduleIdUnpickler extends Unpickler[ModuleId] {
-    private val stringUnpickler = sbt.serialization.stringPicklerUnpickler
-    private val attrsUnpickler = sbt.serialization.stringMapPickler[String]
+    private val stringUnpickler = CoreProtocol.stringPickler
+    private val attrsUnpickler = CoreProtocol.stringMapPickler[String]
     override def unpickle(tag: String, reader: PReader): Any = {
       reader.pushHints()
       reader.hintTag(this.tag)

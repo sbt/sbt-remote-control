@@ -9,10 +9,7 @@ private object FakeTags {
   val JValue = implicitly[FastTypeTag[JValue]]
 }
 
-trait SerializationPicklers extends CustomPicklerUnpickler {
-  // TODO move this to sbt.serialization once it works to do so
-  private implicit def staticOnly = scala.pickling.static.StaticOnly
-
+trait SerializationPicklers {
   // TODO - this shoudl only be available if the json format is implciitly available...
   //  ALso this can probably just extend Primitive Pcikler
   private object jvaluePickler extends SPickler[JValue] with Unpickler[JValue] {

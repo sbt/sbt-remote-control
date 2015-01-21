@@ -9,7 +9,7 @@ import JUnitUtil._
 
 case class Foo(x: Int, y: Option[Int])
 object Foo {
-  val coreProtocol: CustomPicklerUnpickler = new CustomPicklerUnpickler {}
+  val coreProtocol: CustomPicklers = new CustomPicklers {}
   import coreProtocol._
 
   implicit val pickler = genPickler[Foo]

@@ -97,6 +97,7 @@ private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_
 }
 
 private object ConcreteDynamicSerialization {
+  import CoreProtocol._
   private val defaultSerializationMemosByManifest =
     scala.collection.concurrent.TrieMap[Manifest[_], SbtSerializer[_]]()
   private val defaultSerializationMemosByClass =
@@ -229,7 +230,7 @@ private object ConcreteDynamicSerialization {
 }
 
 private object NonTrivialSerializers {
-
+  import CoreProtocol._
   private sealed trait RegisteredSbtSerializer {
     type T
     def manifest: Manifest[T]

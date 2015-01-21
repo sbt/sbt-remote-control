@@ -8,12 +8,17 @@ import scala.pickling.{ PickleOps, UnpickleOps, SPickler, Unpickler, FastTypeTag
 import JUnitUtil._
 import scala.pickling.ops._
 import sbt.serialization._, sbt.serialization.json._
-import sbt.serialization.pickler.{ PrimitivePicklers, PrimitiveArrayPicklers, ArrayPicklers,
-  ListPicklers, VectorPicklers, OptionPicklers }
+import sbt.serialization.pickler.{
+  PrimitivePicklers,
+  PrimitiveArrayPicklers,
+  ArrayPicklers,
+  ListPicklers,
+  VectorPicklers,
+  OptionPicklers
+}
 
 class ArrayPicklerTest {
-  val collectionProtocol = new PrimitivePicklers with PrimitiveArrayPicklers
-    with ArrayPicklers with ListPicklers with VectorPicklers with OptionPicklers {
+  val collectionProtocol = new PrimitivePicklers with PrimitiveArrayPicklers with ArrayPicklers with ListPicklers with VectorPicklers with OptionPicklers {
     implicit val staticOnly = scala.pickling.static.StaticOnly
   }
   import collectionProtocol._
