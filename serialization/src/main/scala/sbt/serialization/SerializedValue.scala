@@ -1,11 +1,12 @@
 package sbt.serialization
 
 import org.json4s.JValue
+import org.json4s.JsonAST._
 import scala.pickling._
 import scala.util.control.NonFatal
 import scala.util.Try
 // Needed for pickle/unpickle methods.
-import scala.pickling.ops._
+import scala.pickling.functions._
 
 /**
  * We serialize to and from this opaque type. The idea is to
@@ -33,7 +34,7 @@ private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializ
     import sbt.serialization.json.JSONPickle
     import org.json4s.native.JsonMethods._
     // TODO don't convert the AST to a string before parsing it!
-    Try { JSONPickle(compact(render(json))).unpickle[T] }
+    Try { unpickle[T](JSONPickle(compact(render(json)))) }
   }
   override def toJson = this
 
@@ -46,6 +47,30 @@ private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializ
     import org.json4s.native.JsonMethods._
     pretty(render(json))
   }
+
+  override def equals(other: Any): Boolean =
+    other match {
+      case JsonValue(oj) => jvalueEquals(json, oj)
+      case _ => false
+    }
+
+  private def jvalueEquals(jvalue: JValue, jvalue2: JValue): Boolean =
+    (jvalue, jvalue2) match {
+      case (JNull, null) | (null, JNull) | (JNull, JNull) | (null, null) => true
+      case (JNothing, JNothing) => true
+      case (JBool(v), JBool(v2)) => v == v2
+      case (JDouble(v), JDouble(v2)) => v == v2
+      case (JString(v), JString(v2)) => v == v2
+      case (JArray(el), JArray(el2)) => (el.size == el2.size) && (el.zip(el2).forall((jvalueEquals _).tupled))
+      case (JObject(el), JObject(el2)) =>
+        (el.size == el2.size) && (
+          el.sortBy(_._1).zip(el2.sortBy(_._1)).forall {
+            case ((k, v), (k2, v2)) => (k == k2) && jvalueEquals(v, v2)
+          })
+      case (left, right) =>
+        System.err.println("Found differences between [$left] and [$right]")
+        false
+    }
 
   override def toString = renderCompact
 }
@@ -70,7 +95,7 @@ private[sbt] object JsonValue {
     implicit val pickler1: SPickler[T] = picklerForT.underlying
     import sbt.serialization.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
-    parseJson(t.pickle.value).get
+    parseJson(pickle(t).value).get
   }
 
   val emptyObject = JsonValue(org.json4s.JObject(Nil))

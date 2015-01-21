@@ -5,7 +5,7 @@ import org.junit._
 import scala.pickling.{ PickleOps, UnpickleOps, PicklingException }
 import sbt.serialization._, sbt.serialization.functions._, sbt.serialization.json._
 import JUnitUtil._
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 object Fruits {
   val coreProtocol: CustomPicklers = new CustomPicklers {}

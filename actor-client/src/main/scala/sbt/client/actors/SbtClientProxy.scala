@@ -10,6 +10,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.{ Try, Success, Failure }
 import sbt.protocol.{ Analysis, CompileFailedException, TaskResult, ScopedKey, BuildValue, CompilationFailure }
 import sbt.protocol
+import sbt.protocol.CoreProtocol._
 import scala.language.existentials, scala.language.higherKinds
 import scala.collection.TraversableOnce
 

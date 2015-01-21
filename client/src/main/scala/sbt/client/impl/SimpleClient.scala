@@ -3,6 +3,7 @@ package sbt.client.impl
 
 import sbt.protocol
 import sbt.protocol._
+import sbt.protocol.CoreProtocol._
 import sbt.serialization._
 import sbt.client.{ SbtChannel, SbtClient, Subscription, BuildStructureListener, EventListener, ValueListener, RawValueListener, SettingKey, TaskKey, Interaction }
 import java.net.SocketException

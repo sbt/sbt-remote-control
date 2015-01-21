@@ -1,8 +1,6 @@
 package sbt
 
 import scala.pickling.{ PReader, FastTypeTag }
-// Needed for genPickler for now.
-import scala.pickling.ops._
 import scala.util.control.NonFatal
 
 import sbt.serialization._

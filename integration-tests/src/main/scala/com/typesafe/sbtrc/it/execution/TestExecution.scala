@@ -4,6 +4,7 @@ package execution
 
 import sbt.client._
 import sbt.protocol._
+import sbt.protocol.CoreProtocol._
 import sbt.serialization._
 import java.io.File
 import java.util.concurrent.{ LinkedBlockingQueue, Executors }

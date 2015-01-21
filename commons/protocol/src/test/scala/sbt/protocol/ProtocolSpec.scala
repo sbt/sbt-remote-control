@@ -15,7 +15,7 @@ import scala.util.{ Try, Success, Failure }
 import sbt.serialization.json._
 import scala.pickling.{ PickleOps, SPickler, Unpickler }
 import sbt.serialization._
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 class ProtocolTest {
   import CoreProtocol._

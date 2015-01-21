@@ -6,7 +6,7 @@ import java.io.File
 import java.net.URI
 import scala.pickling.{ PickleOps, UnpickleOps, SPickler, Unpickler, FastTypeTag }
 import JUnitUtil._
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 import sbt.serialization._, sbt.serialization.json._
 import sbt.serialization.pickler.{
   PrimitivePicklers,

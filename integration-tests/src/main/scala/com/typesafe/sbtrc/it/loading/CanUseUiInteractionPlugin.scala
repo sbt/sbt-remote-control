@@ -27,7 +27,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import sbt.SbtUIPlugin._
        |import sbt._
        |import sbt.serialization._
-       |import scala.pickling.ops._
+       |import scala.pickling.Defaults._
        |
        |final case class SerializedThing(name: String, value: Int)
        |object SerializedThing {

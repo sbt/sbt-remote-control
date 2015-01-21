@@ -15,7 +15,7 @@ import sbt.serialization.pickler.{
   ThrowablePicklers
 }
 
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 import scala.pickling.static._
 
 class BasicPicklerTest {

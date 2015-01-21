@@ -5,7 +5,7 @@ import org.junit.Assert._
 import org.junit._
 import scala.pickling.{ SPickler, Unpickler }
 import sbt.serialization._
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 object JUnitMessageUtil {
   private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body

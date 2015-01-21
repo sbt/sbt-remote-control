@@ -4,7 +4,7 @@ import org.junit.Assert._
 import org.junit._
 import scala.pickling.{ SPickler, Unpickler }
 import sbt.serialization._
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 object JUnitUtil {
   private def addWhatWeWerePickling[T, U](t: T)(body: => U): U = try body
@@ -71,5 +71,5 @@ object JUnitUtil {
   import sbt.serialization.json.JSONPickle
   import scala.pickling.UnpickleOps
   implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
-  implicit def toUnpickleOps(value: String): UnpickleOps = new JSONPickle(value)
+  implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(new JSONPickle(value))
 }

@@ -3,7 +3,7 @@ package sbt.serialization.spec
 import org.junit.Assert._
 import org.junit._
 import scala.pickling.{ PickleOps, UnpickleOps }
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 import sbt.serialization._, sbt.serialization.functions._, sbt.serialization.json._
 import JUnitUtil._
 

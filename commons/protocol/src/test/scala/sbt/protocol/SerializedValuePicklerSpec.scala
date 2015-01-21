@@ -11,7 +11,7 @@ import sbt.serialization._
 import sbt.serialization.json._
 import protocol.TaskEventUnapply
 
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 class SerializedValuePicklerTest {
   import protocol.CoreProtocol._

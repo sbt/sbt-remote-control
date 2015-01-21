@@ -22,7 +22,7 @@ import sbt.serialization._
 import sbt.serialization.functions._
 import scala.pickling.internal.AppliedType
 // TODO - put this in serialziatoin package or something.
-import scala.pickling.ops._
+import scala.pickling.Defaults.pickleOps
 
 object ProtocolGenerators {
   import scala.annotation.tailrec
@@ -966,7 +966,8 @@ class ProtocolTest {
     }
 
     def roundtripBuildValue[T: Manifest](t: T): Unit =
-      roundtripBuild[Unit, T](t)((x, y) => assertEquals("round trip of Serialized( " + implicitly[Manifest[T]] + ") [" + t + "]", x, y))((t, p) => assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
+      roundtripBuild[Unit, T](t)((x, y) => assertEquals("round trip of Serialized( " + implicitly[Manifest[T]] + ") [" + t + "]", x, y))((t, p) =>
+        assertEquals("round trip of message " + t.getMessage, t.getMessage, p.getMessage))
 
     def roundtripBuildValueTest[T: Manifest](t: T): Boolean =
       roundtripBuild[Boolean, T](t) { (a, b) =>

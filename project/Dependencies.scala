@@ -46,7 +46,7 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
-  val picklingVersion = "0.10.0-SNAPSHOT"
+  val picklingVersion = "0.10.0-M1"
   val pickling210 = "org.scala-lang.modules" % "scala-pickling_2.10" % picklingVersion
   val pickling211 = "org.scala-lang.modules" % "scala-pickling_2.11" % picklingVersion
   val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion

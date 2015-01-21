@@ -5,12 +5,11 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling.{ PickleOps, UnpickleOps }
+import scala.pickling.Defaults.pickleOps
 import sbt.serialization._, json._
 import sbt.serialization.spec.JUnitUtil._
 import SpecsUtil._
 import scala.pickling.internal.AppliedType
-import scala.pickling.ops._
 
 class AppliedTypePicklerTest {
   import protocol.CoreProtocol._
