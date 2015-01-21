@@ -8,7 +8,6 @@ import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
 import sbt.protocol.Message
-import scala.pickling.internal.AppliedType
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{Try, Success, Failure}
 import sbt.pickling._

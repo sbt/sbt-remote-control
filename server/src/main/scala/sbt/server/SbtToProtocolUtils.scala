@@ -5,7 +5,7 @@ import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
 import scala.util.control.Exception._
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 
 /** Helpers to map from sbt types into serializable json types. */
 object SbtToProtocolUtils {

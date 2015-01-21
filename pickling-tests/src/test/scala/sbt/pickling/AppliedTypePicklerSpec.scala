@@ -10,7 +10,7 @@ import sbt.serialization._
 import SpecsUtil._
 import JUnitUtil._
 import sbt.protocol
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 
 class AppliedTypePicklerTest {
   @Test

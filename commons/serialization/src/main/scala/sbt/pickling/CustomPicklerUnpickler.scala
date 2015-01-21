@@ -6,7 +6,7 @@ import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, Pic
 import scala.reflect.runtime.universe._
 import scala.collection.immutable.::
 import scala.collection.generic.CanBuildFrom
-import scala.pickling.internal.AppliedType
+import sbt.serialization.AppliedType
 
 // TODO change defs to objects and vals when possible
 trait CustomPicklerUnpickler extends LowPriorityCustomPicklerUnpickler {

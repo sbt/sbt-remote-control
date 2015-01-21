@@ -6,10 +6,10 @@ package sbt.protocol
 import org.junit.Assert._
 import org.junit._
 import sbt.protocol._
+import sbt.serialization.AppliedType
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import scala.pickling.internal.AppliedType
 
 class EventTrackerTest {
 

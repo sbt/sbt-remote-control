@@ -5,7 +5,6 @@ import ScalaShims.ManifestFactory
 
 import sbt.serialization._
 import scala.pickling.{ SPickler, Unpickler }
-import scala.pickling.internal.AppliedType
 
 /**
  * This represents a "key" in sbt.
