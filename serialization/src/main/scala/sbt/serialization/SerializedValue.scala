@@ -28,8 +28,7 @@ private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
 
 /** A value we have serialized as JSON */
 private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializedValue {
-  override def parse[T](implicit unpicklerForT: SbtUnpickler[T]): Try[T] = {
-    implicit val u = unpicklerForT.underlying
+  override def parse[T](implicit unpicklerForT: Unpickler[T]): Try[T] = {
     import sbt.serialization.json.pickleFormat
     import sbt.serialization.json.JSONPickle
     import org.json4s.native.JsonMethods._
@@ -91,8 +90,7 @@ private[sbt] object JsonValue {
   // this is sort of dangerous because if you call it on a String
   // expecting to get the parseJson scenario above, you won't
   // get that, you'll get the JSON string pickled into JSON.
-  def apply[T](t: T)(implicit picklerForT: SbtPickler[T]): JsonValue = {
-    implicit val pickler1: SPickler[T] = picklerForT.underlying
+  def apply[T](t: T)(implicit picklerForT: SPickler[T]): JsonValue = {
     import sbt.serialization.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
     parseJson(pickle(t).value).get
