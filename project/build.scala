@@ -16,7 +16,7 @@ object TheBuild extends Build {
 
   val root = (
     Project("root", file("."))  // TODO - Oddities with clean..
-    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, picklingTests.project)):_*)
+    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, serialization.project)):_*)
     settings(
       // Stub out commands we run frequently but don't want them to really do anything.
       Keys.publish := {},
@@ -34,20 +34,21 @@ object TheBuild extends Build {
   // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
-      dependsOnSource("commons/serialization")
+      dependsOnSource("serialization")
       dependsOnSource("commons/protocol")
       dependsOnSource("commons/ui-interface")
+      dependsOnSource("serialization")
       settings(libraryDependencies ++= jsonDependencies)
       settings(libraryDependencies += pickling)
   )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
-    dependsOnSource("commons/serialization")
+    dependsOnSource("serialization")
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/serialization")
     dependsOnSource("commons/ui-interface")
     dependsOnSource("ui-interface")
+    dependsOnSource("serialization")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
@@ -60,14 +61,13 @@ object TheBuild extends Build {
       libraryDependencies += pickling
     )
   )
-  lazy val picklingTests = (project in file("pickling-tests")).
-    dependsOn(sbtServer13).
+  lazy val serialization = (project in file("serialization")).
     settings(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
-        // "org.specs2" %% "specs2" % "2.3.11" % "test"
-        junitInterface % "test"
-      )
+        pickling,
+        junitInterface % Test
+      ) ++ jsonDependencies
     )
 
   // ================= Remote Controler main project ==========================
@@ -138,8 +138,7 @@ object TheBuild extends Build {
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
                pickling,
                sbtLauncherInterface,
-               sbtCompilerInterface,
-               pickling
+               sbtCompilerInterface
          ) ++ jsonDependencies,
        Keys.libraryDependencies ++= (Keys.scalaBinaryVersion.value match {
           case "2.10" => crossVersionedSbtLibs
@@ -147,7 +146,7 @@ object TheBuild extends Build {
           case v => sys.error(s"Unsupported scalaBinary version: $v")
        })
     ).
-    dependsOnSource("commons/serialization").
+    dependsOnSource("serialization").
     dependsOnSource("commons/protocol").
     dependsOnSource("client")
   }

@@ -8,7 +8,7 @@ import scala.util.control.NonFatal
 package object protocol {
   import sbt.serialization._
   import sbt.serialization.StaticOnly
-  import sbt.pickling.CanToString
+  import sbt.serialization.CanToString
   import scala.pickling.{ SPickler, Unpickler }
 
   //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???

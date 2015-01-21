@@ -950,7 +950,7 @@ class ProtocolTest {
       implicit val format = serializations.lookup(mf).getOrElse(throw new AssertionError(s"no format for ${t.getClass.getName} $t"))
       val buildValue = serializations.buildValue(t)
       val json = SerializedValue(buildValue)
-      //System.err.println(s"${buildValue} = ${Json.prettyPrint(json)}")
+      // System.err.println(s"${buildValue} = ${json.toString}")
       val parsedValue = json.parse[protocol.BuildValue].getOrElse(throw new AssertionError(s"Failed to parse ${t} serialization ${json}"))
       val parsedT = parsedValue.value[T](format.unpickler).getOrElse(throw new AssertionError(s"could not read back from build value ${t.getClass.getName} $t"))
       val buildValueClass: Class[_] = t.getClass

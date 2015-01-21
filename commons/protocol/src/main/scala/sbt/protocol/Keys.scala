@@ -1,8 +1,6 @@
 package sbt.protocol
 
 import java.net.URI
-import ScalaShims.ManifestFactory
-
 import sbt.serialization._
 import scala.pickling.{ SPickler, Unpickler }
 import scala.pickling.internal.AppliedType

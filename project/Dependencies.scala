@@ -81,7 +81,7 @@ object Dependencies {
 
   val junitInterface       = "com.novocode" % "junit-interface" % "0.10"
   val scalaCheck           = "org.scalacheck" %% "scalacheck" % scalaCheckVersion
-  //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
+  val specs2               = "org.specs2" %% "specs2" % "2.3.11"
 
 
 

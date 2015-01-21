@@ -286,7 +286,7 @@ case object TestGroupError extends TestGroupResult {
 object TestGroupResult {
   import scala.pickling.{ SPickler, Unpickler, PicklingException }
   import scala.pickling.static._
-  import sbt.pickling.CanToString
+  import sbt.serialization.CanToString
 
   private implicit val resultToString = CanToString[TestGroupResult](_.toString,
     {
@@ -344,7 +344,7 @@ case object TestSkipped extends TestOutcome {
 object TestOutcome {
   import scala.pickling.{ SPickler, Unpickler, PicklingException }
   import scala.pickling.static._
-  import sbt.pickling.CanToString
+  import sbt.serialization.CanToString
 
   private implicit val resultToString = CanToString[TestOutcome](_.toString,
     {
