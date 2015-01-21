@@ -4,11 +4,14 @@ import org.junit.Assert._
 import org.junit._
 import scala.pickling.{ PickleOps, UnpickleOps }
 import scala.pickling.ops._
-import sbt.serialization._, sbt.serialization.json._
+import sbt.serialization._, sbt.serialization.functions._, sbt.serialization.json._
 import JUnitUtil._
 
 case class Foo(x: Int, y: Option[Int])
 object Foo {
+  val coreProtocol: CustomPicklerUnpickler = new CustomPicklerUnpickler {}
+  import coreProtocol._
+
   implicit val pickler = genPickler[Foo]
   implicit val unpickler = genUnpickler[Foo]
 }

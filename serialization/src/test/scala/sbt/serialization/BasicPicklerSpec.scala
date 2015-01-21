@@ -7,9 +7,19 @@ import java.net.URI
 import scala.pickling.{ PickleOps, UnpickleOps }
 import sbt.serialization._, sbt.serialization.json._
 import JUnitUtil._
+import sbt.serialization.pickler.{ PrimitivePicklers, PrimitiveArrayPicklers, CanToStringPicklers,
+  OptionPicklers, ThrowablePicklers }
+
 import scala.pickling.ops._
+import scala.pickling.static._
 
 class BasicPicklerTest {
+  val basicProtocol = new PrimitivePicklers with PrimitiveArrayPicklers with CanToStringPicklers
+    with OptionPicklers with ThrowablePicklers {
+    implicit val staticOnly = scala.pickling.static.StaticOnly
+  }
+  import basicProtocol._
+
   @Test
   def testInt: Unit = {
     1.pickle.value must_== "1"

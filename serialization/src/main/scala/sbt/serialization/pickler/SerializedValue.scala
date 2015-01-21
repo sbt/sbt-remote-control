@@ -1,4 +1,6 @@
 package sbt.serialization
+package pickler
+
 import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader }
 import org.json4s.{ JValue, JString }
 
@@ -7,7 +9,7 @@ private object FakeTags {
   val JValue = implicitly[FastTypeTag[JValue]]
 }
 
-trait SerializationPicklerUnpickler extends CustomPicklerUnpickler {
+trait SerializationPicklers extends CustomPicklerUnpickler {
   // TODO move this to sbt.serialization once it works to do so
   private implicit def staticOnly = scala.pickling.static.StaticOnly
 
@@ -15,8 +17,6 @@ trait SerializationPicklerUnpickler extends CustomPicklerUnpickler {
   //  ALso this can probably just extend Primitive Pcikler
   private object jvaluePickler extends SPickler[JValue] with Unpickler[JValue] {
     val tag = implicitly[FastTypeTag[JValue]]
-    val stringPickler = implicitly[SPickler[String]]
-    val stringUnpickler = implicitly[Unpickler[String]]
     def pickle(jv: JValue, builder: PBuilder): Unit = {
       builder.pushHints()
       builder.hintTag(FakeTags.JValue)

@@ -1,5 +1,5 @@
 package sbt.serialization
 
-private[sbt] object ScalaShims {
+private[serialization] object ScalaShims {
   val ManifestFactory = scala.reflect.ManifestFactory
 }
