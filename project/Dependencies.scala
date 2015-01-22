@@ -79,7 +79,7 @@ object Dependencies {
   // need to manually set this to override an incompatible old version
   val slf4jLog4j           = "org.slf4j" % "slf4j-log4j12" % "1.6.6"
 
-  val junitInterface       = "com.novocode" % "junit-interface" % "0.10"
+  val junitInterface       = "com.novocode" % "junit-interface" % "0.11"
   val scalaCheck           = "org.scalacheck" %% "scalacheck" % scalaCheckVersion
   val specs2               = "org.specs2" %% "specs2" % "2.3.11"
 
