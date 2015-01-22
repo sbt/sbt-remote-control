@@ -244,8 +244,8 @@ object TheBuild extends Build {
     settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
     settings(
       Keys.scalaVersion := Dependencies.scala211Version,
-      libraryDependencies += pickling211,
-      libraryDependencies ++= jsonDependencies211,
+      //libraryDependencies += pickling211,
+      //libraryDependencies ++= jsonDependencies211,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
@@ -260,10 +260,7 @@ object TheBuild extends Build {
       localRepoArtifacts ++= jsonDependencies210,
       localRepoArtifacts ++= jsonDependencies211,
       localRepoArtifacts += "org.scala-sbt" % "sbt" % Dependencies.sbt13Version,
-      //localRepoArtifacts += "org.scala-sbt" % "io_2.11" % Dependencies.sbt13Version,
-      //localRepoArtifacts += "org.scala-sbt" % "collections_2.11" % Dependencies.sbt13Version,
-      //localRepoArtifacts += "com.typesafe.play" % "play-json_2.11" % Dependencies.playVersion,
-      localRepoArtifacts += junitInterface % "test",
+      localRepoArtifacts += junitInterface,
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
   )
