@@ -307,7 +307,16 @@ object TestGroupResult {
 }
 
 /** A build test has done something useful and we're being notified of it. */
-final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
+final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long) {
+  // TODO - custom hashCode.
+  // Custom equals to ignore duration.
+  override def equals(other: Any): Boolean =
+    other match {
+      case null => false
+      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error == that.error)
+      case _ => false
+    }
+}
 
 object TestEvent extends TaskEventUnapply[TestEvent] {
   import scala.pickling.{ SPickler, Unpickler }
