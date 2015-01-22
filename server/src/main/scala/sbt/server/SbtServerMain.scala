@@ -6,6 +6,9 @@ import java.net.{ URI, ServerSocket }
 final case class Exit(code: Int) extends xsbti.Exit
 
 class SbtServerMain extends ServerMain {
+  // Make an instance before we use this in a thread to avoid concurrency issue
+  val serializations = DynamicSerialization.defaultSerializations
+
   def start(config: AppConfiguration): xsbti.Server = {
     System.err.println(s"Starting sbt server...")
     // Clean the log directory first....
