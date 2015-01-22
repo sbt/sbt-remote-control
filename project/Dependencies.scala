@@ -58,7 +58,7 @@ object Dependencies {
   )
 
   val jsonDependencies = jsonTuples map {
-    case (group, mod, version) => group %% mod % version
+    case (group, mod, version) => (group %% mod % version).exclude("org.scala-lang", "scalap")
   }
   val jsonDependencies210 = jsonTuples map {
     case (group, mod, version) => group % s"${mod}_2.10" % version

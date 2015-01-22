@@ -37,7 +37,6 @@ object TheBuild extends Build {
       dependsOnSource("serialization")
       dependsOnSource("commons/protocol")
       dependsOnSource("commons/ui-interface")
-      dependsOnSource("serialization")
       settings(libraryDependencies ++= jsonDependencies)
       settings(libraryDependencies += pickling210)
   )
