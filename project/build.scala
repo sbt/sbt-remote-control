@@ -39,7 +39,7 @@ object TheBuild extends Build {
       dependsOnSource("commons/ui-interface")
       dependsOnSource("serialization")
       settings(libraryDependencies ++= jsonDependencies)
-      settings(libraryDependencies += pickling)
+      settings(libraryDependencies += pickling210)
   )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
@@ -58,7 +58,7 @@ object TheBuild extends Build {
         Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
       }).taskValue,
       libraryDependencies ++= jsonDependencies,
-      libraryDependencies += pickling
+      libraryDependencies += pickling210
     )
   )
   lazy val serialization = (project in file("serialization")).
