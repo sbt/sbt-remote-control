@@ -1,6 +1,6 @@
 language: scala
 script:
-  - sbt test integrationTests
+  - sbt clean test integrationTests
 scala:
   - 2.10.3
 jdk:
