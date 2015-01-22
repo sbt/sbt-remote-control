@@ -25,7 +25,7 @@ object Dependencies {
   }
 
   // Reference versions
-  val sbt13Version = "0.13.7"
+  val sbt13Version = "0.13.8-M1"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
