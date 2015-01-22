@@ -1,6 +1,22 @@
+# Use Docker-based container (instead of OpenVZ)
+sudo: false
+
+cache:
+  directories:
+    - $HOME/.ivy2/cache
+
+    # At the moment, sbt 0.13.5 is preinstalled in Travis VM image,
+    # which fortunately corresponds to current scalaz settings.
+    # The line below can be used to cache a given sbt version.
+    # - $HOME/.sbt/launchers/0.13.x
+
+    # The line below is used to cache the scala version used by the build
+    # job, as these versions might be replaced after a Travis CI build
+    # environment upgrade (e.g. scala 2.11.2 could be replaced by scala 2.11.4).
+    - $HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION
+
 language: scala
-script:
-  - sbt clean test integrationTests
+
 scala:
   - 2.10.3
 jdk:
@@ -11,3 +27,10 @@ jdk:
 notifications:
   email:
     - qbranch@typesafe.com
+
+script:
+  - sbt -J-Xmx3784m clean test integrationTests
+
+  # Tricks to avoid unnecessary cache updates
+  - find $HOME/.sbt -name "*.lock" | xargs rm
+  - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
