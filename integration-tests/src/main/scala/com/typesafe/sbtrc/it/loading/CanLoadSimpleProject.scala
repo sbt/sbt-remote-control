@@ -4,15 +4,15 @@ package loading
 
 import sbt.client._
 import sbt.protocol._
-import concurrent.duration.Duration.Inf
-import concurrent.Await
-import concurrent.ExecutionContext
-import concurrent.{ Promise, Future }
+import sbt.serialization._
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.Reads
+import scala.concurrent.duration.Duration.Inf
+import scala.concurrent.{ Await, ExecutionContext, Promise, Future }
 import scala.util.{ Success, Failure }
+import scala.pickling.Unpickler
+import sbt.protocol.CoreProtocol._
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
@@ -97,7 +97,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       client.lookupScopedKey("printOut") flatMap { keys => client.requestExecution(keys.head, None) }
     }
 
-    def fetchTaskResult[T](key: TaskKey[T])(implicit reads: Reads[T]): TaskResult = {
+    def fetchTaskResult[T](key: TaskKey[T])(implicit unpickler: Unpickler[T]): TaskResult = {
       val resultPromise = Promise[TaskResult]()
       val sub = client.rawWatch(key in project.id) { (key, result) =>
         resultPromise.trySuccess(result)
@@ -110,7 +110,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     import scala.util.{ Try, Success, Failure }
-    def fetchTaskResultByName[T](name: String)(implicit reads: Reads[T]): T = {
+    def fetchTaskResultByName[T](name: String)(implicit unpickler: Unpickler[T]): T = {
       val resultPromise = Promise[T]()
       val sub = client.watch[T](name) { (key, result) =>
         resultPromise.complete(result)
@@ -124,8 +124,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     def taskKey[T: Manifest](name: String): TaskKey[T] = {
       TaskKey[T](ScopedKey(key =
-        AttributeKey(name = name,
-          manifest = TypeInfo.fromManifest(implicitly[Manifest[T]])),
+        AttributeKey[T](name = name),
         scope = SbtScope()))
     }
 
@@ -161,7 +160,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     // log compile value changed (lazily, so we don't kick off a compile yet)
     val logCompileValueSub = (client.lazyWatch(TaskKey[Analysis](compileKeys.head)) { (key, value) =>
       System.out.println(s"Compile value changed to ${value}")
-    })(implicitly[Reads[Analysis]], keepEventsInOrderExecutor)
+    })(implicitly[Unpickler[Analysis]], keepEventsInOrderExecutor)
 
     var compileId = 0L
     val compileErrorCaptured = Promise[CompilationFailure]
@@ -215,8 +214,6 @@ class CanLoadSimpleProject extends SbtClientTest {
     // check receiving the value of a setting key
     val baseDirectoryKeysFuture = client.lookupScopedKey(s"${project.id.name}/baseDirectory")
     val baseDirectoryKeys = waitWithError(baseDirectoryKeysFuture, "Never received key lookup response!")
-
-    import sbt.GenericSerializers._
 
     val baseDirectoryPromise = concurrent.Promise[File]
     client.watch(SettingKey[File](baseDirectoryKeys.head)) { (a, b) =>

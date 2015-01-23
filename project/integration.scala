@@ -82,6 +82,13 @@ final case class IntegrationContext(launchJar: File,
                                version: String,
                                target: File,
                                scalaVersion: String) {
+  val timeout = {
+    try sys.props("sbt.integration.timeout")
+    catch {
+      case _: Throwable => "180"
+    }
+  }
+
   def runTest(name: String): IntegrationTestResult = {
     streams.log.info(scala.Console.BLUE+" [IT] Running: " + name + " [IT]"+scala.Console.BLUE_B)
     val friendlyName = name replaceAll("\\.", "-")
@@ -100,7 +107,7 @@ final case class IntegrationContext(launchJar: File,
         streams.log.info(" [IT] " + name + " result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
       case n => 
-        streams.log.error(" [IT] " + name + " result: FAILURE")
+        streams.log.error(" [IT] " + name + " result: FAILURE   - $n")
         IntegrationTestResult(name, false, logFile)
     })
   }
@@ -124,8 +131,11 @@ final case class IntegrationContext(launchJar: File,
     val boot = cwd / "boot"
     val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 
+        // TODO - Make sure this isnt' too mcuh or too little.
+        "-Xmx256M",
         // TODO - Just pass this through...
         "-Dproject.version=" + version,
+        "-Dsbt.integration.timeout=" + timeout,
         "-jar", 
         launchJar.getAbsolutePath,
         "@"+props.toURI.toASCIIString)

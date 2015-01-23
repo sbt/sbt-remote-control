@@ -2,8 +2,6 @@ package sbt.server
 
 import java.net.ServerSocket
 import sbt.State
-import sbt.server.ServerEngine
-import sbt.server.SocketMessage
 import sbt.protocol
 import scala.util.control.NonFatal
 import java.util.concurrent.TimeUnit
@@ -31,8 +29,8 @@ class SbtServer(configuration: xsbti.AppConfiguration, socket: ServerSocket) ext
   private val stateRef = new java.util.concurrent.atomic.AtomicReference[State](null)
   private val requestProcessor = new sbt.server.RequestProcessor(queue, stateRef)
   private val commandEngine = new sbt.server.ServerEngine(requestProcessor.engineWorkQueue, stateRef, masterLog,
-    // this is a little silly but keeping the ability to break them up later
-    requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink)
+    // this is a lot silly but keeping the ability to break them up later
+    requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink, requestProcessor.eventSink)
 
   // External API to run queue.
   def queueSocketMessage(request: SocketMessage): Unit = queue.add(request)

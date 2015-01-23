@@ -3,6 +3,7 @@ package server
 
 import xsbti.Position
 import xsbti.Severity
+import sbt.serialization._
 
 class CompileReporter(
   sendEventService: SendEventService,
@@ -22,7 +23,7 @@ class CompileReporter(
     val errorMessage =
       protocol.CompilationFailure(
         project,
-        pos,
+        SbtToProtocolUtils.positionToProtocol(pos),
         severity,
         msg)
     sendEventService.sendEvent(errorMessage)

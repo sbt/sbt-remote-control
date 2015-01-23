@@ -6,9 +6,9 @@ import java.util.concurrent.BlockingQueue
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import sbt.protocol._
+import sbt.serialization._
 import scala.annotation.tailrec
 import java.util.concurrent.LinkedBlockingQueue
-import play.api.libs.json.{ JsValue, Writes }
 import scala.util.control.NonFatal
 
 sealed trait SocketMessage
@@ -56,13 +56,7 @@ class RequestProcessor(
    *  any client connects, or execution status events,
    *  for example.
    */
-  final object eventSink extends JsonSink[Event] {
-    // Create ambiguity to keep us from using any accidental implicit
-    // formatters; we need to always use the formatter we are given,
-    // not replace it with our own.
-    implicit def ambiguousWrites: Writes[Any] = ???
-    implicit def ambiguousWrites2 = ambiguousWrites
-
+  final object eventSink extends MessageSink[Event] {
     // the idea of this buffer is to just hold on to logs
     // whenever we have no clients at all, so we make a best
     // effort to ensure at least one client gets each log event.
@@ -88,29 +82,30 @@ class RequestProcessor(
       ImpliedState.ExecutionEngine.empty
     private var eventListeners: SbtClient = NullSbtClient
 
-    override def send[T <: Event](msg: T)(implicit writes: Writes[T]): Unit = {
+    override def send(msg: Event): Unit = {
       msg match {
         case event: CoreLogEvent =>
           eventListeners match {
             case NullSbtClient =>
-              bufferedLogs.add(EventWithWrites.withWrites(event)(writes.asInstanceOf[Writes[CoreLogEvent]]))
+              bufferedLogs.add(EventWithWrites.withWrites(event))
             case client: SbtClient =>
               drainBufferedLogs(client)
-              client.send(msg)(writes)
+              client.send(msg)
           }
         case event: ExecutionEngineEvent =>
           executionEngineState = ImpliedState.processEvent(executionEngineState, event)
-          eventListeners.send(msg)(writes)
+          eventListeners.send(msg)
         case event: ExecutionWaiting =>
           executionEngineState = ImpliedState.processEvent(executionEngineState, event)
-          eventListeners.send(msg)(writes)
+          eventListeners.send(msg)
         case other =>
-          eventListeners.send(msg)(writes)
+          eventListeners.send(msg)
       }
     }
 
+    // FIXME get rid of this now-pointless method along with EventWithWrites
     private def clientSendWithWrites[E <: Event](client: SbtClient, withWrites: EventWithWrites[E]): Unit = {
-      client.send(withWrites.event)(withWrites.writes)
+      client.send(withWrites.event)
     }
 
     private def sendActiveExecutionState(client: LiveClient): Unit = synchronized {
@@ -369,7 +364,7 @@ class RequestProcessor(
       //// of these on project load the UI will get wonky. When the
       //// project loads they can always press tab again or whatever.
       case CommandCompletionsRequest(line, level) =>
-        client.reply(serial, CommandCompletionsResponse(results = Set.empty))
+        client.reply(serial, CommandCompletionsResponse(results = Vector.empty))
 
       case _ =>
         // Defer all other messages....
@@ -403,7 +398,7 @@ class RequestProcessor(
       case SendSyntheticBuildChanged() =>
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case KeyLookupRequest(key) =>
-        client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key)))
+        client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key).toVector))
       case AnalyzeExecutionRequest(command) =>
         client.reply(serial, AnalyzeExecutionResponse(analyzeExecution(buildState, command)))
       case ListenToValue(key) =>
@@ -488,7 +483,7 @@ class RequestProcessor(
             c.append,
             c.display,
             c.isEmpty)
-        client.reply(serial, CommandCompletionsResponse(completions.get map convertCompletion))
+        client.reply(serial, CommandCompletionsResponse(completions.get.toVector map convertCompletion))
       case _: ConfirmRequest | _: ReadLineRequest =>
         client.reply(serial, ErrorResponse(s"Request ${request.getClass.getName} is intended to go from server to client"))
       case _: RegisterClientRequest =>
@@ -529,7 +524,7 @@ class RequestProcessor(
           // error after this point if you try to mix input and regular tasks
           // or maybe in some other cases. But a task can always fail, too, so
           // I think we can just ignore those cases. We'll see I suppose.
-          ExecutionAnalysisKey(keys)
+          ExecutionAnalysisKey(keys.toVector)
         }
       case Left(error) =>
         ExecutionAnalysisError(error)

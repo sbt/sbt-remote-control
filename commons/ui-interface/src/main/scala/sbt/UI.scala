@@ -1,6 +1,7 @@
 package sbt
 
-import play.api.libs.json._
+import sbt.serialization._
+import scala.pickling.SPickler
 
 sealed trait InteractionService {
   /** Prompts the user for input, optionally with a mask for characters. */
@@ -13,7 +14,7 @@ sealed trait InteractionService {
 
 sealed trait SendEventService {
   /** Sends an event out to all registered event listeners. */
-  def sendEvent[T: Writes](event: T): Unit
+  def sendEvent[T: SPickler](event: T): Unit
 }
 
 /**
@@ -51,25 +52,25 @@ sealed trait BackgroundJobService extends java.io.Closeable {
 }
 
 /**
- * Represents a Manifest/Format pair we can use
+ * Represents a Manifest/Serializer pair we can use
  *  to serialize task values + events later.
  */
-sealed trait RegisteredFormat {
+sealed trait RegisteredSerializer {
   type T
   def manifest: Manifest[T]
-  def format: Format[T]
+  def serializer: SbtSerializer[T]
 }
-object RegisteredFormat {
-  def apply[U](f: Format[U])(implicit mf: Manifest[U]): RegisteredFormat =
-    new RegisteredFormat {
+object RegisteredSerializer {
+  def apply[U](s: SbtSerializer[U])(implicit mf: Manifest[U]): RegisteredSerializer =
+    new RegisteredSerializer {
       type T = U
-      override val format = f
+      override val serializer = s
       override val manifest = mf
     }
 }
 /**
  * Represents a dynamic type conversion to be applied
- * prior to selecting a RegisteredFormat when sending over
+ * prior to selecting a RegisteredSerializer when sending over
  * the wire protocol.
  */
 sealed trait RegisteredProtocolConversion {
@@ -95,8 +96,8 @@ object UIKeys {
   val interactionService = taskKey[InteractionService]("Service used to ask for user input through the current user interface(s).")
   // TODO create a separate kind of key to lookup services separately from tasks
   val sendEventService = taskKey[SendEventService]("Service used to send events to the current user interface(s).")
-  val registeredProtocolConversions = settingKey[Seq[RegisteredProtocolConversion]]("Conversions to apply before serializing events/messages to the client.")
-  val registeredFormats = settingKey[Seq[RegisteredFormat]]("All the formats needed to serialize events/messages to the client.")
+  val registeredProtocolConversions = settingKey[Seq[RegisteredProtocolConversion]]("Conversions to apply before serializing task results.")
+  val registeredSerializers = settingKey[Seq[RegisteredSerializer]]("All the serializers needed for task result values.")
 
   // jobService is a setting not a task because semantically it's required to always be the same one
   // TODO create a separate kind of key to lookup services separately from tasks

@@ -46,15 +46,32 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
+  val picklingVersion = "0.10.0-M1"
+  val pickling210 = "org.scala-lang.modules" % "scala-pickling_2.10" % picklingVersion
+  val pickling211 = "org.scala-lang.modules" % "scala-pickling_2.11" % picklingVersion
+  val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion
+
+  private val jsonTuples = Seq(
+    ("org.json4s", "json4s-native", "3.2.10"),
+    ("org.spire-math", "jawn-parser", "0.6.0"),
+    ("org.spire-math", "json4s-support", "0.6.0")
+  )
+
+  val jsonDependencies = jsonTuples map {
+    case (group, mod, version) => (group %% mod % version).exclude("org.scala-lang", "scalap")
+  }
+  val jsonDependencies210 = jsonTuples map {
+    case (group, mod, version) => group % s"${mod}_2.10" % version
+  }
+  val jsonDependencies211 = jsonTuples map {
+    case (group, mod, version) => group % s"${mod}_2.11" % version
+  }
+
   val akkaTypsafe          = "com.typesafe.akka"
   val akkaActor            = akkaTypsafe %% "akka-actor" % akkaVersion
   val akkaTestkit          = akkaTypsafe %% "akka-testkit" % akkaVersion
 
-  val playJson             = ("com.typesafe.play" %% "play-json" % playVersion).exclude("com.typesafe", "play-iteratees_2.10").exclude("com.typesafe", "play-iteratees_2.11").exclude("org.joda", "joda-time").exclude("org.joda", "joda-convert")
-
   val jansi                = "org.fusesource.jansi" % "jansi" % "1.11"
-  val brokenJodaRaw        = "org.joda" % "joda-convert" % "1.2"
-  val brokenJoda           = brokenJodaRaw % "provided"
 
   val commonsIo            = "commons-io" % "commons-io" % "2.0.1"
 
@@ -62,9 +79,9 @@ object Dependencies {
   // need to manually set this to override an incompatible old version
   val slf4jLog4j           = "org.slf4j" % "slf4j-log4j12" % "1.6.6"
 
-  val junitInterface       = "com.novocode" % "junit-interface" % "0.10"
+  val junitInterface       = "com.novocode" % "junit-interface" % "0.11"
   val scalaCheck           = "org.scalacheck" %% "scalacheck" % scalaCheckVersion
-  //val specs2               = "org.specs2" % "specs2_2.10" % "1.13"
+  val specs2               = "org.specs2" %% "specs2" % "2.3.11"
 
 
 

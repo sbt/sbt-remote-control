@@ -8,7 +8,6 @@ import concurrent.duration.Duration.Inf
 import concurrent.Await
 import concurrent.Promise
 import scala.collection.JavaConverters._
-import play.api.libs.json.Json
 import scala.util.Success
 
 // Tests using interaction...
@@ -25,17 +24,19 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     """|package com.typesafe.sbtrc
        |package it
        |package loading
-       |import play.api.libs.json._
        |import sbt.SbtUIPlugin._
        |import sbt._
-       | 
+       |
        |final case class SerializedThing(name: String, value: Int)
        |object SerializedThing {
-       |  implicit val format = Json.format[SerializedThing]
+       |  import sbt.serialization._
+       |  // TODO - we don't want this to gunky everything up.
+       |  import sbt.protocol.CoreProtocol._
+       |  implicit val pickler: scala.pickling.SPickler[SerializedThing] = scala.pickling.Defaults.genPickler[SerializedThing]
+       |  implicit val unpickler: scala.pickling.Unpickler[SerializedThing] = scala.pickling.Defaults.genUnpickler[SerializedThing]
        |}
-       |
-       |
        |object TestThingPlugin {
+       |   import sbt.protocol.CoreProtocol._  // For SbtSerializer
        |   val makeTestThing = taskKey[SerializedThing]("makes a test thing")
        |   def settings: Seq[Setting[_]] =
        |     Seq(
@@ -51,7 +52,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |import com.typesafe.sbtrc.it.loading.TestThingPlugin
        |
        | val readInput = taskKey[Unit]("Quick interaction with server test.")
-       |  
+       |
        | readInput := {
        |   val contex = (interactionService in Global).?.value
        |   contex match {
@@ -100,7 +101,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
     assert(eventSet.collect({ case e: ExecutionWaiting => e }).nonEmpty, s"Execution was never queued up, got ${eventSet}")
     assert(eventSet.collect({ case e: ExecutionStarting => e }).nonEmpty, s"Execution was never started, got ${eventSet}")
 
-    // Now we try to grab the value of maketestThing 
+    // Now we try to grab the value of maketestThing
     // To do this we had to create the client with serializer SerializedThing.format
     val testThingValuePromise = Promise[sbt.protocol.TaskResult]
     client.lookupScopedKey("makeTestThing").foreach {

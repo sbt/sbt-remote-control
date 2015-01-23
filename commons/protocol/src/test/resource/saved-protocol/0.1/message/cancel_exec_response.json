@@ -1,1 +1,1 @@
-{"attempted":false,"type":"CancelExecutionResponse"}
+{"$type":"sbt.protocol.CancelExecutionResponse","attempted":false}

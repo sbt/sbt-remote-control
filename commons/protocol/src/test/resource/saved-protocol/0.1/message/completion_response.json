@@ -1,1 +1,1 @@
-{"results":[{"append":"llo","display":"Hello","isEmpty":true}],"type":"CommandCompletionsResponse"}
+{"$type":"sbt.protocol.CommandCompletionsResponse","results":[{"$type":"sbt.protocol.Completion","isEmpty":true,"display":"Hello","append":"llo"}]}

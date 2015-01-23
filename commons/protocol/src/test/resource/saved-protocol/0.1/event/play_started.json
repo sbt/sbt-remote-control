@@ -1,1 +1,1 @@
-{"taskId":8,"name":"PlayStartedEvent","serialized":{"port":10},"type":"TaskEvent"}
+{"$type":"sbt.protocol.TaskEvent","serialized":{"port":10.0,"$type":"sbt.server.PlayStartedEvent"},"name":"PlayStartedEvent","taskId":8.0}

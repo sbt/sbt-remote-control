@@ -1,7 +1,6 @@
 package sbt
 package server
 
-import play.api.libs.json.Format
 import sbt.testing.{ SuiteSelector, TestWildcardSelector, TestSelector }
 
 object TestShims {

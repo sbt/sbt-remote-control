@@ -5,7 +5,7 @@ package server
  * This is a strategy which can cancel tasks when their associated cancellation `Future[_]`
  * is completed.
  */
-final class ServerTaskCancellation(serverState: ServerState, logSink: JsonSink[protocol.LogEvent]) extends TaskCancellationStrategy {
+final class ServerTaskCancellation(serverState: ServerState, logSink: MessageSink[protocol.LogEvent]) extends TaskCancellationStrategy {
   def debug(s: String): Unit =
     logSink.send(protocol.CoreLogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, s)))
 
@@ -41,7 +41,7 @@ final class ServerTaskCancellation(serverState: ServerState, logSink: JsonSink[p
   }
 }
 object ServerTaskCancellation {
-  def getShims(logSink: JsonSink[protocol.LogEvent]): Seq[Setting[_]] = {
+  def getShims(logSink: MessageSink[protocol.LogEvent]): Seq[Setting[_]] = {
     Seq(
       Keys.taskCancelStrategy in Global := { (state: State) =>
         val sstate = server.ServerState.extract(state)

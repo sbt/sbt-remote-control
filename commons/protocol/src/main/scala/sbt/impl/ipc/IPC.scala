@@ -11,7 +11,8 @@ import java.nio.charset.Charset
 import java.io.InputStream
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicInteger
-import play.api.libs.json._
+import sbt.serialization._
+import scala.pickling.SPickler
 
 trait Envelope[T] {
   def serial: Long
@@ -111,15 +112,15 @@ abstract class Peer(protected val socket: Socket) {
     reply(replyTo, message.getBytes(utf8))
   }
 
-  private def jsonString[T: Writes](message: T): String = {
-    Json.toJson(message).toString
+  private def jsonString[T: SPickler](message: T): String = {
+    JsonValue(message).renderCompact
   }
 
-  def sendJson[T: Writes](message: T, serial: Long): Unit = {
+  def sendJson[T: SPickler](message: T, serial: Long): Unit = {
     sendString(jsonString(message), serial)
   }
 
-  def replyJson[T: Writes](replyTo: Long, message: T): Unit = {
+  def replyJson[T: SPickler](replyTo: Long, message: T): Unit = {
     require(replyTo != 0L)
     replyString(replyTo, jsonString(message))
   }
@@ -132,10 +133,6 @@ abstract class Peer(protected val socket: Socket) {
     ignoringIOException { out.close() }
     ignoringIOException { socket.close() }
   }
-}
-
-object Peer {
-  val identitySendJsonFilter: (Any, JsValue) => JsValue = { (msg: Any, json: JsValue) => json }
 }
 
 class Server(private val serverSocket: ServerSocket) extends MultiClientServer(serverSocket.accept()) {

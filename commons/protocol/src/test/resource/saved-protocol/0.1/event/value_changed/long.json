@@ -1,1 +1,1 @@
-{"key":{"key":{"name":"name","manifest":{"erasureClass":"java.lang.String","typeArguments":[]}},"scope":{"project":{"build":"file:///test/project","name":"test"}}},"value":{"success":true,"serialized":43,"stringValue":"43"},"type":"ValueChanged"}
+{"$type":"sbt.protocol.ValueChanged","value":{"$type":"sbt.protocol.TaskSuccess","value":{"serialized":43.0,"stringValue":"43"}},"key":{"scope":{"task":null,"config":null,"project":{"name":"test","build":"file:///test/project"},"build":null},"key":{"manifest":"java.lang.String","name":"name"}}}

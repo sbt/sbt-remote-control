@@ -41,7 +41,7 @@ object SbtRcBuild {
       publishTo := Some(typesafeIvyReleases),
       publishMavenStyle := false,
       scalacOptions <<= (scalaVersion) map { sv =>
-        Seq("-unchecked", "-deprecation") ++
+        Seq("-unchecked", "-deprecation", "-Xmax-classfile-name", "72") ++
           { if (sv.startsWith("2.9")) Seq.empty else Seq("-feature") }
       },
       javacOptions in Compile := Seq("-target", "1.6", "-source", "1.6"),

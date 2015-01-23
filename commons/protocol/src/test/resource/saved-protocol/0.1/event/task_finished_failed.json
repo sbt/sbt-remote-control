@@ -1,1 +1,1 @@
-{"executionId":48,"taskId":1,"key":{"key":{"name":"name","manifest":{"erasureClass":"java.lang.String","typeArguments":[]}},"scope":{"project":{"build":"file:///test/project","name":"test"}}},"success":false,"message":"error message here","type":"TaskFinished"}
+{"$type":"sbt.protocol.TaskFinished","message":"error message here","key":{"scope":{"task":null,"config":null,"project":{"name":"test","build":"file:///test/project"},"build":null},"key":{"manifest":"java.lang.String","name":"name"}},"success":false,"taskId":1.0,"executionId":48.0}

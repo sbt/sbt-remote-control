@@ -5,12 +5,14 @@ import sbt.protocol.TaskSuccess
 import sbt.protocol.TaskResult
 import sbt.protocol.BuildValue
 import scala.util.control.Exception._
+import scala.pickling.internal.AppliedType
 
 /** Helpers to map from sbt types into serializable json types. */
 object SbtToProtocolUtils {
 
-  def manifestToProtocol[T](mf: Manifest[T]): protocol.TypeInfo =
-    protocol.TypeInfo.fromManifest(mf)
+  def manifestToProtocol[T](mf: Manifest[T]): AppliedType =
+    AppliedType(mf.runtimeClass.getName,
+      mf.typeArguments.map(manifestToProtocol(_)))
 
   def keyToProtocol[T](key: sbt.AttributeKey[T]): protocol.AttributeKey =
     protocol.AttributeKey(
@@ -50,12 +52,33 @@ object SbtToProtocolUtils {
       task = taskString)
   }
 
+  def positionToProtocol(in: xsbti.Position): protocol.Position = {
+    import xsbti.Maybe
+    import java.lang.Integer
+    def mi2o(mi: Maybe[Integer]): Option[Int] =
+      if (mi.isDefined) Some(mi.get)
+      else None
+    def m2o[A](m: Maybe[A]): Option[A] =
+      if (m.isDefined) Some(m.get)
+      else None
+    protocol.Position(sourcePath = m2o[String](in.sourcePath),
+      sourceFile = m2o[java.io.File](in.sourceFile),
+      line = mi2o(in.line),
+      lineContent = in.lineContent,
+      offset = mi2o(in.offset),
+      pointer = mi2o(in.pointer),
+      pointerSpace = m2o[String](in.pointerSpace))
+  }
+
   def analysisToProtocol(in: sbt.inc.Analysis): protocol.Analysis =
+    protocol.Analysis() // FIXME put the proper fields in Analysis
+  /*
     protocol.Analysis(stamps = stampsToProtocol(in.stamps),
       apis = apisToProtocol(in.apis),
       relations = relationsToProtocol(in.relations),
       infos = sourceInfosToProtocol(in.infos),
       compilations = compilationsToProtocol(in.compilations))
+*/
 
   def stampToProtocol(in: sbt.inc.Stamp): protocol.Stamp = in match {
     case x: sbt.inc.Hash => hashToProtocol(x)
@@ -82,8 +105,8 @@ object SbtToProtocolUtils {
       classNames = in.classNames)
 
   def sourceInfoToProtocol(in: sbt.inc.SourceInfo): protocol.SourceInfo =
-    protocol.SourceInfo(reportedProblems = in.reportedProblems.map(problemToProtocol),
-      unreportedProblems = in.unreportedProblems.map(problemToProtocol))
+    protocol.SourceInfo(reportedProblems = in.reportedProblems.map(problemToProtocol).toVector,
+      unreportedProblems = in.unreportedProblems.map(problemToProtocol).toVector)
 
   def sourceInfosToProtocol(in: sbt.inc.SourceInfos): protocol.SourceInfos =
     protocol.SourceInfos(in.allInfos.mapValues(sourceInfoToProtocol))
@@ -92,7 +115,7 @@ object SbtToProtocolUtils {
     protocol.Problem(category = in.category,
       severity = in.severity,
       message = in.message,
-      position = in.position)
+      position = positionToProtocol(in.position))
 
   def apisToProtocol(in: sbt.inc.APIs): protocol.APIs =
     protocol.APIs(allExternals = in.allExternals.toSet,
@@ -137,13 +160,13 @@ object SbtToProtocolUtils {
 
   def compilationToProtocol(in: xsbti.api.Compilation): protocol.Compilation =
     protocol.Compilation(startTime = in.startTime,
-      outputs = in.outputs.map(outputSettingToProtocol))
+      outputs = in.outputs.map(outputSettingToProtocol).toVector)
 
   def compilationsToProtocol(in: sbt.inc.Compilations): protocol.Compilations =
-    protocol.Compilations(allCompilations = in.allCompilations.map(compilationToProtocol))
+    protocol.Compilations(allCompilations = in.allCompilations.map(compilationToProtocol).toVector)
 
   def pathToProtocol(in: xsbti.api.Path): protocol.Path =
-    protocol.Path(in.components.map(pathComponentToProtocol))
+    protocol.Path(in.components.map(pathComponentToProtocol).toVector)
 
   def pathComponentToProtocol(in: xsbti.api.PathComponent): protocol.PathComponent = in match {
     case x: xsbti.api.Id => protocol.Id(x.id)
@@ -153,8 +176,8 @@ object SbtToProtocolUtils {
 
   def typeParameterToProtocol(in: xsbti.api.TypeParameter): protocol.TypeParameter =
     protocol.TypeParameter(id = in.id,
-      annotations = in.annotations.map(annotationToProtocol),
-      typeParameters = in.typeParameters.map(typeParameterToProtocol),
+      annotations = in.annotations.map(annotationToProtocol).toVector,
+      typeParameters = in.typeParameters.map(typeParameterToProtocol).toVector,
       variance = in.variance,
       lowerBound = typeToProtocol(in.lowerBound),
       upperBound = typeToProtocol(in.upperBound))
@@ -163,7 +186,7 @@ object SbtToProtocolUtils {
     case x: xsbti.api.Singleton => protocol.Singleton(pathToProtocol(x.path))
     case x: xsbti.api.Projection => protocol.Projection(simpleTypeToProtocol(x.prefix), x.id)
     case x: xsbti.api.Parameterized =>
-      protocol.Parameterized(simpleTypeToProtocol(x.baseType), x.typeArguments.map(typeToProtocol))
+      protocol.Parameterized(simpleTypeToProtocol(x.baseType), x.typeArguments.map(typeToProtocol).toVector)
     case x: xsbti.api.ParameterRef => protocol.ParameterRef(x.id)
     case x: xsbti.api.EmptyType => protocol.EmptyType
   }
@@ -171,13 +194,13 @@ object SbtToProtocolUtils {
   def typeToProtocol(in: xsbti.api.Type): protocol.Type = in match {
     case x: xsbti.api.SimpleType => simpleTypeToProtocol(x)
     case x: xsbti.api.Annotated =>
-      protocol.Annotated(typeToProtocol(x.baseType), x.annotations.map(annotationToProtocol))
+      protocol.Annotated(typeToProtocol(x.baseType), x.annotations.map(annotationToProtocol).toVector)
     case x: xsbti.api.Structure =>
-      protocol.Structure(x.parents.map(typeToProtocol), x.declared.map(definitionToProtocol), x.inherited.map(definitionToProtocol))
+      protocol.Structure(x.parents.map(typeToProtocol).toVector, x.declared.map(definitionToProtocol).toVector, x.inherited.map(definitionToProtocol).toVector)
     case x: xsbti.api.Polymorphic =>
-      protocol.Polymorphic(typeToProtocol(x.baseType), x.parameters.map(typeParameterToProtocol))
+      protocol.Polymorphic(typeToProtocol(x.baseType), x.parameters.map(typeParameterToProtocol).toVector)
     case x: xsbti.api.Existential =>
-      protocol.Existential(typeToProtocol(x.baseType), x.clause.map(typeParameterToProtocol))
+      protocol.Existential(typeToProtocol(x.baseType), x.clause.map(typeParameterToProtocol).toVector)
     case x: xsbti.api.Constant => protocol.Constant(typeToProtocol(x.baseType), x.value)
   }
 
@@ -186,7 +209,7 @@ object SbtToProtocolUtils {
 
   def annotationToProtocol(in: xsbti.api.Annotation): protocol.Annotation =
     protocol.Annotation(base = typeToProtocol(in.base),
-      arguments = in.arguments.map(annotationArgumentToProtocol))
+      arguments = in.arguments.map(annotationArgumentToProtocol).toVector)
 
   def modifiersToProtocol(in: xsbti.api.Modifiers): protocol.Modifiers =
     protocol.Modifiers(isAbstract = in.isAbstract,
@@ -210,14 +233,14 @@ object SbtToProtocolUtils {
   }
 
   def sourceAPIToProtocol(in: xsbti.api.SourceAPI): protocol.SourceAPI =
-    protocol.SourceAPI(packages = in.packages.map(packageAPIToProtocol),
-      definitions = in.definitions.map(definitionToProtocol))
+    protocol.SourceAPI(packages = in.packages.map(packageAPIToProtocol).toVector,
+      definitions = in.definitions.map(definitionToProtocol).toVector)
 
   def definitionToProtocol(in: xsbti.api.Definition): protocol.Definition =
     protocol.Definition(name = in.name,
       access = accessToProtocol(in.access),
       modifiers = modifiersToProtocol(in.modifiers),
-      annotations = in.annotations.map(annotationToProtocol))
+      annotations = in.annotations.map(annotationToProtocol).toVector)
 
   def packageAPIToProtocol(in: xsbti.api.Package): protocol.ThePackage =
     protocol.ThePackage(name = in.name)
@@ -272,7 +295,7 @@ object SbtToProtocolUtils {
   }
 
   def compileFailedExceptionToProtocol(e: sbt.compiler.CompileFailed): protocol.CompileFailedException = {
-    new protocol.CompileFailedException(e.getMessage, e.getCause, e.problems.toList)
+    new protocol.CompileFailedException(e.getMessage, e.getCause, e.problems.map(problemToProtocol(_)).toVector)
   }
 
   def moduleIdToProtocol(moduleId: org.apache.ivy.core.module.id.ModuleId): protocol.ModuleId = {

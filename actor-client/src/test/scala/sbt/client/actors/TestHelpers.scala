@@ -47,7 +47,7 @@ class AkkaTestKitHelper(_system: ActorSystem) extends TestKit(_system) with Impl
 
   def withFakeSbtClient[T](configName: String = name,
     humanReadableName: String = name,
-    autocompletions: (String, Int) => Future[Set[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
+    autocompletions: (String, Int) => Future[Vector[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
     scopedKeyLookup: String => Future[Seq[protocol.ScopedKey]] = FakeSbtClient.emptyLookupScopedKey,
     analyzeExecution: String => Future[protocol.ExecutionAnalysis] = FakeSbtClient.emptyAnalyzeExecution,
     requestExecutionCommand: (String, Option[(Interaction, ExecutionContext)]) => Future[Long] = FakeSbtClient.emptyRequestExecutionCommand,
@@ -82,7 +82,7 @@ class AkkaTestKitHelper(_system: ActorSystem) extends TestKit(_system) with Impl
 
   def withFakeEverything[T](configName: String = name,
     humanReadableName: String = name,
-    autocompletions: (String, Int) => Future[Set[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
+    autocompletions: (String, Int) => Future[Vector[protocol.Completion]] = FakeSbtClient.emptyPossibleAutocompletions,
     scopedKeyLookup: String => Future[Seq[protocol.ScopedKey]] = FakeSbtClient.emptyLookupScopedKey,
     analyzeExecution: String => Future[protocol.ExecutionAnalysis] = FakeSbtClient.emptyAnalyzeExecution,
     requestExecutionCommand: (String, Option[(Interaction, ExecutionContext)]) => Future[Long] = FakeSbtClient.emptyRequestExecutionCommand,

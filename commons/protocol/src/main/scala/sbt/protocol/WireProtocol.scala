@@ -1,9 +1,10 @@
 package sbt.protocol
 
 import sbt.impl.ipc
-import play.api.libs.json._
 import java.io.File
 import language.existentials
+import scala.util.control.NonFatal
+import sbt.serialization._
 
 private[sbt] final case class Envelope(override val serial: Long, override val replyTo: Long, override val content: Message) extends ipc.Envelope[Message]
 
@@ -13,18 +14,15 @@ private[sbt] final case class Envelope(override val serial: Long, override val r
  */
 private[sbt] object Envelope {
   def apply(wire: ipc.WireEnvelope): Envelope = {
-    val message: Message = try {
-      // this can throw malformed json errors
-      Json.fromJson[Message](Json.parse(wire.asString)).getOrElse(sys.error("Failure deserializing json."))
-    } catch {
-      case e: Exception =>
-        //System.err.println("**** " + e.getMessage)
-        //System.err.println(e.getStackTraceString)
-        // probably a JSON parse failure
-        ErrorResponse("exception parsing json: " + e.getClass.getSimpleName + ": " + e.getMessage + "\n\nMsg: " + wire.asString)
-      // TODO - Mysetery message?
-    }
+    //System.err.println(s"Attempting to parse ${wire.asString}")
+    val message: Message =
+      JsonValue.parseJson(wire.asString).flatMap(_.parse[Message]).recover({
+        case NonFatal(e) =>
+          try System.err.println(s"Failed to parse message ${wire.asString}: ${e.getClass.getName}: ${e.getMessage}") catch { case _: Throwable => }
+          ErrorResponse(s"exception parsing json: ${e.getMessage}")
+      }).get
+    //System.err.println(s"Parsed it as $message")
+
     new Envelope(wire.serial, wire.replyTo, message)
   }
-
 }

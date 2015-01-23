@@ -31,10 +31,12 @@ trait ExecutionIdFinder {
 class ServerEngine(requestQueue: ServerEngineQueue,
   readOnlyStateRef: AtomicReference[State],
   fileLogger: FileLogger,
-  taskEventSink: JsonSink[TaskEvent],
-  jobEventSink: JsonSink[BackgroundJobEvent],
-  eventSink: JsonSink[ExecutionEngineEvent],
-  logSink: JsonSink[LogEvent]) {
+  taskEventSink: MessageSink[TaskEvent],
+  jobEventSink: MessageSink[BackgroundJobEvent],
+  eventSink: MessageSink[ExecutionEngineEvent],
+  logSink: MessageSink[LogEvent],
+  jobStartedSink: MessageSink[BackgroundJobStarted],
+  jobFinishedSink: MessageSink[BackgroundJobFinished]) {
 
   private val taskIdRecorder = new TaskIdRecorder
   private val eventLogger = new TaskEventLogger(taskIdRecorder, logSink)
@@ -255,7 +257,7 @@ class ServerEngine(requestQueue: ServerEngineQueue,
       TestShims.makeShims(state) ++
         CompileReporter.makeShims(state) ++
         ServerExecuteProgress.getShims(state, taskIdRecorder, eventSink) ++
-        UIShims.makeShims(state, executionIdFinder, taskIdRecorder, logSink, taskEventSink, jobEventSink) ++
+        UIShims.makeShims(state, executionIdFinder, taskIdRecorder, logSink, taskEventSink, jobEventSink, jobStartedSink, jobFinishedSink) ++
         loggingShims(state) ++
         ServerTaskCancellation.getShims(logSink)
     // TODO - Override log manager for now, or figure out a better way.

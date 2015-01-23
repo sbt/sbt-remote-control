@@ -6,6 +6,7 @@ import sbt.client._
 import java.io.File
 import scala.concurrent._
 import sbt.protocol._
+import sbt.serialization._
 import scala.util.control.NonFatal
 import scala.util.{ Try, Success, Failure }
 import java.io.Closeable
@@ -45,7 +46,9 @@ private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
   closeHandler: () => Unit,
   sleepMilliseconds: Long, configName: String, humanReadableName: String,
   directory: File, locator: SbtServerLocator) extends Thread with Closeable {
+
   import ExecutionContexts.serializedCachedExecutionContext
+
   val sleepRemaining = new java.util.concurrent.atomic.AtomicLong(sleepMilliseconds)
   @volatile var closed = false
 
@@ -105,7 +108,7 @@ private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
     val rawClient = new ipc.Client(socket)
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
-    rawClient.sendJson(RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)), registerSerial)
+    rawClient.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)), registerSerial)
     Envelope(rawClient.receive()) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")

@@ -11,15 +11,15 @@ import concurrent.ExecutionContext.Implicits.global
 import sbt.protocol
 import java.net.URI
 import scala.concurrent.Future
-import play.api.libs.json._
 import sbt.client.{ SettingKey, TaskKey }
+import sbt.serialization._
+import sbt.protocol.CoreProtocol._
 
 object SbtClientProxySpec {
-  val sampleManifest = implicitly[Manifest[String]]
   val sampleEvent: protocol.Event = protocol.ExecutionStarting(100)
-  val sampleBuild: protocol.MinimalBuildStructure = protocol.MinimalBuildStructure(Seq.empty[URI], Seq.empty[protocol.MinimalProjectStructure])
-  val sampleScopedKey = protocol.ScopedKey(protocol.AttributeKey("foo", protocol.TypeInfo.fromManifest(sampleManifest)), protocol.SbtScope())
-  val sampleScopedKey1 = protocol.ScopedKey(protocol.AttributeKey("foo1", protocol.TypeInfo.fromManifest(sampleManifest)), protocol.SbtScope())
+  val sampleBuild: protocol.MinimalBuildStructure = protocol.MinimalBuildStructure(Vector.empty[URI], Vector.empty[protocol.MinimalProjectStructure])
+  val sampleScopedKey = protocol.ScopedKey(protocol.AttributeKey[String]("foo"), protocol.SbtScope())
+  val sampleScopedKey1 = protocol.ScopedKey(protocol.AttributeKey[String]("foo1"), protocol.SbtScope())
   def sampleScopedKeyLookup(in: String): Future[Seq[protocol.ScopedKey]] = Future.successful(in match {
     case "foo" => Seq(sampleScopedKey)
     case _ => Seq.empty[protocol.ScopedKey]

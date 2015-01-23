@@ -1,1 +1,1 @@
-{"command":"test command string","type":"ExecutionRequest"}
+{"$type":"sbt.protocol.ExecutionRequest","command":"test command string"}

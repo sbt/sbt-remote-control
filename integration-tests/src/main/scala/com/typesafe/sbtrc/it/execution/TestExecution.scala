@@ -4,14 +4,15 @@ package execution
 
 import sbt.client._
 import sbt.protocol._
-import concurrent.duration.Duration.Inf
-import concurrent.{ Await, ExecutionContext, Promise }
-import collection.JavaConversions
+import sbt.protocol.CoreProtocol._
+import sbt.serialization._
 import java.io.File
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.{ LinkedBlockingQueue, Executors }
+import scala.concurrent.duration.Duration.Inf
+import scala.concurrent.{ Await, ExecutionContext, Promise }
+import scala.collection.JavaConversions
 import scala.annotation.tailrec
-import java.util.concurrent.Executors
-import play.api.libs.json.Reads
+import scala.pickling.Unpickler
 
 class TestExecution extends SbtClientTest {
 
@@ -161,7 +162,7 @@ class TestExecution extends SbtClientTest {
       verifyList(outermost.toList, expecteds)
     }
 
-    def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T)(implicit reads: Reads[T]): Unit = {
+    def checkSuccess[T](record: ExecutionRecord, taskName: String, expected: T)(implicit unpickler: Unpickler[T]): Unit = {
       record.results.collect({
         case (key, result) if key.key.name == taskName =>
           result

@@ -1,11 +1,15 @@
 package sbt.protocol
 
-// Note:  All the serialization mechanisms for this protocol is in the
-// package.scala file.
-
-import play.api.libs.json.JsValue
 import java.io.File
 import scala.collection.immutable
+import sbt.serialization._
+import scala.pickling.{ directSubclasses, SPickler, Unpickler }
+import sbt.serialization.functions._
+
+sealed trait CoreProtocol extends CustomPicklers with pickler.SerializationPicklers with SbtSerializers {
+  implicit val staticOnly = scala.pickling.static.StaticOnly
+}
+object CoreProtocol extends CoreProtocol {}
 
 /**
  * A marker trait for *any* message that is passed back/forth from
@@ -13,11 +17,6 @@ import scala.collection.immutable
  */
 sealed trait Message {
   def simpleName: String = MessageSerialization.makeSimpleName(getClass)
-}
-
-object Message {
-  implicit def reads = MessageSerialization.messageReads
-  implicit def writes = MessageSerialization.messageWrites
 }
 
 /** Represents requests that go down into sbt. */
@@ -83,7 +82,7 @@ final case class CommandCompletionsRequest(in: String, level: Int) extends Reque
  *  2) the full token being completed, which is useful for presenting a user with choices to select
  */
 final case class Completion(append: String, display: String, isEmpty: Boolean)
-final case class CommandCompletionsResponse(results: Set[Completion]) extends Response
+final case class CommandCompletionsResponse(results: Vector[Completion]) extends Response
 
 // Request for the server to send us all events that happen on the sbt server.
 final case class ListenToEvents() extends Request
@@ -114,12 +113,15 @@ final case class ClientClosedRequest() extends Request
 final case class ClosedEvent() extends Event
 
 final case class KeyLookupRequest(name: String) extends Request
-final case class KeyLookupResponse(name: String, key: Seq[ScopedKey]) extends Response
+final case class KeyLookupResponse(name: String, key: Vector[ScopedKey]) extends Response
 
 final case class AnalyzeExecutionRequest(command: String) extends Request
+
+@directSubclasses(Array(classOf[ExecutionAnalysisKey], classOf[ExecutionAnalysisError],
+  classOf[ExecutionAnalysisCommand]))
 sealed trait ExecutionAnalysis
 // sbt will run ALL of these keys (aggregation)
-final case class ExecutionAnalysisKey(keys: Seq[ScopedKey]) extends ExecutionAnalysis
+final case class ExecutionAnalysisKey(keys: Vector[ScopedKey]) extends ExecutionAnalysis
 final case class ExecutionAnalysisError(message: String) extends ExecutionAnalysis
 final case class ExecutionAnalysisCommand(name: Option[String]) extends ExecutionAnalysis
 final case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends Response
@@ -133,6 +135,11 @@ final case class AnalyzeExecutionResponse(analysis: ExecutionAnalysis) extends R
  * represent things that occur during the processing of requests.
  */
 
+// knownDirectSubclasses doesn't seem to come out right for LogEntry,
+// but only nondeterministically (one compile will work, another won't),
+// so be very careful about removing this.
+@directSubclasses(Array(classOf[LogStdOut], classOf[LogStdErr], classOf[LogSuccess],
+  classOf[LogTrace], classOf[LogMessage]))
 sealed trait LogEntry {
   def message: String
 }
@@ -168,60 +175,52 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
 }
 
 /** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class TaskEvent(taskId: Long, name: String, serialized: JsValue) extends Event
+final case class TaskEvent(taskId: Long, name: String, serialized: SerializedValue) extends Event
 
 object TaskEvent {
-  import play.api.libs.json.Writes
-
-  def apply[T: Writes](taskId: Long, event: T): TaskEvent = {
-    val json = implicitly[Writes[T]].writes(event)
-    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), json)
+  def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
+    val serialized = JsonValue(event)
+    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait TaskEventUnapply[T] {
-  import play.api.libs.json.Reads
   import scala.reflect.ClassTag
-  import play.api.libs.json.Json
 
-  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != taskEvent.name) {
         None
       } else {
-        Json.fromJson[T](taskEvent.serialized).asOpt map { result => taskEvent.taskId -> result }
+        taskEvent.serialized.parse[T].toOption map { result => taskEvent.taskId -> result }
       }
     case other => None
   }
 }
 
-/** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class BackgroundJobEvent(jobId: Long, name: String, serialized: JsValue) extends Event
+/** A custom event from a job. "name" is conventionally the simplified class name. */
+final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
-  import play.api.libs.json.Writes
-
-  def apply[T: Writes](jobId: Long, event: T): BackgroundJobEvent = {
-    val json = implicitly[Writes[T]].writes(event)
-    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), json)
+  def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
+    val serialized = JsonValue(event)
+    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait BackgroundJobEventUnapply[T] {
-  import play.api.libs.json.Reads
   import scala.reflect.ClassTag
-  import play.api.libs.json.Json
 
-  def unapply(event: Event)(implicit reads: Reads[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
       val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
       if (name != jobEvent.name) {
         None
       } else {
-        Json.fromJson[T](jobEvent.serialized).asOpt map { result => jobEvent.jobId -> result }
+        jobEvent.serialized.parse[T].toOption map { result => jobEvent.jobId -> result }
       }
     case other => None
   }
@@ -264,9 +263,19 @@ final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends E
 ///// Events below here are intended to go inside a TaskEvent
 
 final case class TestGroupStarted(name: String)
-object TestGroupStarted extends TaskEventUnapply[TestGroupStarted]
+object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
+  import scala.pickling.{ SPickler, Unpickler }
+  import CoreProtocol._
+  implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
+  implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
+}
 final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
-object TestGroupFinished extends TaskEventUnapply[TestGroupFinished]
+object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
+  import scala.pickling.{ SPickler, Unpickler }
+  import CoreProtocol._
+  implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
+  implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
+}
 
 sealed trait TestGroupResult {
   final def success: Boolean = this == TestGroupPassed
@@ -280,11 +289,41 @@ case object TestGroupFailed extends TestGroupResult {
 case object TestGroupError extends TestGroupResult {
   override def toString = "error"
 }
+object TestGroupResult {
+  import scala.pickling.{ SPickler, Unpickler, PicklingException }
+  import CoreProtocol._
+  import sbt.serialization.CanToString
+
+  private implicit val resultToString = CanToString[TestGroupResult](_.toString,
+    {
+      case "passed" => TestGroupPassed
+      case "failed" => TestGroupFailed
+      case "error" => TestGroupError
+      case other => throw new PicklingException(s"Unrecognized TestGroupResult $other")
+    })
+
+  implicit val picklerUnpickler: SPickler[TestGroupResult] with Unpickler[TestGroupResult] =
+    canToStringPickler[TestGroupResult]
+}
 
 /** A build test has done something useful and we're being notified of it. */
-final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long)
+final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long) {
+  // TODO - custom hashCode.
+  // Custom equals to ignore duration.
+  override def equals(other: Any): Boolean =
+    other match {
+      case null => false
+      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error == that.error)
+      case _ => false
+    }
+}
 
-object TestEvent extends TaskEventUnapply[TestEvent]
+object TestEvent extends TaskEventUnapply[TestEvent] {
+  import scala.pickling.{ SPickler, Unpickler }
+  import CoreProtocol._
+  implicit val pickler: SPickler[TestEvent] = genPickler[TestEvent]
+  implicit val unpickler: Unpickler[TestEvent] = genUnpickler[TestEvent]
+}
 
 sealed trait TestOutcome {
   final def success: Boolean = {
@@ -317,10 +356,36 @@ case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
 
+object TestOutcome {
+  import scala.pickling.{ SPickler, Unpickler, PicklingException }
+  import CoreProtocol._
+  import sbt.serialization.CanToString
+
+  private implicit val resultToString = CanToString[TestOutcome](_.toString,
+    {
+      case "passed" => TestPassed
+      case "failed" => TestFailed
+      case "error" => TestError
+      case "skipped" => TestSkipped
+      case other => throw new PicklingException(s"Unrecognized TestOutcome $other")
+    })
+
+  implicit val picklerUnpickler: SPickler[TestOutcome] with Unpickler[TestOutcome] =
+    canToStringPickler[TestOutcome]
+}
+
+final case class Position(sourcePath: Option[String],
+  sourceFile: Option[File],
+  line: Option[Int],
+  lineContent: String,
+  offset: Option[Int],
+  pointer: Option[Int],
+  pointerSpace: Option[String])
+
 /** A compilation issue from the compiler. */
 final case class CompilationFailure(
   project: ProjectReference,
-  position: xsbti.Position,
+  position: Position,
   severity: xsbti.Severity,
   message: String)
 
@@ -331,17 +396,21 @@ object CompilationFailure extends TaskEventUnapply[CompilationFailure]
  * there are a bunch of super-generic names like Analysis, API, Package, etc.
  */
 
-final case class Analysis(stamps: Stamps,
+// TODO what fields are truly needed in Analysis?
+final case class Analysis( /* stamps: Stamps,
   apis: APIs,
   relations: Relations,
   infos: SourceInfos,
-  compilations: Compilations)
+  compilations: Compilations */ )
 object Analysis {
-  val empty: Analysis = Analysis(stamps = Stamps.empty,
+  val empty: Analysis = Analysis() /*stamps = Stamps.empty,
     apis = APIs.empty,
     relations = Relations.empty,
     infos = SourceInfos.empty,
-    compilations = Compilations.empty)
+    compilations = Compilations.empty) */
+
+  implicit val pickler = genPickler[Analysis]
+  implicit val unpickler = genUnpickler[Analysis]
 }
 sealed trait Stamp
 final case class Hash(value: ByteArray) extends Stamp
@@ -363,8 +432,8 @@ object Stamps {
     products = Map.empty[File, Stamp],
     classNames = Map.empty[File, String])
 }
-final case class SourceInfo(reportedProblems: Seq[xsbti.Problem],
-  unreportedProblems: Seq[xsbti.Problem])
+final case class SourceInfo(reportedProblems: Vector[Problem],
+  unreportedProblems: Vector[Problem])
 final case class SourceInfos(allInfos: Map[File, SourceInfo])
 object SourceInfos {
   val empty: SourceInfos = SourceInfos(allInfos = Map.empty[File, SourceInfo])
@@ -372,14 +441,13 @@ object SourceInfos {
 final case class Problem(category: String,
   severity: xsbti.Severity,
   message: String,
-  position: xsbti.Position) extends xsbti.Problem
+  position: Position)
 object Problem {
-  def fromXsbtiProblem(in: xsbti.Problem): Problem =
-    Problem(category = in.category,
-      severity = in.severity,
-      message = in.message,
-      position = in.position)
+  import CoreProtocol._
+  implicit val pickler = genPickler[Problem]
+  implicit val unpickler = genUnpickler[Problem]
 }
+
 final case class APIs(allExternals: Set[String],
   allInternalSources: Set[File],
   internal: Map[File, Source],
@@ -402,30 +470,26 @@ sealed trait Qualified extends Access {
 final case object Public extends Access
 final case class Protected(qualifier: Qualifier) extends Qualified
 final case class Private(qualifier: Qualifier) extends Qualified
-final case class TypeParameter(id: String, annotations: Seq[Annotation], typeParameters: Seq[TypeParameter], variance: xsbti.api.Variance, lowerBound: Type, upperBound: Type)
+final case class TypeParameter(id: String, annotations: Vector[Annotation], typeParameters: Vector[TypeParameter], variance: xsbti.api.Variance, lowerBound: Type, upperBound: Type)
 sealed trait PathComponent
 final case class Id(id: String) extends PathComponent
 final case class Super(qualifier: Path) extends PathComponent
 final case object This extends PathComponent
-final case class Path(components: Seq[PathComponent])
+final case class Path(components: Vector[PathComponent])
 sealed trait Type
 object Type {
-  import play.api.libs.json._
-  import play.api.libs.functional.syntax._
-  import play.api.data.validation.ValidationError
-  import JsonHelpers._
 
 }
 sealed trait SimpleType extends Type
 final case class Singleton(path: Path) extends SimpleType
 final case class Projection(prefix: SimpleType, id: String) extends SimpleType
-final case class Parameterized(baseType: SimpleType, typeArguments: Seq[Type]) extends SimpleType
+final case class Parameterized(baseType: SimpleType, typeArguments: Vector[Type]) extends SimpleType
 final case class ParameterRef(id: String) extends SimpleType
 final case object EmptyType extends SimpleType
-final case class Annotated(baseType: Type, annotations: Seq[Annotation]) extends Type
-final case class Structure(parents: Seq[Type], declared: Seq[Definition], inherited: Seq[Definition]) extends Type
-final case class Polymorphic(baseType: Type, parameters: Seq[TypeParameter]) extends Type
-final case class Existential(baseType: Type, clause: Seq[TypeParameter]) extends Type
+final case class Annotated(baseType: Type, annotations: Vector[Annotation]) extends Type
+final case class Structure(parents: Vector[Type], declared: Vector[Definition], inherited: Vector[Definition]) extends Type
+final case class Polymorphic(baseType: Type, parameters: Vector[TypeParameter]) extends Type
+final case class Existential(baseType: Type, clause: Vector[TypeParameter]) extends Type
 final case class Constant(baseType: Type, value: String) extends Type
 final case class Modifiers(isAbstract: Boolean,
   isOverride: Boolean,
@@ -436,13 +500,13 @@ final case class Modifiers(isAbstract: Boolean,
   isMacro: Boolean)
 final case class AnnotationArgument(name: String, value: String)
 final case class Annotation(base: Type,
-  arguments: Seq[AnnotationArgument])
+  arguments: Vector[AnnotationArgument])
 final case class Definition(name: String,
   access: Access,
   modifiers: Modifiers,
-  annotations: Seq[Annotation])
-final case class SourceAPI(packages: Seq[ThePackage],
-  definitions: Seq[Definition])
+  annotations: Vector[Annotation])
+final case class SourceAPI(packages: Vector[ThePackage],
+  definitions: Vector[Definition])
 final case class Source(compilation: Compilation,
   hash: ByteArray,
   api: SourceAPI,
@@ -485,13 +549,55 @@ object Relations {
 final case class OutputSetting(sourceDirectory: String,
   outputDirectory: String)
 final case class Compilation(startTime: Long,
-  outputs: Seq[OutputSetting])
-final case class Compilations(allCompilations: Seq[Compilation])
+  outputs: Vector[OutputSetting])
+final case class Compilations(allCompilations: Vector[Compilation])
 object Compilations {
-  val empty: Compilations = Compilations(allCompilations = Seq.empty[Compilation])
+  val empty: Compilations = Compilations(allCompilations = Vector.empty[Compilation])
 }
 
-final class CompileFailedException(message: String, cause: Throwable, val problems: Seq[xsbti.Problem]) extends Exception(message, cause)
+final class CompileFailedException(message: String, cause: Throwable, val problems: Vector[Problem]) extends Exception(message, cause)
+
+object CompileFailedException {
+  import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader }
+  import CoreProtocol._
+  implicit object picklerUnpickler extends SPickler[CompileFailedException] with Unpickler[CompileFailedException] {
+    val tag: FastTypeTag[CompileFailedException] = implicitly[FastTypeTag[CompileFailedException]]
+    private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
+    private val stringOptPickler = implicitly[SPickler[Option[String]]]
+    private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
+    private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
+    private val throwableOptPickler = implicitly[SPickler[Option[Throwable]]]
+    private val throwableOptUnpickler = implicitly[Unpickler[Option[Throwable]]]
+    private val vectorProblemTag = implicitly[FastTypeTag[Vector[Problem]]]
+    private val vectorProblemPickler = implicitly[SPickler[Vector[Problem]]]
+    private val vectorProblemUnpickler = implicitly[Unpickler[Vector[Problem]]]
+
+    def pickle(a: CompileFailedException, builder: PBuilder): Unit = {
+      builder.beginEntry(a)
+      builder.putField("message", { b =>
+        b.hintTag(stringOptTag)
+        stringOptPickler.pickle(Option(a.getMessage), b)
+      })
+      builder.putField("cause", { b =>
+        b.hintTag(throwableOptTag)
+        throwableOptPickler.pickle(Option(a.getCause), b)
+      })
+      builder.putField("problems", { b =>
+        b.hintTag(vectorProblemTag)
+        vectorProblemPickler.pickle(a.problems, b)
+      })
+      builder.endEntry()
+    }
+    def unpickle(tag: String, preader: PReader): Any = {
+      // TODO - hint statically elided types...
+      preader.hintStaticallyElidedType()
+      val message = stringOptUnpickler.unpickleEntry(preader.readField("message")).asInstanceOf[Option[String]]
+      val cause = throwableOptUnpickler.unpickleEntry(preader.readField("cause")).asInstanceOf[Option[Throwable]]
+      val problems = vectorProblemUnpickler.unpickleEntry(preader.readField("problems")).asInstanceOf[Vector[Problem]]
+      new CompileFailedException(message.orNull, cause.orNull, problems)
+    }
+  }
+}
 
 sealed trait ByteArray extends immutable.Seq[Byte]
 object ByteArray {
@@ -523,6 +629,29 @@ object ByteArray {
     }
   }
   def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
+
+  import CoreProtocol._
+  // TODO what a mess, this isn't quite right I'm sure, but probably we just
+  // don't need byte arrays anyhow (we don't need all of Analysis)
+  import scala.pickling.{ SPickler, Unpickler, PBuilder, PReader, FastTypeTag, PicklingException }
+  implicit val picklerUnpickler: SPickler[ByteArray] with Unpickler[ByteArray] = new SPickler[ByteArray] with Unpickler[ByteArray] {
+    private implicit val arrayPickler = implicitly[SPickler[Array[Byte]]]
+    private implicit val arrayUnpickler = implicitly[Unpickler[Array[Byte]]]
+    override val tag = implicitly[FastTypeTag[ByteArray]]
+
+    def pickle(array: ByteArray, builder: PBuilder): Unit = {
+      val concrete = array match {
+        case c: ConcreteByteArray => c
+      }
+      arrayPickler.pickle(concrete.ary, builder)
+    }
+    def unpickle(tag: String, preader: PReader): Any = {
+      arrayUnpickler.unpickle(tag, preader) match {
+        case ary: Array[_] => new ConcreteByteArray(ary.asInstanceOf[Array[Byte]])
+        case other => throw new PicklingException(s"expected byte array got $other")
+      }
+    }
+  }
 }
 
 final case class ModuleId(organization: String, name: String, attributes: Map[String, String])
@@ -543,4 +672,159 @@ private[sbt] object StructurallyEqual {
     else (lhs.get == rhs.get)
 
   def equals(lhs: String, rhs: String): Boolean = lhs == rhs
+}
+
+// TODO currently due to a pickling bug caused by a Scala bug,
+// the macros won't know all the subtypes of Message if we
+// put this companion object earlier in the file.
+object Message {
+
+  import scala.pickling.{ SPickler, Unpickler }
+  import CoreProtocol._
+
+  // These various picklers are mostly alphabetical except when
+  // they have to be sorted in dependency order.
+
+  // Picklers for types that appear in messages
+
+  private implicit val backgroundJobInfoPickler = genPickler[BackgroundJobInfo]
+  private implicit val backgroundJobInfoUnpickler = genUnpickler[BackgroundJobInfo]
+  private implicit val clientInfoPickler = genPickler[ClientInfo]
+  private implicit val clientInfoUnpickler = genUnpickler[ClientInfo]
+  private implicit val completionPickler = genPickler[Completion]
+  private implicit val completionUnpickler = genUnpickler[Completion]
+  private implicit val executionAnalysisCommandPickler = genPickler[ExecutionAnalysisCommand]
+  private implicit val executionAnalysisCommandUnpickler = genUnpickler[ExecutionAnalysisCommand]
+  private implicit val executionAnalysisErrorPickler = genPickler[ExecutionAnalysisError]
+  private implicit val executionAnalysisErrorUnpickler = genUnpickler[ExecutionAnalysisError]
+  private implicit val executionAnalysisKeyPickler = genPickler[ExecutionAnalysisKey]
+  private implicit val executionAnalysisKeyUnpickler = genUnpickler[ExecutionAnalysisKey]
+  private implicit val executionAnalysisPickler = genPickler[ExecutionAnalysis]
+  private implicit val executionAnalysisUnpickler = genUnpickler[ExecutionAnalysis]
+  private implicit val logStdErrPickler = genPickler[LogStdErr]
+  private implicit val logStdErrUnpickler = genUnpickler[LogStdErr]
+  private implicit val logStdOutPickler = genPickler[LogStdOut]
+  private implicit val logStdOutUnpickler = genUnpickler[LogStdOut]
+  private implicit val logSuccessPickler = genPickler[LogSuccess]
+  private implicit val logSuccessUnpickler = genUnpickler[LogSuccess]
+  private implicit val logTracePickler = genPickler[LogTrace]
+  private implicit val logTraceUnpickler = genUnpickler[LogTrace]
+  private implicit val logMessagePickler = genPickler[LogMessage]
+  private implicit val logMessageUnpickler = genUnpickler[LogMessage]
+  private implicit val logEntryPickler = genPickler[LogEntry]
+  private implicit val logEntryUnpickler = genUnpickler[LogEntry]
+
+  // We have PRIVATE implicit picklers for all the leaf subtypes of
+  // Message, and then we have a public pickler for the entire Message
+  // trait.
+  private implicit val analyzeExecutionRequestPickler = genPickler[AnalyzeExecutionRequest]
+  private implicit val analyzeExecutionRequestUnpickler = genUnpickler[AnalyzeExecutionRequest]
+  private implicit val analyzeExecutionResponsePickler = genPickler[AnalyzeExecutionResponse]
+  private implicit val analyzeExecutionResponseUnpickler = genUnpickler[AnalyzeExecutionResponse]
+  private implicit val backgroundJobEventPickler = genPickler[BackgroundJobEvent]
+  private implicit val backgroundJobEventUnpickler = genUnpickler[BackgroundJobEvent]
+  private implicit val backgroundJobFinishedPickler = genPickler[BackgroundJobFinished]
+  private implicit val backgroundJobFinishedUnpickler = genUnpickler[BackgroundJobFinished]
+  private implicit val backgroundJobLogEventPickler = genPickler[BackgroundJobLogEvent]
+  private implicit val backgroundJobLogEventUnpickler = genUnpickler[BackgroundJobLogEvent]
+  private implicit val backgroundJobStartedPickler = genPickler[BackgroundJobStarted]
+  private implicit val backgroundJobStartedUnpickler = genUnpickler[BackgroundJobStarted]
+  private implicit val buildFailedToLoadPickler = genPickler[BuildFailedToLoad]
+  private implicit val buildFailedToLoadUnpickler = genUnpickler[BuildFailedToLoad]
+  private implicit val buildLoadedPickler = genPickler[BuildLoaded]
+  private implicit val buildLoadedUnpickler = genUnpickler[BuildLoaded]
+  private implicit val buildStructureChangedPickler = genPickler[BuildStructureChanged]
+  private implicit val buildStructureChangedUnpickler = genUnpickler[BuildStructureChanged]
+  private implicit val cancelExecutionRequestPickler = genPickler[CancelExecutionRequest]
+  private implicit val cancelExecutionRequestUnpickler = genUnpickler[CancelExecutionRequest]
+  private implicit val cancelExecutionResponsePickler = genPickler[CancelExecutionResponse]
+  private implicit val cancelExecutionResponseUnpickler = genUnpickler[CancelExecutionResponse]
+  private implicit val clientClosedRequestPickler = genPickler[ClientClosedRequest]
+  private implicit val clientClosedRequestUnpickler = genUnpickler[ClientClosedRequest]
+  private implicit val closedEventPickler = genPickler[ClosedEvent]
+  private implicit val closedEventUnpickler = genUnpickler[ClosedEvent]
+  private implicit val commandCompletionsRequestPickler = genPickler[CommandCompletionsRequest]
+  private implicit val commandCompletionsRequestUnpickler = genUnpickler[CommandCompletionsRequest]
+  private implicit val commandCompletionsResponsePickler = genPickler[CommandCompletionsResponse]
+  private implicit val commandCompletionsResponseUnpickler = genUnpickler[CommandCompletionsResponse]
+  private implicit val confirmRequestPickler = genPickler[ConfirmRequest]
+  private implicit val confirmRequestUnpickler = genUnpickler[ConfirmRequest]
+  private implicit val confirmResponsePickler = genPickler[ConfirmResponse]
+  private implicit val confirmResponseUnpickler = genUnpickler[ConfirmResponse]
+  private implicit val coreLogEventPickler = genPickler[CoreLogEvent]
+  private implicit val coreLogEventUnpickler = genUnpickler[CoreLogEvent]
+  private implicit val errorResponsePickler = genPickler[ErrorResponse]
+  private implicit val errorResponseUnpickler = genUnpickler[ErrorResponse]
+  private implicit val executionFailurePickler = genPickler[ExecutionFailure]
+  private implicit val executionFailureUnpickler = genUnpickler[ExecutionFailure]
+  private implicit val executionRequestPickler = genPickler[ExecutionRequest]
+  private implicit val executionRequestReceivedPickler = genPickler[ExecutionRequestReceived]
+  private implicit val executionRequestReceivedUnpickler = genUnpickler[ExecutionRequestReceived]
+  private implicit val executionRequestUnpickler = genUnpickler[ExecutionRequest]
+  private implicit val executionStartingPickler = genPickler[ExecutionStarting]
+  private implicit val executionStartingUnpickler = genUnpickler[ExecutionStarting]
+  private implicit val executionSuccessPickler = genPickler[ExecutionSuccess]
+  private implicit val executionSuccessUnpickler = genUnpickler[ExecutionSuccess]
+  private implicit val executionWaitingPickler = genPickler[ExecutionWaiting]
+  private implicit val executionWaitingUnpickler = genUnpickler[ExecutionWaiting]
+  private implicit val keyExecutionRequestPickler = genPickler[KeyExecutionRequest]
+  private implicit val keyExecutionRequestUnpickler = genUnpickler[KeyExecutionRequest]
+  private implicit val keyLookupRequestPickler = genPickler[KeyLookupRequest]
+  private implicit val keyLookupRequestUnpickler = genUnpickler[KeyLookupRequest]
+  private implicit val keyLookupResponsePickler = genPickler[KeyLookupResponse]
+  private implicit val keyLookupResponseUnpickler = genUnpickler[KeyLookupResponse]
+  private implicit val keyNotFoundPickler = genPickler[KeyNotFound]
+  private implicit val keyNotFoundUnpickler = genUnpickler[KeyNotFound]
+  private implicit val killServerRequestPickler = genPickler[KillServerRequest]
+  private implicit val killServerRequestUnpickler = genUnpickler[KillServerRequest]
+  private implicit val listenToBuildChangePickler = genPickler[ListenToBuildChange]
+  private implicit val listenToBuildChangeUnpickler = genUnpickler[ListenToBuildChange]
+  private implicit val listenToEventsPickler = genPickler[ListenToEvents]
+  private implicit val listenToEventsUnpickler = genUnpickler[ListenToEvents]
+  private implicit val listenToValuePickler = genPickler[ListenToValue]
+  private implicit val listenToValueUnpickler = genUnpickler[ListenToValue]
+  private implicit val taskLogEventPickler = genPickler[TaskLogEvent]
+  private implicit val taskLogEventUnpickler = genUnpickler[TaskLogEvent]
+  private implicit val logEventPickler = genPickler[LogEvent]
+  private implicit val logEventUnpickler = genUnpickler[LogEvent]
+  private implicit val readLineRequestPickler = genPickler[ReadLineRequest]
+  private implicit val readLineRequestUnpickler = genUnpickler[ReadLineRequest]
+  private implicit val readLineResponsePickler = genPickler[ReadLineResponse]
+  private implicit val readLineResponseUnpickler = genUnpickler[ReadLineResponse]
+  private implicit val receivedResponsePickler = genPickler[ReceivedResponse]
+  private implicit val receivedResponseUnpickler = genUnpickler[ReceivedResponse]
+  private implicit val registerClientRequestPickler = genPickler[RegisterClientRequest]
+  private implicit val registerClientRequestUnpickler = genUnpickler[RegisterClientRequest]
+  private implicit val sendSyntheticBuildChangedPickler = genPickler[SendSyntheticBuildChanged]
+  private implicit val sendSyntheticBuildChangedUnpickler = genUnpickler[SendSyntheticBuildChanged]
+  private implicit val sendSyntheticValueChangedPickler = genPickler[SendSyntheticValueChanged]
+  private implicit val sendSyntheticValueChangedUnpickler = genUnpickler[SendSyntheticValueChanged]
+  private implicit val taskEventPickler = genPickler[TaskEvent]
+  private implicit val taskEventUnpickler = genUnpickler[TaskEvent]
+  private implicit val taskFinishedPickler = genPickler[TaskFinished]
+  private implicit val taskFinishedUnpickler = genUnpickler[TaskFinished]
+  private implicit val taskStartedPickler = genPickler[TaskStarted]
+  private implicit val taskStartedUnpickler = genUnpickler[TaskStarted]
+  private implicit val testEventPickler = genPickler[TestEvent]
+  private implicit val testEventUnpickler = genUnpickler[TestEvent]
+  private implicit val unlistenToBuildChangePickler = genPickler[UnlistenToBuildChange]
+  private implicit val unlistenToBuildChangeUnpickler = genUnpickler[UnlistenToBuildChange]
+  private implicit val unlistenToEventsPickler = genPickler[UnlistenToEvents]
+  private implicit val unlistenToEventsUnpickler = genUnpickler[UnlistenToEvents]
+  private implicit val unlistenToValuePickler = genPickler[UnlistenToValue]
+  private implicit val unlistenToValueUnpickler = genUnpickler[UnlistenToValue]
+  private implicit val valueChangedPickler = genPickler[ValueChanged]
+  private implicit val valueChangedUnpickler = genUnpickler[ValueChanged]
+
+  private implicit val requestPickler = genPickler[Request]
+  private implicit val requestUnpickler = genUnpickler[Request]
+  private implicit val responsePickler = genPickler[Response]
+  private implicit val responseUnpickler = genUnpickler[Response]
+  private implicit val executionEngineEventPickler = genPickler[ExecutionEngineEvent]
+  private implicit val executionEngineEventUnpickler = genUnpickler[ExecutionEngineEvent]
+  private implicit val eventPickler = genPickler[Event]
+  private implicit val eventUnpickler = genUnpickler[Event]
+
+  implicit val pickler: SPickler[Message] = genPickler[Message]
+  implicit val unpickler: Unpickler[Message] = genUnpickler[Message]
 }

@@ -37,7 +37,7 @@ final class TestUtil(val scratchDir: File) {
     createFile(build, s"""
 name := "${relativeDir}"
 
-libraryDependencies += "com.novocode" % "junit-interface" % "0.10" % "test"
+libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test"
 """)
 
     val scalaSource = new File(dir, "src/main/scala")
@@ -115,6 +115,6 @@ object Main3 extends App { println("Hello World 3") }
 
 object TestUtil {
   // TODO - hook this up to build in some fashion
-  val sbt13TestVersion = "0.13.1"
+  val sbt13TestVersion = "0.13.7"
   def defaultSbtTestVersion = sbt13TestVersion
 }

@@ -1,1 +1,1 @@
-{"taskId":6,"entry":{"message":"TEST","type":"stderr"},"type":"TaskLogEvent"}
+{"$type":"sbt.protocol.TaskLogEvent","entry":{"$type":"sbt.protocol.LogStdErr","message":"TEST"},"taskId":6.0}
