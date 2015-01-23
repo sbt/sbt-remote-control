@@ -20,7 +20,6 @@ import sbt.protocol._
 import sbt.protocol.CoreProtocol._
 import sbt.serialization._
 import sbt.serialization.functions._
-import scala.pickling.internal.AppliedType
 // TODO - put this in serialziatoin package or something.
 import scala.pickling.Defaults.pickleOps
 
@@ -397,7 +396,7 @@ class ProtocolTest {
 
   @Test
   def testRawStructure(): Unit = {
-    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
+    val key = protocol.AttributeKey("name", TypeExpression("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val scope = protocol.SbtScope(project = Some(
       protocol.ProjectReference(build, "test")))
@@ -532,7 +531,7 @@ class ProtocolTest {
     def roundtrip[T: Manifest](t: T): Unit = roundtripper.roundtrip(t)
     def roundtripPropTest[T: Manifest](t: T): Boolean = roundtripper.roundtripPropTest(t)
 
-    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
+    val key = protocol.AttributeKey("name", TypeExpression("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val projectRef = protocol.ProjectReference(build, "test")
     val scope = protocol.SbtScope(project = Some(projectRef))
@@ -662,7 +661,7 @@ class ProtocolTest {
         else sys.error(s"one-way trip of $a.\nexpected: $a: ${a.getClass.getName}\nactual: $b: ${b.getClass.getName}\nfile: ${p(baseDir)}")) { (a, b) =>
         assertEquals("one-way trip of message " + a.getMessage, a.getMessage, b.getMessage)
       }
-    val key = protocol.AttributeKey("name", AppliedType("java.lang.String", Nil))
+    val key = protocol.AttributeKey("name", TypeExpression("java.lang.String", Nil))
     val build = new java.net.URI("file:///test/project")
     val projectRef = protocol.ProjectReference(build, "test")
     val scope = protocol.SbtScope(project = Some(projectRef))

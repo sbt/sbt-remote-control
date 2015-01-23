@@ -9,14 +9,13 @@ import scala.pickling.Defaults.pickleOps
 import sbt.serialization._, json._
 import sbt.serialization.spec.JUnitUtil._
 import SpecsUtil._
-import scala.pickling.internal.AppliedType
 
-class AppliedTypePicklerTest {
+class TypeExpressionPicklerTest {
   import protocol.CoreProtocol._
 
   @Test
   def testRoundtripStringType: Unit = {
-    val value = AppliedType.parse("java.lang.String")._1
+    val value = TypeExpression.parse("java.lang.String")._1
     val example = "\"java.lang.String\""
     value.pickle.value must_== example
     roundTrip(value)
@@ -24,13 +23,13 @@ class AppliedTypePicklerTest {
 
   @Test
   def testRoundtripListOfStringType: Unit = {
-    val value = AppliedType.parse("scala.collection.immutable.List[java.lang.String]")._1
+    val value = TypeExpression.parse("scala.collection.immutable.List[java.lang.String]")._1
     val example = "\"scala.collection.immutable.List[java.lang.String]\""
     value.pickle.value must_== example
     roundTrip(value)
   }
 
-  val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
+  val key = protocol.AttributeKey("name", TypeExpression.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")
   val projectRef = protocol.ProjectReference(build, "test")
   val scope = protocol.SbtScope(project = Some(projectRef))

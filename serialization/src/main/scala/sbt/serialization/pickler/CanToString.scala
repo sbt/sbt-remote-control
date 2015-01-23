@@ -3,7 +3,6 @@ package pickler
 
 import java.io.File
 import java.net.URI
-import scala.pickling.internal.AppliedType
 import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
 
 trait CanToStringPicklers extends PrimitivePicklers {
@@ -33,8 +32,8 @@ trait CanToStringPicklers extends PrimitivePicklers {
       }
     }
   }
-  implicit val appliedTypePickler: SPickler[AppliedType] with Unpickler[AppliedType] =
-    canToStringPickler[AppliedType](implicitly[FastTypeTag[AppliedType]], implicitly[CanToString[AppliedType]])
+  implicit val typeExpressionPickler: SPickler[TypeExpression] with Unpickler[TypeExpression] =
+    canToStringPickler[TypeExpression](implicitly[FastTypeTag[TypeExpression]], implicitly[CanToString[TypeExpression]])
   implicit val filePickler: SPickler[File] with Unpickler[File] =
     canToStringPickler[File](implicitly[FastTypeTag[File]], implicitly[CanToString[File]])
   implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
