@@ -3,7 +3,7 @@ package sbt.protocol
 import java.io.File
 import scala.collection.immutable
 import sbt.serialization._
-import scala.pickling.{ directSubclasses, SPickler, Unpickler }
+import scala.pickling.directSubclasses
 import sbt.serialization.functions._
 
 sealed trait CoreProtocol extends CustomPicklers with pickler.SerializationPicklers with SbtSerializers {
@@ -264,14 +264,12 @@ final case class BackgroundJobFinished(executionId: Long, jobId: Long) extends E
 
 final case class TestGroupStarted(name: String)
 object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
-  import scala.pickling.{ SPickler, Unpickler }
   import CoreProtocol._
   implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
   implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
 }
 final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
-  import scala.pickling.{ SPickler, Unpickler }
   import CoreProtocol._
   implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
   implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
@@ -290,7 +288,7 @@ case object TestGroupError extends TestGroupResult {
   override def toString = "error"
 }
 object TestGroupResult {
-  import scala.pickling.{ SPickler, Unpickler, PicklingException }
+  import scala.pickling.PicklingException
   import CoreProtocol._
   import sbt.serialization.CanToString
 
@@ -319,7 +317,6 @@ final case class TestEvent(name: String, description: Option[String], outcome: T
 }
 
 object TestEvent extends TaskEventUnapply[TestEvent] {
-  import scala.pickling.{ SPickler, Unpickler }
   import CoreProtocol._
   implicit val pickler: SPickler[TestEvent] = genPickler[TestEvent]
   implicit val unpickler: Unpickler[TestEvent] = genUnpickler[TestEvent]
@@ -357,7 +354,7 @@ case object TestSkipped extends TestOutcome {
 }
 
 object TestOutcome {
-  import scala.pickling.{ SPickler, Unpickler, PicklingException }
+  import scala.pickling.PicklingException
   import CoreProtocol._
   import sbt.serialization.CanToString
 
@@ -558,7 +555,7 @@ object Compilations {
 final class CompileFailedException(message: String, cause: Throwable, val problems: Vector[Problem]) extends Exception(message, cause)
 
 object CompileFailedException {
-  import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader }
+  import scala.pickling.{ FastTypeTag, PBuilder, PReader }
   import CoreProtocol._
   implicit object picklerUnpickler extends SPickler[CompileFailedException] with Unpickler[CompileFailedException] {
     val tag: FastTypeTag[CompileFailedException] = implicitly[FastTypeTag[CompileFailedException]]
@@ -633,7 +630,7 @@ object ByteArray {
   import CoreProtocol._
   // TODO what a mess, this isn't quite right I'm sure, but probably we just
   // don't need byte arrays anyhow (we don't need all of Analysis)
-  import scala.pickling.{ SPickler, Unpickler, PBuilder, PReader, FastTypeTag, PicklingException }
+  import scala.pickling.{ PBuilder, PReader, FastTypeTag, PicklingException }
   implicit val picklerUnpickler: SPickler[ByteArray] with Unpickler[ByteArray] = new SPickler[ByteArray] with Unpickler[ByteArray] {
     private implicit val arrayPickler = implicitly[SPickler[Array[Byte]]]
     private implicit val arrayUnpickler = implicitly[Unpickler[Array[Byte]]]
@@ -678,8 +675,6 @@ private[sbt] object StructurallyEqual {
 // the macros won't know all the subtypes of Message if we
 // put this companion object earlier in the file.
 object Message {
-
-  import scala.pickling.{ SPickler, Unpickler }
   import CoreProtocol._
 
   // These various picklers are mostly alphabetical except when

@@ -2,7 +2,7 @@ package sbt.serialization
 package pickler
 
 import scala.collection.generic.CanBuildFrom
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
+import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
 
 trait StringMapPicklers {
   // FIXME this could theoretically work for M<:Map[String,A] and use a CanBuildFrom for M?

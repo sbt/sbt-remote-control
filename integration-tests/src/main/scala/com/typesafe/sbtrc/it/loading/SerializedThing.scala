@@ -8,6 +8,6 @@ object SerializedThing {
   // TODO - we don't want this to gunky everything up.
   import sbt.protocol.CoreProtocol._
 
-  implicit val pickler: scala.pickling.SPickler[SerializedThing] = scala.pickling.Defaults.genPickler[SerializedThing]
-  implicit val unpickler: scala.pickling.Unpickler[SerializedThing] = scala.pickling.Defaults.genUnpickler[SerializedThing]
+  implicit val pickler: SPickler[SerializedThing] = SPickler.generate[SerializedThing]
+  implicit val unpickler: Unpickler[SerializedThing] = Unpickler.generate[SerializedThing]
 }

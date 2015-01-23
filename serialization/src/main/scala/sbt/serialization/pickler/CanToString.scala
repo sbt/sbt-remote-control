@@ -3,7 +3,7 @@ package pickler
 
 import java.io.File
 import java.net.URI
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
+import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
 
 trait CanToStringPicklers extends PrimitivePicklers {
   implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {

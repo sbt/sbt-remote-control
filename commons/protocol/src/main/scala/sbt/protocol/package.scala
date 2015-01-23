@@ -9,7 +9,6 @@ import sbt.serialization.functions._
 package object protocol {
   import CoreProtocol._
   import sbt.serialization.CanToString
-  import scala.pickling.{ SPickler, Unpickler }
 
   //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
   //implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???

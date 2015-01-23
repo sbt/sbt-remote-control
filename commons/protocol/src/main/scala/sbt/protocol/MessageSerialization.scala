@@ -1,7 +1,6 @@
 package sbt.protocol
 
 import sbt.serialization._
-import scala.pickling.{ SPickler, Unpickler }
 
 /**
  * TODO get rid of this object, it just holds one leftover

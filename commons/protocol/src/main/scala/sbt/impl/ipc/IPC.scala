@@ -12,7 +12,6 @@ import java.io.InputStream
 import java.net.SocketException
 import java.util.concurrent.atomic.AtomicInteger
 import sbt.serialization._
-import scala.pickling.SPickler
 
 trait Envelope[T] {
   def serial: Long

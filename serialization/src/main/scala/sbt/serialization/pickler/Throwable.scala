@@ -1,7 +1,7 @@
 package sbt.serialization
 package pickler
 
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
+import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
 import scala.pickling.static._
 
 private[pickler] final case class StackTraceElementDeserialized(declaringClass: String,

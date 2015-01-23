@@ -3,7 +3,6 @@ package sbt.protocol
 import java.net.URI
 import sbt.serialization._
 import sbt.serialization.functions._
-import scala.pickling.{ SPickler, Unpickler }
 
 /**
  * This represents a "key" in sbt.

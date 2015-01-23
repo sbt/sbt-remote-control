@@ -9,9 +9,7 @@ import scala.pickling.{
   PickleFormat,
   PickleTools,
   PicklingException,
-  SPickler,
   StringOutput,
-  Unpickler,
   UnpickleOps
 }
 import scala.pickling.internal.lookupUnpicklee

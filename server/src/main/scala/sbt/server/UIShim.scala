@@ -11,7 +11,6 @@ import sbt.protocol.CoreLogEvent
 import sbt.protocol.LogMessage
 import sbt.protocol.BackgroundJobInfo
 import sbt.serialization._
-import scala.pickling.SPickler
 
 private[server] class ServerInteractionService(state: ServerState) extends SbtPrivateInteractionService {
 
