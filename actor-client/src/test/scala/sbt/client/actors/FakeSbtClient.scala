@@ -244,7 +244,8 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
 
   def close(): Unit = {
     import refFactory.dispatcher
-    implicit val timeout = Timeout(5.seconds)
+    // TODO - Configure this separately for travis.
+    implicit val timeout = Timeout(10.seconds)
     closed.set(true)
     for {
       _ <- ask(buildStructureQueue, SubscriptionManager.StopAll)

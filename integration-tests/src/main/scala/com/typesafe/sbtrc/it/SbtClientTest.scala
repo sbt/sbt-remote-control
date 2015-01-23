@@ -11,8 +11,13 @@ import concurrent.Promise
 import scala.annotation.tailrec
 
 trait SbtClientTest extends IntegrationTest {
-  // TODO - load from config - this timeout is long because travis is slow
-  def defaultTimeout = concurrent.duration.Duration(180, java.util.concurrent.TimeUnit.SECONDS)
+  val timeout = {
+    try sys.props("sbt.integration.timeout").toInt
+    catch {
+      case _: Throwable => 180
+    }
+  }
+  def defaultTimeout = concurrent.duration.Duration(timeout, java.util.concurrent.TimeUnit.SECONDS)
 
   /** helper to add error messages when waiting for results and timeouts occur. */
   def waitWithError[T](awaitable: scala.concurrent.Awaitable[T], msg: String): T = {
@@ -157,7 +162,8 @@ trait SbtClientTest extends IntegrationTest {
         throw e
     } finally connector.close()
 
-    clientCloseLatch.await(15, TimeUnit.SECONDS)
+    // Wait for a length of time based on our total timeout.
+    clientCloseLatch.await(timeout / 10, TimeUnit.SECONDS)
   }
 
   lazy val utils = new TestUtil(new java.io.File("scratch"))

@@ -29,7 +29,7 @@ notifications:
     - qbranch@typesafe.com
 
 script:
-  - sbt -J-Xmx3784m clean test integrationTests
+  - sbt -J-Xmx3784m -Dsbt.integration.timeout=250 clean test integrationTests
 
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
