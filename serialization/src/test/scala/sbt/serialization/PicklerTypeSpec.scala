@@ -47,14 +47,12 @@ class PicklerTypeTest {
     appleExample.unpickle[Fruit] must_== Apple(1)
   }
 
-  // TODO - We need to fix this in the genUnpickler macro itself
-  @Test @Ignore
+  @Test
   def testUnpickleOrange: Unit = {
     appleExample.unpickle[Orange] must_== Orange(1)
   }
 
-  // TODO - We need to fix this in the genUnpickler macro itself
-  @Test @Ignore
+  @Test
   def testUnpickleOrangeFromUnknown: Unit = {
     unknownTypeExample.unpickle[Orange] must_== Orange(1)
   }

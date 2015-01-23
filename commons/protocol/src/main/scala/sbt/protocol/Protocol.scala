@@ -15,17 +15,64 @@ object CoreProtocol extends CoreProtocol {}
  * A marker trait for *any* message that is passed back/forth from
  *  sbt into a client.
  */
+@directSubclasses(Array(classOf[Request], classOf[Response], classOf[Event]))
 sealed trait Message {
   def simpleName: String = MessageSerialization.makeSimpleName(getClass)
 }
 
 /** Represents requests that go down into sbt. */
+@directSubclasses(Array(classOf[RegisterClientRequest],
+  classOf[CancelExecutionRequest],
+  classOf[ExecutionRequest],
+  classOf[KeyExecutionRequest],
+  classOf[KillServerRequest],
+  classOf[CommandCompletionsRequest],
+  classOf[ListenToEvents],
+  classOf[UnlistenToEvents],
+  classOf[ListenToBuildChange],
+  classOf[UnlistenToBuildChange],
+  classOf[SendSyntheticBuildChanged],
+  classOf[ListenToValue],
+  classOf[UnlistenToValue],
+  classOf[SendSyntheticValueChanged],
+  classOf[ClientClosedRequest],
+  classOf[KeyLookupRequest],
+  classOf[AnalyzeExecutionRequest],
+  classOf[ReadLineRequest],
+  classOf[ConfirmRequest]))
 sealed trait Request extends Message
 /** Responses that come back from sbt. */
+@directSubclasses(Array(classOf[CancelExecutionResponse],
+  classOf[ExecutionRequestReceived],
+  classOf[CommandCompletionsResponse],
+  classOf[KeyNotFound],
+  classOf[KeyLookupResponse],
+  classOf[AnalyzeExecutionResponse],
+  classOf[ErrorResponse],
+  classOf[ReceivedResponse],
+  classOf[ReadLineResponse],
+  classOf[ConfirmResponse]))
 sealed trait Response extends Message
 /** Events that get sent during requests to sbt. */
+@directSubclasses(Array(classOf[ExecutionEngineEvent],
+  classOf[ExecutionWaiting],
+  classOf[ClosedEvent],
+  classOf[LogEvent],
+  classOf[TaskEvent],
+  classOf[BackgroundJobEvent],
+  classOf[BuildStructureChanged],
+  classOf[ValueChanged]))
 sealed trait Event extends Message
 /** Events sent by the execution engine */
+@directSubclasses(Array(classOf[ExecutionStarting],
+  classOf[ExecutionSuccess],
+  classOf[ExecutionFailure],
+  classOf[BuildLoaded],
+  classOf[BuildFailedToLoad],
+  classOf[TaskStarted],
+  classOf[TaskFinished],
+  classOf[BackgroundJobStarted],
+  classOf[BackgroundJobFinished]))
 sealed trait ExecutionEngineEvent extends Event
 
 // ------------------------------------------
@@ -159,6 +206,9 @@ object LogMessage {
   val ERROR = "error"
   private[protocol] val validLevels = Set(DEBUG, INFO, WARN, ERROR)
 }
+@directSubclasses(Array(classOf[TaskLogEvent],
+  classOf[CoreLogEvent],
+  classOf[BackgroundJobLogEvent]))
 sealed trait LogEvent extends Event {
   def entry: LogEntry
 }
@@ -403,6 +453,8 @@ final case class Analysis( /* stamps: Stamps,
   infos: SourceInfos,
   compilations: Compilations */ )
 object Analysis {
+  import CoreProtocol._
+
   val empty: Analysis = Analysis() /*stamps = Stamps.empty,
     apis = APIs.empty,
     relations = Relations.empty,

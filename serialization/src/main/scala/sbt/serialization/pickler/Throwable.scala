@@ -9,7 +9,7 @@ private[pickler] final case class StackTraceElementDeserialized(declaringClass: 
   fileName: String,
   lineNumber: Int)
 
-trait ThrowablePicklers extends PrimitivePicklers with OptionPicklers with VectorPicklers {
+trait ThrowablePicklers extends PrimitivePicklers with OptionPicklers with VectorPicklers with RefPicklers {
 
   implicit val stackTracePickler: SPickler[StackTraceElementDeserialized] = SPickler.generate[StackTraceElementDeserialized]
   implicit val stackTraceUnickler: Unpickler[StackTraceElementDeserialized] = Unpickler.generate[StackTraceElementDeserialized]
