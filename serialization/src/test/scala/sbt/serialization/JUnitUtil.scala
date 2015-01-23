@@ -47,6 +47,12 @@ object JUnitUtil {
   //       throw t
   //   }
   // }
+
+  def roundTripArray[A](x: Array[A])(implicit ev0: SPickler[Array[A]], ev1: Unpickler[Array[A]]): Unit =
+    roundTripBase[Array[A]](x)((a, b) =>
+      assertEquals(a.toList, b.toList)) { (a, b) =>
+      assertEquals(s"Failed to round trip $x via ${implicitly[SPickler[Array[A]]]} and ${implicitly[Unpickler[Array[A]]]}", a.getMessage, b.getMessage)
+    }
   def roundTrip[A: SPickler: Unpickler](x: A): Unit =
     roundTripBase[A](x)((a, b) =>
       assertEquals(a, b)) { (a, b) =>

@@ -145,7 +145,8 @@ class ArrayPicklerTest {
     //roundTrip(Nil) // custom format to support both Nil and List[A]
     roundTrip(Nil: List[String])
     roundTrip(Vector(): Vector[String])
-    // roundTrip(Array("Bar", "Baz"))
+    roundTripArray(Array(1, 2, 3))
+    roundTripArray(Array("Bar", "Baz"))
     roundTrip(Vector("Bar", "Baz"))
     roundTrip(List("Bar", "Baz"))
     roundTrip(Vector(1, 2, 3))
