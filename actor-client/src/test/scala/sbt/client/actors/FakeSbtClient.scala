@@ -16,7 +16,6 @@ import akka.pattern.ask
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.pickling.Unpickler
 
 final class FakeSubscription[T](refFactory: ActorRefFactory, body: T => Unit, ex: ExecutionContext)(implicit mf: Manifest[T]) extends Subscription {
   private final val enabled = new AtomicBoolean(true)

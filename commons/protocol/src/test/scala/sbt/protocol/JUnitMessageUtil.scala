@@ -3,7 +3,6 @@ package sbt.protocol.spec
 import sbt.protocol.Message
 import org.junit.Assert._
 import org.junit._
-import scala.pickling.{ SPickler, Unpickler }
 import sbt.serialization._
 import scala.pickling.Defaults.pickleOps
 

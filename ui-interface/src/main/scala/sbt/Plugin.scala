@@ -3,7 +3,6 @@ package sbt
 import sbt.ScopeAxis.scopeAxisToScope
 import std.TaskStreams
 import sbt.serialization._
-import scala.pickling.SPickler
 
 /**
  * This UI plugin provides the basic settings used by plugins that want to be able to communicate with a UI.

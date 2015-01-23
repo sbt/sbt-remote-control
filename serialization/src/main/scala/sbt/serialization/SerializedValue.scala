@@ -2,7 +2,7 @@ package sbt.serialization
 
 import org.json4s.JValue
 import org.json4s.JsonAST._
-import scala.pickling._
+import scala.pickling.PicklingException
 import scala.util.control.NonFatal
 import scala.util.Try
 // Needed for pickle/unpickle methods.

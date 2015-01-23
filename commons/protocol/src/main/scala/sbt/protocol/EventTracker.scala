@@ -2,7 +2,6 @@ package sbt.protocol
 
 import sbt.serialization._
 import scala.collection.immutable
-import scala.pickling.SPickler
 
 /**
  * Utilities to track the state implied by a series of events, allowing the events

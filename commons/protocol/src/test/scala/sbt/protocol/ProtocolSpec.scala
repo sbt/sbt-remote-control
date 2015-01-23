@@ -12,7 +12,7 @@ import JUnitMessageUtil._
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{ Try, Success, Failure }
 import sbt.serialization.json._
-import scala.pickling.{ PickleOps, SPickler, Unpickler }
+import scala.pickling.PickleOps
 import sbt.serialization._
 import scala.pickling.Defaults.pickleOps
 

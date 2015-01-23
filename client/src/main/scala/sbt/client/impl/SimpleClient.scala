@@ -15,7 +15,6 @@ import scala.annotation.tailrec
 import scala.concurrent.{ ExecutionContext, Future, Promise }
 import scala.util.{ Success, Failure, Try }
 import scala.util.control.NonFatal
-import scala.pickling.Unpickler
 
 /**
  * A concrete implementation of the SbtClient trait.

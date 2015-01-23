@@ -1,6 +1,5 @@
 package sbt.serialization
 
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
 import sbt.serialization.pickler.{
   PrimitivePicklers,
   PrimitiveArrayPicklers,

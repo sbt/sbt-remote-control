@@ -2,7 +2,7 @@ package sbt.serialization
 package pickler
 
 import scala.collection.generic.CanBuildFrom
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
+import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
 
 trait VectorPicklers {
   implicit def vectorPickler[T: FastTypeTag](implicit elemPickler: SPickler[T], elemUnpickler: Unpickler[T], collTag: FastTypeTag[Vector[T]], cbf: CanBuildFrom[Vector[T], T, Vector[T]]): SPickler[Vector[T]] with Unpickler[Vector[T]] =

@@ -1,6 +1,6 @@
 package sbt.serialization
 
-import scala.pickling.{ SPickler, Unpickler, Generated }
+import scala.pickling.Generated
 
 trait SerializationFunctions {
   import scala.language.experimental.macros

@@ -1,7 +1,7 @@
 package sbt.serialization
 package pickler
 
-import scala.pickling.{ SPickler, Unpickler, FastTypeTag, PBuilder, PReader, PicklingException }
+import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
 
 trait OptionPicklers extends PrimitivePicklers with RichTypes {
   implicit def optionPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Option[A]]): SPickler[Option[A]] with Unpickler[Option[A]] =

@@ -2,7 +2,6 @@ package sbt.protocol
 
 import sbt.serialization._, sbt.serialization.functions._
 import scala.util.{ Try, Success, Failure }
-import scala.pickling.{ SPickler, Unpickler }
 
 /**
  *  Represents a serialized value with a stringValue fallback.

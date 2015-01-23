@@ -5,7 +5,6 @@ import sbt.protocol._
 import sbt.serialization._
 import java.io.Closeable
 import scala.concurrent.{ ExecutionContext, Future }
-import scala.pickling.Unpickler
 
 /**
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.

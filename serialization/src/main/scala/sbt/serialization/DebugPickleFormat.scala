@@ -1,6 +1,14 @@
 package sbt.serialization
 
-import scala.pickling._
+import scala.pickling.{
+  Pickle,
+  PickleFormat,
+  FastTypeTag,
+  PBuilder,
+  PReader,
+  PicklingException,
+  Output
+}
 import scala.reflect.runtime.universe.Mirror
 import scala.util.{ Failure, Success }
 

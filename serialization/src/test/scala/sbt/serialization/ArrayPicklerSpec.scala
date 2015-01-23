@@ -4,7 +4,7 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling.{ PickleOps, UnpickleOps, SPickler, Unpickler, FastTypeTag }
+import scala.pickling.{ PickleOps, UnpickleOps, FastTypeTag }
 import JUnitUtil._
 import scala.pickling.Defaults.pickleOps
 import sbt.serialization._, sbt.serialization.json._
