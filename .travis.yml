@@ -23,13 +23,12 @@ jdk:
   - openjdk6
   - openjdk7
   - oraclejdk7
-  - oraclejdk8
 notifications:
   email:
     - qbranch@typesafe.com
 
 script:
-  - sbt -J-Xmx1024m -J-Xms1024m -J-XX:ReservedCodeCacheSize=128m -J-XX:MaxPermSize=256m -Dsbt.integration.timeout=250 clean test integrationTests
+  - sbt -Dsbt.integration.timeout=250 clean test integrationTests
 
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
