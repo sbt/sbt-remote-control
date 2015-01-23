@@ -8,8 +8,8 @@ import scala.pickling.{ SPickler, Unpickler }
  *  Represents a serialized value with a stringValue fallback.
  */
 final case class BuildValue(serialized: SerializedValue, stringValue: String) {
-  def value[T](implicit unpickler: Unpickler[T]): Option[T] =
-    serialized.parse[T].toOption
+  def value[T](implicit unpickler: Unpickler[T]): Try[T] =
+    serialized.parse[T]
   override def equals(o: Any): Boolean =
     o match {
       case x: BuildValue => x.serialized == serialized
@@ -66,14 +66,14 @@ final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
   override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A] = {
     value.value[A] match {
-      case Some(v) => Success(v)
-      case None => Failure(new Exception(s"Failed to deserialize ${value.serialized}"))
+      case Success(v) => Success(v)
+      case Failure(t) => Failure(new Exception(s"Failed to deserialize ${value.serialized}", t))
     }
   }
   override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A] = {
     value.value[A] match {
-      case Some(v) => Success(v)
-      case None => Failure(new Exception(s"Failed to deserialize ${value.serialized}"))
+      case Success(v) => Success(v)
+      case Failure(t) => Failure(new Exception(s"Failed to deserialize ${value.serialized}", t))
     }
   }
 }

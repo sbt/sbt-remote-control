@@ -167,7 +167,7 @@ class TestExecution extends SbtClientTest {
         case (key, result) if key.key.name == taskName =>
           result
       }).headOption match {
-        case Some(TaskSuccess(value)) if (value.value[T] == Some(expected)) => // ok!
+        case Some(TaskSuccess(value)) if (value.value[T] == util.Success(expected)) => // ok!
         case Some(TaskSuccess(value)) =>
           throw new AssertionError(s"Value of ${taskName} was was ${value}, expected Some(${expected})")
         case wrong =>

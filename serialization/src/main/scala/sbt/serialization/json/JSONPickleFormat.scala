@@ -33,9 +33,35 @@ package json {
     //implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
   }
 
-  case class JSONPickle(value: String) extends Pickle {
+  sealed abstract class JSONPickle extends Pickle {
     type ValueType = String
     type PickleFormatType = JSONPickleFormat
+    //abstract val value: String
+    /** The value in the pickled parsed into a JValue AST.  note this may throw. */
+    def parsedValue: JValue
+
+    override final def equals(other: Any): Boolean = other match {
+      case null => false
+      case o: JSONPickle => JsonMethods.jvalueEquals(parsedValue, o.parsedValue)
+      case _ => false
+    }
+    override def hashCode = parsedValue.hashCode
+  }
+  private[json] class RawStringPickle(override val value: String) extends JSONPickle {
+    def parsedValue: JValue =
+      jawn.support.json4s.Parser.parseFromString(value) match {
+        case Success(json: JValue) => json
+        case Failure(e) => throw new PicklingException(s"""failed to parse "${value}" as JSON: ${e.getMessage}""")
+      }
+  }
+  private[json] class JValuePickle(override val parsedValue: JValue) extends JSONPickle {
+    // This HAS to be val based on the pickling API.  However, we may never call it for a given pickle,
+    // so we'd like to not pay the string rendering tax unless we must.
+    override lazy val value: String = JsonMethods.compact(parsedValue)
+  }
+  object JSONPickle {
+    def apply(in: String): JSONPickle = new RawStringPickle(in)
+    def fromJValue(in: JValue): JSONPickle = new JValuePickle(in)
   }
 
   class JSONPickleFormat extends PickleFormat {
@@ -43,12 +69,8 @@ package json {
     type OutputType = Output[String]
     def createBuilder() = new VerifyingJSONPickleBuilder(this, new StringOutput)
     def createBuilder(out: Output[String]): PBuilder = new VerifyingJSONPickleBuilder(this, out)
-    def createReader(pickle: JSONPickle) = {
-      jawn.support.json4s.Parser.parseFromString(pickle.value) match {
-        case Success(json) => new VerifyingJSONPickleReader(this, IniitalReaderState(json))
-        case Failure(e) => throw new PicklingException("failed to parse \"" + pickle.value + "\" as JSON: " + e.getMessage)
-      }
-    }
+    def createReader(pickle: JSONPickle) =
+      new VerifyingJSONPickleReader(this, IniitalReaderState(pickle.parsedValue))
   }
   object JSONPickleFormat {
     private[json] val TYPE_TAG_FIELD = "$type"
@@ -464,6 +486,9 @@ package json {
         case x => unexpectedValue(x, FastTypeTag.Char)
       }),
       FastTypeTag.String.key -> (datum => datum match {
+        // TODO - where is this coming from... appears to be `Option[String]`, when option is `None`
+        // More importantly, why is Jawn returning null instead of JNull?
+        case null => null
         case JString(s) => s
         case x => unexpectedValue(x, FastTypeTag.String)
       }),

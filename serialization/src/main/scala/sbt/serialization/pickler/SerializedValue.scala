@@ -26,18 +26,21 @@ trait SerializationPicklers {
       result
     }
   }
+
   implicit object jsonValuePickler extends SPickler[JsonValue] with Unpickler[JsonValue] {
     val tag = implicitly[FastTypeTag[JsonValue]]
 
     def pickle(jv: JsonValue, builder: PBuilder): Unit = {
       builder.pushHints()
       builder.hintTag(FakeTags.JValue)
-      jvaluePickler.pickle(jv.json, builder)
+      // TODO - Ideally we could just serialize the JSON string DIRECTLY here.
+      jvaluePickler.pickle(jv.pickledValue.parsedValue, builder)
       builder.popHints()
     }
     def unpickle(tag: String, preader: PReader): Any = {
+      // TODO - we need to tag this, most likely.
       val json = jvaluePickler.unpickle(FakeTags.JValue.key, preader).asInstanceOf[JValue]
-      JsonValue(json)
+      JsonValue.fromJValue(json)
     }
   }
 
@@ -48,7 +51,7 @@ trait SerializationPicklers {
     def pickle(a: SerializedValue, builder: PBuilder): Unit =
       a match {
         case spsv: SbtPrivateSerializedValue =>
-          val json = spsv.toJson.json
+          val json = spsv.toJson.pickledValue.parsedValue
           builder.hintTag(cheaterTag)
           builder.hintStaticallyElidedType()
           builder.beginEntry(json)
@@ -62,7 +65,7 @@ trait SerializationPicklers {
       // TODO - Check beginEntry returns cheaterTag
       val value = preader.readPrimitive().asInstanceOf[JValue]
       preader.endEntry()
-      JsonValue(value)
+      JsonValue.fromJValue(value)
     }
   }
 }
