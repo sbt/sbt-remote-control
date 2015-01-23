@@ -52,7 +52,7 @@ object Dependencies {
   val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion
 
   private val jsonTuples = Seq(
-    ("org.json4s", "json4s-native", "3.2.10"),
+    ("org.json4s", "json4s-core", "3.2.10"),
     ("org.spire-math", "jawn-parser", "0.6.0"),
     ("org.spire-math", "json4s-support", "0.6.0")
   )

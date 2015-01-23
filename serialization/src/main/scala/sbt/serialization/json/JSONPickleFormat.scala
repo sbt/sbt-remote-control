@@ -154,7 +154,7 @@ package json {
           else if (primitiveArrays.contains(hints.tag.key)) {
             primitiveArrays(hints.tag.key)(picklee)
           } else if (isJValue(hints.tag)) {
-            import org.json4s.native.JsonMethods._
+            import JsonMethods._
             buf.put(compact(render(picklee.asInstanceOf[JValue])))
           } else {
             // Note: It's possible the object is empty, so we just put an empty object here,
