@@ -131,6 +131,8 @@ final case class IntegrationContext(launchJar: File,
     val boot = cwd / "boot"
     val args = Seq("java", 
         "-Dsbt.boot.directory=" + boot.getAbsolutePath, 
+        // TODO - Make sure this isnt' too mcuh or too little.
+        "-Xmx256M",
         // TODO - Just pass this through...
         "-Dproject.version=" + version,
         "-Dsbt.integration.timeout=" + timeout,
