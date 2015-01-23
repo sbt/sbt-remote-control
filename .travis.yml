@@ -29,7 +29,7 @@ notifications:
     - qbranch@typesafe.com
 
 script:
-  - sbt -J-Xmx1024m -XX:ReservedCodeCacheSize=128m -XX:MaxPermSize=256m -Dsbt.integration.timeout=250 clean test integrationTests
+  - sbt -Xmx1024m -Xms1024m -XX:ReservedCodeCacheSize=128m -XX:MaxPermSize=256m -Dsbt.integration.timeout=250 clean test integrationTests
 
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
