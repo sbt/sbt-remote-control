@@ -107,7 +107,7 @@ final case class IntegrationContext(launchJar: File,
         streams.log.info(" [IT] " + name + " result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
       case n => 
-        streams.log.error(" [IT] " + name + " result: FAILURE")
+        streams.log.error(" [IT] " + name + " result: FAILURE   - $n")
         IntegrationTestResult(name, false, logFile)
     })
   }
