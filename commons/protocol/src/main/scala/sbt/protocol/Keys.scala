@@ -4,25 +4,24 @@ import java.net.URI
 import sbt.serialization._
 import sbt.serialization.functions._
 import scala.pickling.{ SPickler, Unpickler }
-import scala.pickling.internal.AppliedType
 
 /**
  * This represents a "key" in sbt.
  *  Keys have names and "types" associated.
  * TODO FIXME it is bad to have an internal type from pickling here
  */
-final case class AttributeKey(name: String, manifest: AppliedType) {
+final case class AttributeKey(name: String, manifest: TypeExpression) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
   import CoreProtocol._
-  require(implicitly[Unpickler[AppliedType]] ne null)
+  require(implicitly[Unpickler[TypeExpression]] ne null)
   implicit val unpickler: Unpickler[AttributeKey] = genUnpickler[AttributeKey]
   implicit val pickler: SPickler[AttributeKey] = genPickler[AttributeKey]
 
   def apply[T](name: String)(implicit mf: Manifest[T]): AttributeKey = {
-    // FIXME I don't think this is really the right name we pass to AppliedType
-    AttributeKey(name, AppliedType.parse(mf.runtimeClass.getName)._1)
+    // FIXME I don't think this is really the right name we pass to TypeExpression
+    AttributeKey(name, TypeExpression.parse(mf.runtimeClass.getName)._1)
   }
 }
 

@@ -9,7 +9,6 @@ import java.net.URI
 import SpecsUtil._
 import sbt.serialization.spec.JUnitUtil._
 import JUnitMessageUtil._
-import scala.pickling.internal.AppliedType
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{ Try, Success, Failure }
 import sbt.serialization.json._
@@ -20,7 +19,7 @@ import scala.pickling.Defaults.pickleOps
 class ProtocolTest {
   import CoreProtocol._
 
-  val key = protocol.AttributeKey("name", AppliedType.parse("java.lang.String")._1)
+  val key = protocol.AttributeKey("name", TypeExpression.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")
   val projectRef = protocol.ProjectReference(build, "test")
   val scope = protocol.SbtScope(project = Some(projectRef))

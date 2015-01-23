@@ -6,7 +6,7 @@ import sbt.protocol
 import sbt.ConfigKey.configurationToKey
 import sbt.Scoped.inputScopedToKey
 import sbt.Scoped.taskScopedToKey
-import scala.pickling.internal.AppliedType
+import sbt.serialization.TypeExpression
 
 class TestSbtToProtocolUtils {
 
@@ -15,7 +15,7 @@ class TestSbtToProtocolUtils {
     val ref = sbt.ProjectRef(
       new java.net.URI("file:///home/"), "test-project")
     val nameInRef = sbt.Keys.name in ref
-    val string = AppliedType("java.lang.String", Nil)
+    val string = TypeExpression("java.lang.String", Nil)
     val expectedKey =
       protocol.AttributeKey("name", string)
     val expectedScope =
@@ -32,7 +32,7 @@ class TestSbtToProtocolUtils {
   @Test
   def testKeyMapping(): Unit = {
     val sbtName = sbt.Keys.name
-    val string = AppliedType("java.lang.String", Nil)
+    val string = TypeExpression("java.lang.String", Nil)
     val expected =
       protocol.AttributeKey("name", string)
 
@@ -43,8 +43,8 @@ class TestSbtToProtocolUtils {
   @Test
   def testScopedInputKeyMapping(): Unit = {
     val sbtRunInCompile = sbt.Keys.run in sbt.Compile
-    val unit = AppliedType("void", Nil)
-    //val inputTaskType = AppliedType("sbt.InputTask", Seq(unit))
+    val unit = TypeExpression("void", Nil)
+    //val inputTaskType = TypeExpression("sbt.InputTask", Seq(unit))
 
     val runInputKey =
       protocol.AttributeKey("run", unit)
@@ -60,8 +60,8 @@ class TestSbtToProtocolUtils {
     // Here we ensure the Task[_] part is stripped from the key in the remote API since we cannot (nor should)
     // serialize tasks.
     val sbtSourcesInCompile = sbt.Keys.sources in sbt.Compile
-    val file = AppliedType("java.io.File", Nil)
-    val seqFile = AppliedType("scala.collection.Seq", List(file))
+    val file = TypeExpression("java.io.File", Nil)
+    val seqFile = TypeExpression("scala.collection.Seq", List(file))
     val sourcesTaskKey =
       protocol.AttributeKey("sources", seqFile)
     val scope = protocol.SbtScope(config = Some("compile"))

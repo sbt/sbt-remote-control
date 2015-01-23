@@ -6,10 +6,10 @@ package sbt.protocol
 import org.junit.Assert._
 import org.junit._
 import sbt.protocol._
+import sbt.serialization.TypeExpression
 import java.util.concurrent.Executors
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import scala.pickling.internal.AppliedType
 
 class EventTrackerTest {
 
@@ -18,8 +18,8 @@ class EventTrackerTest {
     val build = new java.net.URI("file:///test/project")
     val projectRef1 = ProjectReference(build, "test1")
     val projectRef2 = ProjectReference(build, "test2")
-    val key1 = AttributeKey("name", AppliedType("java.lang.String", Nil))
-    val key2 = AttributeKey("foo", AppliedType("java.lang.Integer", Nil))
+    val key1 = AttributeKey("name", TypeExpression("java.lang.String", Nil))
+    val key2 = AttributeKey("foo", TypeExpression("java.lang.Integer", Nil))
     val scope1 = SbtScope(project = Some(projectRef1))
     val scope2 = SbtScope(project = Some(projectRef2))
     val scopedKey1 = ScopedKey(key1, scope1)

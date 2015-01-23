@@ -2,7 +2,6 @@ package sbt.serialization
 
 import sbt.serialization.ScalaShims.ManifestFactory
 import scala.pickling.FastTypeTag
-import scala.pickling.internal.AppliedType
 
 object ManifestUtil {
   def isApproxIterable(tag: FastTypeTag[_], cl: ClassLoader = ManifestUtil.getClass.getClassLoader): Boolean =
@@ -35,15 +34,15 @@ object ManifestUtil {
     toManifest(tag.key, cl)
 
   def toManifest(key: String, cl: ClassLoader): Option[Manifest[_]] = {
-    val appliedType = AppliedType.parse(key)._1
-    toManifest(appliedType, cl)
+    val typeExpression = TypeExpression.parse(key)._1
+    toManifest(typeExpression, cl)
   }
 
-  def toManifest(appliedType: AppliedType, cl: ClassLoader): Option[Manifest[_]] = {
-    val args = appliedType.typeargs map { toManifest(_, cl) }
+  def toManifest(typeExpression: TypeExpression, cl: ClassLoader): Option[Manifest[_]] = {
+    val args = typeExpression.typeArgs map { toManifest(_, cl) }
     if (args forall { _.isDefined }) {
       val realArgs = args.flatten
-      appliedType.typename match {
+      typeExpression.typeName match {
         case "scala.Unit" => Some(ManifestFactory.Unit)
         case default =>
           try {

@@ -210,7 +210,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
         registered.executor.execute(new Runnable() {
           override def run(): Unit = {
             val genericKey =
-              ScopedKey(AttributeKey(registered.name), SbtScope())
+              ScopedKey(AttributeKey(registered.name, TypeExpression("java.lang.Object", Nil)), SbtScope())
             val noKeyResult = TaskFailure(BuildValue(cause))
             registered.listener.apply(genericKey, noKeyResult)
           }
