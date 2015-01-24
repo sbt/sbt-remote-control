@@ -15,9 +15,14 @@ import sbt.serialization.json.{
  * We serialize to and from this opaque type. The idea is to
  * hide exactly what we can serialize from/to and hide
  * which library we use to do it.
+ *
+ * What this will expose is the mechanism of using Pickler/Unpickler to
+ * handle unknown serialized values.
  */
 sealed trait SerializedValue {
   def parse[T](implicit unpickler: Unpickler[T]): Try[T]
+
+  // TODO - expose toJson, toBinary etc. (anyhting we need).
 }
 
 object SerializedValue {
@@ -27,10 +32,9 @@ object SerializedValue {
   /** Reconstitutes a SerialziedValue from a json string. */
   def fromJsonString(value: String): SerializedValue =
     JsonValue.fromJsonString(value)
-  /** Reconstitutes a SerialziedValue from a json AST. */
-  def fromJsonAST(value: JValue): SerializedValue =
-    JsonValue.fromJValue(value)
 
+
+  // TODO - Expose fromBinaryBlob if/when we support binary.
 }
 
 // TODO - If this is meant to handle any kind of pickle format, it needs

@@ -64,18 +64,10 @@ sealed trait TaskResult {
 /** This represents that the task was run successfully. */
 final case class TaskSuccess(value: BuildValue) extends TaskResult {
   override def isSuccess = true
-  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A] = {
-    value.value[A] match {
-      case Success(v) => Success(v)
-      case Failure(t) => Failure(new Exception(s"Failed to deserialize ${value.serialized}", t))
-    }
-  }
-  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A] = {
-    value.value[A] match {
-      case Success(v) => Success(v)
-      case Failure(t) => Failure(new Exception(s"Failed to deserialize ${value.serialized}", t))
-    }
-  }
+  override def resultWithCustomThrowable[A, B <: Throwable](implicit unpickleResult: Unpickler[A], unpickleFailure: Unpickler[B]): Try[A] =
+    value.value[A]
+  override def resultWithCustomThrowables[A](throwableDeserializers: ThrowableDeserializers)(implicit unpickleResult: Unpickler[A]): Try[A] =
+    value.value[A]
 }
 
 final case class TaskFailure(cause: BuildValue) extends TaskResult {
