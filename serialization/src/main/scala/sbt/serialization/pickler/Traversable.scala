@@ -26,6 +26,7 @@ trait SeqPicklers {
     TravPickler[A, Seq[A]]
 }
 
+// Custom pickler for Traversable is needed to emit $type hints for each element.
 object TravPickler {
   def apply[A: FastTypeTag, C <% Traversable[_]](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A],
     cbf: CanBuildFrom[C, A, C], collTag: FastTypeTag[C]): SPickler[C] with Unpickler[C] =
