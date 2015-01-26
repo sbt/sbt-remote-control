@@ -7,85 +7,79 @@ import scala.util.control.NonFatal
 import scala.util.Try
 // Needed for pickle/unpickle methods.
 import scala.pickling.functions._
+import sbt.serialization.json.{
+  JSONPickle
+}
 
 /**
  * We serialize to and from this opaque type. The idea is to
  * hide exactly what we can serialize from/to and hide
  * which library we use to do it.
+ *
+ * What this will expose is the mechanism of using Pickler/Unpickler to
+ * handle unknown serialized values.
  */
 sealed trait SerializedValue {
   def parse[T](implicit unpickler: Unpickler[T]): Try[T]
+
+  // TODO - expose toJson, toBinary etc. (anyhting we need).
 }
 
 object SerializedValue {
   def apply[V](value: V)(implicit pickler: SPickler[V]): SerializedValue =
     JsonValue[V](value)(pickler)
+
+  /** Reconstitutes a SerialziedValue from a json string. */
+  def fromJsonString(value: String): SerializedValue =
+    JsonValue.fromJsonString(value)
+
+
+  // TODO - Expose fromBinaryBlob if/when we support binary.
 }
 
+// TODO - If this is meant to handle any kind of pickle format, it needs
+//        to encode the pickle format directly.
+//        i.e. it'd be nice if we had some kind of class that had a PickleFormat and Pickle
+//        if we ever wanted to support alternative SerializedValues.
 private[sbt] sealed trait SbtPrivateSerializedValue extends SerializedValue {
+  /**
+   * Returns this serialized value pickled into a json Tree.
+   *
+   * Note: This may be an expensive operation.
+   */
   def toJson: JsonValue
+  /**
+   * Returns the serialzied value as a raw JSON string.
+   *
+   * Note: this may be an expensive operation.
+   */
+  def toJsonString: String
 }
 
+import sbt.serialization.json.JsonMethods._
 /** A value we have serialized as JSON */
-private[sbt] final case class JsonValue(json: JValue) extends SbtPrivateSerializedValue {
-  override def parse[T](implicit unpicklerForT: Unpickler[T]): Try[T] = {
-    import sbt.serialization.json.pickleFormat
-    import sbt.serialization.json.JSONPickle
-    import org.json4s.native.JsonMethods._
-    // TODO don't convert the AST to a string before parsing it!
-    Try { unpickle[T](JSONPickle(compact(render(json)))) }
-  }
+private[sbt] final case class JsonValue(pickledValue: JSONPickle) extends SbtPrivateSerializedValue {
+  import sbt.serialization.json.pickleFormat
+  override def parse[T](implicit unpicklerForT: Unpickler[T]): Try[T] =
+    Try { unpickle[T](pickledValue) }
+
   override def toJson = this
-
-  def renderCompact: String = {
-    import org.json4s.native.JsonMethods._
-    compact(render(json))
-  }
-
-  def renderPretty: String = {
-    import org.json4s.native.JsonMethods._
-    pretty(render(json))
-  }
-
+  override def toJsonString: String = pickledValue.value
   override def equals(other: Any): Boolean =
     other match {
-      case JsonValue(oj) => jvalueEquals(json, oj)
+      case JsonValue(pv) => pickledValue == pv
       case _ => false
     }
-
-  private def jvalueEquals(jvalue: JValue, jvalue2: JValue): Boolean =
-    (jvalue, jvalue2) match {
-      case (JNull, null) | (null, JNull) | (JNull, JNull) | (null, null) => true
-      case (JNothing, JNothing) => true
-      case (JBool(v), JBool(v2)) => v == v2
-      case (JDouble(v), JDouble(v2)) => v == v2
-      case (JString(v), JString(v2)) => v == v2
-      case (JArray(el), JArray(el2)) => (el.size == el2.size) && (el.zip(el2).forall((jvalueEquals _).tupled))
-      case (JObject(el), JObject(el2)) =>
-        (el.size == el2.size) && (
-          el.sortBy(_._1).zip(el2.sortBy(_._1)).forall {
-            case ((k, v), (k2, v2)) => (k == k2) && jvalueEquals(v, v2)
-          })
-      case (left, right) =>
-        System.err.println("Found differences between [$left] and [$right]")
-        false
-    }
-
-  override def toString = renderCompact
+  override def toString = toJsonString
 }
 
 private[sbt] object JsonValue {
-  private def parseJValue(s: String): Try[JValue] = {
-    jawn.support.json4s.Parser.parseFromString(s) recover {
-      case e @ jawn.ParseException(msg, _, line, col) =>
-        throw PicklingException(s"Parse error line $line column $col '$msg' in $s", Some(e))
-      case e @ jawn.IncompleteParseException(msg) =>
-        throw PicklingException(s"Incomplete json '$msg' in $s", Some(e))
-    }
-  }
 
-  private[sbt] def parseJson(s: String): Try[JsonValue] =
-    parseJValue(s) map { json => new JsonValue(json) }
+  private[sbt] def fromJsonString(s: String): JsonValue =
+    new JsonValue(JSONPickle(s))
+
+  private[sbt] def fromJValue(jv: JValue): JsonValue =
+    new JsonValue(JSONPickle.fromJValue(jv))
 
   // this is sort of dangerous because if you call it on a String
   // expecting to get the parseJson scenario above, you won't
@@ -93,10 +87,10 @@ private[sbt] object JsonValue {
   def apply[T](t: T)(implicit picklerForT: SPickler[T]): JsonValue = {
     import sbt.serialization.json.pickleFormat
     // TODO don't stringify the AST and then re-parse it!
-    parseJson(pickle(t).value).get
+    JsonValue(pickle(t))
   }
 
-  val emptyObject = JsonValue(org.json4s.JObject(Nil))
+  val emptyObject = JsonValue.fromJValue(org.json4s.JObject(Nil))
 }
 
 /**

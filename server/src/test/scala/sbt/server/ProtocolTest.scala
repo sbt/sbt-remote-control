@@ -464,7 +464,7 @@ class ProtocolTest {
 
     for (s <- specifics) {
       def fromRaw(j: JsonValue): Message =
-        addWhatWeWereUnpickling(j.renderCompact)(j.parse[Message].get)
+        addWhatWeWereUnpickling(j.toJsonString)(j.parse[Message].get)
       def toRaw(m: Message): JsonValue =
         addWhatWeWerePickling(m)(JsonValue(m))
       val roundtrippedOption = fromRaw(toRaw(s))
@@ -643,8 +643,8 @@ class ProtocolTest {
           case JsonToObject =>
             if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler)}.") }
             else {
-              val json = JsonValue.parseJson(IO.read(path, IO.utf8)).get
-              val parsed = addWhatWeWereUnpickling(json.renderCompact + "\n\t\t * from file: " + path)(json.parse[T](format.unpickler).get)
+              val json = JsonValue.fromJsonString(IO.read(path, IO.utf8))
+              val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format.unpickler).get)
               (t, parsed) match {
                 // Throwable has a not-very-useful equals() in this case
                 case (t: Throwable, parsed: Throwable) => e(t, parsed)
@@ -914,7 +914,7 @@ class ProtocolTest {
       formatOption map { format =>
         val json = addWhatWeWerePickling(t)(JsonValue(t)(format.pickler))
         //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
-        val parsed = addWhatWeWereUnpickling(json.renderCompact)(json.parse[T](format.unpickler).get)
+        val parsed = addWhatWeWereUnpickling(json.toJsonString)(json.parse[T](format.unpickler).get)
         (t, parsed) match {
           // Throwable has a not-very-useful equals() in this case
           case (t: Throwable, parsed: Throwable) => e(t, parsed)
@@ -952,7 +952,14 @@ class ProtocolTest {
       val json = SerializedValue(buildValue)
       // System.err.println(s"${buildValue} = ${json.toString}")
       val parsedValue = json.parse[protocol.BuildValue].getOrElse(throw new AssertionError(s"Failed to parse ${t} serialization ${json}"))
-      val parsedT = parsedValue.value[T](format.unpickler).getOrElse(throw new AssertionError(s"could not read back from build value ${t.getClass.getName} $t"))
+      import scala.util.{ Success, Failure }
+      val parsedT =
+        parsedValue.value[T](format.unpickler) match {
+          case Success(v) => v
+          case Failure(t) =>
+            t.printStackTrace()
+            throw new AssertionError(s"could not read back from build value ${t.getClass.getName} $t\n orig: $buildValue\njson: $json\nparsed: $parsedValue", t)
+        }
       val buildValueClass: Class[_] = t.getClass
       // Throwable has a not-very-useful equals() in this case
       if (classOf[Throwable].isAssignableFrom(buildValueClass)) {
