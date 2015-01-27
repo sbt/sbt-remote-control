@@ -30,13 +30,7 @@ sealed trait SerializedValue {
 
   // private because we don't have our chosen
   // json AST library in the public API
-  private def toJValue: JValue =
-    this match {
-      case jsonValue: JsonValue =>
-        jsonValue.pickledValue.parsedValue
-      case lazyValue: LazyValue[_] =>
-        lazyValue.toJson.pickledValue.parsedValue
-    }
+  protected def toJValue: JValue
 
   final override def equals(other: Any): Boolean =
     other match {
@@ -98,6 +92,8 @@ private final case class JsonValue(pickledValue: JSONPickle) extends SerializedV
   // be broken to use toString to get parseable json (since the SerializedValue
   // may not be a JsonValue)
   override def toString = s"JsonValue($toJsonString)"
+
+  override def toJValue: JValue = pickledValue.parsedValue
 }
 
 private object JsonValue {
@@ -123,6 +119,8 @@ private final case class LazyValue[V](value: V, pickler: SPickler[V]) extends Se
     toJson.parse[T]
 
   override def toJsonString = toJson.toJsonString
+
+  override def toJValue = toJson.toJValue
 
   private lazy val jsonValue = JsonValue.fromPicklee(value)(pickler)
 
