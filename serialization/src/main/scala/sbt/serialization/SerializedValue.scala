@@ -10,8 +10,8 @@ import sbt.serialization.json.{
   JSONPickle
 }
 import scala.pickling.{ FastTypeTag, PBuilder, PReader }
-
 import sbt.serialization.json.JsonMethods._
+import sbt.serialization.json.JSONPickleFormat
 
 /**
  * We serialize to and from this opaque type. The idea is to
@@ -35,12 +35,12 @@ sealed trait SerializedValue {
   final override def equals(other: Any): Boolean =
     other match {
       case null => false
-      case sv: SerializedValue => toJValue.equals(sv.toJValue)
+      case sv: SerializedValue => json.JsonMethods.jvalueEquals(toJValue, sv.toJValue)
       case _ => false
     }
 
   final override def hashCode(): Int =
-    toJValue.hashCode()
+    json.JsonMethods.jvalueHashCode(toJValue)
 }
 
 object SerializedValue {
