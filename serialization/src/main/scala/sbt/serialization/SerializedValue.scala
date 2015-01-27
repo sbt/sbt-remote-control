@@ -33,7 +33,6 @@ object SerializedValue {
   def fromJsonString(value: String): SerializedValue =
     JsonValue.fromJsonString(value)
 
-
   // TODO - Expose fromBinaryBlob if/when we support binary.
 }
 
