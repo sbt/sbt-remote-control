@@ -47,6 +47,7 @@ object SbtBackgroundRunPlugin extends AutoPlugin {
       Def.inputTask {
         val mainClass = mainClassTask.value getOrElse error("No main class detected.")
         UIKeys.jobService.value.runInBackgroundThread(Keys.resolvedScoped.value, { (logger, uiContext) =>
+          // TODO - Copy the classpath into some tmp directory so we don't immediately die if a recompile happens.
           toError(scalaRun.value.run(mainClass, data(classpath.value), parser.parsed, logger))
         })
       }

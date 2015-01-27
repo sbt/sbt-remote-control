@@ -11,14 +11,14 @@ import sbt.serialization.pickler.{
   ArrayPicklers,
   SeqPicklers,
   StringMapPicklers,
-  CanToStringPicklers
+  JavaExtraPicklers
 }
 
 trait CustomPicklers extends PrimitivePicklers
   with PrimitiveArrayPicklers
   with OptionPicklers
   with ThrowablePicklers
-  with CanToStringPicklers
+  with JavaExtraPicklers
   with RefPicklers
   with LowPriorityCustomPicklers {}
 

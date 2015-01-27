@@ -1,5 +1,6 @@
 package sbt.serialization
 
+/** Utilities used in PrimitivePicklers.  Note: We can remove this once we clean up scala/pickling. */
 private[serialization] trait RichTypes {
   import scala.reflect.runtime.universe._
 

@@ -37,6 +37,16 @@ object TypeExpression {
 
 /**
  * Simple representation of an applied type. Used for reading pickled types.
+ *
+ * Example,  ``List[String]`` would be represented as:
+ *
+ * {{{
+ *   TypeExpression("scala.collection.immutable.List",
+ *      Seq(TypeExpression("java.lang.String", Nil)
+ *   )
+ * }}}
+ *
+ * As you can see, simple types like "String" are represented as applied types with no arguments.
  */
 case class TypeExpression(typeName: String, typeArgs: List[TypeExpression]) {
   override def toString =
