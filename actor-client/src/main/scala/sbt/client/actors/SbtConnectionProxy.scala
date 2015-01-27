@@ -33,10 +33,12 @@ object SbtClientBuilder {
 final class SbtClientBuilder(request: SbtConnectionProxy.NewClient, notificationSink: ActorRef) extends Actor with ActorLogging {
   import SbtClientBuilder._
 
-  private def connected(subscription: sbt.client.Subscription, client: SbtClient): Receive = {
+  private var subscription: sbt.client.Subscription = null
+
+  private def connected(client: SbtClient): Receive = {
     case Client(c) =>
       notificationSink ! Reconnect(subscription, c, self)
-      context.become(connected(subscription, c))
+      context.become(connected(c))
     case Error(true, error) =>
       log.warning(s"Client ${client.configName}-${client.humanReadableName}-${client.uuid} experienced an error[will try reconnect]: $error")
     case e @ Error(false, error) =>
@@ -48,8 +50,10 @@ final class SbtClientBuilder(request: SbtConnectionProxy.NewClient, notification
   private def process(subscription: Option[sbt.client.Subscription], client: Option[SbtClient], error: Option[Error]): Unit = {
     (subscription, client, error) match {
       case (Some(s), Some(c), _) =>
+        log.debug("Connected")
         notificationSink ! Result.Success(request, c, s, self)
-        context.become(connected(s, c))
+        this.subscription = s
+        context.become(connected(c))
       case (Some(s), _, Some(e @ Error(false, _))) =>
         notificationSink ! Result.Failure(request, s, e)
         context stop self
@@ -64,6 +68,14 @@ final class SbtClientBuilder(request: SbtConnectionProxy.NewClient, notification
   }
 
   def receive: Receive = run(None, None, None)
+
+  override def postStop(): Unit = {
+    super.postStop()
+    if (subscription != null) {
+      subscription.cancel()
+      subscription = null
+    }
+  }
 }
 
 object SbtConnectionProxy {
@@ -121,7 +133,6 @@ final class SbtConnectionProxy(connector: SbtConnector,
   import SbtConnectionProxy._
 
   private def onConnect(builder: ActorRef)(client: SbtClient): Unit = {
-    log.debug("Connected")
     builder ! SbtClientBuilder.Client(client)
   }
 
