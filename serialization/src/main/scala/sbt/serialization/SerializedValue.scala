@@ -96,14 +96,6 @@ private final case class JsonValue(pickledValue: JSONPickle) extends SerializedV
   override def toJValue: JValue = pickledValue.parsedValue
 }
 
-private object JsonValue {
-
-  def fromPicklee[T](t: T)(implicit picklerForT: SPickler[T]): JsonValue = {
-    import sbt.serialization.json.pickleFormat
-    JsonValue(pickle(t))
-  }
-}
-
 /**
  * A value we have the info available to serialize, but we haven't
  *  picked a format yet. Allows us to defer format selection, or
@@ -122,7 +114,8 @@ private final case class LazyValue[V](value: V, pickler: SPickler[V]) extends Se
 
   override def toJValue = toJson.toJValue
 
-  private lazy val jsonValue = JsonValue.fromPicklee(value)(pickler)
+  private lazy val jsonValue =
+    JsonValue(pickle(value)(sbt.serialization.json.pickleFormat, pickler))
 
   def toJson: JsonValue = jsonValue
 }
