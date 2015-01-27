@@ -39,6 +39,13 @@ private object Classes {
   object ThrowableSubClass extends SubClass(ThrowableClass)
 }
 
+// placeholder value for not serializable task results;
+// TODO we should use Unit and a unitPickler, I think.
+private case class TransientValue()
+private object TransientValue {
+  implicit val pickler = SPickler.generate[TransientValue]
+}
+
 /**
  * An interface representing a mechanism to register and
  *  retrieve serialization for specific types at runtime.
@@ -59,18 +66,18 @@ sealed trait DynamicSerialization {
   // Here we need to reflectively look up the serialization of things...
   final def buildValue[T](o: T)(implicit mf: Manifest[T]): BuildValue =
     lookup(mf) map { serializer =>
-      BuildValue(JsonValue(o)(serializer.pickler), o.toString)
+      BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
     } getOrElse {
       System.err.println(s"No dynamic serializer found (using manifest) for $o")
-      BuildValue(JsonValue.emptyObject, o.toString)
+      BuildValue(SerializedValue(TransientValue()), o.toString)
     }
 
   final def buildValueUsingRuntimeClass[T](o: T): BuildValue = {
     lookup[T](o.getClass.asInstanceOf[Class[T]]) map { serializer =>
-      BuildValue(JsonValue(o)(serializer.pickler), o.toString)
+      BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
     } getOrElse {
       System.err.println(s"No dynamic serializer found (using runtime class) for $o")
-      BuildValue(JsonValue.emptyObject, o.toString)
+      BuildValue(SerializedValue(TransientValue()), o.toString)
     }
   }
 }
