@@ -54,7 +54,10 @@ object SerializedValue {
   // TODO fromBinary if/when we add binary pickling
 
   // this is in this file so it can use private JsonValue,
-  // but the public implicit version is in a trait elsewhere
+  // but the public implicit version is in a trait elsewhere.
+  // NOTE: this pickler ONLY works with our JSONPickleFormat because
+  // it assumes JValue is a "primitive" known to the format.
+  // we can adjust this if we add a binary format.
   private[sbt] object pickler extends SPickler[SerializedValue] with Unpickler[SerializedValue] {
     val cheaterTag = implicitly[FastTypeTag[JValue]]
     // TODO - This is super hacky mechanism to avoid issues w/ pinned types.
