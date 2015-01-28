@@ -4,7 +4,6 @@ package loading
 
 import sbt.client._
 import sbt.protocol._
-import sbt.protocol.CoreProtocol._
 import java.util.concurrent.Executors
 import concurrent.duration.Duration.Inf
 import concurrent.{ Await, ExecutionContext, Promise }

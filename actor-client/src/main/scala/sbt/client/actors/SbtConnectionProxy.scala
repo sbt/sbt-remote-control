@@ -7,7 +7,7 @@ import akka.actor._
 import java.io.File
 import sbt.client.{ Subscription, SbtConnector, SbtClient, SbtChannel }
 import scala.concurrent.ExecutionContext
-import sbt.protocol.CoreProtocol._
+import sbt.serialization._
 
 trait Request[Resp] {
   def sendTo: ActorRef

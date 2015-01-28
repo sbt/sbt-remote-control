@@ -4,6 +4,8 @@ package pickler
 import java.io.File
 import java.net.URI
 import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
+// TODO - Why is alias not working.
+import scala.pickling.pickler.{ PrimitivePicklers, RefPicklers }
 
 /** Contains implementation-details of "can to strings" for Java/sbt 'raw' types. */
 object JavaExtraPicklers {

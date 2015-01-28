@@ -1,7 +1,7 @@
 package sbt.protocol.spec
 
 import sbt.protocol
-import sbt.protocol.{ Message, CoreProtocol }
+import sbt.protocol.{ Message }
 import org.junit.Assert._
 import org.junit._
 import java.io.File
@@ -11,13 +11,9 @@ import sbt.serialization.spec.JUnitUtil._
 import JUnitMessageUtil._
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{ Try, Success, Failure }
-import sbt.serialization.json._
-import scala.pickling.PickleOps
 import sbt.serialization._
-import scala.pickling.Defaults.pickleOps
 
 class ProtocolTest {
-  import CoreProtocol._
 
   val key = protocol.AttributeKey("name", TypeExpression.parse("java.lang.String")._1)
   val build = new java.net.URI("file:///test/project")

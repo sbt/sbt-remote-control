@@ -11,8 +11,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import scala.concurrent.duration.Duration.Inf
 import scala.concurrent.{ Await, ExecutionContext, Promise, Future }
 import scala.util.{ Success, Failure }
-import scala.pickling.Unpickler
-import sbt.protocol.CoreProtocol._
 
 class CanLoadSimpleProject extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...

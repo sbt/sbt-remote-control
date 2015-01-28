@@ -1,8 +1,9 @@
 package sbt.serialization
 package pickler
 
+// TODO - Why is alias not working.
+import scala.pickling.pickler.{ PrimitivePicklers, RefPicklers }
 import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
-import scala.pickling.static._
 
 private[pickler] final case class StackTraceElementDeserialized(declaringClass: String,
   methodName: String,
@@ -13,8 +14,6 @@ trait ThrowablePicklers extends PrimitivePicklers with OptionPicklers with Vecto
 
   implicit val stackTracePickler: SPickler[StackTraceElementDeserialized] = SPickler.generate[StackTraceElementDeserialized]
   implicit val stackTraceUnickler: Unpickler[StackTraceElementDeserialized] = Unpickler.generate[StackTraceElementDeserialized]
-  implicit val pickler = SPickler.generate[StackTraceElementDeserialized]
-  implicit val unpickler = Unpickler.generate[StackTraceElementDeserialized]
 
   // TODO why isn't this in LowPriority / what goes in Low and what goes here?
   implicit object throwablePicklerUnpickler extends SPickler[Throwable] with Unpickler[Throwable] {
