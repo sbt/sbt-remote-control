@@ -15,10 +15,7 @@ object JavaExtraPicklers {
     _.toASCIIString, {
       s: String => new URI(s)
     })
-  private val typeExpressionCanToString: CanToString[TypeExpression] = CanToString(
-    _.toString, {
-      s: String => TypeExpression.parse(s)._1
-    })
+
 }
 
 /**
@@ -27,6 +24,7 @@ object JavaExtraPicklers {
  * THis includes java.io.File, java.net.URI and the sbt "TypeExpression".
  */
 trait JavaExtraPicklers extends PrimitivePicklers {
+  // TODO - Maybe this shouldn't be implicitly available.
   implicit def canToStringPickler[A: FastTypeTag](implicit canToString: CanToString[A]): SPickler[A] with Unpickler[A] = new SPickler[A] with Unpickler[A] {
     val tag = implicitly[FastTypeTag[A]]
     def pickle(a: A, builder: PBuilder): Unit = {
@@ -53,8 +51,7 @@ trait JavaExtraPicklers extends PrimitivePicklers {
       }
     }
   }
-  implicit val typeExpressionPickler: SPickler[TypeExpression] with Unpickler[TypeExpression] =
-    canToStringPickler[TypeExpression](FastTypeTag[TypeExpression], JavaExtraPicklers.typeExpressionCanToString)
+
   implicit val filePickler: SPickler[File] with Unpickler[File] =
     canToStringPickler[File](FastTypeTag[File], JavaExtraPicklers.fileCanToString)
   implicit val uriPickler: SPickler[URI] with Unpickler[URI] =
