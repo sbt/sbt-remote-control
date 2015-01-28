@@ -18,7 +18,7 @@ object JUnitMessageUtil {
     import scala.pickling._, sbt.serialization.json._
     val expectedPickler = implicitly[SPickler[Message]]
     val expectedUnpickler = implicitly[Unpickler[Message]]
-    val json: String = try message.pickle.value
+    val json: String = try SerializedValue(message).toJsonString
     catch {
       case t: Throwable =>
         System.err.println(s"pickle of ${message.getClass.getName} failed: ${t.getClass.getName} ${t.getMessage}")

@@ -17,7 +17,7 @@ class TypeExpressionPicklerTest {
   def testRoundtripStringType: Unit = {
     val value = TypeExpression.parse("java.lang.String")._1
     val example = "\"java.lang.String\""
-    value.pickle.value must_== example
+    SerializedValue(value).toJsonString must_== example
     roundTrip(value)
   }
 
@@ -25,7 +25,7 @@ class TypeExpressionPicklerTest {
   def testRoundtripListOfStringType: Unit = {
     val value = TypeExpression.parse("scala.collection.immutable.List[java.lang.String]")._1
     val example = "\"scala.collection.immutable.List[java.lang.String]\""
-    value.pickle.value must_== example
+    SerializedValue(value).toJsonString must_== example
     roundTrip(value)
   }
 

@@ -64,8 +64,9 @@ class ProtocolTest {
   def testValueChanged: Unit = {
     val taskSuccess = protocol.TaskSuccess(protocol.BuildValue("HI"))
     val v1: Message = protocol.ValueChanged(scopedKey, taskSuccess)
-    val recovered1 = v1.pickle.value.unpickle[protocol.Message] match {
-      case v: protocol.ValueChanged => v
+    val json = SerializedValue(v1).toJsonString
+    val recovered1 = SerializedValue.fromJsonString(json).parse[protocol.Message] match {
+      case Success(v: protocol.ValueChanged) => v
       case other => throw new AssertionError(s"expecting ValueChanged got $other")
     }
     recovered1.value.result[String] match {
@@ -81,8 +82,9 @@ class ProtocolTest {
     roundTripMessage(protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))))
     val taskFailure = protocol.TaskFailure(protocol.BuildValue(new Exception("bam"): Throwable))
     val v2: Message = protocol.ValueChanged(scopedKey, taskFailure)
-    val recovered2 = v2.pickle.value.unpickle[protocol.Message] match {
-      case v: protocol.ValueChanged => v
+    val json2 = SerializedValue(v2).toJsonString
+    val recovered2 = SerializedValue.fromJsonString(json2).parse[protocol.Message] match {
+      case Success(v: protocol.ValueChanged) => v
       case other => throw new AssertionError(s"expecting ValueChanged got $other")
     }
     recovered2.value.result[Int] match {
@@ -109,8 +111,9 @@ class ProtocolTest {
     import protocol.CompilationFailure
     import sbt.serialization.json._
     val taskEvent1: Message = protocol.TaskEvent(8, PlayStartedEvent(port = 10))
-    val recovered1 = taskEvent1.pickle.value.unpickle[protocol.Message] match {
-      case x: protocol.TaskEvent => x
+    val json = SerializedValue(taskEvent1).toJsonString
+    val recovered1 = SerializedValue.fromJsonString(json).parse[protocol.Message] match {
+      case Success(x: protocol.TaskEvent) => x
       case other => throw new AssertionError(s"Expected TaskEvent got $other")
     }
     recovered1 match {
@@ -119,8 +122,9 @@ class ProtocolTest {
     roundTripMessage(taskEvent1)
 
     val taskEvent2: Message = protocol.TaskEvent(9, CompilationFailure(projectRef, nopos, severity, "aww snap"))
-    val recovered2 = taskEvent2.pickle.value.unpickle[protocol.Message] match {
-      case x: protocol.TaskEvent => x
+    val json2 = SerializedValue(taskEvent2).toJsonString
+    val recovered2 = SerializedValue.fromJsonString(json2).parse[protocol.Message] match {
+      case Success(x: protocol.TaskEvent) => x
       case other => throw new AssertionError(s"Expected TaskEvent got $other")
     }
     val failure = recovered2.serialized.parse[CompilationFailure].get
