@@ -10,7 +10,7 @@ import JUnitUtil._
 import sbt.serialization.pickler.{
   PrimitivePicklers,
   PrimitiveArrayPicklers,
-  CanToStringPicklers,
+  JavaExtraPicklers,
   OptionPicklers,
   ThrowablePicklers
 }
@@ -19,7 +19,7 @@ import scala.pickling.Defaults.pickleOps
 import scala.pickling.static._
 
 class BasicPicklerTest {
-  val basicProtocol = new PrimitivePicklers with PrimitiveArrayPicklers with CanToStringPicklers with OptionPicklers with ThrowablePicklers {
+  val basicProtocol = new PrimitivePicklers with PrimitiveArrayPicklers with JavaExtraPicklers with OptionPicklers with ThrowablePicklers {
     implicit val staticOnly = scala.pickling.static.StaticOnly
   }
   import basicProtocol._

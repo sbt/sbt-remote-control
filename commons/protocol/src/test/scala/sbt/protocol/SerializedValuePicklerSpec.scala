@@ -20,7 +20,7 @@ class SerializedValuePicklerTest {
   def testRoundtripInt: Unit = {
     import scala.pickling._
     val value: SerializedValue = SerializedValue(1)
-    value.pickle.value must_== "1.0"
+    SerializedValue(value).toJsonString must_== "1.0"
     value.parse[Int].get must_== 1
     roundTrip(SerializedValue(1): SerializedValue)
   }
@@ -30,8 +30,8 @@ class SerializedValuePicklerTest {
     import scala.pickling._
     val value = SerializedValue(PlayStartedEvent(10))
     val example = """{"$type":"sbt.protocol.spec.PlayStartedEvent","port":10.0}"""
-    value.pickle.value must_== example
-    val recovered = example.unpickle[SerializedValue]
+    SerializedValue(value).toJsonString must_== example
+    val recovered = SerializedValue.fromJsonString(example)
     recovered.parse[PlayStartedEvent].get must_== PlayStartedEvent(10)
     roundTrip(SerializedValue(PlayStartedEvent(10)))
   }

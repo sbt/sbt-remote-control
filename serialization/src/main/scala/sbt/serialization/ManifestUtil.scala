@@ -3,7 +3,13 @@ package sbt.serialization
 import sbt.serialization.ScalaShims.ManifestFactory
 import scala.pickling.FastTypeTag
 
-object ManifestUtil {
+/**
+ * Utilities used in PrimitivePicklers/SeqPicklers.
+ *
+ * TODO - Remove this once we clean up scala/pickling default picklers (we hope).
+ *        Additionally, check to see if BuildValue is still using this.
+ */
+private[serialization] object ManifestUtil {
   def isApproxIterable(tag: FastTypeTag[_], cl: ClassLoader = ManifestUtil.getClass.getClassLoader): Boolean =
     tag match {
       case x if x.key startsWith "scala.Array[" => true

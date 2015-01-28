@@ -23,7 +23,7 @@ import scala.pickling.PicklingException
 import scala.util.Try
 
 /** An implementation of JsonMethods for json4s that uses Jawn and our own toStrings. */
-object JsonMethods extends org.json4s.JsonMethods[JValue] {
+private[serialization] object JsonMethods extends org.json4s.JsonMethods[JValue] {
   // Redner doesn't do anything, as we aren't translating to an intermediate format before rendering.
   override def render(value: JValue): JValue = value
   // TODO - Write this.

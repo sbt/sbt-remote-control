@@ -10,8 +10,8 @@ object SpecsUtil {
 
   // TODO get rid of pickleMessage and parseMessage once pickle/unpickle are not macros
   def pickleMessage(m: Message): String =
-    m.pickle.value
+    SerializedValue(m).toJsonString
 
   def parseMessage(s: String): Message =
-    s.unpickle[Message]
+    SerializedValue.fromJsonString(s).parse[Message].get
 }

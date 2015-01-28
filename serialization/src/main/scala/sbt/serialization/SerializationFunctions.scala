@@ -2,6 +2,7 @@ package sbt.serialization
 
 import scala.pickling.Generated
 
+/** A layer of serialization cake which provides the gen* macros for auto-constructing new picklers. */
 trait SerializationFunctions {
   import scala.language.experimental.macros
 

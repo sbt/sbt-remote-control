@@ -12,12 +12,14 @@ import scala.pickling.{
 import scala.reflect.runtime.universe.Mirror
 import scala.util.{ Failure, Success }
 
-object EmptyPickle extends Pickle {
+// Note: This debug format should move into scala pickling.
+
+private[serialization] object EmptyPickle extends Pickle {
   type ValueType = Unit
   val value: ValueType = ()
 }
 
-class DebugPickleFormat extends PickleFormat {
+private[serialization] class DebugPickleFormat extends PickleFormat {
   type PickleType = EmptyPickle.type
   type OutputType = Output[String]
   def createBuilder() = new DebugPickleBuilder()
@@ -25,7 +27,7 @@ class DebugPickleFormat extends PickleFormat {
   override def createReader(pickle: PickleType) = ???
 }
 
-class DebugPickleBuilder(indent: Int = 0) extends PBuilder {
+private[serialization] class DebugPickleBuilder(indent: Int = 0) extends PBuilder {
   private val indentString = (0 to indent) map (_ => "  ") mkString ""
   private def println(s: String): Unit = System.err.println(s"$indentString$s")
   private def nextLevelBuilder = new DebugPickleBuilder(indent + 1)

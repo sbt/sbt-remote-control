@@ -23,7 +23,7 @@ package json {
 
   import scala.pickling.Hints
 
-  object `package` {
+  private[serialization] object `package` {
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
     // TODO both of these are pretty sketchy probably?
     // import scala.language.implicitConversions
@@ -31,7 +31,7 @@ package json {
     //implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
   }
 
-  sealed abstract class JSONPickle extends Pickle {
+  private[serialization] sealed abstract class JSONPickle extends Pickle {
     type ValueType = String
     type PickleFormatType = JSONPickleFormat
     //abstract val value: String
@@ -61,7 +61,7 @@ package json {
     // so we'd like to not pay the string rendering tax unless we must.
     override lazy val value: String = JsonMethods.compact(parsedValue)
   }
-  object JSONPickle {
+  private[serialization] object JSONPickle {
     def apply(in: String): JSONPickle = new RawStringPickle(in)
     def fromJValue(in: JValue): JSONPickle =
       in match {
@@ -72,7 +72,7 @@ package json {
       }
   }
 
-  class JSONPickleFormat extends PickleFormat {
+  private[serialization] class JSONPickleFormat extends PickleFormat {
     type PickleType = JSONPickle
     type OutputType = Output[String]
     def createBuilder() = new VerifyingJSONPickleBuilder(this, new StringOutput)
@@ -80,7 +80,7 @@ package json {
     def createReader(pickle: JSONPickle) =
       new VerifyingJSONPickleReader(this, IniitalReaderState(pickle.parsedValue))
   }
-  object JSONPickleFormat {
+  private[serialization] object JSONPickleFormat {
     private[json] val TYPE_TAG_FIELD = "$type"
     private[json] val DYNAMIC_KEY_FIELD = "$keys"
     private[json] val REF_ID_FIELD = "$ref"
@@ -91,15 +91,15 @@ package json {
       (DYNAMIC_KEY_FIELD == name)
   }
 
-  sealed trait BuilderState {
+  private[json] sealed trait BuilderState {
     def previous: BuilderState
   }
-  case class CollectionState(val previous: BuilderState, numElements: Int, hasInput: Boolean) extends BuilderState
-  case class RawEntryState(previous: BuilderState, picklee: Any, hints: Hints, var wasCollectionOrMap: Boolean = false) extends BuilderState
-  case class MapEntryState(val previous: BuilderState, picklee: Any, hints: Hints) extends BuilderState
-  case class RefEntryState(val previous: BuilderState) extends BuilderState
-  case class WriteOptionState(val previous: BuilderState) extends BuilderState
-  object EmptyState extends BuilderState {
+  private[json] case class CollectionState(val previous: BuilderState, numElements: Int, hasInput: Boolean) extends BuilderState
+  private[json] case class RawEntryState(previous: BuilderState, picklee: Any, hints: Hints, var wasCollectionOrMap: Boolean = false) extends BuilderState
+  private[json] case class MapEntryState(val previous: BuilderState, picklee: Any, hints: Hints) extends BuilderState
+  private[json] case class RefEntryState(val previous: BuilderState) extends BuilderState
+  private[json] case class WriteOptionState(val previous: BuilderState) extends BuilderState
+  private[json] object EmptyState extends BuilderState {
     def previous = this
   }
 
@@ -107,7 +107,7 @@ package json {
   // This uses a TON of branch statements to ensure the builder is in the correct state for any call
   // and to programatically enforce constraints of SPickler implementations.
   // We use this just to verify our own picklers.
-  class VerifyingJSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
+  private[json] class VerifyingJSONPickleBuilder(format: JSONPickleFormat, buf: Output[String]) extends PBuilder with PickleTools {
     import JSONPickleFormat._
     var state: BuilderState = EmptyState
     //(tag.key startsWith "scala.Option[")
@@ -280,23 +280,23 @@ package json {
     }
   }
 
-  sealed trait ReaderState {
+  private[json] sealed trait ReaderState {
     def previous: ReaderState
     def current: JValue
   }
   // The state where we're looking at a value, but the reader hasn't told us to do anything yet.
-  case class RawJsValue(current: JValue, previous: ReaderState) extends ReaderState
+  private[json] case class RawJsValue(current: JValue, previous: ReaderState) extends ReaderState
   // The state in which we've attempted to read a type tag.
   //  i.e. this means beginEntry has been called.
-  case class JsValueWithTag(current: JValue, tagKey: String, previous: ReaderState) extends ReaderState
+  private[json] case class JsValueWithTag(current: JValue, tagKey: String, previous: ReaderState) extends ReaderState
   // The initial state where we pass parsed JSON and begin parsing.
-  case class IniitalReaderState(current: JValue) extends ReaderState {
+  private[json] case class IniitalReaderState(current: JValue) extends ReaderState {
     def previous: ReaderState = this
   }
   // The state where we are reading elements from a collection.
-  case class CollectionReadingState(current: JValue, idx: Int, previous: ReaderState) extends ReaderState
+  private[json] case class CollectionReadingState(current: JValue, idx: Int, previous: ReaderState) extends ReaderState
 
-  class VerifyingJSONPickleReader(format: JSONPickleFormat, var state: ReaderState) extends PReader with PickleTools {
+  private[json] class VerifyingJSONPickleReader(format: JSONPickleFormat, var state: ReaderState) extends PReader with PickleTools {
     import JSONPickleFormat._
 
     // Debugging hints
