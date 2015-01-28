@@ -112,8 +112,7 @@ abstract class Peer(protected val socket: Socket) {
   }
 
   private def jsonString[T: SPickler](message: T): String = {
-    // TODO - move this to SerializedValue, perhaps
-    JsonValue(message).toJsonString
+    SerializedValue(message).toJsonString
   }
 
   def sendJson[T: SPickler](message: T, serial: Long): Unit = {

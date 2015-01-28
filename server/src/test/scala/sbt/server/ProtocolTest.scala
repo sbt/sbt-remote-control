@@ -463,10 +463,10 @@ class ProtocolTest {
       protocol.AnalyzeExecutionResponse(ExecutionAnalysisCommand(Some("foobar"))))
 
     for (s <- specifics) {
-      def fromRaw(j: JsonValue): Message =
+      def fromRaw(j: SerializedValue): Message =
         addWhatWeWereUnpickling(j.toJsonString)(j.parse[Message].get)
-      def toRaw(m: Message): JsonValue =
-        addWhatWeWerePickling(m)(JsonValue(m))
+      def toRaw(m: Message): SerializedValue =
+        addWhatWeWerePickling(m)(SerializedValue(m))
       val roundtrippedOption = fromRaw(toRaw(s))
       assertEquals(s"Failed to serialize:\n$s\n\n${toRaw(s)}\n\n${s.getClass}\n\n$roundtrippedOption\n\n", s, roundtrippedOption)
     }
@@ -643,7 +643,7 @@ class ProtocolTest {
           case JsonToObject =>
             if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler)}.") }
             else {
-              val json = JsonValue.fromJsonString(IO.read(path, IO.utf8))
+              val json = SerializedValue.fromJsonString(IO.read(path, IO.utf8))
               val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format.unpickler).get)
               (t, parsed) match {
                 // Throwable has a not-very-useful equals() in this case
@@ -912,7 +912,7 @@ class ProtocolTest {
     def roundtripBase[U, T: Manifest](t: T)(f: (T, T) => U)(e: (Throwable, Throwable) => U): U = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
-        val json = addWhatWeWerePickling(t)(JsonValue(t)(format.pickler))
+        val json = addWhatWeWerePickling(t)(SerializedValue(t)(format.pickler))
         //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
         val parsed = addWhatWeWereUnpickling(json.toJsonString)(json.parse[T](format.unpickler).get)
         (t, parsed) match {
@@ -951,7 +951,7 @@ class ProtocolTest {
       val buildValue = serializations.buildValue(t)
       val json = SerializedValue(buildValue)
       // System.err.println(s"${buildValue} = ${json.toString}")
-      val parsedValue = json.parse[protocol.BuildValue].getOrElse(throw new AssertionError(s"Failed to parse ${t} serialization ${json}"))
+      val parsedValue = json.parse[protocol.BuildValue].get
       import scala.util.{ Success, Failure }
       val parsedT =
         parsedValue.value[T](format.unpickler) match {

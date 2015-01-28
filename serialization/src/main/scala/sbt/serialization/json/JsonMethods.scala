@@ -106,21 +106,27 @@ object JsonMethods extends org.json4s.JsonMethods[JValue] {
     }
   }
 
-  final def jvalueEquals(jvalue: JValue, jvalue2: JValue): Boolean =
+  private final def jvalueSorted(jvalue: JValue): JValue = jvalue match {
+    case null => null
+    case JObject(el) => JObject(el.sortBy(_._1).map(kv => kv._1 -> jvalueSorted(kv._2)))
+    case JArray(el) => JArray(el.map(jvalueSorted(_)))
+    case other => other
+  }
+
+  def jvalueEquals(jvalue: JValue, jvalue2: JValue): Boolean =
     (jvalue, jvalue2) match {
-      case (JNull, null) | (null, JNull) | (JNull, JNull) | (null, null) => true
-      case (JNothing, JNothing) => true
-      case (JBool(v), JBool(v2)) => v == v2
-      case (JDouble(v), JDouble(v2)) => v == v2
-      case (JString(v), JString(v2)) => v == v2
-      case (JArray(el), JArray(el2)) => (el.size == el2.size) && (el.zip(el2).forall((jvalueEquals _).tupled))
-      case (JObject(el), JObject(el2)) =>
-        (el.size == el2.size) && (
-          el.sortBy(_._1).zip(el2.sortBy(_._1)).forall {
-            case ((k, v), (k2, v2)) => (k == k2) && jvalueEquals(v, v2)
-          })
+      // deal with null
+      case (null, null) => true
+      case (JNull, JNull) => true
+      case (JNull, null) | (null, JNull) => false
+      // optimize by avoiding the jvalueSorted if sizes don't match anyhow
+      case (JArray(el), JArray(el2)) if (el.size != el2.size) => false
+      case (JObject(el), JObject(el2)) if (el.size != el2.size) => false
       case (left, right) =>
-        System.err.println("Found differences between [$left] and [$right]")
-        false
+        // use the order-sensitive json4s implementation after sorting object fields
+        jvalueSorted(left).equals(jvalueSorted(right))
     }
+
+  def jvalueHashCode(jvalue: JValue): Int =
+    jvalueSorted(jvalue).hashCode
 }

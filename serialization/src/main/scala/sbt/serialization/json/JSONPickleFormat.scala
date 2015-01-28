@@ -46,6 +46,8 @@ package json {
     override def hashCode = parsedValue.hashCode
   }
   private[json] class RawStringPickle(override val value: String) extends JSONPickle {
+    require(value ne null)
+
     def parsedValue: JValue =
       jawn.support.json4s.Parser.parseFromString(value) match {
         case Success(json: JValue) => json
@@ -53,13 +55,21 @@ package json {
       }
   }
   private[json] class JValuePickle(override val parsedValue: JValue) extends JSONPickle {
+    require(parsedValue ne null)
+
     // This HAS to be val based on the pickling API.  However, we may never call it for a given pickle,
     // so we'd like to not pay the string rendering tax unless we must.
     override lazy val value: String = JsonMethods.compact(parsedValue)
   }
   object JSONPickle {
     def apply(in: String): JSONPickle = new RawStringPickle(in)
-    def fromJValue(in: JValue): JSONPickle = new JValuePickle(in)
+    def fromJValue(in: JValue): JSONPickle =
+      in match {
+        // this null check is because when we read primitive (I think with no type tag),
+        // we get null instead of JNull.
+        case null => new JValuePickle(JNull)
+        case other => new JValuePickle(other)
+      }
   }
 
   class JSONPickleFormat extends PickleFormat {
@@ -347,6 +357,7 @@ package json {
           case x: JBool => x.value
           // TODO - We need to understand why the tag doesn't say JsonAST here...
           case x: JObject => x
+          case JNull => null
           case _ =>
             // TODO - check to see if we need the old primitiveSeqKeys handling
             // to read a primtiive out of a JArray

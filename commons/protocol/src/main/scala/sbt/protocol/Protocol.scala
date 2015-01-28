@@ -229,7 +229,7 @@ final case class TaskEvent(taskId: Long, name: String, serialized: SerializedVal
 
 object TaskEvent {
   def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
-    val serialized = JsonValue(event)
+    val serialized = SerializedValue(event)
     TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
@@ -255,7 +255,7 @@ final case class BackgroundJobEvent(jobId: Long, name: String, serialized: Seria
 
 object BackgroundJobEvent {
   def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
-    val serialized = JsonValue(event)
+    val serialized = SerializedValue(event)
     BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
   }
 }
