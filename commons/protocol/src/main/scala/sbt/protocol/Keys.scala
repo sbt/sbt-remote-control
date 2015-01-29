@@ -2,7 +2,6 @@ package sbt.protocol
 
 import java.net.URI
 import sbt.serialization._
-import sbt.serialization.functions._
 
 /**
  * This represents a "key" in sbt.
@@ -13,7 +12,6 @@ final case class AttributeKey(name: String, manifest: TypeExpression) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
 }
 object AttributeKey {
-  import CoreProtocol._
   require(implicitly[Unpickler[TypeExpression]] ne null)
   implicit val unpickler: Unpickler[AttributeKey] = genUnpickler[AttributeKey]
   implicit val pickler: SPickler[AttributeKey] = genPickler[AttributeKey]
@@ -30,7 +28,6 @@ object AttributeKey {
  */
 final case class ProjectReference(build: URI, name: String)
 object ProjectReference {
-  import CoreProtocol._
   require(implicitly[Unpickler[java.net.URI]] ne null)
   implicit val unpickler: Unpickler[ProjectReference] = genUnpickler[ProjectReference]
   implicit val pickler: SPickler[ProjectReference] = genPickler[ProjectReference]
@@ -57,7 +54,6 @@ final case class SbtScope(build: Option[URI] = None,
   }
 }
 object SbtScope {
-  import CoreProtocol._
   require(implicitly[Unpickler[ProjectReference]] ne null)
   require(implicitly[Unpickler[URI]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
@@ -71,7 +67,6 @@ final case class ScopedKey(key: AttributeKey, scope: SbtScope) {
     key + " in " + scope
 }
 object ScopedKey {
-  import CoreProtocol._
   require(implicitly[Unpickler[SbtScope]] ne null)
   require(implicitly[Unpickler[AttributeKey]] ne null)
   implicit val unpickler: Unpickler[ScopedKey] = genUnpickler[ScopedKey]
@@ -80,7 +75,6 @@ object ScopedKey {
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Vector[ScopedKey])
 object KeyList {
-  import CoreProtocol._
   implicit val unpickler: Unpickler[KeyList] = genUnpickler[KeyList]
   implicit val pickler: SPickler[KeyList] = genPickler[KeyList]
 }
@@ -91,7 +85,6 @@ final case class MinimalProjectStructure(
   // Class names of plugins used by this project.
   plugins: Vector[String])
 object MinimalProjectStructure {
-  import CoreProtocol._
   implicit val unpickler: Unpickler[MinimalProjectStructure] = genUnpickler[MinimalProjectStructure]
   implicit val pickler: SPickler[MinimalProjectStructure] = genPickler[MinimalProjectStructure]
 }
@@ -102,7 +95,6 @@ final case class MinimalBuildStructure(
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
-  import CoreProtocol._
   implicit val unpickler: Unpickler[MinimalBuildStructure] = genUnpickler[MinimalBuildStructure]
   implicit val pickler: SPickler[MinimalBuildStructure] = genPickler[MinimalBuildStructure]
 }

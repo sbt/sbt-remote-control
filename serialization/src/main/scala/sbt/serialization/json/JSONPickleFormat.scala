@@ -392,6 +392,7 @@ package json {
         val keys =
           state.current.asInstanceOf[JObject].values.keys.toList.sorted.map(k => JString(k))
         RawJsValue(JArray(keys), state)
+        // TODO - what do we do if we're at a JNothing here...
       } else RawJsValue(state.current.asInstanceOf[JObject] \ name, state)
       val nested = new VerifyingJSONPickleReader(format, nextState)
       if (this.areHintsPinned) {

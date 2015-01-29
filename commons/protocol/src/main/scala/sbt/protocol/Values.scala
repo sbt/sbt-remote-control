@@ -1,6 +1,6 @@
 package sbt.protocol
 
-import sbt.serialization._, sbt.serialization.functions._
+import sbt.serialization._
 import scala.util.{ Try, Success, Failure }
 
 /**
@@ -18,7 +18,6 @@ final case class BuildValue(serialized: SerializedValue, stringValue: String) {
 }
 
 object BuildValue {
-  import CoreProtocol._
   def apply[T](value: T)(implicit pickler: SPickler[T]): BuildValue = {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
@@ -49,7 +48,6 @@ final case class ThrowableDeserializers(readers: Map[Manifest[_], Unpickler[_]] 
  * Represents the outcome of a task. The outcome can be a value or an exception.
  */
 sealed trait TaskResult {
-  import CoreProtocol._
 
   /** Returns whether or not a task was executed succesfully. */
   def isSuccess: Boolean
@@ -82,13 +80,11 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
 }
 
 object TaskSuccess {
-  import CoreProtocol._
   implicit val pickler: SPickler[TaskSuccess] = genPickler[TaskSuccess]
   implicit val unpickler: Unpickler[TaskSuccess] = genUnpickler[TaskSuccess]
 }
 
 object TaskFailure {
-  import CoreProtocol._
   implicit val pickler: SPickler[TaskFailure] = genPickler[TaskFailure]
   implicit val unpickler: Unpickler[TaskFailure] = genUnpickler[TaskFailure]
 }
@@ -97,7 +93,6 @@ object TaskFailure {
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
 object TaskResult {
-  import CoreProtocol._
   implicit val pickler: SPickler[TaskResult] = genPickler[TaskResult]
   implicit val unpickler: Unpickler[TaskResult] = genUnpickler[TaskResult]
 }

@@ -2,6 +2,8 @@ package sbt.serialization
 package pickler
 
 import scala.pickling.{ FastTypeTag, PBuilder, PReader, PicklingException }
+// TODO - Why is alias not working.
+import scala.pickling.pickler.PrimitivePicklers
 
 trait OptionPicklers extends PrimitivePicklers with RichTypes {
   implicit def optionPickler[A: FastTypeTag](implicit elemPickler: SPickler[A], elemUnpickler: Unpickler[A], collTag: FastTypeTag[Option[A]]): SPickler[Option[A]] with Unpickler[Option[A]] =

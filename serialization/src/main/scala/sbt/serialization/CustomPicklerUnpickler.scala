@@ -1,18 +1,23 @@
 package sbt.serialization
 
-import sbt.serialization.pickler.{
+// TODO - Why are type aliases not workign?
+import scala.pickling.pickler.{
   PrimitivePicklers,
   PrimitiveArrayPicklers,
+  RefPicklers
+}
+
+import sbt.serialization.pickler.{
   OptionPicklers,
   ThrowablePicklers,
-  RefPicklers,
   VectorPicklers,
   ListPicklers,
   ArrayPicklers,
   SeqPicklers,
   StringMapPicklers,
   JavaExtraPicklers,
-  TypeExpressionPicklers
+  TypeExpressionPicklers,
+  SerializationPicklers
 }
 
 trait CustomPicklers extends PrimitivePicklers
@@ -22,7 +27,8 @@ trait CustomPicklers extends PrimitivePicklers
   with JavaExtraPicklers
   with TypeExpressionPicklers
   with RefPicklers
-  with LowPriorityCustomPicklers {}
+  with LowPriorityCustomPicklers
+  with SerializationPicklers {}
 
 trait LowPriorityCustomPicklers extends VectorPicklers
   with ListPicklers

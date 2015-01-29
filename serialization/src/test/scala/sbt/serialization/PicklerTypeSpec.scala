@@ -2,15 +2,11 @@ package sbt.serialization.spec
 
 import org.junit.Assert._
 import org.junit._
-import scala.pickling.{ PickleOps, UnpickleOps, PicklingException }
-import sbt.serialization._, sbt.serialization.functions._, sbt.serialization.json._
+import scala.pickling.{ PicklingException }
+import sbt.serialization._
 import JUnitUtil._
-import scala.pickling.Defaults.pickleOps
 
 object Fruits {
-  val coreProtocol: CustomPicklers = new CustomPicklers {}
-  import coreProtocol._
-
   sealed trait Fruit
   case class Apple(x: Int) extends Fruit
   object Apple {
@@ -34,33 +30,33 @@ class PicklerTypeTest {
 
   @Test
   def testPickleApple: Unit = {
-    assertEquals("Apple(1)", appleExample, Apple(1).pickle.value)
+    assertEquals("Apple(1)", appleExample, SerializedValue(Apple(1)).toJsonString)
   }
 
   @Test
   def testUnpickleApple: Unit = {
-    appleExample.unpickle[Apple] must_== Apple(1)
+    SerializedValue.fromJsonString(appleExample).parse[Apple].get must_== Apple(1)
   }
 
   @Test
   def testUnpickleFruit: Unit = {
-    appleExample.unpickle[Fruit] must_== Apple(1)
+    SerializedValue.fromJsonString(appleExample).parse[Fruit].get must_== Apple(1)
   }
 
   @Test
   def testUnpickleOrange: Unit = {
-    appleExample.unpickle[Orange] must_== Orange(1)
+    SerializedValue.fromJsonString(appleExample).parse[Orange].get must_== Orange(1)
   }
 
   @Test
   def testUnpickleOrangeFromUnknown: Unit = {
-    unknownTypeExample.unpickle[Orange] must_== Orange(1)
+    SerializedValue.fromJsonString(unknownTypeExample).parse[Orange].get must_== Orange(1)
   }
 
   @Test
   def testUnpickleFruitFromUnknown: Unit = {
     try {
-      unknownTypeExample.unpickle[Fruit]
+      SerializedValue(unknownTypeExample).parse[Fruit].get
       sys.error("didn't fail")
     } catch {
       case _: PicklingException => ()

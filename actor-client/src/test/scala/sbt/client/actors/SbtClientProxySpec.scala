@@ -13,7 +13,6 @@ import java.net.URI
 import scala.concurrent.Future
 import sbt.client.{ SettingKey, TaskKey }
 import sbt.serialization._
-import sbt.protocol.CoreProtocol._
 
 object SbtClientProxySpec {
   val sampleEvent: protocol.Event = protocol.ExecutionStarting(100)

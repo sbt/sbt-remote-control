@@ -5,13 +5,11 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling.Defaults.pickleOps
-import sbt.serialization._, json._
+import sbt.serialization._
 import sbt.serialization.spec.JUnitUtil._
 import SpecsUtil._
 
 class TypeExpressionPicklerTest {
-  import protocol.CoreProtocol._
 
   @Test
   def testRoundtripStringType: Unit = {

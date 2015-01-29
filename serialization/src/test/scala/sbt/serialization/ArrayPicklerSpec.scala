@@ -4,24 +4,11 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import scala.pickling.{ PickleOps, UnpickleOps, FastTypeTag }
 import JUnitUtil._
-import scala.pickling.Defaults.pickleOps
-import sbt.serialization._, sbt.serialization.json._
-import sbt.serialization.pickler.{
-  PrimitivePicklers,
-  PrimitiveArrayPicklers,
-  ArrayPicklers,
-  ListPicklers,
-  VectorPicklers,
-  OptionPicklers
-}
+import sbt.serialization._
+import scala.language.higherKinds
 
 class ArrayPicklerTest {
-  val collectionProtocol = new PrimitivePicklers with PrimitiveArrayPicklers with ArrayPicklers with ListPicklers with VectorPicklers with OptionPicklers {
-    implicit val staticOnly = scala.pickling.static.StaticOnly
-  }
-  import collectionProtocol._
 
   @Test
   def testArrays: Unit = {
@@ -126,17 +113,17 @@ class ArrayPicklerTest {
 
   @Test
   def testOptions: Unit = {
-    (Some(1): Option[Int]).pickle.value must_== "1"
-    "1".unpickle[Option[Int]] must_== Some(1)
+    SerializedValue(Some(1): Option[Int]).toJsonString must_== "1"
+    SerializedValue.fromJsonString("1").parse[Option[Int]].get must_== Some(1)
 
-    (Some("a"): Option[String]).pickle.value must_== "\"a\""
-    "\"a\"".unpickle[Option[String]] must_== Some("a")
+    SerializedValue(Some("a"): Option[String]).toJsonString must_== "\"a\""
+    SerializedValue.fromJsonString("\"a\"").parse[Option[String]].get must_== Some("a")
 
-    (None: Option[Int]).pickle.value must_== "null"
-    "null".unpickle[Option[Int]] must_== None
+    SerializedValue(None: Option[Int]).toJsonString must_== "null"
+    SerializedValue.fromJsonString("null").parse[Option[Int]].get must_== None
 
-    (None: Option[String]).pickle.value must_== "null"
-    "null".unpickle[Option[String]] must_== None
+    SerializedValue(None: Option[String]).toJsonString must_== "null"
+    SerializedValue.fromJsonString("null").parse[Option[String]].get must_== None
   }
 
   @Test
@@ -155,9 +142,9 @@ class ArrayPicklerTest {
   def trimLine(s: String): String =
     (s.lines map { _.trim }).mkString("\n")
   def pointed1[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: SPickler[F[A]], ev1: FastTypeTag[F[A]]) =
-    assertEquals(s"With type $ev1", ae.arrayJson, (trimLine(m.pointed(ae.one).pickle.value)))
+    assertEquals(s"With type $ev1", ae.arrayJson, (trimLine(SerializedValue(m.pointed(ae.one)).toJsonString)))
   def pointed2[F[_], A: ClassManifest](implicit m: Pointed[F], ae: ArrayExample[A], ev0: Unpickler[F[A]], ev1: FastTypeTag[F[A]]) =
-    ae.arrayJson.unpickle[F[A]] must_== m.pointed(ae.one)
+    SerializedValue.fromJsonString(ae.arrayJson).parse[F[A]].get must_== m.pointed(ae.one)
 }
 
 trait ArrayExample[A] {
