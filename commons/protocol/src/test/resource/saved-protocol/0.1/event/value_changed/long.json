@@ -1,1 +1,0 @@
-{"$type":"sbt.protocol.ValueChanged","value":{"$type":"sbt.protocol.TaskSuccess","value":{"serialized":43.0,"stringValue":"43"}},"key":{"scope":{"task":null,"config":null,"project":{"name":"test","build":"file:///test/project"},"build":null},"key":{"manifest":"java.lang.String","name":"name"}}}

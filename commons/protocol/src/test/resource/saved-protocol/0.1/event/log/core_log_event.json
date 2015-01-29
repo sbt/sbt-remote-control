@@ -1,1 +1,0 @@
-{"$type":"sbt.protocol.CoreLogEvent","entry":{"$type":"sbt.protocol.LogStdOut","message":"Hello, world"}}
