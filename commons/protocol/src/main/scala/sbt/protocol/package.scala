@@ -28,57 +28,6 @@ package object protocol {
     if (o.isDefined()) Some(o.get())
     else None
 
-  implicit def fileMapUnpickler[T](implicit tUnpickler: Unpickler[T]): Unpickler[Map[java.io.File, T]] = ??? /* Unpickler[Map[java.io.File, T]] { json =>
-    val stringMapUnpickler = implicitly[Unpickler[Map[String, T]]]
-    stringMapUnpickler.reads(json) flatMap { stringMap =>
-      try JsSuccess(stringMap.map(kv => fileFromString(kv._1).getOrElse(throw new Exception(s"invalid filename ${kv._1}")) -> kv._2))
-      catch {
-        case e: Exception => JsError(e.getMessage)
-      }
-    }
-  }*/
-
-  implicit def fileMapSPickler[T](implicit tPickler: SPickler[T]): SPickler[Map[java.io.File, T]] = ??? /* SPickler[Map[java.io.File, T]] { m =>
-    val stringMapPickler = implicitly[SPickler[Map[String, T]]]
-    val stringMap = m.map(kv => fileToString(kv._1) -> kv._2)
-    stringMapSPickler.writes(stringMap)
-  } */
-
-  implicit def relationUnpickler[A, B](implicit forwardUnpickler: Unpickler[Map[A, Set[B]]], reverseUnpickler: Unpickler[Map[B, Set[A]]]): Unpickler[Relation[A, B]] = ??? /* Unpickler[Relation[A, B]] { json =>
-    ((__ \ "forwardMap").read[Map[A, Set[B]]] and
-      (__ \ "reverseMap").read[Map[B, Set[A]]]).apply(Relation(_, _)).reads(json)
-  }*/
-  implicit def relationSPickler[A, B](implicit forwardPickler: SPickler[Map[A, Set[B]]], reversePickler: SPickler[Map[B, Set[A]]]): SPickler[Relation[A, B]] = ??? /* SPickler[Relation[A, B]] { in =>
-    Json.obj("forwardMap" -> in.forwardMap, "reverseMap" -> in.reverseMap)
-  }*/
-
-  // TODO these are defs just so we don't run ??? for now
-  // TODO we probably want to drop all/most Analysis-related stuff
-  implicit def stampUnpickler: Unpickler[Stamp] = ???
-  implicit def stampPickler: SPickler[Stamp] = ???
-
-  implicit def qualifierUnpickler: Unpickler[Qualifier] = ???
-  implicit def qualifierPickler: SPickler[Qualifier] = ???
-
-  implicit def accessPickler: SPickler[Access] = ???
-  implicit def accessUnpickler: Unpickler[Access] = ???
-
-  implicit def variancePickler: SPickler[xsbti.api.Variance] = ???
-  implicit def varianceUnpickler: Unpickler[xsbti.api.Variance] = ???
-  // lazy needed to avoid NPE
-  implicit lazy val pathComponentPickler: SPickler[PathComponent] = ???
-  implicit lazy val pathComponentUnpickler: Unpickler[PathComponent] = ???
-
-  // lazy needed to avoid NPE
-  implicit lazy val simpleTypeUnpickler: Unpickler[SimpleType] = ???
-  // This one causes ambiguity with SPickler[Type] and isn't needed as a public implicit
-  // because SPickler[Type] works fine.
-  private lazy val simpleTypePickler: SPickler[SimpleType] = ???
-  // lazy needed to avoid NPE
-  implicit lazy val typeUnpickler: Unpickler[Type] = ???
-  // lazy needed to avoid NPE
-  implicit lazy val typePickler: SPickler[Type] = ???
-
   // TODO there's no real logic to why these are here and others are in
   // companion objects.
   implicit val positionPickler = genPickler[Position]

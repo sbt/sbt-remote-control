@@ -34,35 +34,8 @@ object Conversions {
   private def addBuiltinConversions(base: DynamicConversion): DynamicConversion = {
     import SbtToProtocolUtils._
     val conversions = Seq(
-      register(analysisToProtocol),
-      register(stampToProtocol),
-      register(stampsToProtocol),
-      register(sourceInfoToProtocol),
-      register(sourceInfosToProtocol),
-      register(problemToProtocol),
-      register(apisToProtocol),
-      register(sourceToProtocol),
-      register(relationsSourceToProtocol),
-      register(relationsToProtocol),
-      register(outputSettingToProtocol),
-      register(compilationToProtocol),
-      register(compilationsToProtocol),
-      register(pathToProtocol),
-      register(pathComponentToProtocol),
-      register(typeParameterToProtocol),
-      register(simpleTypeToProtocol),
-      register(typeToProtocol),
-      register(annotationArgumentToProtocol),
-      register(annotationToProtocol),
-      register(modifiersToProtocol),
-      register(qualifierToProtocol),
-      register(accessToProtocol),
-      register(sourceAPIToProtocol),
-      register(definitionToProtocol),
-      register(packageAPIToProtocol),
       register(compileFailedExceptionToProtocol),
       register(moduleIdToProtocol))
-
     conversions.foldLeft(base) { (sofar, next) =>
       next(sofar)
     }
