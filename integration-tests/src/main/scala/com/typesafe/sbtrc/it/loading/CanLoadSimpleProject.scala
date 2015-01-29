@@ -168,6 +168,34 @@ class CanLoadSimpleProject extends SbtClientTest {
       case _ =>
     })(keepEventsInOrderExecutor)
 
+    def withCompileTaskResult(body: Future[Unit] => Unit): Unit = {
+      val result = Promise[Unit]
+      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Unit](compileKeys.head)) { (a: ScopedKey, b: TaskResult) =>
+        result.tryComplete(b.resultWithCustomThrowable[Unit, CompileFailedException])
+      })(keepEventsInOrderExecutor)
+
+      try body(result.future)
+      finally compileWatchSub.cancel()
+    }
+    withCompileTaskResult { compileWatchFuture =>
+      client.requestExecution("compile", None)
+      val gotException =
+        try {
+          waitWithError(compileWatchFuture, "Unable get compile analysis from server")
+          false
+        } catch {
+          case e: CompileFailedException =>
+            if (e.problems.isEmpty)
+              throw new AssertionError(s"CompileFailedException had no problems in it $e")
+            true
+          case e: Throwable =>
+            throw new AssertionError(s"expected CompileFailedException, got $e")
+            true
+        }
+      if (!gotException)
+        throw new AssertionError(s"Expected compile to fail but it didn't")
+    }
+
     val error = try {
       waitWithError(compileErrorCaptured.future, "Never received compilation failure!")
     } finally {
@@ -205,6 +233,11 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     // delete the broken file
     errorFile.delete()
+
+    withCompileTaskResult { compileWatchFuture =>
+      client.requestExecution("compile", None)
+      waitWithError(compileWatchFuture, "Unable get compile analysis from server")
+    }
 
     // Now check that we get test events
     @volatile var testEvents: List[TestEvent] = Nil
