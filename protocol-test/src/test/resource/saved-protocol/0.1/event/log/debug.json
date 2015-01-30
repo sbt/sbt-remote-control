@@ -1,0 +1,1 @@
+{"taskId":5,"entry":{"level":"debug","message":"TEST","$type":"sbt.protocol.LogMessage"},"$type":"sbt.protocol.TaskLogEvent"}

@@ -1,1 +1,0 @@
-{"$type":"sbt.protocol.TaskEvent","serialized":{"name":"name","duration":0.0,"description":null,"outcome":"passed","error":null,"$type":"sbt.protocol.TestEvent"},"name":"TestEvent","taskId":4.0}

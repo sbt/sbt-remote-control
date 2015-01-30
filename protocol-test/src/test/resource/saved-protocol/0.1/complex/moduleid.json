@@ -1,0 +1,1 @@
+{"organization":"com.foo","name":"bar","attributes":{"a":"b"},"$type":"sbt.protocol.ModuleId"}

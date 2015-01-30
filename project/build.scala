@@ -68,6 +68,15 @@ object TheBuild extends Build {
         junitInterface % Test
       ) ++ jsonDependencies
     )
+  lazy val protocolTest = SbtRemoteControlProject("protocol-test").
+    dependsOn(sbtServer13).
+    dependsOnSource("serialization").
+    settings(
+      parallelExecution in Test := false,
+      libraryDependencies ++= Seq(
+        junitInterface % Test
+      )
+    )
 
   // ================= Remote Controler main project ==========================
 
