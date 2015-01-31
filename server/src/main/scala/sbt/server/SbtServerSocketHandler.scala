@@ -103,12 +103,15 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
           case _: InterruptedException | _: SocketTimeoutException =>
             if (running.get) {
               log.log("Checking to see if clients are empty...")
+              val (daemonClients, nonDaemonClients) = clients.partition(_.daemon)
               // Here we need to check to see if we should shut ourselves down.
-              if (clients.isEmpty) {
-                log.log("No clients connected after 3 min.  Shutting down.")
+              if (nonDaemonClients.isEmpty) {
+                log.log("No non-daemon clients connected after 3 min. Shutting down.")
+                if (daemonClients.nonEmpty)
+                  log.log(s"${daemonClients.size} daemon clients are connected.")
                 running.set(false)
               } else {
-                log.log("We have a client, continuing serving connections.")
+                log.log(s"We have ${daemonClients.size} non-daemon clients, continuing serving connections.")
               }
             } else {
               log.log(s"socket exception, running=false, exiting")

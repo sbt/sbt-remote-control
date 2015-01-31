@@ -349,6 +349,8 @@ class RequestProcessor(
       //// If you change any of these, you probably also need to change
       //// handleRequestsWithBuildState below.
 
+      case DaemonRequest(daemon) =>
+        client.daemon = daemon
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>
@@ -376,6 +378,8 @@ class RequestProcessor(
       //// without losing the match exhaustiveness warnings. If you change
       //// these change above too.
 
+      case DaemonRequest(daemon) =>
+        client.daemon = daemon
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>

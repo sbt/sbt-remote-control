@@ -137,6 +137,7 @@ class ProtocolTest {
 
     val specifics = Seq(
       // Requests
+      protocol.DaemonRequest(true),
       protocol.KillServerRequest(),
       protocol.ReadLineRequest(42, "HI", true),
       protocol.ReadLineResponse(Some("line")),
@@ -412,6 +413,7 @@ class ProtocolTest {
       Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
+    oneWayTrip[Message](protocol.DaemonRequest(true)) { _ / "message" / "daemon_req.json" }
     oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
     oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
     oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "readline_response.json" }

@@ -221,4 +221,16 @@ class SbtClientProxySpec extends DefaultSpecification {
       }
     }
   }
+
+  @Test
+  def testSetDaemon(): Unit = withHelper { helper =>
+    import helper._
+    withFakeSbtClient() { client =>
+      val cp = system.actorOf(Props(new SbtClientProxy(client, global, x => testActor ! x)))
+      Assert.assertFalse("client starts not in daemon mode", client.daemon)
+      cp ! SetDaemon(true, testActor)
+      Assert.assertEquals(expectMsgType[DaemonSet.type], DaemonSet)
+      Assert.assertTrue("client was set to daemon mode", client.daemon)
+    }
+  }
 }
