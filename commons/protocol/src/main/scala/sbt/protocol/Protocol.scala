@@ -9,9 +9,7 @@ import sbt.serialization._
  *  sbt into a client.
  */
 @directSubclasses(Array(classOf[Request], classOf[Response], classOf[Event]))
-sealed trait Message {
-  def simpleName: String = MessageSerialization.makeSimpleName(getClass)
-}
+sealed trait Message
 
 /** Represents requests that go down into sbt. */
 @directSubclasses(Array(classOf[RegisterClientRequest],
@@ -217,54 +215,46 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
   require(jobId != 0L)
 }
 
-/** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class TaskEvent(taskId: Long, name: String, serialized: SerializedValue) extends Event
+/** A custom event from a task. */
+final case class TaskEvent(taskId: Long, serialized: SerializedValue) extends Event
 
 object TaskEvent {
   def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
     val serialized = SerializedValue(event)
-    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
+    TaskEvent(taskId, serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait TaskEventUnapply[T] {
-  import scala.reflect.ClassTag
-
-  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
-      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
-      if (name != taskEvent.name) {
+      if (taskEvent.serialized.hasTag[T])
+        Some(taskEvent.taskId -> taskEvent.serialized.parse[T].get)
+      else
         None
-      } else {
-        taskEvent.serialized.parse[T].toOption map { result => taskEvent.taskId -> result }
-      }
     case other => None
   }
 }
 
-/** A custom event from a job. "name" is conventionally the simplified class name. */
-final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
+/** A custom event from a job. */
+final case class BackgroundJobEvent(jobId: Long, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
   def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
     val serialized = SerializedValue(event)
-    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
+    BackgroundJobEvent(jobId, serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait BackgroundJobEventUnapply[T] {
-  import scala.reflect.ClassTag
-
-  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
-      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
-      if (name != jobEvent.name) {
+      if (jobEvent.serialized.hasTag[T])
+        Some(jobEvent.jobId -> jobEvent.serialized.parse[T].get)
+      else
         None
-      } else {
-        jobEvent.serialized.parse[T].toOption map { result => jobEvent.jobId -> result }
-      }
     case other => None
   }
 }

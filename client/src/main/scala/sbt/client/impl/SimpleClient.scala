@@ -468,7 +468,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
           channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
       }
     case other =>
-      channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.simpleName))
+      channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.getClass.getName))
   }
   private def handleEnvelope(executionState: ImpliedState.ExecutionEngine, envelope: protocol.Envelope): ImpliedState.ExecutionEngine = envelope match {
     case protocol.Envelope(_, _, event: Event) =>
