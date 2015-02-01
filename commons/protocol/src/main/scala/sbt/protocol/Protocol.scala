@@ -476,60 +476,6 @@ object CompileFailedException {
   }
 }
 
-sealed trait ByteArray extends immutable.Seq[Byte]
-object ByteArray {
-  private final val p = 16777619
-  private final val start = 2166136261L
-  private final def fnvHash(in: Array[Byte]): Int = {
-    var hash: Long = start
-    var i = 0
-    while (i < in.length) {
-      hash = (hash ^ in(i)) * p
-      i += 1
-    }
-    hash += hash << 13
-    hash ^= hash >> 7
-    hash += hash << 3
-    hash ^= hash >> 17
-    hash += hash << 5
-    hash.intValue
-  }
-  final private class ConcreteByteArray(val ary: Array[Byte]) extends ByteArray {
-    private final lazy val hc = fnvHash(ary)
-    final def apply(idx: Int): Byte = ary(idx)
-    final def iterator: Iterator[Byte] = Iterator.tabulate(ary.length)(i => ary(i))
-    final def length: Int = ary.length
-    override final def hashCode(): Int = hc
-    override final def equals(other: Any): Boolean = other match {
-      case x: ConcreteByteArray => java.util.Arrays.equals(ary, x.ary)
-      case _ => false
-    }
-  }
-  def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
-
-  // TODO what a mess, this isn't quite right I'm sure, but probably we just
-  // don't need byte arrays anyhow (we don't need all of Analysis)
-  import scala.pickling.{ PBuilder, PReader, FastTypeTag, PicklingException }
-  implicit val picklerUnpickler: SPickler[ByteArray] with Unpickler[ByteArray] = new SPickler[ByteArray] with Unpickler[ByteArray] {
-    private implicit val arrayPickler = implicitly[SPickler[Array[Byte]]]
-    private implicit val arrayUnpickler = implicitly[Unpickler[Array[Byte]]]
-    override val tag = implicitly[FastTypeTag[ByteArray]]
-
-    def pickle(array: ByteArray, builder: PBuilder): Unit = {
-      val concrete = array match {
-        case c: ConcreteByteArray => c
-      }
-      arrayPickler.pickle(concrete.ary, builder)
-    }
-    def unpickle(tag: String, preader: PReader): Any = {
-      arrayUnpickler.unpickle(tag, preader) match {
-        case ary: Array[_] => new ConcreteByteArray(ary.asInstanceOf[Array[Byte]])
-        case other => throw new PicklingException(s"expected byte array got $other")
-      }
-    }
-  }
-}
-
 final case class ModuleId(organization: String, name: String, attributes: Map[String, String])
 
 private[sbt] object StructurallyEqual {
