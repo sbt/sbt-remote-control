@@ -9,7 +9,6 @@ import scala.pickling.functions._
 import sbt.serialization.json.{
   JSONPickle
 }
-import scala.pickling.{ FastTypeTag, PBuilder, PReader }
 import sbt.serialization.json.JsonMethods._
 import sbt.serialization.json.JSONPickleFormat
 
@@ -23,6 +22,20 @@ import sbt.serialization.json.JSONPickleFormat
  */
 sealed trait SerializedValue {
   def parse[T](implicit unpickler: Unpickler[T]): Try[T]
+
+  /**
+   * Returns true if the supplied unpickler matches the
+   * type tag in the SerializedValue. This can return
+   * false in some cases where parse[T] could succeed (parse
+   * is allowed to use duck typing). So this should only
+   * be used when the type to be unpickled is not known
+   * for sure and a discriminator is required. The advantages
+   * of hasTag over simply attempting to parse are that it
+   * doesn't throw an expensive exception on match failure,
+   * and it can't accidentally match a structurally-compatible
+   * but distinct type.
+   */
+  def hasTag[T](implicit unpickler: Unpickler[T]): Boolean
 
   def toJsonString: String
 
@@ -90,6 +103,9 @@ private final case class JsonValue(pickledValue: JSONPickle) extends SerializedV
   override def parse[T](implicit unpicklerForT: Unpickler[T]): Try[T] =
     Try { unpickle[T](pickledValue) }
 
+  def hasTag[T](implicit unpickler: Unpickler[T]): Boolean =
+    pickledValue.readTypeTag.map(tag => tag == unpickler.tag.key).getOrElse(false)
+
   override def toJsonString: String = pickledValue.value
   // this deliberately doesn't simply toJsonString because it would
   // be broken to use toString to get parseable json (since the SerializedValue
@@ -103,6 +119,8 @@ private final case class JsonValue(pickledValue: JSONPickle) extends SerializedV
  * A value we have the info available to serialize, but we haven't
  *  picked a format yet. Allows us to defer format selection, or
  *  for in-process uses we could even theoretically skip serialization.
+ * Until we have binary or actually optimize to avoid JSON, this
+ * class isn't especially useful.
  */
 private final case class LazyValue[V](value: V, pickler: SPickler[V]) extends SerializedValue {
   // this could theoretically avoid the round-trip through JSON
@@ -112,6 +130,10 @@ private final case class LazyValue[V](value: V, pickler: SPickler[V]) extends Se
   // we use LazyValue on the "send" side.
   override def parse[T](implicit unpickler: Unpickler[T]): Try[T] =
     toJson.parse[T]
+
+  // as with parse, we should/could avoid JSON here
+  def hasTag[T](implicit unpickler: Unpickler[T]): Boolean =
+    toJson.hasTag[T]
 
   override def toJsonString = toJson.toJsonString
 
