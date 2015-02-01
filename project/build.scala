@@ -16,7 +16,7 @@ object TheBuild extends Build {
 
   val root = (
     Project("root", file("."))  // TODO - Oddities with clean..
-    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, serialization.project)):_*)
+    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, serialization.project, protocolTest.project)):_*)
     settings(
       // Stub out commands we run frequently but don't want them to really do anything.
       Keys.publish := {},
