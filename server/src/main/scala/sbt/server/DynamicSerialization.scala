@@ -19,7 +19,7 @@ private object Classes {
   val ListClass = classOf[List[_]]
   val SeqClass = classOf[Seq[_]]
   val NilClass = Nil.getClass
-  val AttributedClass = classOf[sbt.Attributed[_]]
+  // val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
   val ThrowableClass = classOf[Throwable]
 
@@ -35,7 +35,7 @@ private object Classes {
   object VectorSubClass extends SubClass(VectorClass)
   object ListSubClass extends SubClass(ListClass)
   object SeqSubClass extends SubClass(SeqClass)
-  object AttributedSubClass extends SubClass(AttributedClass)
+  // object AttributedSubClass extends SubClass(AttributedClass)
   object ThrowableSubClass extends SubClass(ThrowableClass)
 }
 
@@ -225,10 +225,10 @@ private object ConcreteDynamicSerialization {
           defaultSerializerForList(mf.typeArguments(0).runtimeClass)
         case Classes.SeqSubClass() =>
           defaultSerializerForSeq(mf.typeArguments(0).runtimeClass)
-        case Classes.AttributedSubClass() =>
-          for {
-            child <- memoizedDefaultSerializer(mf.typeArguments(0))
-          } yield ??? /* FIXME */
+        // case Classes.AttributedSubClass() =>
+        //   for {
+        //     child <- memoizedDefaultSerializer(mf.typeArguments(0))
+        //   } yield ??? /* FIXME */
         case _ =>
           None
       }).asInstanceOf[Option[SbtSerializer[T]]]

@@ -5,9 +5,6 @@ import sbt.serialization._
 package object protocol {
   import sbt.serialization.CanToString
 
-  //implicit def attributedPickler[T](implicit pickler: SPickler[T]): SPickler[Attributed[T]] = ???
-  //implicit def attributedUnpickler[T](implicit unpickler: Unpickler[T]): Unpickler[Attributed[T]] = ???
-
   private implicit val severityCanToString: CanToString[xsbti.Severity] = CanToString(
     _.toString, {
       case "Info" => xsbti.Severity.Info
