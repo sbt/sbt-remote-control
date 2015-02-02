@@ -217,18 +217,22 @@ private object ConcreteDynamicSerialization {
       (mf.runtimeClass match {
         case Classes.OptionSubClass() =>
           defaultSerializerForOption(mf.typeArguments(0).runtimeClass)
-        // TODO there's no real point having Vector and List special-cased
-        // here if we pickle them the same way as Seq anyhow.
+
+        // Vector and List are special-cased for unpickle; for pickle
+        // we could serialize any Seq the same, but on unpickle we want to
+        // get the expected type.
         case Classes.VectorSubClass() =>
           defaultSerializerForVector(mf.typeArguments(0).runtimeClass)
         case Classes.ListSubClass() =>
           defaultSerializerForList(mf.typeArguments(0).runtimeClass)
         case Classes.SeqSubClass() =>
           defaultSerializerForSeq(mf.typeArguments(0).runtimeClass)
+
         // case Classes.AttributedSubClass() =>
         //   for {
         //     child <- memoizedDefaultSerializer(mf.typeArguments(0))
         //   } yield ??? /* FIXME */
+
         case _ =>
           None
       }).asInstanceOf[Option[SbtSerializer[T]]]
