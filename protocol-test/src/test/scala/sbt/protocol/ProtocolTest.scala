@@ -44,10 +44,6 @@ object ProtocolGenerators {
       items <- Gen.mapOfN[T, U](size, gen)
     } yield items
 
-  implicit val arbitraryByteArray: Arbitrary[protocol.ByteArray] = Arbitrary {
-    for (v <- Arbitrary.arbContainer[Array, Byte].arbitrary) yield protocol.ByteArray(v)
-  }
-
   implicit val arbitraryFile: Arbitrary[java.io.File] = Arbitrary {
     val genPathElement = for {
       chars <- listOfN()(1, 15, Gen.alphaNumChar)
