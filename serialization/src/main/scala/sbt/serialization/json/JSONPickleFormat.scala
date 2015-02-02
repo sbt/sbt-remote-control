@@ -3,8 +3,6 @@ package sbt.serialization
 import scala.pickling.{
   FastTypeTag,
   Output,
-  PBuilder,
-  PReader,
   Pickle,
   PickleFormat,
   PickleTools,
@@ -37,6 +35,15 @@ package json {
     //abstract val value: String
     /** The value in the pickled parsed into a JValue AST.  note this may throw. */
     def parsedValue: JValue
+
+    private[serialization] def readTypeTag: Option[String] = parsedValue match {
+      case obj: JObject =>
+        (obj \ JSONPickleFormat.TYPE_TAG_FIELD) match {
+          case JString(s) => Some(s)
+          case _ => None
+        }
+      case _ => None
+    }
 
     override final def equals(other: Any): Boolean = other match {
       case null => false

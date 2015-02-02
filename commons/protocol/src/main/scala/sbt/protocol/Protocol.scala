@@ -9,9 +9,7 @@ import sbt.serialization._
  *  sbt into a client.
  */
 @directSubclasses(Array(classOf[Request], classOf[Response], classOf[Event]))
-sealed trait Message {
-  def simpleName: String = MessageSerialization.makeSimpleName(getClass)
-}
+sealed trait Message
 
 /** Represents requests that go down into sbt. */
 @directSubclasses(Array(classOf[RegisterClientRequest],
@@ -217,54 +215,46 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
   require(jobId != 0L)
 }
 
-/** A custom event from a task. "name" is conventionally the simplified class name. */
-final case class TaskEvent(taskId: Long, name: String, serialized: SerializedValue) extends Event
+/** A custom event from a task. */
+final case class TaskEvent(taskId: Long, serialized: SerializedValue) extends Event
 
 object TaskEvent {
   def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
     val serialized = SerializedValue(event)
-    TaskEvent(taskId, MessageSerialization.makeSimpleName(event.getClass), serialized)
+    TaskEvent(taskId, serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait TaskEventUnapply[T] {
-  import scala.reflect.ClassTag
-
-  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T]): Option[(Long, T)] = event match {
     case taskEvent: TaskEvent =>
-      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
-      if (name != taskEvent.name) {
+      if (taskEvent.serialized.hasTag[T])
+        Some(taskEvent.taskId -> taskEvent.serialized.parse[T].get)
+      else
         None
-      } else {
-        taskEvent.serialized.parse[T].toOption map { result => taskEvent.taskId -> result }
-      }
     case other => None
   }
 }
 
-/** A custom event from a job. "name" is conventionally the simplified class name. */
-final case class BackgroundJobEvent(jobId: Long, name: String, serialized: SerializedValue) extends Event
+/** A custom event from a job. */
+final case class BackgroundJobEvent(jobId: Long, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
   def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
     val serialized = SerializedValue(event)
-    BackgroundJobEvent(jobId, MessageSerialization.makeSimpleName(event.getClass), serialized)
+    BackgroundJobEvent(jobId, serialized)
   }
 }
 
 /** Companion objects of events which can go in a task event extend this */
 trait BackgroundJobEventUnapply[T] {
-  import scala.reflect.ClassTag
-
-  def unapply(event: Event)(implicit unpickler: Unpickler[T], classTag: ClassTag[T]): Option[(Long, T)] = event match {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T]): Option[(Long, T)] = event match {
     case jobEvent: BackgroundJobEvent =>
-      val name = MessageSerialization.makeSimpleName(implicitly[ClassTag[T]].runtimeClass)
-      if (name != jobEvent.name) {
+      if (jobEvent.serialized.hasTag[T])
+        Some(jobEvent.jobId -> jobEvent.serialized.parse[T].get)
+      else
         None
-      } else {
-        jobEvent.serialized.parse[T].toOption map { result => jobEvent.jobId -> result }
-      }
     case other => None
   }
 }
@@ -482,60 +472,6 @@ object CompileFailedException {
       val cause = throwableOptUnpickler.unpickleEntry(preader.readField("cause")).asInstanceOf[Option[Throwable]]
       val problems = vectorProblemUnpickler.unpickleEntry(preader.readField("problems")).asInstanceOf[Vector[Problem]]
       new CompileFailedException(message.orNull, cause.orNull, problems)
-    }
-  }
-}
-
-sealed trait ByteArray extends immutable.Seq[Byte]
-object ByteArray {
-  private final val p = 16777619
-  private final val start = 2166136261L
-  private final def fnvHash(in: Array[Byte]): Int = {
-    var hash: Long = start
-    var i = 0
-    while (i < in.length) {
-      hash = (hash ^ in(i)) * p
-      i += 1
-    }
-    hash += hash << 13
-    hash ^= hash >> 7
-    hash += hash << 3
-    hash ^= hash >> 17
-    hash += hash << 5
-    hash.intValue
-  }
-  final private class ConcreteByteArray(val ary: Array[Byte]) extends ByteArray {
-    private final lazy val hc = fnvHash(ary)
-    final def apply(idx: Int): Byte = ary(idx)
-    final def iterator: Iterator[Byte] = Iterator.tabulate(ary.length)(i => ary(i))
-    final def length: Int = ary.length
-    override final def hashCode(): Int = hc
-    override final def equals(other: Any): Boolean = other match {
-      case x: ConcreteByteArray => java.util.Arrays.equals(ary, x.ary)
-      case _ => false
-    }
-  }
-  def apply(in: Array[Byte]): ByteArray = new ConcreteByteArray(in.clone())
-
-  // TODO what a mess, this isn't quite right I'm sure, but probably we just
-  // don't need byte arrays anyhow (we don't need all of Analysis)
-  import scala.pickling.{ PBuilder, PReader, FastTypeTag, PicklingException }
-  implicit val picklerUnpickler: SPickler[ByteArray] with Unpickler[ByteArray] = new SPickler[ByteArray] with Unpickler[ByteArray] {
-    private implicit val arrayPickler = implicitly[SPickler[Array[Byte]]]
-    private implicit val arrayUnpickler = implicitly[Unpickler[Array[Byte]]]
-    override val tag = implicitly[FastTypeTag[ByteArray]]
-
-    def pickle(array: ByteArray, builder: PBuilder): Unit = {
-      val concrete = array match {
-        case c: ConcreteByteArray => c
-      }
-      arrayPickler.pickle(concrete.ary, builder)
-    }
-    def unpickle(tag: String, preader: PReader): Any = {
-      arrayUnpickler.unpickle(tag, preader) match {
-        case ary: Array[_] => new ConcreteByteArray(ary.asInstanceOf[Array[Byte]])
-        case other => throw new PicklingException(s"expected byte array got $other")
-      }
     }
   }
 }

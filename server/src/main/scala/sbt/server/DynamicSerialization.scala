@@ -68,7 +68,7 @@ sealed trait DynamicSerialization {
     lookup(mf) map { serializer =>
       BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
     } getOrElse {
-      System.err.println(s"No dynamic serializer found (using manifest) for $o")
+      System.err.println(s"No dynamic serializer found (using manifest $mf) for $o")
       BuildValue(SerializedValue(TransientValue()), o.toString)
     }
 
@@ -76,7 +76,7 @@ sealed trait DynamicSerialization {
     lookup[T](o.getClass.asInstanceOf[Class[T]]) map { serializer =>
       BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
     } getOrElse {
-      System.err.println(s"No dynamic serializer found (using runtime class) for $o")
+      System.err.println(s"No dynamic serializer found (using runtime class ${o.getClass.getName}) for $o")
       BuildValue(SerializedValue(TransientValue()), o.toString)
     }
   }
@@ -257,7 +257,6 @@ private object NonTrivialSerializers {
     // task results; we only need to register types T that appear in taskKey[T].
     // We don't have to register all the types of the fields in result types.
     val serializers = Seq[RegisteredSbtSerializer](
-      toRegisteredSbtSerializer[ByteArray],
       toRegisteredSbtSerializer[ProjectReference],
       toRegisteredSbtSerializer[AttributeKey],
       toRegisteredSbtSerializer[SbtScope],
