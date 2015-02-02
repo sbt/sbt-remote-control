@@ -23,10 +23,6 @@ package json {
 
   private[serialization] object `package` {
     implicit val pickleFormat: JSONPickleFormat = new JSONPickleFormat
-    // TODO both of these are pretty sketchy probably?
-    // import scala.language.implicitConversions
-    //implicit def toJSONPickle(value: String): JSONPickle = JSONPickle(value)
-    //implicit def toUnpickleOps(value: String): UnpickleOps = new UnpickleOps(JSONPickle(value))
   }
 
   private[serialization] sealed abstract class JSONPickle extends Pickle {

@@ -44,10 +44,6 @@ object ProtocolGenerators {
       items <- Gen.mapOfN[T, U](size, gen)
     } yield items
 
-  implicit val arbitraryByteArray: Arbitrary[protocol.ByteArray] = Arbitrary {
-    for (v <- Arbitrary.arbContainer[Array, Byte].arbitrary) yield protocol.ByteArray(v)
-  }
-
   implicit val arbitraryFile: Arbitrary[java.io.File] = Arbitrary {
     val genPathElement = for {
       chars <- listOfN()(1, 15, Gen.alphaNumChar)
@@ -214,7 +210,6 @@ class ProtocolTest {
 
      */
 
-    /* //TODO commented out because it crashes the compiler
     protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some("bar"), 0)) match {
       case protocol.TestEvent(taskId, test) =>
         assertEquals(4, taskId)
@@ -222,7 +217,7 @@ class ProtocolTest {
         assertEquals(Some("foo"), test.description)
         assertEquals(Some("bar"), test.error)
     }
-*/
+
     // check TaskEvent unpacking using TaskEventUnapply
     protocol.TaskEvent(8, PlayStartedEvent(port = 10)) match {
       case PlayStartedEvent(taskId, playStarted) =>
