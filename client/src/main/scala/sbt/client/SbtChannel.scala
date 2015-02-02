@@ -4,7 +4,7 @@ package client
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
 import sbt.serialization._
-import sbt.protocol.Message
+import sbt.protocol.{ Message, Response }
 
 final class ChannelInUseException() extends Exception("This channel is already in use and can only be claimed once")
 
@@ -24,21 +24,19 @@ trait SbtChannel extends Closeable {
   /** Human-readable name of this client, such as the name of the app. */
   def humanReadableName: String
 
-  // TODO remove type parameter if we don't add any implicits
   /**
    * Send a message over the sbt socket.
    *  If we fail to write to the socket, the future gets an exception. Note that just because
    *  the future succeeds doesn't mean the server received and acted on the message.
    */
-  def sendJson[T <: Message](message: T): Future[Unit]
+  def sendMessage(message: Message): Future[Unit]
 
-  // TODO remove type parameter if we don't add any implicits
   /**
    * Send a message over the sbt socket, getting the serial in a callback which allows you to
    *  provide a result based on the reply. The "registration" callback is run synchronously
    *  (before this method returns) and will always run before the message is sent.
    */
-  def sendJsonWithRegistration[T <: Message, R](message: T)(registration: Long => Future[R]): Future[R]
+  def sendMessageWithRegistration[R](message: Message)(registration: Long => Future[R]): Future[R]
 
   // TODO remove type parameter if we don't add any implicits
   /**
@@ -47,7 +45,7 @@ trait SbtChannel extends Closeable {
    * If we fail to write to the socket, the future gets an exception. Note that just because
    * the future succeeds doesn't mean the server received and acted on the message.
    */
-  def replyJson[T <: Message](replyTo: Long, message: T): Future[Unit]
+  def replyMessage(replyTo: Long, message: Response): Future[Unit]
 
   /**
    * Invoke a function in the given ExecutionContext for every message received over this channel.

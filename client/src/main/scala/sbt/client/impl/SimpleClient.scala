@@ -31,7 +31,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     // TODO this is really busted; we need to have a local cache of the latest build and provide
     // that local cache ONLY to the new listener, rather than reloading remotely and sending
     // it to ALL existing listeners.
-    channel.sendJson[Message](SendSyntheticBuildChanged())
+    channel.sendMessage(SendSyntheticBuildChanged())
     sub
   }
 
@@ -72,7 +72,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   }
 
   private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R]): Future[R] = {
-    channel.sendJsonWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
+    channel.sendMessageWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
   }
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[Completion]] =
@@ -85,12 +85,12 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     sendRequestWithConverter(AnalyzeExecutionRequest(command))
 
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    channel.sendJsonWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
+    channel.sendMessageWithRegistration(ExecutionRequest(commandOrTask)) { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
   def requestExecution(key: ScopedKey, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] = {
-    channel.sendJsonWithRegistration(KeyExecutionRequest(key)) { serial =>
+    channel.sendMessageWithRegistration(KeyExecutionRequest(key)) { serial =>
       requestHandler.register(serial, interaction).received
     }
   }
@@ -292,7 +292,7 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   // the same thing; we could replace this with a force-kill thing if we want
   // that actually kills the pid or something.
   override def requestSelfDestruct(): Unit =
-    channel.sendJson(KillServerRequest())
+    channel.sendMessage(KillServerRequest())
 
   private val closeLatch = new java.util.concurrent.CountDownLatch(1)
   def close(): Unit = {
@@ -456,19 +456,19 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   }
   private def handleRequest(serial: Long, request: Request): Unit = request match {
     case protocol.ReadLineRequest(executionId, prompt, mask) =>
-      try channel.replyJson(serial, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
+      try channel.replyMessage(serial, protocol.ReadLineResponse(requestHandler.readLine(executionId, prompt, mask)))
       catch {
         case NoInteractionException =>
-          channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+          channel.replyMessage(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
       }
     case protocol.ConfirmRequest(executionId, msg) =>
-      try channel.replyJson(serial, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
+      try channel.replyMessage(serial, protocol.ConfirmResponse(requestHandler.confirm(executionId, msg)))
       catch {
         case NoInteractionException =>
-          channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
+          channel.replyMessage(serial, protocol.ErrorResponse("Unable to handle request: No interaction is defined"))
       }
     case other =>
-      channel.replyJson(serial, protocol.ErrorResponse("Unable to handle request: " + request.getClass.getName))
+      channel.replyMessage(serial, protocol.ErrorResponse("Unable to handle request: " + request.getClass.getName))
   }
   private def handleEnvelope(executionState: ImpliedState.ExecutionEngine, envelope: protocol.Envelope): ImpliedState.ExecutionEngine = envelope match {
     case protocol.Envelope(_, _, event: Event) =>
@@ -521,11 +521,10 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
   private var listeners: Set[ListenerType[Event]] = Set.empty
   private var closed = false
 
-  // TODO remove type parameter if we don't add any implicits
-  private def sendJson[T <: Message](message: T): Unit =
+  private def sendMessage(message: Message): Unit =
     // don't check the closed flag here, would be a race.
     // we fire-and-forget the returned future.
-    channel.sendJson[Message](message)
+    channel.sendMessage(message)
 
   def watch(listener: Listener)(implicit ex: ExecutionContext): Subscription = {
     val helper = wrapListener(listener, ex)
@@ -549,14 +548,14 @@ private abstract class ListenerManager[Event, Listener, RequestMsg <: Request, U
         // Specifically ListenToValue needs to handle KeyNotFound.
         // Not doing it right now because it creates issues with merging
         // branches.
-        sendJson[Message](requestEventsMsg)
+        sendMessage(requestEventsMsg)
       }
     }
   }
   private def removeEventListener(l: ListenerType[Event]): Unit = synchronized {
     listeners -= l
     if (listeners.isEmpty && listeningToEvents.compareAndSet(true, false)) {
-      sendJson[Message](requestUnlistenMsg)
+      sendMessage(requestUnlistenMsg)
     }
   }
   def sendEvent(e: Event): Unit = synchronized {
