@@ -52,6 +52,9 @@ abstract class LiveClient extends SbtClient {
   def configName: String
   def humanReadableName: String
 
+  @volatile
+  var daemon: Boolean = false
+
   def info: protocol.ClientInfo =
     protocol.ClientInfo(uuid = uuid.toString, configName = configName, humanReadableName = humanReadableName)
 

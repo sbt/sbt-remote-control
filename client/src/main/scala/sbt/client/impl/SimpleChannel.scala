@@ -34,7 +34,7 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   // sendJson and wrap the failure or serial in a Future
   // (this is actually a synchronous operation but we want to
   // make it look async so we don't synchronously throw)
-  private def sendJson[T <: Message](message: T, serial: Long): Future[Unit] = {
+  private def sendMessage(message: Message, serial: Long): Future[Unit] = {
     try Future.successful(socket.sendJson[Message](message, serial))
     catch {
       case NonFatal(e) =>
@@ -42,14 +42,14 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
     }
   }
 
-  override def sendJson[T <: Message](message: T): Future[Unit] =
-    sendJson(message, socket.serialGetAndIncrement())
+  override def sendMessage(message: Message): Future[Unit] =
+    sendMessage(message, socket.serialGetAndIncrement())
 
   // sendJson, providing a registration function which provides a future
   // representing the reply. The registration function would complete its
   // future by finding a reply with the serial passed to the registration
   // function.
-  override def sendJsonWithRegistration[T <: Message, R](message: T)(registration: Long => Future[R]): Future[R] = {
+  override def sendMessageWithRegistration[R](message: Message)(registration: Long => Future[R]): Future[R] = {
     import concurrent.ExecutionContext.Implicits.global
     val serial = socket.serialGetAndIncrement()
     val result = registration(serial)
@@ -57,10 +57,10 @@ final private class SimpleSbtChannel(override val uuid: java.util.UUID,
     // on client close, right now the future can remain incomplete indefinitely
     // unless the registration function avoids that (some of ours do though by
     // completing the future when the client is closed).
-    sendJson(message, serial) flatMap { _ => result }
+    sendMessage(message, serial) flatMap { _ => result }
   }
 
-  override def replyJson[T <: Message](replyTo: Long, message: T): Future[Unit] =
+  override def replyMessage(replyTo: Long, message: Response): Future[Unit] =
     try Future.successful(socket.replyJson[Message](replyTo, message))
     catch {
       case NonFatal(e) => Future.failed(e)

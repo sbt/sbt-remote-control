@@ -13,6 +13,7 @@ sealed trait Message
 
 /** Represents requests that go down into sbt. */
 @directSubclasses(Array(classOf[RegisterClientRequest],
+  classOf[DaemonRequest],
   classOf[CancelExecutionRequest],
   classOf[ExecutionRequest],
   classOf[KeyExecutionRequest],
@@ -73,6 +74,9 @@ sealed trait ExecutionEngineEvent extends Event
 final case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
 
 final case class RegisterClientRequest(info: ClientInfo) extends Request
+
+/** whether the client should prevent the server from exiting */
+final case class DaemonRequest(daemon: Boolean) extends Request
 
 final case class CancelExecutionRequest(id: Long) extends Request
 final case class CancelExecutionResponse(attempted: Boolean) extends Response
@@ -300,7 +304,17 @@ object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
   implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
   implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
 }
-final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
+final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[Throwable]) {
+  // TODO add hashCode also. the point of this is to ignore the stack trace
+  // in the Throwable.
+  override def equals(other: Any): Boolean = other match {
+    case null => false
+    case that: TestGroupFinished => (this.name == that.name) &&
+      (this.result == that.result) &&
+      (this.error.map(_.getMessage) == that.error.map(_.getMessage))
+    case _ => false
+  }
+}
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
   implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
   implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
@@ -334,13 +348,13 @@ object TestGroupResult {
 }
 
 /** A build test has done something useful and we're being notified of it. */
-final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long) {
+final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[Throwable], duration: Long) {
   // TODO - custom hashCode.
-  // Custom equals to ignore duration.
+  // Custom equals to ignore duration and stack trace
   override def equals(other: Any): Boolean =
     other match {
       case null => false
-      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error == that.error)
+      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error.map(_.getMessage) == that.error.map(_.getMessage))
       case _ => false
     }
 }
@@ -380,6 +394,15 @@ case object TestError extends TestOutcome {
 case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
+case object TestCanceled extends TestOutcome {
+  override def toString = "canceled"
+}
+case object TestIgnored extends TestOutcome {
+  override def toString = "ignored"
+}
+case object TestPending extends TestOutcome {
+  override def toString = "pending"
+}
 
 object TestOutcome {
   import scala.pickling.PicklingException
@@ -391,6 +414,9 @@ object TestOutcome {
       case "failed" => TestFailed
       case "error" => TestError
       case "skipped" => TestSkipped
+      case "canceled" => TestCanceled
+      case "ignored" => TestIgnored
+      case "pending" => TestPending
       case other => throw new PicklingException(s"Unrecognized TestOutcome $other")
     })
 
@@ -618,6 +644,8 @@ object Message {
   private implicit val sendSyntheticBuildChangedUnpickler = genUnpickler[SendSyntheticBuildChanged]
   private implicit val sendSyntheticValueChangedPickler = genPickler[SendSyntheticValueChanged]
   private implicit val sendSyntheticValueChangedUnpickler = genUnpickler[SendSyntheticValueChanged]
+  private implicit val daemonRequestPickler = genPickler[DaemonRequest]
+  private implicit val daemonRequestUnpickler = genUnpickler[DaemonRequest]
   private implicit val taskEventPickler = genPickler[TaskEvent]
   private implicit val taskEventUnpickler = genUnpickler[TaskEvent]
   private implicit val taskFinishedPickler = genPickler[TaskFinished]

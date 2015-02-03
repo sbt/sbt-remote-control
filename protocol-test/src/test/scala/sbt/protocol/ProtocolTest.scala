@@ -44,10 +44,6 @@ object ProtocolGenerators {
       items <- Gen.mapOfN[T, U](size, gen)
     } yield items
 
-  implicit val arbitraryByteArray: Arbitrary[protocol.ByteArray] = Arbitrary {
-    for (v <- Arbitrary.arbContainer[Array, Byte].arbitrary) yield protocol.ByteArray(v)
-  }
-
   implicit val arbitraryFile: Arbitrary[java.io.File] = Arbitrary {
     val genPathElement = for {
       chars <- listOfN()(1, 15, Gen.alphaNumChar)
@@ -137,6 +133,7 @@ class ProtocolTest {
 
     val specifics = Seq(
       // Requests
+      protocol.DaemonRequest(true),
       protocol.KillServerRequest(),
       protocol.ReadLineRequest(42, "HI", true),
       protocol.ReadLineResponse(Some("line")),
@@ -175,6 +172,12 @@ class ProtocolTest {
       protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")),
       protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestFailed, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestError, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestSkipped, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestCanceled, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestIgnored, None, 0)),
+      protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPending, None, 0)),
       protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO")),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
@@ -214,15 +217,14 @@ class ProtocolTest {
 
      */
 
-    /* //TODO commented out because it crashes the compiler
-    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some("bar"), 0)) match {
+    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some(new Exception("bar")), 0)) match {
       case protocol.TestEvent(taskId, test) =>
         assertEquals(4, taskId)
         assertEquals("name", test.name)
         assertEquals(Some("foo"), test.description)
-        assertEquals(Some("bar"), test.error)
+        assertEquals(Some("bar"), test.error.map(_.getMessage))
     }
-*/
+
     // check TaskEvent unpacking using TaskEventUnapply
     protocol.TaskEvent(8, PlayStartedEvent(port = 10)) match {
       case PlayStartedEvent(taskId, playStarted) =>
@@ -412,6 +414,7 @@ class ProtocolTest {
       Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
+    oneWayTrip[Message](protocol.DaemonRequest(true)) { _ / "message" / "daemon_req.json" }
     oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
     oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
     oneWayTrip[Message](protocol.ReadLineResponse(Some("line"))) { _ / "message" / "readline_response.json" }

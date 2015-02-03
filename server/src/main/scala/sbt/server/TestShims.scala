@@ -31,18 +31,16 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
   }
 
   override def testEvent(event: TestEvent): Unit = {
-    // event.result is just all the detail results folded,
-    // we replicate that ourselves below
     for (detail <- event.detail) {
       val outcome = detail.status match {
         case TStatus.Success => protocol.TestPassed
         case TStatus.Error => protocol.TestError
         case TStatus.Failure => protocol.TestFailed
         case TStatus.Skipped => protocol.TestSkipped
-        case TStatus.Canceled => protocol.TestSkipped
-        case TStatus.Ignored => protocol.TestSkipped
-        // TODO - Handle this correctly...
-        case TStatus.Pending => protocol.TestSkipped
+        case TStatus.Canceled => protocol.TestCanceled
+        case TStatus.Ignored => protocol.TestIgnored
+        // TODO - Handle this correctly... (which means what?)
+        case TStatus.Pending => protocol.TestPending
       }
       val testName = detail.selector() match {
         case s: TestSelector => s.testName()
@@ -53,13 +51,13 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
           testName,
           None,
           outcome,
-          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage), detail.duration()))
+          if (detail.throwable.isDefined) Some(detail.throwable.get) else None,
+          detail.duration()))
     }
   }
 
   override def endGroup(name: String, t: Throwable): Unit = {
-    //TODO: Should probably send some form of the stack trace here to be more useful to the user
-    sendEventService.sendEvent(protocol.TestGroupFinished(name, protocol.TestGroupError, Some(t.getMessage)))
+    sendEventService.sendEvent(protocol.TestGroupFinished(name, protocol.TestGroupError, Option(t)))
   }
 
   override def endGroup(name: String, result: TestResult.Value): Unit = {
