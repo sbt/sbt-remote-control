@@ -11,6 +11,8 @@ package object serialization extends SerializationFunctions with CustomPicklers 
   val SPickler = scala.pickling.SPickler
   type Unpickler[A] = scala.pickling.Unpickler[A]
   val Unpickler = scala.pickling.Unpickler
+  type SPicklerUnpickler[A] = scala.pickling.SPicklerUnpickler[A]
+  val SPicklerUnpickler = scala.pickling.SPicklerUnpickler
   // These are exposed for custom implementations of picklers.
   type FastTypeTag[A] = scala.pickling.FastTypeTag[A]
   type PReader = scala.pickling.PReader
