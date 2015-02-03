@@ -1,1 +1,1 @@
-{"$type":"sbt.protocol.DaemonRequest","daemon":true}
+{"daemon":true,"$type":"sbt.protocol.DaemonRequest"}
