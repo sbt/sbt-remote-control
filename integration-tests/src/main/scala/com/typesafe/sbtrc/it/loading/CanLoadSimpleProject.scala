@@ -51,6 +51,9 @@ class CanLoadSimpleProject extends SbtClientTest {
     assert(project.id.name == "test", "failed to discover project name == file name.")
     assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
 
+    waitWithError(client.setDaemon(true), "Did not get a response to daemon=true")
+    waitWithError(client.setDaemon(false), "Did not get a response to daemon=false")
+
     val compileKeysFuture = client.lookupScopedKey("compile")
     val compileKeys = waitWithError(compileKeysFuture, "Never received key lookup response!")
     assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compile", s"Failed to find compile key: $compileKeys!")

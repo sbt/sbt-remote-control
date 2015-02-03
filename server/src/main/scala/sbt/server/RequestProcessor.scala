@@ -343,6 +343,10 @@ class RequestProcessor(
     eventSink.removeEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
+  private def setDaemon(client: LiveClient, serial: Long, value: Boolean): Unit = {
+    client.daemon = value
+    client.reply(serial, ReceivedResponse())
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
 
@@ -350,7 +354,7 @@ class RequestProcessor(
       //// handleRequestsWithBuildState below.
 
       case DaemonRequest(daemon) =>
-        client.daemon = daemon
+        setDaemon(client, serial, daemon)
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>
@@ -379,7 +383,7 @@ class RequestProcessor(
       //// these change above too.
 
       case DaemonRequest(daemon) =>
-        client.daemon = daemon
+        setDaemon(client, serial, daemon)
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>
