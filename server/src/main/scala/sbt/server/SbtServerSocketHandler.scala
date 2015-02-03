@@ -111,7 +111,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
                   log.log(s"${daemonClients.size} daemon clients are connected.")
                 running.set(false)
               } else {
-                log.log(s"We have ${daemonClients.size} non-daemon clients, continuing serving connections.")
+                log.log(s"We have ${nonDaemonClients.size} non-daemon clients, continuing serving connections.")
               }
             } else {
               log.log(s"socket exception, running=false, exiting")
