@@ -25,6 +25,10 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   override def configName: String = channel.configName
   override def humanReadableName: String = channel.humanReadableName
 
+  override def setDaemon(daemon: Boolean): Future[Unit] = {
+    channel.sendJson[Message](DaemonRequest(daemon))
+  }
+
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
 

@@ -252,4 +252,12 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
       _ <- ask(watchQueue, WatchSubscriptionManager.StopAll)
     } {}
   }
+
+  @volatile
+  var daemon = false
+
+  def setDaemon(value: Boolean): Future[Unit] = {
+    daemon = value
+    Future.successful(())
+  }
 }

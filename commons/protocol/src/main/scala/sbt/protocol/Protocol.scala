@@ -13,6 +13,7 @@ sealed trait Message
 
 /** Represents requests that go down into sbt. */
 @directSubclasses(Array(classOf[RegisterClientRequest],
+  classOf[DaemonRequest],
   classOf[CancelExecutionRequest],
   classOf[ExecutionRequest],
   classOf[KeyExecutionRequest],
@@ -73,6 +74,9 @@ sealed trait ExecutionEngineEvent extends Event
 final case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
 
 final case class RegisterClientRequest(info: ClientInfo) extends Request
+
+/** whether the client should prevent the server from exiting */
+final case class DaemonRequest(daemon: Boolean) extends Request
 
 final case class CancelExecutionRequest(id: Long) extends Request
 final case class CancelExecutionResponse(attempted: Boolean) extends Response
@@ -640,6 +644,8 @@ object Message {
   private implicit val sendSyntheticBuildChangedUnpickler = genUnpickler[SendSyntheticBuildChanged]
   private implicit val sendSyntheticValueChangedPickler = genPickler[SendSyntheticValueChanged]
   private implicit val sendSyntheticValueChangedUnpickler = genUnpickler[SendSyntheticValueChanged]
+  private implicit val daemonRequestPickler = genPickler[DaemonRequest]
+  private implicit val daemonRequestUnpickler = genUnpickler[DaemonRequest]
   private implicit val taskEventPickler = genPickler[TaskEvent]
   private implicit val taskEventUnpickler = genUnpickler[TaskEvent]
   private implicit val taskFinishedPickler = genPickler[TaskFinished]

@@ -37,6 +37,7 @@ object SbtClientProxy {
   case class WatchingSetting(key: SettingKey[_]) extends Response
   case class SettingWatchRemoved(key: SettingKey[_]) extends Response
   case object Closed extends Response
+  case object DaemonSet extends Response
 
   sealed trait LocalRequest[Resp] extends Request[Resp]
   case class LookupScopedKey(name: String, sendTo: ActorRef) extends LocalRequest[LookupScopedKeyResponse] {
@@ -82,6 +83,9 @@ object SbtClientProxy {
   }
   case class Close(sendTo: ActorRef) extends LocalRequest[Closed.type] {
     def closed()(implicit sender: ActorRef): Unit = response(Closed)
+  }
+  case class SetDaemon(daemon: Boolean, sendTo: ActorRef) extends LocalRequest[DaemonSet.type] {
+    def set()(implicit sender: ActorRef): Unit = response(DaemonSet)
   }
 
   sealed trait GenericKey[T] {
@@ -297,6 +301,8 @@ final class SbtClientProxy(initialClient: SbtClient,
         state.client.close()
         r.closed()
         context stop self
+      case r: SetDaemon =>
+        state.client.setDaemon(r.daemon).onComplete(_ => r.set())
       case r: LookupScopedKey =>
         state.client.lookupScopedKey(r.name).onComplete(r.responseWithResult)
       case r: RequestExecution.ByCommandOrTask =>

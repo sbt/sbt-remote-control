@@ -20,6 +20,15 @@ trait SbtClient extends Closeable {
   def humanReadableName: String
 
   /**
+   * Set whether the client keeps the sbt server alive. Daemon clients do not prevent
+   * the server from exiting (it exits after a timeout). Typically, user-visible tools
+   * should not be daemon clients.
+   * @param daemon true if the server should feel free to exit with us connected
+   * @returns a future which is completed if the request is ack'd by the server
+   */
+  def setDaemon(daemon: Boolean): Future[Unit]
+
+  /**
    * Watch the build structure, receiving notification when it changes.
    * When initially calling watchBuild(), at least one initial notification
    * is guaranteed to be sent (asynchronously) with the latest build structure.

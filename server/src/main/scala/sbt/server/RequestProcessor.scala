@@ -343,12 +343,18 @@ class RequestProcessor(
     eventSink.removeEventListener(client)
     client.reply(serial, ReceivedResponse())
   }
+  private def setDaemon(client: LiveClient, serial: Long, value: Boolean): Unit = {
+    client.daemon = value
+    client.reply(serial, ReceivedResponse())
+  }
   private def handleRequestsNoBuildState(client: LiveClient, serial: Long, request: Request): Unit =
     request match {
 
       //// If you change any of these, you probably also need to change
       //// handleRequestsWithBuildState below.
 
+      case DaemonRequest(daemon) =>
+        setDaemon(client, serial, daemon)
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>
@@ -376,6 +382,8 @@ class RequestProcessor(
       //// without losing the match exhaustiveness warnings. If you change
       //// these change above too.
 
+      case DaemonRequest(daemon) =>
+        setDaemon(client, serial, daemon)
       case KillServerRequest() =>
         quit()
       case ListenToEvents() =>
