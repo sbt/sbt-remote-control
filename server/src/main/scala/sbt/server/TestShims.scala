@@ -31,18 +31,16 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
   }
 
   override def testEvent(event: TestEvent): Unit = {
-    // event.result is just all the detail results folded,
-    // we replicate that ourselves below
     for (detail <- event.detail) {
       val outcome = detail.status match {
         case TStatus.Success => protocol.TestPassed
         case TStatus.Error => protocol.TestError
         case TStatus.Failure => protocol.TestFailed
         case TStatus.Skipped => protocol.TestSkipped
-        case TStatus.Canceled => protocol.TestSkipped
-        case TStatus.Ignored => protocol.TestSkipped
-        // TODO - Handle this correctly...
-        case TStatus.Pending => protocol.TestSkipped
+        case TStatus.Canceled => protocol.TestCanceled
+        case TStatus.Ignored => protocol.TestIgnored
+        // TODO - Handle this correctly... (which means what?)
+        case TStatus.Pending => protocol.TestPending
       }
       val testName = detail.selector() match {
         case s: TestSelector => s.testName()

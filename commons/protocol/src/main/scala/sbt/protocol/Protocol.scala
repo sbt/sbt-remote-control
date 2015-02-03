@@ -390,6 +390,15 @@ case object TestError extends TestOutcome {
 case object TestSkipped extends TestOutcome {
   override def toString = "skipped"
 }
+case object TestCanceled extends TestOutcome {
+  override def toString = "canceled"
+}
+case object TestIgnored extends TestOutcome {
+  override def toString = "ignored"
+}
+case object TestPending extends TestOutcome {
+  override def toString = "pending"
+}
 
 object TestOutcome {
   import scala.pickling.PicklingException
@@ -401,6 +410,9 @@ object TestOutcome {
       case "failed" => TestFailed
       case "error" => TestError
       case "skipped" => TestSkipped
+      case "canceled" => TestCanceled
+      case "ignored" => TestIgnored
+      case "pending" => TestPending
       case other => throw new PicklingException(s"Unrecognized TestOutcome $other")
     })
 
