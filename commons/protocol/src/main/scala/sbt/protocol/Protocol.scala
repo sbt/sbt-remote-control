@@ -300,7 +300,17 @@ object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
   implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
   implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
 }
-final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[String])
+final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[Throwable]) {
+  // TODO add hashCode also. the point of this is to ignore the stack trace
+  // in the Throwable.
+  override def equals(other: Any): Boolean = other match {
+    case null => false
+    case that: TestGroupFinished => (this.name == that.name) &&
+      (this.result == that.result) &&
+      (this.error.map(_.getMessage) == that.error.map(_.getMessage))
+    case _ => false
+  }
+}
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
   implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
   implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
@@ -334,13 +344,13 @@ object TestGroupResult {
 }
 
 /** A build test has done something useful and we're being notified of it. */
-final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[String], duration: Long) {
+final case class TestEvent(name: String, description: Option[String], outcome: TestOutcome, error: Option[Throwable], duration: Long) {
   // TODO - custom hashCode.
-  // Custom equals to ignore duration.
+  // Custom equals to ignore duration and stack trace
   override def equals(other: Any): Boolean =
     other match {
       case null => false
-      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error == that.error)
+      case that: TestEvent => (name == that.name) && (description == that.description) && (outcome == that.outcome) && (error.map(_.getMessage) == that.error.map(_.getMessage))
       case _ => false
     }
 }

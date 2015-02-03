@@ -53,13 +53,13 @@ class ServerTestListener(val sendEventService: SendEventService) extends TestRep
           testName,
           None,
           outcome,
-          Option(detail.throwable).filter(_.isDefined).map(_.get.getMessage), detail.duration()))
+          if (detail.throwable.isDefined) Some(detail.throwable.get) else None,
+          detail.duration()))
     }
   }
 
   override def endGroup(name: String, t: Throwable): Unit = {
-    //TODO: Should probably send some form of the stack trace here to be more useful to the user
-    sendEventService.sendEvent(protocol.TestGroupFinished(name, protocol.TestGroupError, Some(t.getMessage)))
+    sendEventService.sendEvent(protocol.TestGroupFinished(name, protocol.TestGroupError, Option(t)))
   }
 
   override def endGroup(name: String, result: TestResult.Value): Unit = {
