@@ -58,6 +58,10 @@ class CanLoadSimpleProject extends SbtClientTest {
     val compileKeys = waitWithError(compileKeysFuture, "Never received key lookup response!")
     assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compile", s"Failed to find compile key: $compileKeys!")
 
+    val compileIncrementalKeysFuture = client.lookupScopedKey("compileIncremental")
+    val compileIncrementalKeys = waitWithError(compileIncrementalKeysFuture, "Never received key lookup response!")
+    assert(!compileIncrementalKeys.isEmpty && compileIncrementalKeys.head.key.name == "compileIncremental", s"Failed to find compile key: $compileIncrementalKeys!")
+
     // Here we check autocompletions:
     val completes = waitWithError(client.possibleAutocompletions("hel", 0), "Autocompletions not returned in time.")
     assert(completes.exists(_.append == "p"), "Failed to autocomplete `help` command.")
@@ -173,7 +177,7 @@ class CanLoadSimpleProject extends SbtClientTest {
 
     def withCompileTaskResult(body: Future[Unit] => Unit): Unit = {
       val result = Promise[Unit]
-      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Unit](compileKeys.head)) { (a: ScopedKey, b: TaskResult) =>
+      val compileWatchSub: Subscription = (client.rawWatch(TaskKey[Unit](compileIncrementalKeys.head)) { (a: ScopedKey, b: TaskResult) =>
         result.tryComplete(b.resultWithCustomThrowable[Unit, CompileFailedException])
       })(keepEventsInOrderExecutor)
 
