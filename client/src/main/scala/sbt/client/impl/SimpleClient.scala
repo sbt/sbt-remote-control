@@ -25,10 +25,6 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   override def configName: String = channel.configName
   override def humanReadableName: String = channel.humanReadableName
 
-  override def setDaemon(daemon: Boolean): Future[Unit] = {
-    channel.sendJson[Message](DaemonRequest(daemon))
-  }
-
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)
 
@@ -41,6 +37,15 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
 
   def lazyWatchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription =
     buildEventManager.watch(listener)(ex)
+
+  private abstract class AckResponseConverter[R <: Request] extends ResponseConverter[R, Unit] {
+    override def convert: Converter = {
+      case protocol.ReceivedResponse() =>
+        Success(())
+    }
+  }
+
+  private implicit object daemonResponseConverter extends AckResponseConverter[DaemonRequest]
 
   private implicit object completionsResponseConverter extends ResponseConverter[CommandCompletionsRequest, Vector[Completion]] {
     override def convert: Converter = {
@@ -77,6 +82,10 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
 
   private def sendRequestWithConverter[Req <: Request, R](request: Req)(implicit converter: ResponseConverter[Req, R]): Future[R] = {
     channel.sendMessageWithRegistration(request) { serial => responseTracker.register[Req, R](serial) }
+  }
+
+  override def setDaemon(daemon: Boolean): Future[Unit] = {
+    sendRequestWithConverter(DaemonRequest(daemon))
   }
 
   def possibleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[Completion]] =
