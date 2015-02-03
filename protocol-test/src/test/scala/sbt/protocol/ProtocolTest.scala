@@ -210,12 +210,12 @@ class ProtocolTest {
 
      */
 
-    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some("bar"), 0)) match {
+    protocol.TaskEvent(4, protocol.TestEvent("name", Some("foo"), protocol.TestPassed, Some(new Exception("bar")), 0)) match {
       case protocol.TestEvent(taskId, test) =>
         assertEquals(4, taskId)
         assertEquals("name", test.name)
         assertEquals(Some("foo"), test.description)
-        assertEquals(Some("bar"), test.error)
+        assertEquals(Some("bar"), test.error.map(_.getMessage))
     }
 
     // check TaskEvent unpacking using TaskEventUnapply

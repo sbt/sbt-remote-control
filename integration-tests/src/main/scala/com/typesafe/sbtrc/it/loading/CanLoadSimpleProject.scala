@@ -267,7 +267,7 @@ class CanLoadSimpleProject extends SbtClientTest {
       override def compare(a: TestEvent, b: TestEvent): Int = {
         a.name.compare(b.name) match {
           case 0 => optionStringOrdering.compare(a.description, b.description) match {
-            case 0 => optionStringOrdering.compare(a.error, b.error) match {
+            case 0 => optionStringOrdering.compare(a.error.map(_.getMessage), b.error.map(_.getMessage)) match {
               case 0 => a.outcome.success.compare(b.outcome.success)
               case other => other
             }
@@ -278,9 +278,9 @@ class CanLoadSimpleProject extends SbtClientTest {
       }
     }
     val expected = List(TestEvent("OnePassTest.testThatShouldPass", None, TestPassed, None, -1),
-      TestEvent("OneFailTest.testThatShouldFail", None, TestFailed, Some("this is not true"), -1),
+      TestEvent("OneFailTest.testThatShouldFail", None, TestFailed, Some(new Exception("this is not true")), -1),
       TestEvent("OnePassOneFailTest.testThatShouldPass", None, TestPassed, None, -1),
-      TestEvent("OnePassOneFailTest.testThatShouldFail", None, TestFailed, Some("this is not true"), -1)).sorted
+      TestEvent("OnePassOneFailTest.testThatShouldFail", None, TestFailed, Some(new Exception("this is not true")), -1)).sorted
     assertEquals(expected, testEvents.sorted)
 
     // Now test execution analysis for three cases
