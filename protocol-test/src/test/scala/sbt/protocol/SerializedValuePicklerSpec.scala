@@ -5,8 +5,7 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import SpecsUtil._
-import sbt.serialization.spec.JUnitUtil._
+import JUnitUtil._
 import sbt.serialization._
 import protocol.TaskEventUnapply
 

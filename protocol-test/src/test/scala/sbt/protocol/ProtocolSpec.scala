@@ -6,8 +6,7 @@ import org.junit.Assert._
 import org.junit._
 import java.io.File
 import java.net.URI
-import SpecsUtil._
-import sbt.serialization.spec.JUnitUtil._
+import JUnitUtil._
 import JUnitMessageUtil._
 import xsbti.Severity.{ Info, Warn, Error }
 import scala.util.{ Try, Success, Failure }
@@ -138,8 +137,8 @@ class ProtocolTest {
     import protocol.Message.pickler
     import protocol.Message.unpickler
     val bgje = protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))
-    val pickled = SpecsUtil.pickleMessage(bgje)
-    val recovered3 = SpecsUtil.parseMessage(pickled) match {
+    val pickled = JUnitUtil.pickleMessage(bgje)
+    val recovered3 = JUnitUtil.parseMessage(pickled) match {
       case e: protocol.BackgroundJobEvent => e
       case other => throw new AssertionError("did not unpickle the right thing: " + other)
     }

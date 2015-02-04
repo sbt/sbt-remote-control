@@ -6,8 +6,7 @@ import org.junit._
 import java.io.File
 import java.net.URI
 import sbt.serialization._
-import sbt.serialization.spec.JUnitUtil._
-import SpecsUtil._
+import JUnitUtil._
 
 class TypeExpressionPicklerTest {
 
