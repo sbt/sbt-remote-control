@@ -34,7 +34,6 @@ object TheBuild extends Build {
   // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
-      dependsOnSource("commons/protocol")
       dependsOnSource("commons/ui-interface")
       settings(libraryDependencies += serialization210)
   )
@@ -43,7 +42,6 @@ object TheBuild extends Build {
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/ui-interface")
-    dependsOnSource("ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
