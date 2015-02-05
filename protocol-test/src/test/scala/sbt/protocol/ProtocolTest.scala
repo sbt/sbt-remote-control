@@ -316,7 +316,8 @@ class ProtocolTest {
   private case object JsonToObject extends TripDirection
   private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
     val ds0 = DynamicSerialization.defaultSerializations
-    val ds = ds0.register(implicitly[SbtSerializer[protocol.Message]])
+    val ds = ds0.register(PicklerUnpickler(implicitly[Pickler[protocol.Message]],
+      implicitly[Unpickler[protocol.Message]]))
 
     def oneWayTripBase[T: Manifest](t: T)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
       val path = p(baseDir)
@@ -324,14 +325,14 @@ class ProtocolTest {
       formatOption map { format =>
         td match {
           case ObjectToJson =>
-            val json = addWhatWeWerePickling(t)(SerializedValue(t)(format.pickler).toJsonString)
+            val json = addWhatWeWerePickling(t)(SerializedValue(t)(format).toJsonString)
             if (path.exists) sys.error(s"$path already exists!")
             else IO.write(path, json, IO.utf8)
           case JsonToObject =>
-            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler).toJsonString}.") }
+            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format).toJsonString}.") }
             else {
               val json = SerializedValue.fromJsonString(IO.read(path, IO.utf8))
-              val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format.unpickler).get)
+              val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format).get)
               (t, parsed) match {
                 // Throwable has a not-very-useful equals() in this case
                 case (t: Throwable, parsed: Throwable) => e(t, parsed)
@@ -483,9 +484,9 @@ class ProtocolTest {
     def roundtripBase[U, T: Manifest](t: T)(f: (T, T) => U)(e: (Throwable, Throwable) => U): U = {
       val formatOption = ds.lookup(implicitly[Manifest[T]])
       formatOption map { format =>
-        val json = addWhatWeWerePickling(t)(SerializedValue(t)(format.pickler))
+        val json = addWhatWeWerePickling(t)(SerializedValue(t)(format))
         //System.err.println(s"${t} = ${Json.prettyPrint(json)}")
-        val parsed = addWhatWeWereUnpickling(json.toJsonString)(json.parse[T](format.unpickler).get)
+        val parsed = addWhatWeWereUnpickling(json.toJsonString)(json.parse[T](format).get)
         (t, parsed) match {
           // Throwable has a not-very-useful equals() in this case
           case (t: Throwable, parsed: Throwable) => e(t, parsed)
@@ -525,7 +526,7 @@ class ProtocolTest {
       val parsedValue = json.parse[protocol.BuildValue].get
       import scala.util.{ Success, Failure }
       val parsedT =
-        parsedValue.value[T](format.unpickler) match {
+        parsedValue.value[T](format) match {
           case Success(v) => v
           case Failure(t) =>
             t.printStackTrace()
@@ -534,7 +535,7 @@ class ProtocolTest {
       val buildValueClass: Class[_] = t.getClass
       // Throwable has a not-very-useful equals() in this case
       if (classOf[Throwable].isAssignableFrom(buildValueClass)) {
-        val p = parsedValue.value[T](format.unpickler).map(_.asInstanceOf[Throwable]).get
+        val p = parsedValue.value[T](format).map(_.asInstanceOf[Throwable]).get
         e(t.asInstanceOf[Throwable], p)
       } else {
         f(buildValue, parsedValue)

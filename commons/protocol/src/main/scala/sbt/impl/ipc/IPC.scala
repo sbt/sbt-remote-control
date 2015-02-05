@@ -111,15 +111,15 @@ abstract class Peer(protected val socket: Socket) {
     reply(replyTo, message.getBytes(utf8))
   }
 
-  private def jsonString[T: SPickler](message: T): String = {
+  private def jsonString[T: Pickler](message: T): String = {
     SerializedValue(message).toJsonString
   }
 
-  def sendJson[T: SPickler](message: T, serial: Long): Unit = {
+  def sendJson[T: Pickler](message: T, serial: Long): Unit = {
     sendString(jsonString(message), serial)
   }
 
-  def replyJson[T: SPickler](replyTo: Long, message: T): Unit = {
+  def replyJson[T: Pickler](replyTo: Long, message: T): Unit = {
     require(replyTo != 0L)
     replyString(replyTo, jsonString(message))
   }

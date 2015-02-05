@@ -26,9 +26,9 @@ private[sbt] object ImpliedState {
   import scala.language.implicitConversions
 
   /* FIXME this hack is because we have EventWithWrites for no good reason anymore
-   * and SPickler is invariant.
+   * and Pickler is invariant.
    */
-  private implicit def writesForEvent[E <: Event]: SPickler[E] = implicitly[SPickler[Message]].asInstanceOf[SPickler[E]]
+  private implicit def writesForEvent[E <: Event]: Pickler[E] = implicitly[Pickler[Message]].asInstanceOf[Pickler[E]]
 
   private implicit def writes[E <: Event](event: E): EventWithWrites[E] =
     EventWithWrites.withWrites(event)

@@ -49,13 +49,13 @@ private[server] class TaskSendEventService(taskIdFinder: TaskIdFinder, eventSink
     taskIdFinder.bestGuessTaskId(taskIfKnown = None)
   }
 
-  override def sendEvent[T: SPickler](event: T): Unit =
+  override def sendEvent[T: Pickler](event: T): Unit =
     eventSink.send(TaskEvent(taskId, event))
 }
 
 private final class BackgroundJobSendEventService(jobId: Long, eventSink: MessageSink[BackgroundJobEvent])
   extends SbtPrivateSendEventService {
-  override def sendEvent[T: SPickler](event: T): Unit =
+  override def sendEvent[T: Pickler](event: T): Unit =
     eventSink.send(BackgroundJobEvent(jobId, event))
 }
 
@@ -97,20 +97,20 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
 object UIShims {
 
   private def uiServicesSettings(taskIdFinder: TaskIdFinder, eventSink: MessageSink[TaskEvent]): Seq[Setting[_]] = Seq(
-    UIKeys.interactionService in Global := {
+    InteractionServiceKeys.interactionService in Global := {
       val state = sbt.Keys.state.value
       new ServerInteractionService(ServerState.extract(state))
     },
-    UIKeys.sendEventService in Global := {
+    SendEventServiceKeys.sendEventService in Global := {
       new TaskSendEventService(taskIdFinder, eventSink)
     })
 
   private def jobServiceSetting(executionIdFinder: ExecutionIdFinder, logSink: MessageSink[protocol.LogEvent], eventSink: MessageSink[BackgroundJobEvent], startedSink: MessageSink[BackgroundJobStarted], finishedSink: MessageSink[BackgroundJobFinished]): Setting[_] =
-    UIKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink, startedSink, finishedSink) }
+    BackgroundJobServiceKeys.jobService := { new ServerBackgroundJobService(executionIdFinder, logSink, eventSink, startedSink, finishedSink) }
 
   def makeShims(state: State, executionIdFinder: ExecutionIdFinder, taskIdFinder: TaskIdFinder, logSink: MessageSink[protocol.LogEvent], taskEventSink: MessageSink[TaskEvent], jobEventSink: MessageSink[BackgroundJobEvent], startedSink: MessageSink[BackgroundJobStarted], finishedSink: MessageSink[BackgroundJobFinished]): Seq[Setting[_]] =
     Seq(
-      UIKeys.registeredSerializers in Global <<= (UIKeys.registeredSerializers in Global) ?? Nil,
-      UIKeys.registeredProtocolConversions in Global <<= (UIKeys.registeredProtocolConversions in Global) ?? Nil,
+      SerializersKeys.registeredSerializers in Global <<= (SerializersKeys.registeredSerializers in Global) ?? Nil,
+      SerializersKeys.registeredProtocolConversions in Global <<= (SerializersKeys.registeredProtocolConversions in Global) ?? Nil,
       jobServiceSetting(executionIdFinder, logSink, jobEventSink, startedSink, finishedSink)) ++ uiServicesSettings(taskIdFinder, taskEventSink)
 }

@@ -58,7 +58,7 @@ object CompileReporter {
       // By this point they should all be unified to ProjectRef/BuildRef.
       if project.isInstanceOf[ProjectRef]
     } yield Keys.compilerReporter in scope := {
-      val sendEventService = UIKeys.sendEventService.value
+      val sendEventService = SendEventServiceKeys.sendEventService.value
       val inputs = (Keys.compileInputs in scope).value
       val log = Keys.streams.value.log
       val tmp = Keys.projectInfo
