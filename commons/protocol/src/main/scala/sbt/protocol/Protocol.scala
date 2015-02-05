@@ -34,7 +34,9 @@ sealed trait Message
   classOf[ConfirmRequest]))
 sealed trait Request extends Message
 /** Responses that come back from sbt. */
-@directSubclasses(Array(classOf[CancelExecutionResponse],
+@directSubclasses(Array(
+  classOf[RegisterClientResponse],
+  classOf[CancelExecutionResponse],
   classOf[ExecutionRequestReceived],
   classOf[CommandCompletionsResponse],
   classOf[KeyNotFound],
@@ -71,9 +73,16 @@ sealed trait ExecutionEngineEvent extends Event
 //              Requests (Reactive API)
 // ------------------------------------------
 
-final case class ClientInfo(uuid: String, configName: String, humanReadableName: String)
+// "protocolVersion" doesn't have semantics like major.minor, it's just if
+// a peer has a known version it wants to deal with differently. It's going
+// to be better almost always to use featureTags - agreed-upon tags that
+// a peer can use to enable or disable certain behaviors. For example you
+// might have a tag like "SupportsFoo"
+final case class ServerInfo(protocolVersion: String, featureTags: Vector[String])
+final case class ClientInfo(uuid: String, configName: String, humanReadableName: String, protocolVersion: String, featureTags: Vector[String])
 
 final case class RegisterClientRequest(info: ClientInfo) extends Request
+final case class RegisterClientResponse(info: ServerInfo) extends Response
 
 /** whether the client should prevent the server from exiting */
 final case class DaemonRequest(daemon: Boolean) extends Request
@@ -536,6 +545,8 @@ object Message {
   private implicit val backgroundJobInfoUnpickler = genUnpickler[BackgroundJobInfo]
   private implicit val clientInfoPickler = genPickler[ClientInfo]
   private implicit val clientInfoUnpickler = genUnpickler[ClientInfo]
+  private implicit val serverInfoPickler = genPickler[ServerInfo]
+  private implicit val serverInfoUnpickler = genUnpickler[ServerInfo]
   private implicit val completionPickler = genPickler[Completion]
   private implicit val completionUnpickler = genUnpickler[Completion]
   private implicit val executionAnalysisCommandPickler = genPickler[ExecutionAnalysisCommand]
@@ -640,6 +651,7 @@ object Message {
   private implicit val receivedResponseUnpickler = genUnpickler[ReceivedResponse]
   private implicit val registerClientRequestPickler = genPickler[RegisterClientRequest]
   private implicit val registerClientRequestUnpickler = genUnpickler[RegisterClientRequest]
+  private implicit val registerClientResponsePickler = PicklerUnpickler.generate[RegisterClientResponse]
   private implicit val sendSyntheticBuildChangedPickler = genPickler[SendSyntheticBuildChanged]
   private implicit val sendSyntheticBuildChangedUnpickler = genUnpickler[SendSyntheticBuildChanged]
   private implicit val sendSyntheticValueChangedPickler = genPickler[SendSyntheticValueChanged]

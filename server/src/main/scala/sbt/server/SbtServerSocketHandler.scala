@@ -75,7 +75,9 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
                 null, null)
           }
 
-          server.replyJson[Message](registerSerial, ReceivedResponse())
+          // TODO don't hardcode protocol version 1.0 here, it should come from the build
+          // most likely.
+          server.replyJson[Message](registerSerial, RegisterClientResponse(ServerInfo("1.0", Vector.empty)))
 
           log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName}")
 
