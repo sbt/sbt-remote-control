@@ -7,6 +7,6 @@ object SerializedThing {
   import sbt.serialization._
   // TODO - we don't want this to gunky everything up.
 
-  implicit val pickler: SPickler[SerializedThing] = SPickler.generate[SerializedThing]
+  implicit val pickler: Pickler[SerializedThing] = Pickler.generate[SerializedThing]
   implicit val unpickler: Unpickler[SerializedThing] = Unpickler.generate[SerializedThing]
 }

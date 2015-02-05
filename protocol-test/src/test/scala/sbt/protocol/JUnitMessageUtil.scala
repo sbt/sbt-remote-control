@@ -16,7 +16,7 @@ object JUnitMessageUtil {
 
   def roundTripMessage(message: Message): Unit = addWhatWeWerePickling(message) {
     import scala.pickling._, sbt.serialization.json._
-    val expectedPickler = implicitly[SPickler[Message]]
+    val expectedPickler = implicitly[Pickler[Message]]
     val expectedUnpickler = implicitly[Unpickler[Message]]
     val json: String = try SerializedValue(message).toJsonString
     catch {

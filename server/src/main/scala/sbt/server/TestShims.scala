@@ -9,7 +9,7 @@ object TestShims {
   val testShimSettings: Seq[Setting[_]] =
     Seq(
       serverTestListener in Global := {
-        val sendEventService = UIKeys.sendEventService.value
+        val sendEventService = SendEventServiceKeys.sendEventService.value
         new ServerTestListener(sendEventService)
       },
       sbt.Keys.testListeners in Test in Global += (serverTestListener in Global).value)
