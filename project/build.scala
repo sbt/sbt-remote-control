@@ -43,7 +43,7 @@ object TheBuild extends Build {
       Keys.resourceGenerators in Compile += (Def.task {
         Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
       }).taskValue,
-      libraryDependencies += coreNext.value
+      libraryDependencies += coreNext
     )
   )
   lazy val protocolTest = SbtRemoteControlProject("protocol-test").
@@ -239,7 +239,7 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
-      localRepoArtifacts += coreNext.value,
+      localRepoArtifacts += coreNext,
       localRepoArtifacts += serialization210,
       localRepoArtifacts += serialization211,
       localRepoArtifacts += pickling210,
