@@ -16,7 +16,7 @@ object TheBuild extends Build {
 
   val root = (
     Project("root", file("."))  // TODO - Oddities with clean..
-    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, serialization.project, protocolTest.project)):_*)
+    aggregate((publishedProjects.map(_.project) ++ Seq(itRunner.project, itTests.project, protocolTest.project)):_*)
     settings(
       // Stub out commands we run frequently but don't want them to really do anything.
       Keys.publish := {},
@@ -34,20 +34,14 @@ object TheBuild extends Build {
   // Adapter UI interface for existing projects to pull in now.
   lazy val sbtUiInterface13 = (
       SbtShimPlugin("ui-interface", sbt13Version)
-      dependsOnSource("serialization")
-      dependsOnSource("commons/protocol")
       dependsOnSource("commons/ui-interface")
-      settings(libraryDependencies ++= jsonDependencies)
-      settings(libraryDependencies += pickling210)
+      settings(libraryDependencies += serialization210)
   )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
-    dependsOnSource("serialization")
     dependsOnSource("commons/protocol")
     dependsOnSource("commons/ui-interface")
-    dependsOnSource("ui-interface")
-    dependsOnSource("serialization")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
@@ -56,24 +50,15 @@ object TheBuild extends Build {
       Keys.resourceGenerators in Compile += (Def.task {
         Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
       }).taskValue,
-      libraryDependencies ++= jsonDependencies,
-      libraryDependencies += pickling210
+      libraryDependencies += serialization210
     )
   )
-  lazy val serialization = (project in file("serialization")).
-    settings(
-      parallelExecution in Test := false,
-      libraryDependencies ++= Seq(
-        pickling,
-        junitInterface % Test
-      ) ++ jsonDependencies
-    )
   lazy val protocolTest = SbtRemoteControlProject("protocol-test").
     dependsOn(sbtServer13).
-    dependsOnSource("serialization").
     settings(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
+        serialization,
         junitInterface % Test
       )
     )
@@ -144,17 +129,16 @@ object TheBuild extends Build {
        Keys.libraryDependencies ++=
          Seq(
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
-               pickling,
+               serialization,
                sbtLauncherInterface,
                sbtCompilerInterface
-         ) ++ jsonDependencies,
+         ),
        Keys.libraryDependencies ++= (Keys.scalaBinaryVersion.value match {
           case "2.10" => crossVersionedSbtLibs
           case "2.11" => crossVersionedSbtLibs map (_ cross CrossVersion.binary)
           case v => sys.error(s"Unsupported scalaBinary version: $v")
        })
     ).
-    dependsOnSource("serialization").
     dependsOnSource("commons/protocol").
     dependsOnSource("client")
   }
@@ -238,7 +222,7 @@ object TheBuild extends Build {
     dependsOn(clientAll211)
     settings(
       Keys.scalaVersion := Dependencies.scala211Version,
-      libraryDependencies += pickling211,
+      libraryDependencies += serialization211,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true
       // We have to expose the jar here, because the normal exportJars value
       // causes a circular task dependency with sbt-assembly
@@ -253,8 +237,6 @@ object TheBuild extends Build {
     settings(integration.settings(publishedProjects :+ itTests, itTests): _*)
     settings(
       Keys.scalaVersion := Dependencies.scala211Version,
-      //libraryDependencies += pickling211,
-      //libraryDependencies ++= jsonDependencies211,
       //com.typesafe.sbtidea.SbtIdeaPlugin.ideaIgnoreModule := true,
       Keys.publish := {},
       Keys.publishLocal := {},
@@ -264,6 +246,8 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
+      localRepoArtifacts += serialization210,
+      localRepoArtifacts += serialization211,
       localRepoArtifacts += pickling210,
       localRepoArtifacts += pickling211,
       localRepoArtifacts ++= jsonDependencies210,

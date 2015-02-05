@@ -27,7 +27,7 @@ object JUnitMessageUtil {
         throw t
     }
     val parsed = try {
-      SpecsUtil.parseMessage(json)
+      JUnitUtil.parseMessage(json)
     } catch {
       case t: Throwable =>
         System.err.println(s"parse of ${message.getClass.getName} failed: ${t.getClass.getName} ${t.getMessage}")

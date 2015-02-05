@@ -328,7 +328,7 @@ class ProtocolTest {
             if (path.exists) sys.error(s"$path already exists!")
             else IO.write(path, json, IO.utf8)
           case JsonToObject =>
-            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler)}.") }
+            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format.pickler).toJsonString}.") }
             else {
               val json = SerializedValue.fromJsonString(IO.read(path, IO.utf8))
               val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format.unpickler).get)

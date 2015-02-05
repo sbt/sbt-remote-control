@@ -46,17 +46,23 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
+  val serializationVersion = "0.1.0-M1"
+  val serialization210 = "org.scala-sbt" % "serialization_2.10" % serializationVersion
+  val serialization211 = "org.scala-sbt" % "serialization_2.11" % serializationVersion
+  val serialization = "org.scala-sbt" %% "serialization" % serializationVersion
+
+  // These are needed for integration tests. Use the values used by sbt/serialization
   val picklingVersion = "0.10.0-M3"
   val pickling210 = "org.scala-lang.modules" % "scala-pickling_2.10" % picklingVersion
   val pickling211 = "org.scala-lang.modules" % "scala-pickling_2.11" % picklingVersion
   val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion
 
+  // These are needed for integration tests. Use the values used by sbt/serialization
   private val jsonTuples = Seq(
     ("org.json4s", "json4s-core", "3.2.10"),
     ("org.spire-math", "jawn-parser", "0.6.0"),
     ("org.spire-math", "json4s-support", "0.6.0")
   )
-
   val jsonDependencies = jsonTuples map {
     case (group, mod, version) => (group %% mod % version).exclude("org.scala-lang", "scalap")
   }
