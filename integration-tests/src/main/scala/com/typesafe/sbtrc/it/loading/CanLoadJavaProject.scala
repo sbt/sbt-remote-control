@@ -29,7 +29,7 @@ class CanLoadJavaProject extends SbtClientTest {
 
   sbt.IO.write(errorFile,
     """
-      blahblahblah;
+      import blahblahblah.blah;
       """.stripMargin)
 
   // if you uncomment this, then we use scalac and the test
@@ -52,9 +52,9 @@ class CanLoadJavaProject extends SbtClientTest {
     assert(project.id.name == "testjava", "failed to discover project name == file name.")
     assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
 
-    val compileKeysFuture = client.lookupScopedKey("compile")
+    val compileKeysFuture = client.lookupScopedKey("compileIncremental")
     val compileKeys = waitWithError(compileKeysFuture, "Never received key lookup response!")
-    assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compile", s"Failed to find compile key: $compileKeys!")
+    assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compileIncremental", s"Failed to find compile key: $compileKeys!")
 
     // Now we check compilation failure messages
 
@@ -64,7 +64,7 @@ class CanLoadJavaProject extends SbtClientTest {
       case CompilationFailure(taskId, failure) =>
         System.out.println(s"Capturing CompilationFailure $failure")
         compileErrorCaptured.trySuccess(failure)
-      case ExecutionWaiting(id, command, _) if command.indexOf("compile") >= 0 =>
+      case ExecutionWaiting(id, command, _) if command.indexOf("compileIncremental") >= 0 =>
         compileId = id
       case ExecutionFailure(id) if id == compileId =>
         compileErrorCaptured.tryFailure(new AssertionError(s"compile execution $compileId failed with no CompilationFailure"))
@@ -83,7 +83,7 @@ class CanLoadJavaProject extends SbtClientTest {
       finally compileWatchSub.cancel()
     }
     withCompileTaskResult { compileWatchFuture =>
-      client.requestExecution("compile", None)
+      client.requestExecution("compileIncremental", None)
       val gotException =
         try {
           waitWithError(compileWatchFuture, "Unable get compile analysis from server")
@@ -94,7 +94,7 @@ class CanLoadJavaProject extends SbtClientTest {
             if (e.problems.isEmpty)
               throw new AssertionError(s"CompileFailedException had no problems in it $e")
             else if (!e.problems.head.position.lineContent.contains("blahblahblah"))
-              throw new AssertionError(s"CompileFailedException had unexpected lineContent $e")
+              throw new AssertionError(s"CompileFailedException had unexpected lineContent '${e.problems.head.position.lineContent}' all problems ${e.problems}")
             else
               System.out.println(s"Got expected CompileFailedException message=${e.getMessage} problems=${e.problems}")
             true
