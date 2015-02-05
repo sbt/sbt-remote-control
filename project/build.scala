@@ -240,6 +240,7 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
       localRepoArtifacts += coreNext210,
+      localRepoArtifacts += coreNextPlugin13,
       localRepoArtifacts += serialization210,
       localRepoArtifacts += serialization211,
       localRepoArtifacts += pickling210,
