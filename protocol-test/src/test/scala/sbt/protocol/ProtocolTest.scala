@@ -178,7 +178,7 @@ class ProtocolTest {
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestCanceled, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestIgnored, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPending, None, 0)),
-      protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO")),
+      protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown))),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
       protocol.ExecutionSuccess(44),
@@ -450,7 +450,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0)))) { _ / "event" / "value_changed" / "double.json" }
     oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f)))) { _ / "event" / "value_changed" / "float.json" }
     oneWayTrip[Message](protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0))) { _ / "event" / "task_event.json" }
-    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO"))) { _ / "event" / "exec_waiting.json" }
+    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "event" / "exec_waiting.json" }
     oneWayTrip[Message](protocol.ExecutionStarting(56)) { _ / "event" / "exec_starting.json" }
     oneWayTrip[Message](protocol.ExecutionFailure(42)) { _ / "event" / "exec_failure.json" }
     oneWayTrip[Message](protocol.ExecutionSuccess(44)) { _ / "event" / "exec_success.json" }

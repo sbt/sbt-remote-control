@@ -51,12 +51,14 @@ abstract class LiveClient extends SbtClient {
   def uuid: java.util.UUID
   def configName: String
   def humanReadableName: String
+  def protocolVersion: ProtocolVersion
+  def featureTags: Seq[FeatureTag]
 
   @volatile
   var daemon: Boolean = false
 
   def info: protocol.ClientInfo =
-    protocol.ClientInfo(uuid = uuid.toString, configName = configName, humanReadableName = humanReadableName)
+    protocol.ClientInfo(uuid = uuid.toString, configName = configName, humanReadableName = humanReadableName, protocolVersion = protocolVersion, featureTags = featureTags.toVector)
 
   /** requests a line of input from the client.  This will return sometime in the future. */
   def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): Future[Option[String]]

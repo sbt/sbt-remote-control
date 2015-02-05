@@ -73,13 +73,68 @@ sealed trait ExecutionEngineEvent extends Event
 //              Requests (Reactive API)
 // ------------------------------------------
 
-// "protocolVersion" doesn't have semantics like major.minor, it's just if
-// a peer has a known version it wants to deal with differently. It's going
-// to be better almost always to use featureTags - agreed-upon tags that
-// a peer can use to enable or disable certain behaviors. For example you
-// might have a tag like "SupportsFoo"
-final case class ServerInfo(protocolVersion: String, featureTags: Vector[String])
-final case class ClientInfo(uuid: String, configName: String, humanReadableName: String, protocolVersion: String, featureTags: Vector[String])
+// "protocolVersion" doesn't have semantics like major.minor;
+// versions are supposed to be backward compatible always (if they
+// weren't we'd need to do something more radical than send this,
+// pre-connection, such as change the sbt server launch
+// procedure). It's probably easier to use FeatureTag for most
+// "negotiation" scenarios, too. But you could also have a rule
+// like "in protocol version 3, if both sides are >= 3 you do
+// xyz."
+sealed abstract class ProtocolVersion protected (val name: String) {
+  final override def toString = name
+  final override def equals(x: Any): Boolean = x match {
+    case null => false
+    case other: ProtocolVersion => name == other.name
+    case _ => false
+  }
+  final override def hashCode(): Int = name.hashCode
+}
+object ProtocolVersion {
+  private implicit val resultToString = CanToString[ProtocolVersion](_.toString,
+    {
+      case "1" => ProtocolVersion1
+      // we don't want to explode here if we get a version
+      // we don't know. If it's handled somehow, it'd be
+      // elsewhere (in the client or server logic).
+      case other => ProtocolVersionUnknown
+    })
+
+  implicit val picklerUnpickler: Pickler[ProtocolVersion] with Unpickler[ProtocolVersion] =
+    canToStringPickler[ProtocolVersion]
+}
+
+case object ProtocolVersionUnknown extends ProtocolVersion("unknown")
+case object ProtocolVersion1 extends ProtocolVersion("1")
+
+// These enable or disable certain behaviors. For example you might have
+// a tag like "SupportsFoo" and if a client sets that tag the server
+// could enable "Foo", or whatever.
+sealed abstract class FeatureTag protected (val name: String) {
+  final override def toString = name
+  final override def equals(x: Any): Boolean = x match {
+    case null => false
+    case other: FeatureTag => name == other.name
+    case _ => false
+  }
+  final override def hashCode(): Int = name.hashCode
+}
+object FeatureTag {
+  private implicit val resultToString = CanToString[FeatureTag](_.toString,
+    {
+      // tags are extensible, so it's fine to get some we don't understand
+      // and ignore them.
+      case other => FeatureTagUnknown
+    })
+
+  implicit val picklerUnpickler: Pickler[FeatureTag] with Unpickler[FeatureTag] =
+    canToStringPickler[FeatureTag]
+}
+
+case object FeatureTagUnknown extends FeatureTag("unknown")
+
+final case class ServerInfo(protocolVersion: ProtocolVersion, featureTags: Vector[FeatureTag])
+final case class ClientInfo(uuid: String, configName: String, humanReadableName: String, protocolVersion: ProtocolVersion, featureTags: Vector[FeatureTag])
 
 final case class RegisterClientRequest(info: ClientInfo) extends Request
 final case class RegisterClientResponse(info: ServerInfo) extends Response

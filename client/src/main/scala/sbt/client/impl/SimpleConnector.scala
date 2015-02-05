@@ -108,8 +108,7 @@ private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
     val rawClient = new ipc.Client(socket)
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
-    // TODO don't hardcode the protocol version, get it from somewhere sensible
-    rawClient.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName, protocolVersion = "1.0", featureTags = Vector.empty)), registerSerial)
+    rawClient.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName, protocolVersion = ProtocolVersion1, featureTags = Vector.empty)), registerSerial)
     Envelope(rawClient.receive()) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")
