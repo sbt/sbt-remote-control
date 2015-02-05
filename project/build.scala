@@ -25,23 +25,16 @@ object TheBuild extends Build {
   )
 
   // These are the projects we want in the local repository we deploy.
-  lazy val sbt13ProbeProjects = Set(sbtUiInterface13, sbtServer13)
+  lazy val sbt13ProbeProjects = Set(sbtServer13)
   lazy val publishedProjects: Seq[Project] = Seq(client, client211, terminal, clientAll, clientAll211, actorClient, actorClient211) ++ sbt13ProbeProjects
 
 
   // ================= 0.13 projects ==========================
 
-  // Adapter UI interface for existing projects to pull in now.
-  lazy val sbtUiInterface13 = (
-      SbtShimPlugin("ui-interface", sbt13Version)
-      dependsOnSource("commons/ui-interface")
-      settings(libraryDependencies += serialization210)
-  )
   // Wrapper around sbt 0.13.x that runs as a server.
   lazy val sbtServer13 = (
     SbtProbeProject("server", sbt13Version)
     dependsOnSource("commons/protocol")
-    dependsOnSource("commons/ui-interface")
     dependsOnRemote(
       sbtControllerDeps(sbt13Version, provided=false):_*
     )
@@ -50,7 +43,7 @@ object TheBuild extends Build {
       Keys.resourceGenerators in Compile += (Def.task {
         Properties.makeDefaultSbtVersionFile(sbt13Version, (Keys.resourceManaged in Compile).value)
       }).taskValue,
-      libraryDependencies += serialization210
+      libraryDependencies += coreNext
     )
   )
   lazy val protocolTest = SbtRemoteControlProject("protocol-test").
@@ -246,6 +239,8 @@ object TheBuild extends Build {
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scalaVersion,
       localRepoArtifacts += "org.scala-lang" % "scala-compiler" % Dependencies.scala211Version,
       // TODO - We should support the cross-versioning semantics of sbt when generating local artifact repositories...
+      localRepoArtifacts += coreNext210,
+      localRepoArtifacts += coreNextPlugin13,
       localRepoArtifacts += serialization210,
       localRepoArtifacts += serialization211,
       localRepoArtifacts += pickling210,

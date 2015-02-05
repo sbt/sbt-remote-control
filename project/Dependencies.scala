@@ -46,6 +46,11 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
+  val coreNextVersion      = "0.1.0-M2"
+  val coreNext             = sbtOrg %% "core-next" % coreNextVersion
+  val coreNext210          = sbtOrg % "core-next_2.10" % coreNextVersion
+  val coreNextPlugin13     = Defaults.sbtPluginExtra(sbtOrg % "sbt-core-next" % coreNextVersion, "0.13", "2.10")
+
   val serializationVersion = "0.1.0-M1"
   val serialization210 = "org.scala-sbt" % "serialization_2.10" % serializationVersion
   val serialization211 = "org.scala-sbt" % "serialization_2.11" % serializationVersion
