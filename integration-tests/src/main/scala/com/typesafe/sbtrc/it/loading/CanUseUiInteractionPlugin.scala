@@ -19,7 +19,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
   // TODO - Core next version comes from build.
   sbt.IO.write(new java.io.File(dummy, "project/ui.sbt"),
-    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.0-M3")""")
+    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.0")""")
 
   sbt.IO.write(new java.io.File(dummy, "project/custom.scala"),
     """|package com.typesafe.sbtrc
