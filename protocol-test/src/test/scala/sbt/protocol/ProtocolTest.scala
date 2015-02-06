@@ -473,11 +473,12 @@ class ProtocolTest {
   @Test
   def testSerializationStability(): Unit = {
     val baseDir = (new File("protocol-test")) / "src" / "test" / "resource" / "saved-protocol"
-    oneWayTripTest(JsonToObject, baseDir / "0.1")
+
+    oneWayTripTest(JsonToObject, baseDir / "1")
 
     // uncomment this line to write new files
-    // oneWayTripTest(ObjectToJson, baseDir / "0.2")
-    // oneWayTripTest(JsonToObject, baseDir / "0.2")
+    // oneWayTripTest(ObjectToJson, baseDir / "2")
+    // oneWayTripTest(JsonToObject, baseDir / "2")
   }
 
   @Test
