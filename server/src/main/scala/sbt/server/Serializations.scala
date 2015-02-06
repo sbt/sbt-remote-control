@@ -7,7 +7,7 @@ object Serializations {
   def extractOpt(state: State): Option[DynamicSerialization] = state get key
   def update(state: State): State = {
     val extracted = Project.extract(state)
-    val serializations = extracted.get(UIKeys.registeredSerializers).foldLeft(DynamicSerialization.defaultSerializations) { (sofar, next) =>
+    val serializations = extracted.get(SerializersKeys.registeredSerializers).foldLeft(DynamicSerialization.defaultSerializations) { (sofar, next) =>
       sofar.register(next.serializer)(next.manifest)
     }
     state.put(key, serializations)
@@ -20,7 +20,7 @@ object Conversions {
   def extractOpt(state: State): Option[DynamicConversion] = state get key
   def update(state: State): State = {
     val extracted = Project.extract(state)
-    val conversions = extracted.get(UIKeys.registeredProtocolConversions)
+    val conversions = extracted.get(SerializersKeys.registeredProtocolConversions)
       .foldLeft(addBuiltinConversions(DynamicConversion.empty)) { (sofar, next) =>
         sofar.register(next.convert)(next.fromManifest, next.toManifest)
       }

@@ -12,7 +12,7 @@ package object protocol {
       case "Error" => xsbti.Severity.Error
     })
 
-  implicit val severityPickler: SPickler[xsbti.Severity] with Unpickler[xsbti.Severity] =
+  implicit val severityPickler: Pickler[xsbti.Severity] with Unpickler[xsbti.Severity] =
     canToStringPickler[xsbti.Severity]
 
   private def convert[T](o: Option[T]): xsbti.Maybe[T] =

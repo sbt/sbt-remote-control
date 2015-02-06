@@ -43,7 +43,7 @@ private object Classes {
 // TODO we should use Unit and a unitPickler, I think.
 private case class TransientValue()
 private object TransientValue {
-  implicit val pickler = SPickler.generate[TransientValue]
+  implicit val pickler = Pickler.generate[TransientValue]
 }
 
 /**
@@ -57,16 +57,16 @@ private object TransientValue {
  */
 sealed trait DynamicSerialization {
   /** Look up a serialization using its type manifest */
-  def lookup[T](implicit mf: Manifest[T]): Option[SbtSerializer[T]]
+  def lookup[T](implicit mf: Manifest[T]): Option[Pickler[T] with Unpickler[T]]
   /** Look up by runtime class (potentially broken if the class has type parameters) */
-  def lookup[T](klass: Class[T]): Option[SbtSerializer[T]]
+  def lookup[T](klass: Class[T]): Option[Pickler[T] with Unpickler[T]]
   /** Add a serializer, returning the new modified DynamicSerialization. */
-  def register[T](serializer: SbtSerializer[T])(implicit mf: Manifest[T]): DynamicSerialization
+  def register[T](serializer: Pickler[T] with Unpickler[T])(implicit mf: Manifest[T]): DynamicSerialization
 
   // Here we need to reflectively look up the serialization of things...
   final def buildValue[T](o: T)(implicit mf: Manifest[T]): BuildValue =
     lookup(mf) map { serializer =>
-      BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
+      BuildValue(SerializedValue(o)(serializer), o.toString)
     } getOrElse {
       System.err.println(s"No dynamic serializer found (using manifest $mf) for $o")
       BuildValue(SerializedValue(TransientValue()), o.toString)
@@ -74,7 +74,7 @@ sealed trait DynamicSerialization {
 
   final def buildValueUsingRuntimeClass[T](o: T): BuildValue = {
     lookup[T](o.getClass.asInstanceOf[Class[T]]) map { serializer =>
-      BuildValue(SerializedValue(o)(serializer.pickler), o.toString)
+      BuildValue(SerializedValue(o)(serializer), o.toString)
     } getOrElse {
       System.err.println(s"No dynamic serializer found (using runtime class ${o.getClass.getName}) for $o")
       BuildValue(SerializedValue(TransientValue()), o.toString)
@@ -87,29 +87,29 @@ object DynamicSerialization {
     NonTrivialSerializers.registerSerializers(ConcreteDynamicSerialization(Map.empty, Map.empty))
 }
 
-private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], SbtSerializer[_]], byClass: Map[Class[_], SbtSerializer[_]]) extends DynamicSerialization {
-  override def register[T](serializer: SbtSerializer[T])(implicit mf: Manifest[T]): DynamicSerialization =
+private final case class ConcreteDynamicSerialization(registered: Map[Manifest[_], Pickler[_] with Unpickler[_]], byClass: Map[Class[_], Pickler[_] with Unpickler[_]]) extends DynamicSerialization {
+  override def register[T](serializer: Pickler[T] with Unpickler[T])(implicit mf: Manifest[T]): DynamicSerialization =
     // Here we erase the original type when storing
     ConcreteDynamicSerialization(registered + (mf -> serializer), byClass + (mf.runtimeClass -> serializer))
 
-  override def lookup[T](implicit mf: Manifest[T]): Option[SbtSerializer[T]] =
+  override def lookup[T](implicit mf: Manifest[T]): Option[Pickler[T] with Unpickler[T]] =
     // When looking up, given the interface, it's safe to return to
     // the original type.
-    (registered get mf).asInstanceOf[Option[SbtSerializer[T]]] orElse
+    (registered get mf).asInstanceOf[Option[Pickler[T] with Unpickler[T]]] orElse
       ConcreteDynamicSerialization.memoizedDefaultSerializer(mf)
 
-  override def lookup[T](klass: Class[T]): Option[SbtSerializer[T]] =
-    (byClass get klass).asInstanceOf[Option[SbtSerializer[T]]] orElse
+  override def lookup[T](klass: Class[T]): Option[Pickler[T] with Unpickler[T]] =
+    (byClass get klass).asInstanceOf[Option[Pickler[T] with Unpickler[T]]] orElse
       ConcreteDynamicSerialization.memoizedDefaultSerializer(klass)
 }
 
 private object ConcreteDynamicSerialization {
   private val defaultSerializationMemosByManifest =
-    scala.collection.concurrent.TrieMap[Manifest[_], SbtSerializer[_]]()
+    scala.collection.concurrent.TrieMap[Manifest[_], Pickler[_] with Unpickler[_]]()
   private val defaultSerializationMemosByClass =
-    scala.collection.concurrent.TrieMap[Class[_], SbtSerializer[_]]()
+    scala.collection.concurrent.TrieMap[Class[_], Pickler[_] with Unpickler[_]]()
 
-  def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] =
+  def memoizedDefaultSerializer[T](mf: Manifest[T]): Option[Pickler[T] with Unpickler[T]] =
     defaultSerializer(mf) match {
       case Some(s) =>
         defaultSerializationMemosByManifest.put(mf, s)
@@ -117,7 +117,7 @@ private object ConcreteDynamicSerialization {
       case None => None
     }
 
-  def memoizedDefaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] =
+  def memoizedDefaultSerializer[T](klass: Class[T]): Option[Pickler[T] with Unpickler[T]] =
     defaultSerializer[T](klass) match {
       case Some(s) =>
         defaultSerializationMemosByClass.put(klass, s)
@@ -125,93 +125,97 @@ private object ConcreteDynamicSerialization {
       case None => None
     }
 
-  private def defaultSerializer[T](klass: Class[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[SbtSerializer[T]]) orElse {
-    (klass match {
-      case Classes.NilClass => Some(implicitly[SbtSerializer[List[String]]]) // String is arbitrary
-      case Classes.StringClass => Some(implicitly[SbtSerializer[String]])
-      case Classes.FileClass => Some(implicitly[SbtSerializer[java.io.File]])
-      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Boolean]])
-      case Classes.ShortClass => Some(implicitly[SbtSerializer[Short]])
-      case Classes.IntClass => Some(implicitly[SbtSerializer[Int]])
-      case Classes.LongClass => Some(implicitly[SbtSerializer[Long]])
-      case Classes.FloatClass => Some(implicitly[SbtSerializer[Float]])
-      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Double]])
-      case Classes.URIClass => Some(implicitly[SbtSerializer[java.net.URI]])
-      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[java.lang.Throwable]])
-      case _ =>
-        None
-    }).asInstanceOf[Option[SbtSerializer[T]]]
+  private def makeSerializer[T](implicit pickler: Pickler[T], unpickler: Unpickler[T]): Option[Pickler[T] with Unpickler[T]] = {
+    Some(PicklerUnpickler[T](pickler, unpickler))
   }
 
-  private def defaultSerializerForOption[T](klass: Class[T]): Option[SbtSerializer[Option[T]]] = {
+  private def defaultSerializer[T](klass: Class[T]): Option[Pickler[T] with Unpickler[T]] = defaultSerializationMemosByClass.get(klass).map(_.asInstanceOf[Pickler[T] with Unpickler[T]]) orElse {
     (klass match {
-      case Classes.StringClass => Some(implicitly[SbtSerializer[Option[String]]])
-      case Classes.FileClass => Some(implicitly[SbtSerializer[Option[java.io.File]]])
-      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Option[Boolean]]])
-      case Classes.ShortClass => Some(implicitly[SbtSerializer[Option[Short]]])
-      case Classes.IntClass => Some(implicitly[SbtSerializer[Option[Int]]])
-      case Classes.LongClass => Some(implicitly[SbtSerializer[Option[Long]]])
-      case Classes.FloatClass => Some(implicitly[SbtSerializer[Option[Float]]])
-      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Option[Double]]])
-      case Classes.URIClass => Some(implicitly[SbtSerializer[Option[java.net.URI]]])
-      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Option[java.lang.Throwable]]])
+      case Classes.NilClass => makeSerializer[List[String]] // String is arbitrary
+      case Classes.StringClass => makeSerializer[String]
+      case Classes.FileClass => makeSerializer[java.io.File]
+      case Classes.BooleanClass => makeSerializer[Boolean]
+      case Classes.ShortClass => makeSerializer[Short]
+      case Classes.IntClass => makeSerializer[Int]
+      case Classes.LongClass => makeSerializer[Long]
+      case Classes.FloatClass => makeSerializer[Float]
+      case Classes.DoubleClass => makeSerializer[Double]
+      case Classes.URIClass => makeSerializer[java.net.URI]
+      case Classes.ThrowableSubClass() => makeSerializer[java.lang.Throwable]
       case _ =>
         None
-    }).asInstanceOf[Option[SbtSerializer[Option[T]]]]
+    }).asInstanceOf[Option[Pickler[T] with Unpickler[T]]]
   }
 
-  private def defaultSerializerForVector[T](klass: Class[T]): Option[SbtSerializer[Vector[T]]] = {
+  private def defaultSerializerForOption[T](klass: Class[T]): Option[Pickler[Option[T]] with Unpickler[Option[T]]] = {
     (klass match {
-      case Classes.StringClass => Some(implicitly[SbtSerializer[Vector[String]]])
-      case Classes.FileClass => Some(implicitly[SbtSerializer[Vector[java.io.File]]])
-      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Vector[Boolean]]])
-      case Classes.ShortClass => Some(implicitly[SbtSerializer[Vector[Short]]])
-      case Classes.IntClass => Some(implicitly[SbtSerializer[Vector[Int]]])
-      case Classes.LongClass => Some(implicitly[SbtSerializer[Vector[Long]]])
-      case Classes.FloatClass => Some(implicitly[SbtSerializer[Vector[Float]]])
-      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Vector[Double]]])
-      case Classes.URIClass => Some(implicitly[SbtSerializer[Vector[java.net.URI]]])
-      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Vector[java.lang.Throwable]]])
+      case Classes.StringClass => makeSerializer[Option[String]]
+      case Classes.FileClass => makeSerializer[Option[java.io.File]]
+      case Classes.BooleanClass => makeSerializer[Option[Boolean]]
+      case Classes.ShortClass => makeSerializer[Option[Short]]
+      case Classes.IntClass => makeSerializer[Option[Int]]
+      case Classes.LongClass => makeSerializer[Option[Long]]
+      case Classes.FloatClass => makeSerializer[Option[Float]]
+      case Classes.DoubleClass => makeSerializer[Option[Double]]
+      case Classes.URIClass => makeSerializer[Option[java.net.URI]]
+      case Classes.ThrowableSubClass() => makeSerializer[Option[java.lang.Throwable]]
       case _ =>
         None
-    }).asInstanceOf[Option[SbtSerializer[Vector[T]]]]
+    }).asInstanceOf[Option[Pickler[Option[T]] with Unpickler[Option[T]]]]
   }
 
-  private def defaultSerializerForList[T](klass: Class[T]): Option[SbtSerializer[List[T]]] = {
+  private def defaultSerializerForVector[T](klass: Class[T]): Option[Pickler[Vector[T]] with Unpickler[Vector[T]]] = {
     (klass match {
-      case Classes.StringClass => Some(implicitly[SbtSerializer[List[String]]])
-      case Classes.FileClass => Some(implicitly[SbtSerializer[List[java.io.File]]])
-      case Classes.BooleanClass => Some(implicitly[SbtSerializer[List[Boolean]]])
-      case Classes.ShortClass => Some(implicitly[SbtSerializer[List[Short]]])
-      case Classes.IntClass => Some(implicitly[SbtSerializer[List[Int]]])
-      case Classes.LongClass => Some(implicitly[SbtSerializer[List[Long]]])
-      case Classes.FloatClass => Some(implicitly[SbtSerializer[List[Float]]])
-      case Classes.DoubleClass => Some(implicitly[SbtSerializer[List[Double]]])
-      case Classes.URIClass => Some(implicitly[SbtSerializer[List[java.net.URI]]])
-      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[List[java.lang.Throwable]]])
+      case Classes.StringClass => makeSerializer[Vector[String]]
+      case Classes.FileClass => makeSerializer[Vector[java.io.File]]
+      case Classes.BooleanClass => makeSerializer[Vector[Boolean]]
+      case Classes.ShortClass => makeSerializer[Vector[Short]]
+      case Classes.IntClass => makeSerializer[Vector[Int]]
+      case Classes.LongClass => makeSerializer[Vector[Long]]
+      case Classes.FloatClass => makeSerializer[Vector[Float]]
+      case Classes.DoubleClass => makeSerializer[Vector[Double]]
+      case Classes.URIClass => makeSerializer[Vector[java.net.URI]]
+      case Classes.ThrowableSubClass() => makeSerializer[Vector[java.lang.Throwable]]
       case _ =>
         None
-    }).asInstanceOf[Option[SbtSerializer[List[T]]]]
+    }).asInstanceOf[Option[Pickler[Vector[T]] with Unpickler[Vector[T]]]]
   }
 
-  private def defaultSerializerForSeq[T](klass: Class[T]): Option[SbtSerializer[Seq[T]]] = {
+  private def defaultSerializerForList[T](klass: Class[T]): Option[Pickler[List[T]] with Unpickler[List[T]]] = {
     (klass match {
-      case Classes.StringClass => Some(implicitly[SbtSerializer[Seq[String]]])
-      case Classes.FileClass => Some(implicitly[SbtSerializer[Seq[java.io.File]]])
-      case Classes.BooleanClass => Some(implicitly[SbtSerializer[Seq[Boolean]]])
-      case Classes.ShortClass => Some(implicitly[SbtSerializer[Seq[Short]]])
-      case Classes.IntClass => Some(implicitly[SbtSerializer[Seq[Int]]])
-      case Classes.LongClass => Some(implicitly[SbtSerializer[Seq[Long]]])
-      case Classes.FloatClass => Some(implicitly[SbtSerializer[Seq[Float]]])
-      case Classes.DoubleClass => Some(implicitly[SbtSerializer[Seq[Double]]])
-      case Classes.URIClass => Some(implicitly[SbtSerializer[Seq[java.net.URI]]])
-      case Classes.ThrowableSubClass() => Some(implicitly[SbtSerializer[Seq[java.lang.Throwable]]])
+      case Classes.StringClass => makeSerializer[List[String]]
+      case Classes.FileClass => makeSerializer[List[java.io.File]]
+      case Classes.BooleanClass => makeSerializer[List[Boolean]]
+      case Classes.ShortClass => makeSerializer[List[Short]]
+      case Classes.IntClass => makeSerializer[List[Int]]
+      case Classes.LongClass => makeSerializer[List[Long]]
+      case Classes.FloatClass => makeSerializer[List[Float]]
+      case Classes.DoubleClass => makeSerializer[List[Double]]
+      case Classes.URIClass => makeSerializer[List[java.net.URI]]
+      case Classes.ThrowableSubClass() => makeSerializer[List[java.lang.Throwable]]
       case _ =>
         None
-    }).asInstanceOf[Option[SbtSerializer[Seq[T]]]]
+    }).asInstanceOf[Option[Pickler[List[T]] with Unpickler[List[T]]]]
   }
 
-  private def defaultSerializer[T](mf: Manifest[T]): Option[SbtSerializer[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[SbtSerializer[T]]) orElse
+  private def defaultSerializerForSeq[T](klass: Class[T]): Option[Pickler[Seq[T]] with Unpickler[Seq[T]]] = {
+    (klass match {
+      case Classes.StringClass => makeSerializer[Seq[String]]
+      case Classes.FileClass => makeSerializer[Seq[java.io.File]]
+      case Classes.BooleanClass => makeSerializer[Seq[Boolean]]
+      case Classes.ShortClass => makeSerializer[Seq[Short]]
+      case Classes.IntClass => makeSerializer[Seq[Int]]
+      case Classes.LongClass => makeSerializer[Seq[Long]]
+      case Classes.FloatClass => makeSerializer[Seq[Float]]
+      case Classes.DoubleClass => makeSerializer[Seq[Double]]
+      case Classes.URIClass => makeSerializer[Seq[java.net.URI]]
+      case Classes.ThrowableSubClass() => makeSerializer[Seq[java.lang.Throwable]]
+      case _ =>
+        None
+    }).asInstanceOf[Option[Pickler[Seq[T]] with Unpickler[Seq[T]]]]
+  }
+
+  private def defaultSerializer[T](mf: Manifest[T]): Option[Pickler[T] with Unpickler[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[Pickler[T] with Unpickler[T]]) orElse
     defaultSerializer[T](mf.runtimeClass.asInstanceOf[Class[T]]) orElse {
       // TODO these SubClass tests are sort of BS since picklers are invariant
       (mf.runtimeClass match {
@@ -235,22 +239,11 @@ private object ConcreteDynamicSerialization {
 
         case _ =>
           None
-      }).asInstanceOf[Option[SbtSerializer[T]]]
+      }).asInstanceOf[Option[Pickler[T] with Unpickler[T]]]
     }
 }
 
 private object NonTrivialSerializers {
-  private sealed trait RegisteredSbtSerializer {
-    type T
-    def manifest: Manifest[T]
-    def serializer: SbtSerializer[T]
-  }
-  private def toRegisteredSbtSerializer[U](implicit s: SbtSerializer[U], mf: Manifest[U]): RegisteredSbtSerializer = new RegisteredSbtSerializer {
-    type T = U
-    override val serializer = s
-    override val manifest = mf
-  }
-
   /* FIXME This appears to lock up compilation forever, so somehow triggers infinite
    * macro loop or something?
    */
@@ -260,14 +253,14 @@ private object NonTrivialSerializers {
     // TODO we are registering some types here that aren't likely or conceivable
     // task results; we only need to register types T that appear in taskKey[T].
     // We don't have to register all the types of the fields in result types.
-    val serializers = Seq[RegisteredSbtSerializer](
-      toRegisteredSbtSerializer[ProjectReference],
-      toRegisteredSbtSerializer[AttributeKey],
-      toRegisteredSbtSerializer[SbtScope],
-      toRegisteredSbtSerializer[ScopedKey],
-      toRegisteredSbtSerializer[MinimalBuildStructure],
-      toRegisteredSbtSerializer[CompileFailedException],
-      toRegisteredSbtSerializer[ModuleId])
+    val serializers = Seq[RegisteredSerializer](
+      RegisteredSerializer[ProjectReference],
+      RegisteredSerializer[AttributeKey],
+      RegisteredSerializer[SbtScope],
+      RegisteredSerializer[ScopedKey],
+      RegisteredSerializer[MinimalBuildStructure],
+      RegisteredSerializer[CompileFailedException],
+      RegisteredSerializer[ModuleId])
     serializers.foldLeft(base) { (sofar, next) =>
       sofar.register(next.serializer)(next.manifest)
     }

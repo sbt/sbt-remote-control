@@ -223,7 +223,7 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
 final case class TaskEvent(taskId: Long, serialized: SerializedValue) extends Event
 
 object TaskEvent {
-  def apply[T: SPickler](taskId: Long, event: T): TaskEvent = {
+  def apply[T: Pickler](taskId: Long, event: T): TaskEvent = {
     val serialized = SerializedValue(event)
     TaskEvent(taskId, serialized)
   }
@@ -245,7 +245,7 @@ trait TaskEventUnapply[T] {
 final case class BackgroundJobEvent(jobId: Long, serialized: SerializedValue) extends Event
 
 object BackgroundJobEvent {
-  def apply[T: SPickler](jobId: Long, event: T): BackgroundJobEvent = {
+  def apply[T: Pickler](jobId: Long, event: T): BackgroundJobEvent = {
     val serialized = SerializedValue(event)
     BackgroundJobEvent(jobId, serialized)
   }
@@ -447,6 +447,6 @@ object Message {
   private implicit val eventPickler = genPickler[Event]
   private implicit val eventUnpickler = genUnpickler[Event]
 
-  implicit val pickler: SPickler[Message] = genPickler[Message]
+  implicit val pickler: Pickler[Message] = genPickler[Message]
   implicit val unpickler: Unpickler[Message] = genUnpickler[Message]
 }

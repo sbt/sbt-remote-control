@@ -19,19 +19,20 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
   // TODO - Core next version comes from build.
   sbt.IO.write(new java.io.File(dummy, "project/ui.sbt"),
-    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.0-M2")""")
+    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.0-M3")""")
 
   sbt.IO.write(new java.io.File(dummy, "project/custom.scala"),
     """|package com.typesafe.sbtrc
        |package it
        |package loading
-       |import sbt.SbtUIPlugin._
+       |import sbt.plugins.InteractionServicePlugin._
+       |import sbt.plugins.SerializersPlugin._
        |import sbt._
        |
        |final case class SerializedThing(name: String, value: Int)
        |object SerializedThing {
        |  import sbt.serialization._
-       |  implicit val pickler: SPickler[SerializedThing] = genPickler[SerializedThing]
+       |  implicit val pickler: Pickler[SerializedThing] = genPickler[SerializedThing]
        |  implicit val unpickler: Unpickler[SerializedThing] = genUnpickler[SerializedThing]
        |}
        |object TestThingPlugin {
@@ -47,7 +48,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
   // TODO - create custom type and register it.
   sbt.IO.write(new java.io.File(dummy, "interaction.sbt"),
-    """|import sbt.UIKeys.interactionService
+    """|import sbt.InteractionServiceKeys.interactionService
        |import com.typesafe.sbtrc.it.loading.TestThingPlugin
        |
        | val readInput = taskKey[Unit]("Quick interaction with server test.")

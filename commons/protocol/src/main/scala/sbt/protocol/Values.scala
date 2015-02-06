@@ -18,11 +18,11 @@ final case class BuildValue(serialized: SerializedValue, stringValue: String) {
 }
 
 object BuildValue {
-  def apply[T](value: T)(implicit pickler: SPickler[T]): BuildValue = {
+  def apply[T](value: T)(implicit pickler: Pickler[T]): BuildValue = {
     BuildValue(serialized = SerializedValue(value)(pickler), stringValue = value.toString)
   }
 
-  implicit val pickler: SPickler[BuildValue] = genPickler[BuildValue]
+  implicit val pickler: Pickler[BuildValue] = genPickler[BuildValue]
   implicit val unpickler: Unpickler[BuildValue] = genUnpickler[BuildValue]
 }
 
@@ -80,12 +80,12 @@ final case class TaskFailure(cause: BuildValue) extends TaskResult {
 }
 
 object TaskSuccess {
-  implicit val pickler: SPickler[TaskSuccess] = genPickler[TaskSuccess]
+  implicit val pickler: Pickler[TaskSuccess] = genPickler[TaskSuccess]
   implicit val unpickler: Unpickler[TaskSuccess] = genUnpickler[TaskSuccess]
 }
 
 object TaskFailure {
-  implicit val pickler: SPickler[TaskFailure] = genPickler[TaskFailure]
+  implicit val pickler: Pickler[TaskFailure] = genPickler[TaskFailure]
   implicit val unpickler: Unpickler[TaskFailure] = genUnpickler[TaskFailure]
 }
 
@@ -93,6 +93,6 @@ object TaskFailure {
 // the macros won't know all the subtypes of TaskResult if we
 // put this companion object earlier in the file.
 object TaskResult {
-  implicit val pickler: SPickler[TaskResult] = genPickler[TaskResult]
+  implicit val pickler: Pickler[TaskResult] = genPickler[TaskResult]
   implicit val unpickler: Unpickler[TaskResult] = genUnpickler[TaskResult]
 }

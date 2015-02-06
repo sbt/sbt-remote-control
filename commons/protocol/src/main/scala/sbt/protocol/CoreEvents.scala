@@ -9,7 +9,7 @@ import sbt.serialization._
 
 final case class TestGroupStarted(name: String)
 object TestGroupStarted extends TaskEventUnapply[TestGroupStarted] {
-  implicit val pickler: SPickler[TestGroupStarted] = genPickler[TestGroupStarted]
+  implicit val pickler: Pickler[TestGroupStarted] = genPickler[TestGroupStarted]
   implicit val unpickler: Unpickler[TestGroupStarted] = genUnpickler[TestGroupStarted]
 }
 final case class TestGroupFinished(name: String, result: TestGroupResult, error: Option[Throwable]) {
@@ -24,7 +24,7 @@ final case class TestGroupFinished(name: String, result: TestGroupResult, error:
   }
 }
 object TestGroupFinished extends TaskEventUnapply[TestGroupFinished] {
-  implicit val pickler: SPickler[TestGroupFinished] = genPickler[TestGroupFinished]
+  implicit val pickler: Pickler[TestGroupFinished] = genPickler[TestGroupFinished]
   implicit val unpickler: Unpickler[TestGroupFinished] = genUnpickler[TestGroupFinished]
 }
 
@@ -51,7 +51,7 @@ object TestGroupResult {
       case other => throw new PicklingException(s"Unrecognized TestGroupResult $other")
     })
 
-  implicit val picklerUnpickler: SPickler[TestGroupResult] with Unpickler[TestGroupResult] =
+  implicit val picklerUnpickler: Pickler[TestGroupResult] with Unpickler[TestGroupResult] =
     canToStringPickler[TestGroupResult]
 }
 
@@ -68,7 +68,7 @@ final case class TestEvent(name: String, description: Option[String], outcome: T
 }
 
 object TestEvent extends TaskEventUnapply[TestEvent] {
-  implicit val pickler: SPickler[TestEvent] = genPickler[TestEvent]
+  implicit val pickler: Pickler[TestEvent] = genPickler[TestEvent]
   implicit val unpickler: Unpickler[TestEvent] = genUnpickler[TestEvent]
 }
 
@@ -128,7 +128,7 @@ object TestOutcome {
       case other => throw new PicklingException(s"Unrecognized TestOutcome $other")
     })
 
-  implicit val picklerUnpickler: SPickler[TestOutcome] with Unpickler[TestOutcome] =
+  implicit val picklerUnpickler: Pickler[TestOutcome] with Unpickler[TestOutcome] =
     canToStringPickler[TestOutcome]
 }
 
@@ -171,16 +171,16 @@ final class CompileFailedException(message: String, cause: Throwable, val proble
 object CompileFailedException {
   // TODO - Alias these in serialziation package.
   import scala.pickling.{ FastTypeTag, PBuilder, PReader }
-  implicit object picklerUnpickler extends SPickler[CompileFailedException] with Unpickler[CompileFailedException] {
+  implicit object picklerUnpickler extends Pickler[CompileFailedException] with Unpickler[CompileFailedException] {
     val tag: FastTypeTag[CompileFailedException] = implicitly[FastTypeTag[CompileFailedException]]
     private val stringOptTag = implicitly[FastTypeTag[Option[String]]]
-    private val stringOptPickler = implicitly[SPickler[Option[String]]]
+    private val stringOptPickler = implicitly[Pickler[Option[String]]]
     private val stringOptUnpickler = implicitly[Unpickler[Option[String]]]
     private val throwableOptTag = implicitly[FastTypeTag[Option[Throwable]]]
-    private val throwableOptPickler = implicitly[SPickler[Option[Throwable]]]
+    private val throwableOptPickler = implicitly[Pickler[Option[Throwable]]]
     private val throwableOptUnpickler = implicitly[Unpickler[Option[Throwable]]]
     private val vectorProblemTag = implicitly[FastTypeTag[Vector[Problem]]]
-    private val vectorProblemPickler = implicitly[SPickler[Vector[Problem]]]
+    private val vectorProblemPickler = implicitly[Pickler[Vector[Problem]]]
     private val vectorProblemUnpickler = implicitly[Unpickler[Vector[Problem]]]
 
     def pickle(a: CompileFailedException, builder: PBuilder): Unit = {
