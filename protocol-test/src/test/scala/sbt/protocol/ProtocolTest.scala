@@ -178,7 +178,7 @@ class ProtocolTest {
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestCanceled, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestIgnored, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPending, None, 0)),
-      protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO")),
+      protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo(java.util.UUID.randomUUID.toString, "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown))),
       protocol.ExecutionStarting(56),
       protocol.ExecutionFailure(42),
       protocol.ExecutionSuccess(44),
@@ -415,6 +415,8 @@ class ProtocolTest {
       Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
+    oneWayTrip[Message](protocol.RegisterClientRequest(protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_request.json" }
+    oneWayTrip[Message](protocol.RegisterClientResponse(protocol.ServerInfo(ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_response.json" }
     oneWayTrip[Message](protocol.DaemonRequest(true)) { _ / "message" / "daemon_req.json" }
     oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
     oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
@@ -450,7 +452,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0)))) { _ / "event" / "value_changed" / "double.json" }
     oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f)))) { _ / "event" / "value_changed" / "float.json" }
     oneWayTrip[Message](protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0))) { _ / "event" / "task_event.json" }
-    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO"))) { _ / "event" / "exec_waiting.json" }
+    oneWayTrip[Message](protocol.ExecutionWaiting(41, "foo", protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "event" / "exec_waiting.json" }
     oneWayTrip[Message](protocol.ExecutionStarting(56)) { _ / "event" / "exec_starting.json" }
     oneWayTrip[Message](protocol.ExecutionFailure(42)) { _ / "event" / "exec_failure.json" }
     oneWayTrip[Message](protocol.ExecutionSuccess(44)) { _ / "event" / "exec_success.json" }
@@ -471,11 +473,12 @@ class ProtocolTest {
   @Test
   def testSerializationStability(): Unit = {
     val baseDir = (new File("protocol-test")) / "src" / "test" / "resource" / "saved-protocol"
-    oneWayTripTest(JsonToObject, baseDir / "0.1")
+
+    oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion1.toString)
 
     // uncomment this line to write new files
-    // oneWayTripTest(ObjectToJson, baseDir / "0.2")
-    // oneWayTripTest(JsonToObject, baseDir / "0.2")
+    // oneWayTripTest(ObjectToJson, baseDir / "2")
+    // oneWayTripTest(JsonToObject, baseDir / "2")
   }
 
   @Test

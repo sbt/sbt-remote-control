@@ -13,7 +13,7 @@ private[sbt] object DebugClient {
     val uuid = java.util.UUID.randomUUID()
     val configName = "debug-client"
     val humanReadableName = "Debug Client"
-    client.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName)),
+    client.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName, ProtocolVersion1, Vector.empty)),
       client.serialGetAndIncrement())
     val channel = new SimpleSbtChannel(uuid, configName, humanReadableName, client, closeHandler = () => ())
     SbtClient(channel)

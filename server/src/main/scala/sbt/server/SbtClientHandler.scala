@@ -17,6 +17,8 @@ class SbtClientHandler(
   override val uuid: java.util.UUID,
   override val configName: String,
   override val humanReadableName: String,
+  override val protocolVersion: ProtocolVersion,
+  override val featureTags: Seq[FeatureTag],
   ipc: IpcServer,
   msgHandler: ServerRequest => Unit,
   closed: () => Unit) extends sbt.server.LiveClient {

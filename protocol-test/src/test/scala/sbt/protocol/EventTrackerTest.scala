@@ -24,7 +24,8 @@ class EventTrackerTest {
     val scope2 = SbtScope(project = Some(projectRef2))
     val scopedKey1 = ScopedKey(key1, scope1)
     val scopedKey2 = ScopedKey(key2, scope2)
-    val clientInfo = ClientInfo(java.util.UUID.randomUUID.toString(), "clientyclient", "Client Test")
+    val clientInfo = ClientInfo(java.util.UUID.randomUUID.toString(), "clientyclient", "Client Test",
+      ProtocolVersion1, Vector.empty)
     val creationEvents = List(ExecutionWaiting(1, "frobulate", clientInfo),
       ExecutionStarting(1),
       TaskStarted(1, 1, Some(scopedKey1)),

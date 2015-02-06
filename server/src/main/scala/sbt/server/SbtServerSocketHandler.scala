@@ -75,9 +75,11 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
                 null, null)
           }
 
-          server.replyJson[Message](registerSerial, ReceivedResponse())
+          // TODO don't hardcode protocol version 1.0 here, it should come from the build
+          // most likely.
+          server.replyJson[Message](registerSerial, RegisterClientResponse(ServerInfo(ProtocolVersion1, Vector.empty)))
 
-          log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName}")
+          log.log(s"This client on port ${socket.getPort} has uuid ${uuid} configName ${register.configName} humanReadableName ${register.humanReadableName} protocolVersion ${register.protocolVersion} featureTags ${register.featureTags}")
 
           // TODO - Clear out any client we had before with this same port *OR* take over that client....
           def onClose(): Unit = {
@@ -86,6 +88,7 @@ class SbtServerSocketHandler(serverSocket: ServerSocket, msgHandler: SocketMessa
             // for another connection.
           }
           val client = new SbtClientHandler(uuid, register.configName, register.humanReadableName,
+            register.protocolVersion, register.featureTags,
             server, msgHandler, onClose)
           client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt server socket logs are in: ${log.file.getAbsolutePath}")))
           client.send(CoreLogEvent(LogMessage(LogMessage.DEBUG, s"sbt general server logs are in: ${serverEngineLogFile.getAbsolutePath}")))
