@@ -1,5 +1,7 @@
 # sbt remote control
 
+[![Join the chat at https://gitter.im/sbt/sbt-remote-control](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/sbt/sbt-remote-control?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 This is an API for controlling [sbt](http://scala-sbt.org/) from
 another Scala program. It would be used for example by command line tools,
 IDEs, [Activator](https://github.com/typesafehub/activator),
