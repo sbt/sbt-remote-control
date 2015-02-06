@@ -1,1 +1,1 @@
-{"id":41,"command":"foo","client":{"uuid":"350954c2-6bf0-4925-b066-3bf20f32906b","configName":"foo","humanReadableName":"FOO"},"$type":"sbt.protocol.ExecutionWaiting"}
+{"id":41,"command":"foo","client":{"uuid":"350954c2-6bf0-4925-b066-3bf20f32906b","configName":"foo","humanReadableName":"FOO","featureTags":["unknown"],"protocolVersion":"1"},"$type":"sbt.protocol.ExecutionWaiting"}

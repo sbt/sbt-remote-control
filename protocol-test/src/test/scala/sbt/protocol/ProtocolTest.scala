@@ -415,6 +415,8 @@ class ProtocolTest {
       Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
+    oneWayTrip[Message](protocol.RegisterClientRequest(protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_request.json" }
+    oneWayTrip[Message](protocol.RegisterClientResponse(protocol.ServerInfo(ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_response.json" }
     oneWayTrip[Message](protocol.DaemonRequest(true)) { _ / "message" / "daemon_req.json" }
     oneWayTrip[Message](protocol.KillServerRequest()) { _ / "message" / "kill_server_req.json" }
     oneWayTrip[Message](protocol.ReadLineRequest(42, "HI", true)) { _ / "message" / "readline_request.json" }
