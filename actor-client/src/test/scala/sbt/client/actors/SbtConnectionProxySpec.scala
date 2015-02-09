@@ -3,7 +3,7 @@
  */
 package sbt.client.actors
 
-import org.junit.{ AfterClass, Assert, BeforeClass, Test }
+import org.junit.{ AfterClass, Assert, BeforeClass, Test, Ignore }
 import akka.actor._
 import akka.testkit._
 import concurrent.ExecutionContext.Implicits.global
@@ -114,6 +114,7 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
   }
 
   @Test
+  @Ignore
   def testCleanUpAfterUnrecoverableError(): Unit = withHelper { helper =>
     import helper._
     withFakeEverything() { (conn, client) =>
