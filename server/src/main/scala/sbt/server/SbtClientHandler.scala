@@ -89,6 +89,16 @@ class SbtClientHandler(
           // TODO - other notifications?
           log.log(s"Response: $replyTo - $msg")
           interactionManager.error(replyTo, msg.error)
+        case Envelope(serial, replyTo, msg: UnknownMessage) =>
+          log.log(s"Ignoring unknown message: ${msg.serialized.toJsonString}")
+          // If this was an event it'd be a little strange to
+          // respond, but for now clients don't send events
+          // to the server so we can safely throw an error.
+          // check replyTo == 0 for paranoia in case the
+          // unknown message is a response, even though
+          // replyTo != 0 should be impossible.
+          if (replyTo == 0)
+            reply(serial, ErrorResponse(s"Unknown message type or could not parse message"))
         case Envelope(_, _, msg) =>
           sys.error("Unable to handle client request: " + msg)
       }

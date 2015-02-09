@@ -8,7 +8,7 @@ import sbt.serialization._
  * A marker trait for *any* message that is passed back/forth from
  *  sbt into a client.
  */
-@directSubclasses(Array(classOf[Request], classOf[Response], classOf[Event]))
+@directSubclasses(Array(classOf[Request], classOf[Response], classOf[Event], classOf[UnknownMessage]))
 sealed trait Message
 
 /** Represents requests that go down into sbt. */
@@ -138,6 +138,16 @@ final case class ClientInfo(uuid: String, configName: String, humanReadableName:
 
 final case class RegisterClientRequest(info: ClientInfo) extends Request
 final case class RegisterClientResponse(info: ServerInfo) extends Response
+
+/**
+ * If there's a request or event we don't understand because it's from
+ * a newer version of the protocol, then we put it here. Unknown responses
+ * are converted to ErrorResponse and generally aren't "allowed" because
+ * it's not backward compatible to change the possible responses to an
+ * existing request, so this will be a request or event.
+ * This message is never sent over the wire.
+ */
+final case class UnknownMessage(serialized: SerializedValue) extends Message
 
 /** whether the client should prevent the server from exiting */
 final case class DaemonRequest(daemon: Boolean) extends Request
@@ -504,6 +514,7 @@ object Message {
   private implicit val unlistenToValueUnpickler = genUnpickler[UnlistenToValue]
   private implicit val valueChangedPickler = genPickler[ValueChanged]
   private implicit val valueChangedUnpickler = genUnpickler[ValueChanged]
+  private implicit val unknownMessagePickler = PicklerUnpickler.generate[UnknownMessage]
 
   private implicit val requestPickler = genPickler[Request]
   private implicit val requestUnpickler = genUnpickler[Request]

@@ -15,11 +15,20 @@ private[sbt] final case class Envelope(override val serial: Long, override val r
 private[sbt] object Envelope {
   def apply(wire: ipc.WireEnvelope): Envelope = {
     //System.err.println(s"Attempting to parse ${wire.asString}")
+    val serialized = SerializedValue.fromJsonString(wire.asString)
     val message: Message =
-      SerializedValue.fromJsonString(wire.asString).parse[Message].recover({
+      serialized.parse[Message].recover({
         case NonFatal(e) =>
-          try System.err.println(s"Failed to parse message ${wire.asString}: ${e.getClass.getName}: ${e.getMessage}") catch { case _: Throwable => }
-          ErrorResponse(s"exception parsing json: ${e.getMessage}")
+          try {
+            if (System.getProperty("sbt.client.debug") == "true")
+              System.err.println(s"Failed to parse message ${wire.asString}: ${e.getClass.getName}: ${e.getMessage}")
+          } catch {
+            case _: Throwable =>
+          }
+          if (wire.replyTo != 0L)
+            ErrorResponse(s"exception parsing response: ${e.getMessage}")
+          else
+            UnknownMessage(serialized)
       }).get
     //System.err.println(s"Parsed it as $message")
 
