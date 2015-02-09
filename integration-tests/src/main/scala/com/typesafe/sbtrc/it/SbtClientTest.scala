@@ -107,7 +107,13 @@ trait SbtClientTest extends IntegrationTest {
       // TODO - better error reporting than everything.
       (client handleEvents {
         msg =>
-          System.out.println(msg)
+          msg match {
+            // ivy is too damn loud and it breaks Travis's 4M limit on log size. bad ivy.
+            case logEvent: sbt.protocol.LogEvent if logEvent.entry.message.startsWith("== resolving") =>
+            case _ =>
+              System.out.println(msg)
+          }
+
           msg match {
             case e: sbt.protocol.ClosedEvent =>
               // Check that adding a new handler gets us ANOTHER ClosedEvent immediately.
