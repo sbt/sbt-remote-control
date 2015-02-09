@@ -463,7 +463,9 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
         case protocol.ErrorResponse(msg) =>
           requestHandler.protocolError(replyTo, msg)
         case protocol.ReceivedResponse() => // silently ignore
-        case _ => System.err.println(s"Unhandled response $replyTo $response")
+        case _ =>
+          if (System.getProperty("sbt.client.debug") == "true")
+            System.err.println(s"Unhandled response $replyTo $response")
       }
     }
   }

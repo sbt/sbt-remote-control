@@ -135,6 +135,7 @@ class ProtocolTest {
       // Requests
       protocol.DaemonRequest(true),
       protocol.KillServerRequest(),
+      protocol.UnknownMessage(SerializedValue.fromJsonString("""{ "foo" : 42 }""")),
       protocol.ReadLineRequest(42, "HI", true),
       protocol.ReadLineResponse(Some("line")),
       protocol.ConfirmRequest(43, "msg"),
