@@ -52,8 +52,7 @@ sealed trait Response extends Message
   classOf[ExecutionWaiting],
   classOf[ClosedEvent],
   classOf[LogEvent],
-  classOf[TaskEvent],
-  classOf[BackgroundJobEvent],
+  classOf[PluginEvent],
   classOf[BuildStructureChanged],
   classOf[ValueChanged]))
 sealed trait Event extends Message
@@ -293,8 +292,39 @@ final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends Log
   require(jobId != 0L)
 }
 
+/**
+ * An event sent by a plugin, which we pass through to clients.
+ */
+@directSubclasses(Array(classOf[DetachedEvent],
+  classOf[TaskEvent],
+  classOf[BackgroundJobEvent]))
+sealed trait PluginEvent extends Event {
+  def serialized: SerializedValue
+}
+
+/** A custom event with no task or job ID. */
+final case class DetachedEvent(serialized: SerializedValue) extends PluginEvent
+
+object DetachedEvent {
+  def apply[T: Pickler](event: T): DetachedEvent = {
+    DetachedEvent(SerializedValue(event))
+  }
+}
+
+/** Companion objects of events that can go in a DetachedEvent extend this */
+trait DetachedEventUnapply[T] {
+  def unapply(event: Event)(implicit unpickler: Unpickler[T]): Option[T] = event match {
+    case detachedEvent: DetachedEvent =>
+      if (detachedEvent.serialized.hasTag[T])
+        Some(detachedEvent.serialized.parse[T].get)
+      else
+        None
+    case other => None
+  }
+}
+
 /** A custom event from a task. */
-final case class TaskEvent(taskId: Long, serialized: SerializedValue) extends Event
+final case class TaskEvent(taskId: Long, serialized: SerializedValue) extends PluginEvent
 
 object TaskEvent {
   def apply[T: Pickler](taskId: Long, event: T): TaskEvent = {
@@ -316,7 +346,7 @@ trait TaskEventUnapply[T] {
 }
 
 /** A custom event from a job. */
-final case class BackgroundJobEvent(jobId: Long, serialized: SerializedValue) extends Event
+final case class BackgroundJobEvent(jobId: Long, serialized: SerializedValue) extends PluginEvent
 
 object BackgroundJobEvent {
   def apply[T: Pickler](jobId: Long, event: T): BackgroundJobEvent = {
@@ -447,6 +477,7 @@ object Message {
   private implicit val confirmRequestUnpickler = genUnpickler[ConfirmRequest]
   private implicit val confirmResponsePickler = genPickler[ConfirmResponse]
   private implicit val confirmResponseUnpickler = genUnpickler[ConfirmResponse]
+  private implicit val detachedEventPickler = PicklerUnpickler.generate[DetachedEvent]
   private implicit val detachedLogEventPickler = genPickler[DetachedLogEvent]
   private implicit val detachedLogEventUnpickler = genUnpickler[DetachedLogEvent]
   private implicit val errorResponsePickler = genPickler[ErrorResponse]
@@ -483,6 +514,8 @@ object Message {
   private implicit val taskLogEventUnpickler = genUnpickler[TaskLogEvent]
   private implicit val logEventPickler = genPickler[LogEvent]
   private implicit val logEventUnpickler = genUnpickler[LogEvent]
+  private implicit val taskEventPickler = PicklerUnpickler.generate[TaskEvent]
+  private implicit val pluginEventPickler = PicklerUnpickler.generate[PluginEvent]
   private implicit val readLineRequestPickler = genPickler[ReadLineRequest]
   private implicit val readLineRequestUnpickler = genUnpickler[ReadLineRequest]
   private implicit val readLineResponsePickler = genPickler[ReadLineResponse]
@@ -498,8 +531,6 @@ object Message {
   private implicit val sendSyntheticValueChangedUnpickler = genUnpickler[SendSyntheticValueChanged]
   private implicit val daemonRequestPickler = genPickler[DaemonRequest]
   private implicit val daemonRequestUnpickler = genUnpickler[DaemonRequest]
-  private implicit val taskEventPickler = genPickler[TaskEvent]
-  private implicit val taskEventUnpickler = genUnpickler[TaskEvent]
   private implicit val taskFinishedPickler = genPickler[TaskFinished]
   private implicit val taskFinishedUnpickler = genUnpickler[TaskFinished]
   private implicit val taskStartedPickler = genPickler[TaskStarted]

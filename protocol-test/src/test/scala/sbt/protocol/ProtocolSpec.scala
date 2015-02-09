@@ -147,4 +147,18 @@ class ProtocolTest {
     }
     roundTripMessage(bgje)
   }
+
+  @Test
+  def testDetachedEvent: Unit = {
+    val event = protocol.DetachedEvent(PlayStartedEvent(port = 10))
+    val pickled = toJsonString[Message](event)
+    val recovered3 = fromJsonString[Message](pickled).get match {
+      case e: protocol.DetachedEvent => e
+      case other => throw new AssertionError("did not unpickle the right thing: " + other)
+    }
+    recovered3 match {
+      case PlayStartedEventDetached(playStarted) => playStarted.port must_== 10
+    }
+    roundTripMessage(event)
+  }
 }

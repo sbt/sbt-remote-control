@@ -469,6 +469,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.BackgroundJobStarted(9, protocol.BackgroundJobInfo(id = 67, humanReadableName = "foojob", spawningTask = scopedKey))) { _ / "event" / "bg_started.json" }
     oneWayTrip[Message](protocol.BackgroundJobFinished(9, 67)) { _ / "event" / "bg_finished.json" }
     oneWayTrip[Message](protocol.BackgroundJobEvent(67, PlayStartedEvent(port = 10))) { _ / "event" / "bg.json" }
+    oneWayTrip[Message](protocol.DetachedEvent(PlayStartedEvent(port = 11))) { _ / "event" / "detached.json" }
   }
 
   @Test
