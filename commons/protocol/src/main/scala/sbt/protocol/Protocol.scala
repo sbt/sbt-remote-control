@@ -276,7 +276,7 @@ object LogMessage {
   private[protocol] val validLevels = Set(DEBUG, INFO, WARN, ERROR)
 }
 @directSubclasses(Array(classOf[TaskLogEvent],
-  classOf[CoreLogEvent],
+  classOf[DetachedLogEvent],
   classOf[BackgroundJobLogEvent]))
 sealed trait LogEvent extends Event {
   def entry: LogEntry
@@ -285,8 +285,8 @@ sealed trait LogEvent extends Event {
 final case class TaskLogEvent(taskId: Long, entry: LogEntry) extends LogEvent {
   require(taskId != 0L)
 }
-/** A log event from "sbt core" (i.e. not from a task, no task ID available) */
-final case class CoreLogEvent(entry: LogEntry) extends LogEvent
+/** A log event not attached to a task or job (no task ID or job ID available) */
+final case class DetachedLogEvent(entry: LogEntry) extends LogEvent
 
 /** A log event from a background job */
 final case class BackgroundJobLogEvent(jobId: Long, entry: LogEntry) extends LogEvent {
@@ -447,8 +447,8 @@ object Message {
   private implicit val confirmRequestUnpickler = genUnpickler[ConfirmRequest]
   private implicit val confirmResponsePickler = genPickler[ConfirmResponse]
   private implicit val confirmResponseUnpickler = genUnpickler[ConfirmResponse]
-  private implicit val coreLogEventPickler = genPickler[CoreLogEvent]
-  private implicit val coreLogEventUnpickler = genUnpickler[CoreLogEvent]
+  private implicit val detachedLogEventPickler = genPickler[DetachedLogEvent]
+  private implicit val detachedLogEventUnpickler = genUnpickler[DetachedLogEvent]
   private implicit val errorResponsePickler = genPickler[ErrorResponse]
   private implicit val errorResponseUnpickler = genUnpickler[ErrorResponse]
   private implicit val executionFailurePickler = genPickler[ExecutionFailure]

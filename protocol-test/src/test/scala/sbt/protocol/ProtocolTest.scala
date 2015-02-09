@@ -171,7 +171,7 @@ class ProtocolTest {
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue(0.0f))),
       protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")),
-      protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")),
+      protocol.DetachedLogEvent(protocol.LogStdOut("Hello, world")),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestPassed, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestFailed, None, 0)),
       protocol.TaskEvent(4, protocol.TestEvent("name", None, protocol.TestError, None, 0)),
@@ -458,7 +458,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.ExecutionFailure(42)) { _ / "event" / "exec_failure.json" }
     oneWayTrip[Message](protocol.ExecutionSuccess(44)) { _ / "event" / "exec_success.json" }
     oneWayTrip[Message](protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "task_log_event.json" }
-    oneWayTrip[Message](protocol.CoreLogEvent(protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "core_log_event.json" }
+    oneWayTrip[Message](protocol.DetachedLogEvent(protocol.LogStdOut("Hello, world"))) { _ / "event" / "log" / "detached_log_event.json" }
     oneWayTrip[Message](protocol.TaskLogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST"))) { _ / "event" / "log" / "info.json" }
     oneWayTrip[Message](protocol.TaskLogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST"))) { _ / "event" / "log" / "error.json" }
     oneWayTrip[Message](protocol.TaskLogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST"))) { _ / "event" / "log" / "warn.json" }

@@ -92,7 +92,7 @@ class ProtocolTest {
   @Test
   def testLogEvents: Unit = {
     roundTripMessage(protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")))
-    roundTripMessage(protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")))
+    roundTripMessage(protocol.DetachedLogEvent(protocol.LogStdOut("Hello, world")))
     roundTripMessage(protocol.TaskLogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST")))
     roundTripMessage(protocol.TaskLogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")))
     roundTripMessage(protocol.TaskLogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST")))

@@ -7,10 +7,10 @@ package server
  */
 final class ServerTaskCancellation(serverState: ServerState, logSink: MessageSink[protocol.LogEvent]) extends TaskCancellationStrategy {
   def debug(s: String): Unit =
-    logSink.send(protocol.CoreLogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, s)))
+    logSink.send(protocol.DetachedLogEvent(protocol.LogMessage(protocol.LogMessage.DEBUG, s)))
 
   def warn(s: String): Unit =
-    logSink.send(protocol.CoreLogEvent(protocol.LogMessage(protocol.LogMessage.WARN, s)))
+    logSink.send(protocol.DetachedLogEvent(protocol.LogMessage(protocol.LogMessage.WARN, s)))
 
   /* override */ class State(canceller: RunningTaskEngine, val lastCommand: Option[LastCommand]) {
     @volatile
