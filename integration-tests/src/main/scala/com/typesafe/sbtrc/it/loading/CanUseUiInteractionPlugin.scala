@@ -4,13 +4,19 @@ package loading
 
 import sbt.client._
 import sbt.protocol._
+import sbt.serialization._
 import concurrent.duration.Duration.Inf
 import concurrent.Await
 import concurrent.Promise
 import scala.collection.JavaConverters._
 import scala.util.Success
 
-// Tests using interaction...
+final case class MyEvent(value: Int)
+object MyEvent extends DetachedEventUnapply[MyEvent] {
+  implicit val pickler = PicklerUnpickler.generate[MyEvent]
+}
+
+// Tests using sbt-core-next plugin... TODO rename this file/class
 class CanUseUiInteractionPlugin extends SbtClientTest {
   // TODO - Don't hardcode sbt versions, unless we have to...
   val dummy = utils.makeDummySbtProject("interactions")
@@ -19,7 +25,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
 
   // TODO - Core next version comes from build.
   sbt.IO.write(new java.io.File(dummy, "project/ui.sbt"),
-    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.0")""")
+    s"""addSbtPlugin("org.scala-sbt" % "sbt-core-next" % "0.1.1")""")
 
   sbt.IO.write(new java.io.File(dummy, "project/custom.scala"),
     """|package com.typesafe.sbtrc
@@ -27,6 +33,7 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |package loading
        |import sbt.plugins.InteractionServicePlugin._
        |import sbt.plugins.SerializersPlugin._
+       |import sbt.serialization._
        |import sbt._
        |
        |final case class SerializedThing(name: String, value: Int)
@@ -35,13 +42,25 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |  implicit val pickler: Pickler[SerializedThing] = genPickler[SerializedThing]
        |  implicit val unpickler: Unpickler[SerializedThing] = genUnpickler[SerializedThing]
        |}
+       |
+       |final case class MyEvent(value: Int)
+       |object MyEvent {
+       |  implicit val pickler = PicklerUnpickler.generate[MyEvent]
+       |}
+       |
        |object TestThingPlugin {
        |   import sbt.serialization._
        |   val makeTestThing = taskKey[SerializedThing]("makes a test thing")
+       |
+       |   val sendDetachedEvent = taskKey[Unit]("Send a detached event")
+       |
        |   def settings: Seq[Setting[_]] =
        |     Seq(
        |       registerTaskSerialization(makeTestThing),
-       |       makeTestThing := SerializedThing("Hello, it's a test!", 10)
+       |       makeTestThing := SerializedThing("Hello, it's a test!", 10),
+       |       sendDetachedEvent := {
+       |          sbt.SendEventService.getDetached(Keys.state.value).foreach(_.sendEvent(MyEvent(42)))
+       |       }
        |     )
        |}
        |""".stripMargin)
@@ -70,8 +89,23 @@ class CanUseUiInteractionPlugin extends SbtClientTest {
        |""".stripMargin)
 
   withSbt(dummy) { client =>
-    // Here we request something to run which will ask for input...
     import concurrent.ExecutionContext.global
+
+    // test detached events
+    val detachedCaptured = Promise[Unit]
+    (client handleEvents {
+      case MyEvent(e) if e.value == 42 =>
+        detachedCaptured.success(())
+      case e: DetachedEvent =>
+        System.err.println(s"unexpected DetachedEvent received: $e")
+      case other =>
+    })(global)
+
+    client.requestExecution("sendDetachedEvent", None)
+
+    waitWithError(detachedCaptured.future, "Unable to read known detached event from server")
+
+    // test asking for input
     object interaction extends Interaction {
       def readLine(prompt: String, mask: Boolean): Option[String] = Some("test-line")
       def confirm(msg: String): Boolean = {

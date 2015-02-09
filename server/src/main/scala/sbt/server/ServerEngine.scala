@@ -31,6 +31,7 @@ trait ExecutionIdFinder {
 class ServerEngine(requestQueue: ServerEngineQueue,
   readOnlyStateRef: AtomicReference[State],
   fileLogger: FileLogger,
+  detachedEventSink: MessageSink[DetachedEvent],
   taskEventSink: MessageSink[TaskEvent],
   jobEventSink: MessageSink[BackgroundJobEvent],
   eventSink: MessageSink[ExecutionEngineEvent],
@@ -201,7 +202,8 @@ class ServerEngine(requestQueue: ServerEngineQueue,
         val commands = earlyCommands ++ normalCommands
         val initAttrs = BuiltinCommands.initialAttributes
         val s = State(configuration, initialDefinitions, Set.empty, None, commands, State.newHistory, initAttrs, globalLogging, State.Continue)
-        s.initializeClassLoaderCache
+        SendEventService.putDetached(s, new DetachedSendEventService(detachedEventSink))
+          .initializeClassLoaderCache
       }
     val state: State =
       // TODO - We need the sbt version to create the fake configuration.
