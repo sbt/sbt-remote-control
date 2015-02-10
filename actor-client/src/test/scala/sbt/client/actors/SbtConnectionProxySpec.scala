@@ -34,7 +34,7 @@ object SbtConnectionProxySpec {
       } finally {
         cp ! Close(testActor)
         Assert.assertEquals(expectMsgType[Closed.type], Closed)
-        if (testClosed) Assert.assertEquals(client.isClosed, true)
+        if (testClosed) Assert.assertTrue("Ensure the client is closed", client.isClosed)
       }
     }
   }
@@ -99,21 +99,6 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
   }
 
   @Test
-  def defCleanUpAfterClientClosure(): Unit = withHelper { helper =>
-    import helper._
-    withFakeEverything() { (conn, client) =>
-      withSbtConnectionProxy(conn, client, x => testActor ! x) { cp =>
-        cp ! NewClient(testActor)
-        expectMsg(Notifications.BuilderAwaitingChannel)
-        conn.sendValue(FakeSbtConnector.Channel)
-        val NewClientResponse.Connected(proxy) = expectMsgType[NewClientResponse.Connected]
-        proxy ! SbtClientProxy.Close(testActor)
-        expectMsgAllClassOf(SbtClientProxy.Closed.getClass(), Notifications.CleanedUpAfterClientClosure.getClass())
-      }
-    }
-  }
-
-  @Test
   def testCleanUpAfterUnrecoverableError(): Unit = withHelper { helper =>
     import helper._
     withFakeEverything() { (conn, client) =>
@@ -124,6 +109,21 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
         val NewClientResponse.Connected(proxy) = expectMsgType[NewClientResponse.Connected]
         conn.sendValue(FakeSbtConnector.Error(false, "unrecoverable"))
         expectMsg(Notifications.ClientClosedDueToDisconnect)
+      }
+    }
+  }
+
+  @Test
+  def defCleanUpAfterClientClosure(): Unit = withHelper { helper =>
+    import helper._
+    withFakeEverything() { (conn, client) =>
+      withSbtConnectionProxy(conn, client, x => testActor ! x) { cp =>
+        cp ! NewClient(testActor)
+        expectMsg(Notifications.BuilderAwaitingChannel)
+        conn.sendValue(FakeSbtConnector.Channel)
+        val NewClientResponse.Connected(proxy) = expectMsgType[NewClientResponse.Connected]
+        proxy ! SbtClientProxy.Close(testActor)
+        expectMsgAllClassOf(SbtClientProxy.Closed.getClass(), Notifications.CleanedUpAfterClientClosure.getClass())
       }
     }
   }
