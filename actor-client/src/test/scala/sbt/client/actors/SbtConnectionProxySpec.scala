@@ -114,7 +114,6 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
   }
 
   @Test
-  @Ignore
   def testCleanUpAfterUnrecoverableError(): Unit = withHelper { helper =>
     import helper._
     withFakeEverything() { (conn, client) =>
