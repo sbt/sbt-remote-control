@@ -46,7 +46,7 @@ object Dependencies {
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 
-  val coreNextVersion      = "0.1.0"
+  val coreNextVersion      = "0.1.1"
   val coreNext             = sbtOrg %% "core-next" % coreNextVersion
   val coreNext210          = sbtOrg % "core-next_2.10" % coreNextVersion
   val coreNextPlugin13     = Defaults.sbtPluginExtra(sbtOrg % "sbt-core-next" % coreNextVersion, "0.13", "2.10")

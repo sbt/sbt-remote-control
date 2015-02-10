@@ -60,7 +60,7 @@ class RequestProcessor(
     // the idea of this buffer is to just hold on to logs
     // whenever we have no clients at all, so we make a best
     // effort to ensure at least one client gets each log event.
-    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.CoreLogEvent]]()
+    private val bufferedLogs = new LinkedBlockingQueue[EventWithWrites[protocol.DetachedLogEvent]]()
     private def drainBufferedLogs(client: SbtClient): Unit = {
       @tailrec
       def drainAnother(): Unit = {
@@ -84,7 +84,7 @@ class RequestProcessor(
 
     override def send(msg: Event): Unit = {
       msg match {
-        case event: CoreLogEvent =>
+        case event: DetachedLogEvent =>
           eventListeners match {
             case NullSbtClient =>
               bufferedLogs.add(EventWithWrites.withWrites(event))

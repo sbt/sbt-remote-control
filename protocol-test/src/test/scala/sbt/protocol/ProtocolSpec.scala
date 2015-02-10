@@ -92,7 +92,7 @@ class ProtocolTest {
   @Test
   def testLogEvents: Unit = {
     roundTripMessage(protocol.TaskLogEvent(1, protocol.LogStdOut("Hello, world")))
-    roundTripMessage(protocol.CoreLogEvent(protocol.LogStdOut("Hello, world")))
+    roundTripMessage(protocol.DetachedLogEvent(protocol.LogStdOut("Hello, world")))
     roundTripMessage(protocol.TaskLogEvent(2, protocol.LogMessage(protocol.LogMessage.INFO, "TEST")))
     roundTripMessage(protocol.TaskLogEvent(3, protocol.LogMessage(protocol.LogMessage.ERROR, "TEST")))
     roundTripMessage(protocol.TaskLogEvent(4, protocol.LogMessage(protocol.LogMessage.WARN, "TEST")))
@@ -146,5 +146,19 @@ class ProtocolTest {
       case PlayStartedEventBg(taskId, playStarted) => playStarted.port must_== 10
     }
     roundTripMessage(bgje)
+  }
+
+  @Test
+  def testDetachedEvent: Unit = {
+    val event = protocol.DetachedEvent(PlayStartedEvent(port = 10))
+    val pickled = toJsonString[Message](event)
+    val recovered3 = fromJsonString[Message](pickled).get match {
+      case e: protocol.DetachedEvent => e
+      case other => throw new AssertionError("did not unpickle the right thing: " + other)
+    }
+    recovered3 match {
+      case PlayStartedEventDetached(playStarted) => playStarted.port must_== 10
+    }
+    roundTripMessage(event)
   }
 }

@@ -5,7 +5,7 @@ import scala.util.matching.Regex
 import java.io.Writer
 import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicReference
-import sbt.protocol.CoreLogEvent
+import sbt.protocol.DetachedLogEvent
 import sbt.protocol.TaskLogEvent
 import scala.annotation.tailrec
 
@@ -151,7 +151,7 @@ private[sbt] class TaskEventLogger(taskIdFinder: TaskIdFinder, logSink: MessageS
     if (taskIdOption.isDefined)
       taskIdOption.foreach(taskId => logSink.send(TaskLogEvent(taskId, entry)))
     else
-      logSink.send(CoreLogEvent(entry))
+      logSink.send(DetachedLogEvent(entry))
     peer.get match {
       case Some(f) => f(entry.message)
       case None => ()

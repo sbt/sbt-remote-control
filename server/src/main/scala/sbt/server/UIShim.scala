@@ -7,7 +7,7 @@ import sbt.protocol.Event
 import sbt.AbstractBackgroundJobService
 import sbt.protocol.BackgroundJobStarted
 import sbt.protocol.BackgroundJobFinished
-import sbt.protocol.CoreLogEvent
+import sbt.protocol.DetachedLogEvent
 import sbt.protocol.LogMessage
 import sbt.protocol.BackgroundJobInfo
 import sbt.serialization._
@@ -81,7 +81,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
           humanReadableName = job.humanReadableName,
           spawningTask = SbtToProtocolUtils.scopedKeyToProtocol(job.spawningTask))))
     } getOrElse {
-      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we launched a job without an executionId ${job}")))
+      logSink.send(DetachedLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we launched a job without an executionId ${job}")))
     }
   }
   protected override def onRemoveJob(sendEventService: SendEventService, job: BackgroundJobHandle): Unit = {
@@ -89,7 +89,7 @@ private final class ServerBackgroundJobService(executionIdFinder: ExecutionIdFin
       finishedSink.send(BackgroundJobFinished(executionId = executionId, jobId = job.id))
       synchronized { executionIds -= job.id }
     } getOrElse {
-      logSink.send(CoreLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
+      logSink.send(DetachedLogEvent(LogMessage(LogMessage.ERROR, s"Somehow we ended a job with no recorded executionId ${job}")))
     }
   }
 }
