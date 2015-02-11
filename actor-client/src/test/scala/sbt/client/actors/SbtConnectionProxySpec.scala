@@ -11,7 +11,7 @@ import sbt.client.{ Subscription, SbtConnector, SbtClient, Interaction, SettingK
 import com.typesafe.config.{ ConfigFactory, Config }
 
 object SbtConnectionProxySpec {
-  def builderProps(newClient: SbtConnectionProxy.NewClient, notificationSink: ActorRef) = Props(new SbtClientBuilder(newClient, notificationSink))
+  def builderProps(newClient: SbtConnectionProxy.NewClient, sbtClientProxyProps: SbtClient => Props) = Props(new SbtClientBuilder(newClient, sbtClientProxyProps))
   def clientProps(client: SbtClient, notificationSink: SbtClientProxy.Notification => Unit = _ => ()) = Props(new SbtClientProxy(client, global, notificationSink))
 
   class SbtConnectionProxySpecHelper(_system: ActorSystem) extends AkkaTestKitHelper(_system) {
@@ -25,7 +25,7 @@ object SbtConnectionProxySpec {
       client: SbtClient,
       notificationSink: SbtConnectionProxy.Notification => Unit = _ => (),
       testClosed: Boolean = true,
-      builderProps: (SbtConnectionProxy.NewClient, ActorRef) => Props = SbtConnectionProxySpec.builderProps _,
+      builderProps: (SbtConnectionProxy.NewClient, SbtClient => Props) => Props = SbtConnectionProxySpec.builderProps _,
       clientProps: SbtClient => Props = SbtConnectionProxySpec.clientProps(_))(body: ActorRef => T)(implicit ex: ExecutionContext): T = {
       import SbtConnectionProxy._
       val cp = system.actorOf(Props(new SbtConnectionProxy(conn, (_ => client), builderProps, clientProps, ex, notificationSink)))
@@ -33,7 +33,7 @@ object SbtConnectionProxySpec {
         body(cp)
       } finally {
         cp ! Close(testActor)
-        Assert.assertEquals(expectMsgType[Closed.type], Closed)
+        expectMsgType[Closed.type]
         if (testClosed) Assert.assertTrue("Ensure the client is closed", client.isClosed)
       }
     }
@@ -108,7 +108,6 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
         conn.sendValue(FakeSbtConnector.Channel)
         val NewClientResponse.Connected(proxy) = expectMsgType[NewClientResponse.Connected]
         conn.sendValue(FakeSbtConnector.Error(false, "unrecoverable"))
-        expectMsg(Notifications.ClientClosedDueToDisconnect)
       }
     }
   }
@@ -123,7 +122,7 @@ class SbtConnectionProxySpec extends SbtConnectionProxySpec.SbtConnectionProxySp
         conn.sendValue(FakeSbtConnector.Channel)
         val NewClientResponse.Connected(proxy) = expectMsgType[NewClientResponse.Connected]
         proxy ! SbtClientProxy.Close(testActor)
-        expectMsgAllClassOf(SbtClientProxy.Closed.getClass(), Notifications.CleanedUpAfterClientClosure.getClass())
+        expectMsgType[SbtClientProxy.Closed.type]
       }
     }
   }

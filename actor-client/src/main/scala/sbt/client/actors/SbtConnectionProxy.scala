@@ -19,44 +19,50 @@ object SbtClientBuilder {
   case class Subscription(subscription: sbt.client.Subscription)
   case class Client(client: SbtClient)
   case class Error(reconnect: Boolean, error: String)
-  sealed trait Result
-  object Result {
-    case class Success(request: NewClient, client: SbtClient, subscription: sbt.client.Subscription, builder: ActorRef) extends Result
-    case class Failure(request: NewClient, subscription: sbt.client.Subscription, error: Error) extends Result
-  }
-  case class Reconnect(subscription: sbt.client.Subscription, client: SbtClient, builder: ActorRef)
-  case class Disconnect(subscription: sbt.client.Subscription, builder: ActorRef)
+  case object Close
 
-  def props(request: SbtConnectionProxy.NewClient, notificationSink: ActorRef): Props = Props(new SbtClientBuilder(request, notificationSink))
+  def props(request: SbtConnectionProxy.NewClient,
+    sbtClientProxyProps: SbtClient => Props): Props = Props(new SbtClientBuilder(request, sbtClientProxyProps))
 }
 
-final class SbtClientBuilder(request: SbtConnectionProxy.NewClient, notificationSink: ActorRef) extends Actor with ActorLogging {
+final class SbtClientBuilder(request: SbtConnectionProxy.NewClient,
+  sbtClientProxyProps: SbtClient => Props) extends Actor with ActorLogging {
   import SbtClientBuilder._
 
   private var subscription: sbt.client.Subscription = null
 
-  private def connected(client: SbtClient): Receive = {
+  private def connected(client: SbtClient, sbtClientProxy: ActorRef): Receive = {
     case Client(c) =>
-      notificationSink ! Reconnect(subscription, c, self)
-      context.become(connected(c))
+      sbtClientProxy ! SbtClientProxy.UpdateClient(c)
+      context.become(connected(c, sbtClientProxy))
     case Error(true, error) =>
       log.warning(s"Client ${client.configName}-${client.humanReadableName}-${client.uuid} experienced an error[will try reconnect]: $error")
     case e @ Error(false, error) =>
       log.error(s"Client ${client.configName}-${client.humanReadableName}-${client.uuid} experienced an error[CANNOT RECONNECT]: $error")
-      notificationSink ! Disconnect(subscription, self)
+      sbtClientProxy ! SbtClientProxy.Close(self)
+    case Close =>
+      sbtClientProxy ! SbtClientProxy.Close(self)
+    case Terminated(a) =>
+      context.unwatch(a)
       context stop self
+    case SbtClientProxy.Closed => // don't care
   }
 
   private def process(subscription: Option[sbt.client.Subscription], client: Option[SbtClient], error: Option[Error]): Unit = {
     (subscription, client, error) match {
+      case (maybeSubscription, maybeClient, Some(e @ Error(false, _))) =>
+        log.error(s"Fatal error, failed to connect: $e")
+        request.responseWithError(false, e.error)
+        maybeSubscription.foreach(_.cancel())
+        maybeClient.foreach(_.close())
+        context stop self
       case (Some(s), Some(c), _) =>
         log.debug("Connected")
-        notificationSink ! Result.Success(request, c, s, self)
         this.subscription = s
-        context.become(connected(c))
-      case (Some(s), _, Some(e @ Error(false, _))) =>
-        notificationSink ! Result.Failure(request, s, e)
-        context stop self
+        val clientActor = context.actorOf(sbtClientProxyProps(c))
+        context.watch(clientActor)
+        request.responseWithClient(clientActor)
+        context.become(connected(c, clientActor))
       case (_, _, _) => context.become(run(subscription, client, error))
     }
   }
@@ -82,8 +88,6 @@ object SbtConnectionProxy {
   sealed trait Notification
   object Notifications {
     case object BuilderAwaitingChannel extends Notification
-    case object CleanedUpAfterClientClosure extends Notification
-    case object ClientClosedDueToDisconnect extends Notification
   }
 
   case class Connected(client: SbtClient)
@@ -109,11 +113,9 @@ object SbtConnectionProxy {
     def closed()(implicit sender: ActorRef): Unit = response(Closed)
   }
 
-  case class State(clients: Map[ActorRef, ClientSubscription] = Map.empty[ActorRef, ClientSubscription])
-
   def props(connector: SbtConnector,
     createClient: SbtChannel => SbtClient = SbtClient.apply,
-    builderProps: (SbtConnectionProxy.NewClient, ActorRef) => Props = (nc, ns) => SbtClientBuilder.props(nc, ns),
+    builderProps: (SbtConnectionProxy.NewClient, SbtClient => Props) => Props = (nc, cb) => SbtClientBuilder.props(nc, cb),
     clientProps: SbtClient => Props = c => SbtClientProxy.props(c)(scala.concurrent.ExecutionContext.Implicits.global),
     notificationSink: SbtConnectionProxy.Notification => Unit = _ => ())(implicit ex: ExecutionContext): Props =
     Props(new SbtConnectionProxy(connector = connector,
@@ -126,7 +128,7 @@ object SbtConnectionProxy {
 
 final class SbtConnectionProxy(connector: SbtConnector,
   createClient: SbtChannel => SbtClient,
-  builderProps: (SbtConnectionProxy.NewClient, ActorRef) => Props,
+  builderProps: (SbtConnectionProxy.NewClient, SbtClient => Props) => Props,
   clientProps: SbtClient => Props,
   ec: ExecutionContext,
   notificationSink: SbtConnectionProxy.Notification => Unit = _ => ()) extends Actor with ActorLogging {
@@ -140,36 +142,29 @@ final class SbtConnectionProxy(connector: SbtConnector,
     builder ! SbtClientBuilder.Error(reconnect, error)
   }
 
-  private def onRequest(req: LocalRequest[_], state: State): Unit = req match {
+  private def onRequest(req: LocalRequest[_]): Unit = req match {
     case r: NewClient =>
-      val builder = context.actorOf(builderProps(r, self))
+      val builder = context.actorOf(builderProps(r, clientProps))
       context.watch(builder)
       val subs = connector.openChannel(channel => onConnect(builder)(createClient(channel)),
         onError(builder))(ec)
       builder ! SbtClientBuilder.Subscription(subs)
       notificationSink(Notifications.BuilderAwaitingChannel)
     case r: Close =>
-      state.clients.foreach {
-        case (_, c) =>
-          c.subscription.cancel()
-          context.unwatch(c.client)
-          context.unwatch(c.builder)
-          c.client ! SbtClientProxy.Close(self)
-          context stop c.builder
-      }
-      context.become(closing(r, state.clients.values.map(_.client).toSet))
+      context.children.foreach(_ ! SbtClientBuilder.Close)
+      context.become(closing(r))
   }
 
-  private def closing(request: Close, awaiting: Set[ActorRef]): Receive = {
-    if (awaiting.isEmpty) {
+  private def closing(request: Close): Receive = {
+    if (context.children.isEmpty) {
       connector.close()
       request.closed()
       context stop self
     }
 
     {
-      case SbtClientProxy.Closed =>
-        context.become(closing(request, awaiting - sender))
+      case Terminated(a) =>
+        context.become(closing(request))
       case req: LocalRequest[_] =>
         log.warning(s"Received request $req while closing")
         req.sendTo ! Closing
@@ -179,76 +174,12 @@ final class SbtConnectionProxy(connector: SbtConnector,
     }
   }
 
-  private def running(state: State): Receive = {
-    case Terminated(a) => // builder or client can terminate
-      context.unwatch(a)
-      state.clients.get(a) match {
-        case Some(cs) => // Builder terminated
-          context.unwatch(cs.client)
-          cs.client ! SbtClientProxy.Close(self)
-          cs.subscription.cancel()
-          context.become(running(state.copy(clients = state.clients - a)))
-        case None => // Possible client terminated
-          val toBeClosed = state.clients.filter { case (_, cs) => cs.client == a }
-          toBeClosed.values.foreach { x =>
-            context.unwatch(x.builder)
-            x.subscription.cancel()
-            context stop x.builder
-          }
-          if (toBeClosed.size > 0) {
-            log.debug(s"Removed ${toBeClosed.size} builders after client closed")
-            notificationSink(Notifications.CleanedUpAfterClientClosure)
-            context.become(running(state.copy(clients = state.clients -- toBeClosed.keys)))
-          }
-      }
-    case req: LocalRequest[_] => onRequest(req, state)
-    case SbtClientBuilder.Result.Success(request, client, subscription, builder) =>
-      val clientActor = context.actorOf(clientProps(client))
-      context.watch(clientActor)
-      request.responseWithClient(clientActor)
-      context.become(running(state.copy(clients = state.clients + (builder -> ClientSubscription(subscription, clientActor, builder)))))
-    case SbtClientBuilder.Result.Failure(request, subscription, error) =>
-      request.responseWithError(error.reconnect, error.error)
-      subscription.cancel()
-    case SbtClientBuilder.Reconnect(subscription, client, builder) =>
-      state.clients.get(builder) match {
-        case Some(s) =>
-          s.client ! SbtClientProxy.UpdateClient(client)
-        case None =>
-          log.warning(s"Got Reconnect message from builder $builder, but no corresponding client")
-          subscription.cancel()
-          context.stop(builder)
-      }
-    case SbtClientProxy.Closed => // client closed, see if there is a builder we need to stop
-      context.unwatch(sender)
-      val toBeClosed = state.clients.filter { case (_, cs) => cs.client == sender }
-      toBeClosed.values.foreach { x =>
-        x.subscription.cancel()
-        context.unwatch(x.builder)
-        context stop x.builder
-      }
-      if (toBeClosed.size > 0) {
-        log.debug(s"Removed ${toBeClosed.size} builders after client closed")
-        notificationSink(Notifications.CleanedUpAfterClientClosure)
-        context.become(running(state.copy(clients = state.clients -- toBeClosed.keys)))
-      }
-    case SbtClientBuilder.Disconnect(subscription, builder) =>
-      context.unwatch(builder)
-      state.clients.get(builder) match {
-        case Some(s) =>
-          context.unwatch(s.client)
-          s.client ! SbtClientProxy.Close(self)
-          s.subscription.cancel()
-          notificationSink(Notifications.ClientClosedDueToDisconnect)
-          context.become(running(state.copy(clients = state.clients - builder)))
-        case None =>
-          log.warning(s"Got Disconnect message from builder $builder, but no corresponding client")
-          subscription.cancel()
-          context.stop(builder)
-      }
+  private def running(): Receive = {
+    case req: LocalRequest[_] => onRequest(req)
+    case Terminated(_) => // don't care in this state
   }
 
   def receive: Receive = {
-    running(State())
+    running()
   }
 }
