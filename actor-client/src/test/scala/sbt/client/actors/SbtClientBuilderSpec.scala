@@ -16,6 +16,18 @@ object SbtClientBuilderSpec {
 
   val reconnectableErrorResult = SbtClientBuilder.Error(true, "reconnectable")
   val notReconnectableErrorResult = SbtClientBuilder.Error(false, "not reconnectable")
+
+  class Forwarder(sink: ActorRef) extends Actor {
+    val receive: Receive = {
+      case m: SbtClientProxy.Close =>
+        sink ! m
+        m.closed()
+        context stop self
+      case m => sink ! m
+    }
+  }
+
+  def forwrderProps(sink: ActorRef): Props = Props(new Forwarder(sink))
 }
 
 class SbtClientBuilderSpec extends DefaultSpecification {
@@ -24,12 +36,15 @@ class SbtClientBuilderSpec extends DefaultSpecification {
   @Test
   def testNewClientConnection(): Unit = withHelper { helper =>
     import helper._
+
+    def fakeClientBuilder(client: SbtClient): Props = forwrderProps(testActor)
+
     withFakeSbtClient() { client =>
       val nc = SbtConnectionProxy.NewClient(testActor)
-      val cb = system.actorOf(Props(new SbtClientBuilder(nc, testActor)))
+      val cb = system.actorOf(Props(new SbtClientBuilder(nc, fakeClientBuilder)))
       cb ! Subscription(fakeSubscription)
       cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Result.Success], Result.Success(nc, client, fakeSubscription, cb))
+      expectMsgType[SbtConnectionProxy.NewClientResponse.Connected]
       system stop cb
     }
   }
@@ -37,74 +52,66 @@ class SbtClientBuilderSpec extends DefaultSpecification {
   @Test
   def testDeliverAnError(): Unit = withHelper { helper =>
     import helper._
+
+    def fakeClientBuilder(client: SbtClient): Props = forwrderProps(testActor)
+
+    val probe = TestProbe()
     val nc = SbtConnectionProxy.NewClient(testActor)
-    val cb = system.actorOf(Props(new SbtClientBuilder(nc, testActor)))
+    val cb = system.actorOf(Props(new SbtClientBuilder(nc, fakeClientBuilder)))
+    probe.watch(cb)
     cb ! Subscription(fakeSubscription)
     cb ! reconnectableErrorResult
     expectNoMsg()
     cb ! notReconnectableErrorResult
-    Assert.assertEquals(expectMsgType[Result.Failure], Result.Failure(nc, fakeSubscription, notReconnectableErrorResult))
+    expectMsgType[SbtConnectionProxy.NewClientResponse.Error]
+    probe.expectTerminated(cb)
   }
 
   @Test
   def testHandleErrorsAfterConntect(): Unit = withHelper { helper =>
     import helper._
+
+    def fakeClientBuilder(client: SbtClient): Props = forwrderProps(testActor)
+
     withFakeSbtClient() { client =>
+      val probe = TestProbe()
       val nc = SbtConnectionProxy.NewClient(testActor)
-      val cb = system.actorOf(Props(new SbtClientBuilder(nc, testActor)))
+      val cb = system.actorOf(Props(new SbtClientBuilder(nc, fakeClientBuilder)))
+      probe.watch(cb)
       cb ! Subscription(fakeSubscription)
       cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Result.Success], Result.Success(nc, client, fakeSubscription, cb))
+      expectMsgType[SbtConnectionProxy.NewClientResponse.Connected]
       cb ! reconnectableErrorResult
       expectNoMsg()
       cb ! notReconnectableErrorResult
-      Assert.assertEquals(expectMsgType[Disconnect], Disconnect(fakeSubscription, cb))
+      expectMsgType[SbtClientProxy.Close]
+      probe.expectTerminated(cb)
     }
   }
 
   @Test
   def testHandleReconnect(): Unit = withHelper { helper =>
     import helper._
-    withFakeSbtClient() { client =>
-      val nc = SbtConnectionProxy.NewClient(testActor)
-      val cb = system.actorOf(Props(new SbtClientBuilder(nc, testActor)))
-      cb ! Subscription(fakeSubscription)
-      cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Result.Success], Result.Success(nc, client, fakeSubscription, cb))
-      cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Reconnect], Reconnect(fakeSubscription, client, cb))
-      cb ! reconnectableErrorResult
-      expectNoMsg()
-      cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Reconnect], Reconnect(fakeSubscription, client, cb))
-      cb ! notReconnectableErrorResult
-      Assert.assertEquals(expectMsgType[Disconnect], Disconnect(fakeSubscription, cb))
-    }
-  }
 
-  @Test
-  def testNotDeliverAnythingAfterDisconnect(): Unit = withHelper { helper =>
-    import helper._
+    def fakeClientBuilder(client: SbtClient): Props = forwrderProps(testActor)
+
     withFakeSbtClient() { client =>
+      val probe = TestProbe()
       val nc = SbtConnectionProxy.NewClient(testActor)
-      val cb = system.actorOf(Props(new SbtClientBuilder(nc, testActor)))
+      val cb = system.actorOf(Props(new SbtClientBuilder(nc, fakeClientBuilder)))
+      probe.watch(cb)
       cb ! Subscription(fakeSubscription)
       cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Result.Success], Result.Success(nc, client, fakeSubscription, cb))
+      expectMsgType[SbtConnectionProxy.NewClientResponse.Connected]
       cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Reconnect], Reconnect(fakeSubscription, client, cb))
+      expectMsgType[SbtClientProxy.UpdateClient]
       cb ! reconnectableErrorResult
       expectNoMsg()
       cb ! Client(client)
-      Assert.assertEquals(expectMsgType[Reconnect], Reconnect(fakeSubscription, client, cb))
+      expectMsgType[SbtClientProxy.UpdateClient]
       cb ! notReconnectableErrorResult
-      Assert.assertEquals(expectMsgType[Disconnect], Disconnect(fakeSubscription, cb))
-      cb ! reconnectableErrorResult
-      expectNoMsg()
-      cb ! Client(client)
-      expectNoMsg()
-      cb ! notReconnectableErrorResult
-      expectNoMsg()
+      expectMsgType[SbtClientProxy.Close]
+      probe.expectTerminated(cb)
     }
   }
 }

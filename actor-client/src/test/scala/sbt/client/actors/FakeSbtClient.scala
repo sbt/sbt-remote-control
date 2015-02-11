@@ -147,7 +147,7 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
   requestExecutionKey: (protocol.ScopedKey, Option[(Interaction, ExecutionContext)]) => Future[Long] = FakeSbtClient.emptyRequestExecutionKey,
   _cancelExecution: Long => Future[Boolean] = FakeSbtClient.emptyCancelExecution,
   val uuid: java.util.UUID = UUID.randomUUID()) extends SbtClient {
-  private final val closed = new AtomicBoolean(false)
+  @volatile private var closed: Boolean = false
   private final val buildStructureQueue = refFactory.actorOf(Props(new SubscriptionManager[protocol.MinimalBuildStructure]()))
   private final val eventQueue = refFactory.actorOf(Props(new SubscriptionManager[protocol.Event]()))
   private final val watchQueue = refFactory.actorOf(Props(new WatchSubscriptionManager(Props(new SubscriptionManager[WatchEvent]()))))
@@ -239,13 +239,18 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
     ??? // TODO stubbed until someone actually wants to use it
 
   def requestSelfDestruct(): Unit = ()
-  def isClosed: Boolean = closed.get()
+  def isClosed: Boolean = this.synchronized {
+    closed
+  }
 
   def close(): Unit = {
+    this.synchronized {
+      closed = true
+    }
+
     import refFactory.dispatcher
     // TODO - Configure this separately for travis.
     implicit val timeout = Timeout(10.seconds)
-    closed.set(true)
     for {
       _ <- ask(buildStructureQueue, SubscriptionManager.StopAll)
       _ <- ask(eventQueue, SubscriptionManager.StopAll)
