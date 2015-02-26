@@ -64,6 +64,18 @@ Then start or reload sbt:
 You should see the tagged version of the project if you run the `version` command in sbt.  Now just run `publish-local` and the release is out.
 
 
+### Trying out the Terminal
+
+First, make sure to publish a local instance of the server
+
+    sbt> publishLocal
+
+Next, create a staged distribution of the terminal client
+
+    sbt> stage
+
+Finally, look in the `terminal/target/universal/stage/bin` directory for the `sbt-terminal` script which will let you play with the new sbt-terminal implementation.
+
 ## License
 
 This software is licensed under the [Apache 2 license](http://www.apache.org/licenses/LICENSE-2.0).
