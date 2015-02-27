@@ -34,19 +34,51 @@ private final case class ConcreteDynamicConversion(registered: Map[Manifest[_], 
       (result, conversion.toManifest)
     }
   }
+
   override def convert[F](value: F)(implicit mf: Manifest[F]): Option[(_, Manifest[_])] = {
-    registered.get(mf).map { conversion =>
+    val ret = registered.get(mf).map { conversion =>
       val result = conversion.asInstanceOf[RegisteredConversion[F, _]].convert(value)
       (result, conversion.toManifest)
     }
+    ret orElse defaultConversionByManifest(value, mf)
   }
+
   override def register[F, T](convert: F => T)(implicit fromMf: Manifest[F], toMf: Manifest[T]): DynamicConversion = {
     val conversion = RegisteredConversion(fromMf, toMf, convert)
     copy(registered = registered + (fromMf -> conversion), byClass = byClass + (fromMf.runtimeClass -> conversion))
   }
+
   override def ++(other: DynamicConversion): DynamicConversion = {
     other match {
       case c: ConcreteDynamicConversion => copy(registered = (registered ++ c.registered))
+    }
+  }
+
+  private def defaultConversionByManifest[F](value: F, mf: Manifest[F]): Option[(_, Manifest[_])] = {
+    mf.runtimeClass match {
+      case Classes.SeqSubClass() =>
+        defaultConversionForSeq(value.asInstanceOf[Seq[_]], mf.typeArguments.head)
+      case _ =>
+        None
+    }
+  }
+
+  private def defaultConversionForSeq[T](xs: Seq[_], mf: Manifest[T]): Option[(Seq[_], Manifest[_])] = {
+    mf.runtimeClass match {
+      case Conversions.original.Attributed =>
+        defaultConversionForSeqAtt(xs.asInstanceOf[Seq[sbt.Attributed[_]]], mf.typeArguments.head.runtimeClass)
+      case _ =>
+        None
+    }
+  }
+
+  private def defaultConversionForSeqAtt(atts: Seq[sbt.Attributed[_]], klass: Class[_]): Option[(Seq[protocol.Attributed[_]], Manifest[_])] = {
+    klass match {
+      case Classes.FileClass =>
+        val mapped = atts.asInstanceOf[Seq[sbt.Attributed[File]]] map SbtToProtocolUtils.attributedToProtocol
+        Some((mapped, manifest[Seq[protocol.Attributed[File]]]))
+      case _ =>
+        None
     }
   }
 }

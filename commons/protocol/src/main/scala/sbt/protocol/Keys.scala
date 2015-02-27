@@ -101,3 +101,37 @@ object MinimalBuildStructure {
   implicit val unpickler: Unpickler[MinimalBuildStructure] = genUnpickler[MinimalBuildStructure]
   implicit val pickler: Pickler[MinimalBuildStructure] = genPickler[MinimalBuildStructure]
 }
+
+final case class Attributed[T](data: T)
+object Attributed {
+
+  implicit def unpickler[T: Unpickler]: Unpickler[Attributed[T]] = new Unpickler[Attributed[T]] {
+
+    override val tag = implicitly[FastTypeTag[Attributed[T]]]
+
+    override def unpickle(tag: String, reader: PReader): Any = {
+      reader.hintTag(pickling.FastTypeTag.String)
+      reader.hintStaticallyElidedType()
+      reader.pinHints()
+
+      val r = reader.readField("data")
+      val t = r.beginEntry()
+      val a = implicitly[Unpickler[T]].unpickle(t, r).asInstanceOf[T]
+
+      r.endEntry()
+      reader.unpinHints()
+      Attributed(a)
+    }
+  }
+
+  implicit def pickler[T: Pickler]: Pickler[Attributed[T]] = new Pickler[Attributed[T]] {
+
+    override val tag = implicitly[FastTypeTag[Attributed[T]]]
+
+    override def pickle(a: Attributed[T], builder: PBuilder): Unit = {
+      builder.beginEntry(a)
+      builder.putField("data", b ⇒ implicitly[Pickler[T]].pickle(a.data, b))
+      builder.endEntry()
+    }
+  }
+}

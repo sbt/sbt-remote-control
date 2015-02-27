@@ -15,6 +15,15 @@ object Serializations {
 }
 
 object Conversions {
+
+  object original {
+    val Attributed = classOf[sbt.Attributed[_]]
+  }
+
+  object protocol {
+    val Attributed = classOf[sbt.protocol.Attributed[_]]
+  }
+
   val key = AttributeKey[DynamicConversion]("Aggregate of registered conversions")
 
   def extractOpt(state: State): Option[DynamicConversion] = state get key
