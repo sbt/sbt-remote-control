@@ -49,7 +49,7 @@ final case class ThrowableDeserializers(readers: Map[Manifest[_], Unpickler[_]] 
  */
 sealed trait TaskResult {
 
-  /** Returns whether or not a task was executed succesfully. */
+  /** Returns whether or not a task was executed successfully. */
   def isSuccess: Boolean
 
   final def result[A](implicit unpickleResult: Unpickler[A]): Try[A] =

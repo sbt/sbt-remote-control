@@ -35,7 +35,7 @@ private object Classes {
   object VectorSubClass extends SubClass(VectorClass)
   object ListSubClass extends SubClass(ListClass)
   object SeqSubClass extends SubClass(SeqClass)
-  // object AttributedSubClass extends SubClass(AttributedClass)
+  // val AttributedClass = classOf[sbt.Attributed[_]]
   object ThrowableSubClass extends SubClass(ThrowableClass)
 }
 

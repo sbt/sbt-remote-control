@@ -48,10 +48,10 @@ private[server] object SbtDiscovery {
   // NOTE - This in an approximation...
   def isTaskKey[T](key: sbt.ScopedKey[T]): Boolean = {
     val mf = key.key.manifest
-    mf.erasure == TaskClass
+    mf.runtimeClass == TaskClass
   }
   def isInputKey[T](key: sbt.ScopedKey[T]): Boolean = {
     val mf = key.key.manifest
-    mf.erasure == classOf[sbt.InputTask[_]]
+    mf.runtimeClass == classOf[sbt.InputTask[_]]
   }
 }
