@@ -2,6 +2,7 @@ import sbt._
 import SbtRcBuild._
 import Dependencies._
 import IvyRepositories.{localRepoArtifacts}
+import com.typesafe.sbt.packager.universal.UniversalPlugin.autoImport._
 import Keys._
 // NOTE - This file is only used for SBT 0.12.x, in 0.13.x we'll use build.sbt and scala libraries.
 // As such try to avoid putting stuff in here so we can see how good build.sbt is without build.scala.
@@ -194,12 +195,24 @@ object TheBuild extends Build {
   lazy val clientAll211 = makeClientAllProject("client-all-2-11", Dependencies.scala211Version, client211)
 
 
+  lazy val terminalLaunchProperties = taskKey[Seq[File]]("Makes terminal launch properties.")
   lazy val terminal: Project = (
     SbtRemoteControlProject("terminal")
     dependsOn(client)
+    enablePlugins(com.typesafe.sbt.packager.universal.UniversalPlugin)
     dependsOnRemote(sbtCompletion)
+    settings()
     settings(
-      resourceGenerators in Compile <+= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal")
+      terminalLaunchProperties <<= makeSbtLaunchProperties("sbt-client.properties", "com.typesafe.sbtrc.client.SimpleSbtTerminal"),
+      resourceGenerators in Compile <+= terminalLaunchProperties,
+      mappings in Universal ++= {
+        val launcher = SbtSupport.sbtLaunchJar.value
+        val Seq(props) = terminalLaunchProperties.value
+        Seq(
+          launcher -> "bin/sbt-launch.jar",
+          props -> "bin/sbt-terminal.properties"
+        )
+      }
     )
   )
 
