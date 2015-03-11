@@ -44,7 +44,8 @@ object Conversions {
     import SbtToProtocolUtils._
     val conversions = Seq(
       register(compileFailedExceptionToProtocol),
-      register(moduleIdToProtocol))
+      register(moduleIdToProtocol),
+      register(seqAttributedFileToProtocol))
     conversions.foldLeft(base) { (sofar, next) =>
       next(sofar)
     }

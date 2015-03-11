@@ -138,4 +138,8 @@ object SbtToProtocolUtils {
   def attributedToProtocol[T](att: sbt.Attributed[T]): protocol.Attributed[T] = {
     protocol.Attributed(att.data)
   }
+
+  def seqAttributedFileToProtocol(attrs: Seq[sbt.Attributed[File]]): Seq[protocol.Attributed[File]] = {
+    attrs.map(attributedToProtocol)
+  }
 }
