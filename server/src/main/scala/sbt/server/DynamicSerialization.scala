@@ -19,7 +19,6 @@ private object Classes {
   val ListClass = classOf[List[_]]
   val SeqClass = classOf[Seq[_]]
   val NilClass = Nil.getClass
-  // val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
   val ThrowableClass = classOf[Throwable]
 
@@ -35,8 +34,11 @@ private object Classes {
   object VectorSubClass extends SubClass(VectorClass)
   object ListSubClass extends SubClass(ListClass)
   object SeqSubClass extends SubClass(SeqClass)
-  // val AttributedClass = classOf[sbt.Attributed[_]]
   object ThrowableSubClass extends SubClass(ThrowableClass)
+
+  object protocol {
+    val Attributed = classOf[sbt.protocol.Attributed[_]]
+  }
 }
 
 // placeholder value for not serializable task results;
@@ -209,7 +211,7 @@ private object ConcreteDynamicSerialization {
       case Classes.FloatClass => makeSerializer[Seq[Float]]
       case Classes.DoubleClass => makeSerializer[Seq[Double]]
       case Classes.URIClass => makeSerializer[Seq[java.net.URI]]
-      case Conversions.protocol.Attributed => defaultSerializerForSeqAttributed(mf.typeArguments.head.runtimeClass)
+      case Classes.protocol.Attributed => defaultSerializerForSeqAttributed(mf.typeArguments.head.runtimeClass)
       case Classes.ThrowableSubClass() => makeSerializer[Seq[java.lang.Throwable]]
       case _ =>
         None
