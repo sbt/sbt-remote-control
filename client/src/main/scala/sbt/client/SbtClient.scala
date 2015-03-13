@@ -83,6 +83,17 @@ trait SbtClient extends Closeable {
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]]
 
   /**
+   * List all settings.
+   */
+  def listSettings(): Future[Seq[ScopedKey]]
+
+  /**
+   * This looks up details about the setting or task associated
+   * with the given key.
+   */
+  def inspectKey(key: ScopedKey, preanalyze: Boolean): Future[InspectResponse]
+
+  /**
    * This analyzes how sbt will interpret "command" if you do requestExecution(command).
    * It tells you whether the given string can be executed and whether it will be
    * a task or a command.

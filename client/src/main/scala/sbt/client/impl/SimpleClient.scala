@@ -65,6 +65,18 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
     }
   }
 
+  private implicit object listSettingsResponseConverter extends ResponseConverter[ListSettingsRequest, Seq[ScopedKey]] {
+    override def convert: Converter = {
+      case ListSettingsResponse(settings) => Success(settings)
+    }
+  }
+
+  private implicit object inspectResponseConverter extends ResponseConverter[InspectRequest, InspectResponse] {
+    override def convert: Converter = {
+      case response: protocol.InspectResponse => Success(response)
+    }
+  }
+
   private implicit object analyzeExecutionResponseConverter extends ResponseConverter[AnalyzeExecutionRequest, ExecutionAnalysis] {
     override def convert: Converter = {
       case protocol.AnalyzeExecutionResponse(analysis) => Success(analysis)
@@ -93,6 +105,12 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
 
   def lookupScopedKey(name: String): Future[Seq[ScopedKey]] =
     sendRequestWithConverter(KeyLookupRequest(name))
+
+  def listSettings(): Future[Seq[ScopedKey]] =
+    sendRequestWithConverter(ListSettingsRequest())
+
+  def inspectKey(key: ScopedKey, preanalyze: Boolean): Future[InspectResponse] =
+    sendRequestWithConverter(InspectRequest(key, preanalyze))
 
   def analyzeExecution(command: String): Future[ExecutionAnalysis] =
     sendRequestWithConverter(AnalyzeExecutionRequest(command))

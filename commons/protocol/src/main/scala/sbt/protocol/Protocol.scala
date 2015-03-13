@@ -29,6 +29,8 @@ sealed trait Message
   classOf[SendSyntheticValueChanged],
   classOf[ClientClosedRequest],
   classOf[KeyLookupRequest],
+  classOf[ListSettingsRequest],
+  classOf[InspectRequest],
   classOf[AnalyzeExecutionRequest],
   classOf[ReadLineRequest],
   classOf[ConfirmRequest]))
@@ -41,6 +43,8 @@ sealed trait Request extends Message
   classOf[CommandCompletionsResponse],
   classOf[KeyNotFound],
   classOf[KeyLookupResponse],
+  classOf[ListSettingsResponse],
+  classOf[InspectResponse],
   classOf[AnalyzeExecutionResponse],
   classOf[ErrorResponse],
   classOf[ReceivedResponse],
@@ -243,6 +247,27 @@ final case class ClosedEvent() extends Event
 final case class KeyLookupRequest(name: String) extends Request
 final case class KeyLookupResponse(name: String, key: Vector[ScopedKey]) extends Response
 
+final case class ListSettingsRequest() extends Request
+final case class ListSettingsResponse(settings: Vector[ScopedKey]) extends Response
+
+@directSubclasses(Array(classOf[NoPosition],
+  classOf[LinePosition],
+  classOf[RangePosition]))
+sealed trait SourcePosition
+final case class NoPosition() extends SourcePosition
+final case class LinePosition(path: String, startLine: Int) extends SourcePosition
+final case class LineRange(start: Int, end: Int)
+final case class RangePosition(path: String, range: LineRange) extends SourcePosition
+
+// InspectPreanalysis can be computed client side if the client downloads
+// ALL known keys, but if the client only cares about one key it's better
+// to compute this stuff server side to avoid shipping tons of data.
+final case class InspectPreanalysis(reverseDependencies: Vector[ScopedKey], reverseDerivedDependencies: Vector[ScopedKey], delegates: Vector[ScopedKey], related: Vector[ScopedKey])
+final case class InspectRequest(key: ScopedKey, preanalyze: Boolean) extends Request
+// TODO do we need derivedDependencies or can client side figure that out?
+// what does "derived" mean, dont' have internet right now to look it up
+final case class InspectResponse(description: Option[String], providedBy: ScopedKey, definedAt: Vector[SourcePosition], dependencies: Vector[ScopedKey], derivedDependencies: Vector[ScopedKey], preanalysis: Option[InspectPreanalysis]) extends Response
+
 final case class AnalyzeExecutionRequest(command: String) extends Request
 
 @directSubclasses(Array(classOf[ExecutionAnalysisKey], classOf[ExecutionAnalysisError],
@@ -440,6 +465,7 @@ object Message {
   private implicit val executionAnalysisKeyUnpickler = genUnpickler[ExecutionAnalysisKey]
   private implicit val executionAnalysisPickler = genPickler[ExecutionAnalysis]
   private implicit val executionAnalysisUnpickler = genUnpickler[ExecutionAnalysis]
+  private implicit val inspectPreanalysisPickler = PicklerUnpickler.generate[InspectPreanalysis]
   private implicit val logStdErrPickler = genPickler[LogStdErr]
   private implicit val logStdErrUnpickler = genUnpickler[LogStdErr]
   private implicit val logStdOutPickler = genPickler[LogStdOut]
@@ -452,6 +478,12 @@ object Message {
   private implicit val logMessageUnpickler = genUnpickler[LogMessage]
   private implicit val logEntryPickler = genPickler[LogEntry]
   private implicit val logEntryUnpickler = genUnpickler[LogEntry]
+
+  private implicit val lineRangePickler = PicklerUnpickler.generate[LineRange]
+  private implicit val rangePositionPickler = PicklerUnpickler.generate[RangePosition]
+  private implicit val noPositionPickler = PicklerUnpickler.generate[NoPosition]
+  private implicit val linePositionPickler = PicklerUnpickler.generate[LinePosition]
+  private implicit val sourcePositionPickler = PicklerUnpickler.generate[SourcePosition]
 
   // We have PRIVATE implicit picklers for all the leaf subtypes of
   // Message, and then we have a public pickler for the entire Message
@@ -507,6 +539,8 @@ object Message {
   private implicit val executionSuccessUnpickler = genUnpickler[ExecutionSuccess]
   private implicit val executionWaitingPickler = genPickler[ExecutionWaiting]
   private implicit val executionWaitingUnpickler = genUnpickler[ExecutionWaiting]
+  private implicit val inspectRequestPickler = PicklerUnpickler.generate[InspectRequest]
+  private implicit val inspectResponsePickler = PicklerUnpickler.generate[InspectResponse]
   private implicit val keyExecutionRequestPickler = genPickler[KeyExecutionRequest]
   private implicit val keyExecutionRequestUnpickler = genUnpickler[KeyExecutionRequest]
   private implicit val keyLookupRequestPickler = genPickler[KeyLookupRequest]
@@ -523,6 +557,8 @@ object Message {
   private implicit val listenToEventsUnpickler = genUnpickler[ListenToEvents]
   private implicit val listenToValuePickler = genPickler[ListenToValue]
   private implicit val listenToValueUnpickler = genUnpickler[ListenToValue]
+  private implicit val listSettingsRequestPickler = PicklerUnpickler.generate[ListSettingsRequest]
+  private implicit val listSettingsResponsePickler = PicklerUnpickler.generate[ListSettingsResponse]
   private implicit val taskLogEventPickler = genPickler[TaskLogEvent]
   private implicit val taskLogEventUnpickler = genUnpickler[TaskLogEvent]
   private implicit val logEventPickler = genPickler[LogEvent]
