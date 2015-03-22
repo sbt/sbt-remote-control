@@ -150,7 +150,7 @@ class SbtClientHandler(
           // Now clean out the request handler
           readLineRequests -= serial
           confirmRequests -= serial
-        case None => // TODO - error
+        case _ => // TODO - error
       }
     }
     def readLine(executionId: ExecutionId, prompt: String, mask: Boolean): concurrent.Future[Option[String]] =

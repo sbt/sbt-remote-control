@@ -23,7 +23,7 @@ object SbtToProtocolUtils {
   private val TaskClass = classOf[sbt.Task[_]]
   private val InputTaskClass = classOf[sbt.InputTask[_]]
   private def removeUnusedTypesFromManifest[T](mf: Manifest[T]): Manifest[_] = {
-    mf.erasure match {
+    mf.runtimeClass match {
       case TaskClass | InputTaskClass => mf.typeArguments(0)
       case _ => mf
     }

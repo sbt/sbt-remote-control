@@ -103,7 +103,7 @@ private[server] class ServerExecuteProgress(state: ServerState, conversions: Dyn
 
   // Very very dirty hack...
   private def getManifestOfTask[T](mf: Manifest[_]): Manifest[T] = {
-    if (mf.erasure == classOf[Task[_]]) {
+    if (mf.runtimeClass == classOf[Task[_]]) {
       mf.typeArguments(0).asInstanceOf[Manifest[T]]
     } else mf.asInstanceOf[Manifest[T]]
   }

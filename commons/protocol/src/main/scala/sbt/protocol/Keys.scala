@@ -5,8 +5,7 @@ import sbt.serialization._
 
 /**
  * This represents a "key" in sbt.
- *  Keys have names and "types" associated.
- * TODO FIXME it is bad to have an internal type from pickling here
+ * Keys have names and "types" associated.
  */
 final case class AttributeKey(name: String, manifest: TypeExpression) {
   override def toString = "AttributeKey[" + manifest + "](\"" + name + "\")"
@@ -36,10 +35,14 @@ object ProjectReference {
 /**
  * Represents the scope a particular key can have in sbt.
  *
- * @param build - A key is either associated witha  Build, or in Global scope.
- * @param project - A key is either associated with a project, or in the Build/Global scope.
- * @param config - A key may be associated with a configuration axis.
- * @param task - A key may optionally be associated with a task axis
+ * @param build
+ *        A key is either associated with a Build, or in Global scope.
+ * @param project
+ *        A key is either associated with a project, or in the Build/Global scope.
+ * @param config
+ *        A key may be associated with a configuration axis.
+ * @param task
+ *        A key may optionally be associated with a task axis
  */
 final case class SbtScope(build: Option[URI] = None,
   project: Option[ProjectReference] = None,
@@ -91,7 +94,7 @@ object MinimalProjectStructure {
 
 final case class MinimalBuildStructure(
   builds: Vector[URI],
-  projects: Vector[MinimalProjectStructure] // TODO - For each project, we may want to incldue a list of serializable key by configuration (minimize amount of data sent) that we can
+  projects: Vector[MinimalProjectStructure] // TODO - For each project, we may want to include a list of serializable key by configuration (minimize amount of data sent) that we can
   // "unwind" on the client side into ScopedKeys.
   )
 object MinimalBuildStructure {
