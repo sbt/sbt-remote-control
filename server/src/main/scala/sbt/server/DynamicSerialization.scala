@@ -19,7 +19,6 @@ private object Classes {
   val ListClass = classOf[List[_]]
   val SeqClass = classOf[Seq[_]]
   val NilClass = Nil.getClass
-  // val AttributedClass = classOf[sbt.Attributed[_]]
   val URIClass = classOf[java.net.URI]
   val ThrowableClass = classOf[Throwable]
 
@@ -35,8 +34,11 @@ private object Classes {
   object VectorSubClass extends SubClass(VectorClass)
   object ListSubClass extends SubClass(ListClass)
   object SeqSubClass extends SubClass(SeqClass)
-  // val AttributedClass = classOf[sbt.Attributed[_]]
   object ThrowableSubClass extends SubClass(ThrowableClass)
+
+  object protocol {
+    val Attributed = classOf[sbt.protocol.Attributed[_]]
+  }
 }
 
 // placeholder value for not serializable task results;
@@ -198,8 +200,8 @@ private object ConcreteDynamicSerialization {
     }).asInstanceOf[Option[Pickler[List[T]] with Unpickler[List[T]]]]
   }
 
-  private def defaultSerializerForSeq[T](klass: Class[T]): Option[Pickler[Seq[T]] with Unpickler[Seq[T]]] = {
-    (klass match {
+  private def defaultSerializerForSeq[T](mf: Manifest[T]): Option[Pickler[Seq[T]] with Unpickler[Seq[T]]] = {
+    (mf.runtimeClass match {
       case Classes.StringClass => makeSerializer[Seq[String]]
       case Classes.FileClass => makeSerializer[Seq[java.io.File]]
       case Classes.BooleanClass => makeSerializer[Seq[Boolean]]
@@ -209,10 +211,20 @@ private object ConcreteDynamicSerialization {
       case Classes.FloatClass => makeSerializer[Seq[Float]]
       case Classes.DoubleClass => makeSerializer[Seq[Double]]
       case Classes.URIClass => makeSerializer[Seq[java.net.URI]]
+      case Classes.protocol.Attributed => defaultSerializerForSeqAttributed(mf.typeArguments.head.runtimeClass)
       case Classes.ThrowableSubClass() => makeSerializer[Seq[java.lang.Throwable]]
       case _ =>
         None
     }).asInstanceOf[Option[Pickler[Seq[T]] with Unpickler[Seq[T]]]]
+  }
+
+  private def defaultSerializerForSeqAttributed[T](klass: Class[T]): Option[Pickler[Seq[Attributed[T]]] with Unpickler[Seq[Attributed[T]]]] = {
+    (klass match {
+      case Classes.FileClass => makeSerializer[Seq[protocol.Attributed[java.io.File]]]
+      case _ =>
+        None
+    }).asInstanceOf[Option[Pickler[Seq[protocol.Attributed[T]]] with Unpickler[Seq[protocol.Attributed[T]]]]]
+
   }
 
   private def defaultSerializer[T](mf: Manifest[T]): Option[Pickler[T] with Unpickler[T]] = defaultSerializationMemosByManifest.get(mf).map(_.asInstanceOf[Pickler[T] with Unpickler[T]]) orElse
@@ -230,7 +242,7 @@ private object ConcreteDynamicSerialization {
         case Classes.ListSubClass() =>
           defaultSerializerForList(mf.typeArguments(0).runtimeClass)
         case Classes.SeqSubClass() =>
-          defaultSerializerForSeq(mf.typeArguments(0).runtimeClass)
+          defaultSerializerForSeq(mf.typeArguments(0))
 
         // case Classes.AttributedSubClass() =>
         //   for {
@@ -260,7 +272,8 @@ private object NonTrivialSerializers {
       RegisteredSerializer[ScopedKey],
       RegisteredSerializer[MinimalBuildStructure],
       RegisteredSerializer[CompileFailedException],
-      RegisteredSerializer[ModuleId])
+      RegisteredSerializer[ModuleId],
+      RegisteredSerializer[protocol.Attributed[File]])
     serializers.foldLeft(base) { (sofar, next) =>
       sofar.register(next.serializer)(next.manifest)
     }

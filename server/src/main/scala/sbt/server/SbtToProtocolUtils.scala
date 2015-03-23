@@ -134,4 +134,12 @@ object SbtToProtocolUtils {
     protocol.ModuleId(organization = moduleId.getOrganisation(), name = moduleId.getName(),
       attributes = moduleId.getAttributes().asInstanceOf[java.util.Map[String, String]].asScala.toMap)
   }
+
+  def attributedToProtocol[T](att: sbt.Attributed[T]): protocol.Attributed[T] = {
+    protocol.Attributed(att.data)
+  }
+
+  def seqAttributedFileToProtocol(attrs: Seq[sbt.Attributed[File]]): Seq[protocol.Attributed[File]] = {
+    attrs.map(attributedToProtocol)
+  }
 }

@@ -31,6 +31,8 @@ class TypeExpressionPicklerTest {
   val projectRef = protocol.ProjectReference(build, "test")
   val scope = protocol.SbtScope(project = Some(projectRef))
   val scopedKey = protocol.ScopedKey(key, scope)
+  val seqAttributedFile = Seq(
+    protocol.Attributed(new java.io.File("/some.file")))
 
   @Test
   def testRoundtripAttributeKey: Unit = {
@@ -45,5 +47,10 @@ class TypeExpressionPicklerTest {
   @Test
   def testRoundtripScopedKey: Unit = {
     roundTrip(scopedKey)
+  }
+
+  @Test
+  def testRoundtripSeqAttributedFile: Unit = {
+    roundTrip(seqAttributedFile)
   }
 }
