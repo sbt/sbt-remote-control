@@ -129,7 +129,17 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
-      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
+
+    val buildStructureWithDeps = protocol.MinimalBuildStructure(
+      builds = Vector(build),
+      projects = Vector(
+        protocol.MinimalProjectStructure(
+          scope.project.get,
+          Vector("com.foo.Plugin"),
+          Some(protocol.ProjectDependencies(
+            classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "lib"), Some("*->*"))),
+            aggregate = Vector(protocol.ProjectReference(build, "test")))))))
 
     val specifics = Seq(
       // Requests
@@ -160,6 +170,7 @@ class ProtocolTest {
       protocol.TaskStarted(49, 2, Some(scopedKey)),
       protocol.TaskFinished(50, 2, Some(scopedKey), true, None),
       protocol.BuildStructureChanged(buildStructure),
+      protocol.BuildStructureChanged(buildStructureWithDeps),
       // equals() doesn't work on Exception so we can't actually check this easily
       //protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES", protocol.BuildValue(new Exception("Exploded"), serializations))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
@@ -271,7 +282,19 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
-      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
+
+    val buildStructure2 =
+      protocol.MinimalBuildStructure(
+        builds = Vector(build),
+        projects = Vector(
+          protocol.MinimalProjectStructure(
+            scope.project.get,
+            Vector("com.foo.Plugin"),
+            Some(
+              protocol.ProjectDependencies(
+                classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "test"), Some("compile"))),
+                aggregate = Vector(protocol.ProjectReference(build, "test")))))))
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -305,6 +328,7 @@ class ProtocolTest {
     roundtrip(scope)
     roundtrip(scopedKey)
     roundtrip(buildStructure)
+    roundtrip(buildStructure2)
     roundtrip(new Exception(null, null))
     roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
     roundtrip(new protocol.CompileFailedException("the compile failed", null,
@@ -356,7 +380,19 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
-      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
+
+    val buildStructureWithDeps =
+      protocol.MinimalBuildStructure(
+        builds = Vector(build),
+        projects = Vector(
+          protocol.MinimalProjectStructure(
+            scope.project.get,
+            Vector("com.foo.Plugin"),
+            Some(
+              protocol.ProjectDependencies(
+                classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "test"), Some("compile"))),
+                aggregate = Vector(protocol.ProjectReference(build, "test")))))))
 
     // simple data type
     oneWayTrip("Foo") { _ / "simple" / "string.json" }
@@ -442,6 +478,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true, None)) { _ / "event" / "task_finished_none.json" }
     oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), false, Some("error message here"))) { _ / "event" / "task_finished_failed.json" }
     oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
+    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructureWithDeps)) { _ / "event" / "build_structure_changed_with_deps.json" }
     // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
     //   _ / "event" / "value_changed_task_failure.json"
     // }

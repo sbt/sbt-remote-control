@@ -104,10 +104,10 @@ final case class IntegrationContext(launchJar: File,
     // Here, let's create a new logger that can store logs in a location of our choosing too...
     restoringTerminal(setup(name, cwd) ! logger match {
       case 0 => 
-        streams.log.info(" [IT] " + name + " result: SUCCESS")
+        streams.log.info(s" [IT] $name result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
       case n => 
-        streams.log.error(" [IT] " + name + " result: FAILURE   - $n")
+        streams.log.error(s" [IT] $name result: FAILURE   - $n")
         IntegrationTestResult(name, false, logFile)
     })
   }

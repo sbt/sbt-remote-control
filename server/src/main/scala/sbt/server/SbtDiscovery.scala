@@ -13,6 +13,19 @@ private[server] object SbtDiscovery {
     else rawClassname
   }
 
+  private def projectDependencies(r: ResolvedProject): protocol.ProjectDependencies = {
+    val classpath =
+      for {
+        dep <- r.dependencies
+        to = projectRefToProtocol(dep.project)
+      } yield protocol.ClasspathDep(to, dep.configuration)
+    val aggregate =
+      for {
+        dep <- r.aggregate
+      } yield projectRefToProtocol(dep)
+    protocol.ProjectDependencies(classpath, aggregate)
+  }
+
   def buildStructure(state: State): protocol.MinimalBuildStructure = {
     val extracted = sbt.Project.extract(state)
     val projects =
@@ -21,7 +34,7 @@ private[server] object SbtDiscovery {
         resolved <- unit.defined.values
         ref = projectRefToProtocol(ProjectRef(build, resolved.id))
         plugins = resolved.autoPlugins.map(getRootObjectName).toVector
-      } yield protocol.MinimalProjectStructure(ref, plugins)).toVector
+      } yield protocol.MinimalProjectStructure(ref, plugins, Some(projectDependencies(resolved)))).toVector
 
     val builds = projects.map(_.id.build).distinct
     protocol.MinimalBuildStructure(
