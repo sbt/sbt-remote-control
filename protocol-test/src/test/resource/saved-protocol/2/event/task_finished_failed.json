@@ -1,0 +1,1 @@
+{"executionId":48,"taskId":1,"success":false,"key":{"key":{"name":"name","manifest":"java.lang.String"},"scope":{"build":null,"project":{"build":"file:\/\/\/test\/project","name":"test"},"config":null,"task":null}},"message":"error message here","$type":"sbt.protocol.TaskFinished"}

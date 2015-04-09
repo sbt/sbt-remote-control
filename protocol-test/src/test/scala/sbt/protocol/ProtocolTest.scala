@@ -339,36 +339,42 @@ class ProtocolTest {
   private sealed trait TripDirection
   private case object ObjectToJson extends TripDirection
   private case object JsonToObject extends TripDirection
-  private def oneWayTripTest(td: TripDirection, baseDir: File): Unit = {
+  private def oneWayTripTest(td: TripDirection, baseDir: File, protocolVersion: ProtocolVersion): Unit = {
     val ds0 = DynamicSerialization.defaultSerializations
     val ds = ds0.register(PicklerUnpickler(implicitly[Pickler[protocol.Message]],
       implicitly[Unpickler[protocol.Message]]))
 
-    def oneWayTripBase[T: Manifest](t: T)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit = {
-      val path = p(baseDir)
-      val formatOption = ds.lookup(implicitly[Manifest[T]])
-      formatOption map { format =>
-        td match {
-          case ObjectToJson =>
-            val json = addWhatWeWerePickling(t)(SerializedValue(t)(format).toJsonString)
-            if (path.exists) sys.error(s"$path already exists!")
-            else IO.write(path, json, IO.utf8)
-          case JsonToObject =>
-            if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format).toJsonString}.") }
-            else {
-              val json = SerializedValue.fromJsonString(IO.read(path, IO.utf8))
-              val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format).get)
-              (t, parsed) match {
-                // Throwable has a not-very-useful equals() in this case
-                case (t: Throwable, parsed: Throwable) => e(t, parsed)
-                case _ => f(t, parsed)
+    /** Checks whether the message is part of the protocol we're testing.  If not, the file won't exist. */
+    def isOkToTest(since: ProtocolVersion, current: ProtocolVersion): Boolean =
+      (ProtocolVersion.ordering.compare(since, current) <= 0)
+
+    def oneWayTripBase[T: Manifest](t: T, since: ProtocolVersion)(p: File => File)(f: (T, T) => Unit)(e: (Throwable, Throwable) => Unit): Unit =
+      if (isOkToTest(since, protocolVersion)) {
+        val path = p(baseDir)
+        val formatOption = ds.lookup(implicitly[Manifest[T]])
+        formatOption map { format =>
+          td match {
+            case ObjectToJson =>
+              val json = addWhatWeWerePickling(t)(SerializedValue(t)(format).toJsonString)
+              if (path.exists) sys.error(s"$path already exists!")
+              else IO.write(path, json, IO.utf8)
+            case JsonToObject =>
+              if (!path.exists) { sys.error(s"$path didn't exist, maybe create with: ${SerializedValue(t)(format).toJsonString}.") }
+              else {
+                val json = SerializedValue.fromJsonString(IO.read(path, IO.utf8))
+                val parsed = addWhatWeWereUnpickling(json.toJsonString + "\n\t\t * from file: " + path)(json.parse[T](format).get)
+                (t, parsed) match {
+                  // Throwable has a not-very-useful equals() in this case
+                  case (t: Throwable, parsed: Throwable) => e(t, parsed)
+                  case _ => f(t, parsed)
+                }
               }
-            }
-        }
-      } getOrElse { throw new AssertionError(s"No dynamic serialization for ${t.getClass.getName}: $t") }
-    }
-    def oneWayTrip[T: Manifest](t: T)(p: File => File): Unit =
-      oneWayTripBase[T](t)(p)((a, b) =>
+          }
+        } getOrElse (throw new AssertionError(s"No dynamic serialization for ${t.getClass.getName}: $t"))
+      } else System.err.println(s"Skipping test of ${t.getClass.getName}")
+    /** Attempts a one way trip if the thing we're manipulating is of the right protocol version. */
+    def oneWayTrip[T: Manifest](t: T, since: ProtocolVersion = ProtocolVersion1)(p: File => File): Unit =
+      oneWayTripBase[T](t, since)(p)((a, b) =>
         if (a == b) ()
         else sys.error(s"one-way trip of $a.\nexpected: $a: ${a.getClass.getName}\nactual: $b: ${b.getClass.getName}\nfile: ${p(baseDir)}")) { (a, b) =>
         assertEquals("one-way trip of message " + a.getMessage, a.getMessage, b.getMessage)
@@ -478,7 +484,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.TaskFinished(48, 1, None, true, None)) { _ / "event" / "task_finished_none.json" }
     oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), false, Some("error message here"))) { _ / "event" / "task_finished_failed.json" }
     oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
-    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructureWithDeps)) { _ / "event" / "build_structure_changed_with_deps.json" }
+    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructureWithDeps), ProtocolVersion2) { _ / "event" / "build_structure_changed_with_deps.json" }
     // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
     //   _ / "event" / "value_changed_task_failure.json"
     // }
@@ -513,11 +519,11 @@ class ProtocolTest {
   def testSerializationStability(): Unit = {
     val baseDir = (new File("protocol-test")) / "src" / "test" / "resource" / "saved-protocol"
 
-    oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion1.toString)
+    oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion1.toString, ProtocolVersion1)
+    oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion2.toString, ProtocolVersion2)
 
     // uncomment this line to write new files
-    // oneWayTripTest(ObjectToJson, baseDir / "2")
-    // oneWayTripTest(JsonToObject, baseDir / "2")
+    //oneWayTripTest(ObjectToJson, baseDir / protocol.ProtocolVersion2.toString, ProtocolVersion2)
   }
 
   @Test
