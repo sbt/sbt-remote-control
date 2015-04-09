@@ -50,6 +50,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     val project = result.projects.head
     assert(project.id.name == "test", "failed to discover project name == file name.")
     assert(project.plugins contains "sbt.plugins.JvmPlugin", s"failed to discover default plugins in project, found: ${project.plugins.mkString(", ")}")
+    assert(!project.dependencies.isEmpty, "Failed to find project dependencies.")
 
     waitWithError(client.setDaemon(true), "Did not get a response to daemon=true")
     waitWithError(client.setDaemon(false), "Did not get a response to daemon=false")

@@ -82,11 +82,29 @@ object KeyList {
   implicit val pickler: Pickler[KeyList] = genPickler[KeyList]
 }
 
+// TODO - This is a bad name...
+/** The notion of classpath dependencies between projects. */
+final case class ClasspathDep(
+  project: ProjectReference,
+  configuration: Option[String])
+object ClasspathDep {
+  implicit val picklerUnpickler = PicklerUnpickler.generate[ClasspathDep]
+}
+/** The notiion of build dependencies between projects. */
+final case class ProjectDependencies(
+  classpath: Seq[ClasspathDep],
+  aggregate: Seq[ProjectReference])
+object ProjectDependencies {
+  implicit val picklerUnpickler = PicklerUnpickler.generate[ProjectDependencies]
+}
+
 /** Core information returned about projects for build clients. */
 final case class MinimalProjectStructure(
   id: ProjectReference,
   // Class names of plugins used by this project.
-  plugins: Vector[String])
+  plugins: Vector[String],
+  /** A possible list of dependencies between projects..   Added in 0.2 of the protocol. */
+  dependencies: Option[ProjectDependencies])
 object MinimalProjectStructure {
   implicit val unpickler: Unpickler[MinimalProjectStructure] = genUnpickler[MinimalProjectStructure]
   implicit val pickler: Pickler[MinimalProjectStructure] = genPickler[MinimalProjectStructure]

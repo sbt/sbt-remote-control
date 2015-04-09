@@ -21,7 +21,7 @@ class ProtocolTest {
   val scopedKey = protocol.ScopedKey(key, scope)
   val buildStructure = protocol.MinimalBuildStructure(
     builds = Vector(build),
-    projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"))))
+    projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
   val nopos = protocol.Position(None, None, None, "", None, None, None)
   val severity = Error
 

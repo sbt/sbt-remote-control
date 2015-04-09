@@ -93,6 +93,7 @@ object ProtocolVersion {
   private implicit val resultToString = CanToString[ProtocolVersion](_.toString,
     {
       case "1" => ProtocolVersion1
+      case "2" => ProtocolVersion2
       // we don't want to explode here if we get a version
       // we don't know. If it's handled somehow, it'd be
       // elsewhere (in the client or server logic).
@@ -101,10 +102,22 @@ object ProtocolVersion {
 
   implicit val picklerUnpickler: Pickler[ProtocolVersion] with Unpickler[ProtocolVersion] =
     canToStringPickler[ProtocolVersion]
+
+  implicit object ordering extends Ordering[ProtocolVersion] {
+    override def compare(x: ProtocolVersion, y: ProtocolVersion): Int =
+      (x, y) match {
+        case (x, y) if x == y => 0
+        case (ProtocolVersionUnknown, _) => -1
+        case (_, ProtocolVersionUnknown) => 1
+        // TODO - We may need real comparision here...
+        case (x, y) => x.name.compareTo(y.name)
+      }
+  }
 }
 
 case object ProtocolVersionUnknown extends ProtocolVersion("unknown")
 case object ProtocolVersion1 extends ProtocolVersion("1")
+case object ProtocolVersion2 extends ProtocolVersion("2")
 
 // These enable or disable certain behaviors. For example you might have
 // a tag like "SupportsFoo" and if a client sets that tag the server
