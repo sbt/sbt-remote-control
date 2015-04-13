@@ -407,6 +407,10 @@ class RequestProcessor(
         BuildStructureCache.sendBuildStructure(client, SbtDiscovery.buildStructure(buildState))
       case KeyLookupRequest(key) =>
         client.reply(serial, KeyLookupResponse(key, keyLookup(buildState, key).toVector))
+      case ListSettingsRequest() =>
+        client.reply(serial, Inspect.listSettingsResponse(buildState))
+      case req: InspectRequest =>
+        client.reply(serial, Inspect.inspectResponse(buildState, req))
       case AnalyzeExecutionRequest(command) =>
         client.reply(serial, AnalyzeExecutionResponse(analyzeExecution(buildState, command)))
       case ListenToValue(key) =>

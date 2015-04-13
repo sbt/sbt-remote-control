@@ -75,6 +75,7 @@ object ScopedKey {
   implicit val unpickler: Unpickler[ScopedKey] = genUnpickler[ScopedKey]
   implicit val pickler: Pickler[ScopedKey] = genPickler[ScopedKey]
 }
+// TODO nothing uses this?
 /** A means of JSON-serializing key lists from sbt to our client. */
 final case class KeyList(keys: Vector[ScopedKey])
 object KeyList {

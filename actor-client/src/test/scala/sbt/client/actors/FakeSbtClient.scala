@@ -170,6 +170,10 @@ final class FakeSbtClient(refFactory: ActorRefFactory,
 
   def lookupScopedKey(name: String): Future[Seq[protocol.ScopedKey]] = scopedKeyLookup(name)
 
+  def listSettings(): Future[Seq[protocol.ScopedKey]] = ???
+
+  def inspectKey(key: protocol.ScopedKey, preanalyze: Boolean): Future[protocol.InspectResponse] = ???
+
   def analyzeExecution(command: String): Future[protocol.ExecutionAnalysis] = _analyzeExecution(command)
 
   def requestExecution(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)]): Future[Long] =

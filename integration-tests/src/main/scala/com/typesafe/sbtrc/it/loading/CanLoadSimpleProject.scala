@@ -59,6 +59,26 @@ class CanLoadSimpleProject extends SbtClientTest {
     val compileKeys = waitWithError(compileKeysFuture, "Never received key lookup response!")
     assert(!compileKeys.isEmpty && compileKeys.head.key.name == "compile", s"Failed to find compile key: $compileKeys!")
 
+    val inspectResponse = waitWithError(client.inspectKey(compileKeys.head, preanalyze = true), "no response to inspect")
+    assertEquals(Some("Compiles sources."), inspectResponse.description)
+    assertEquals("compile", inspectResponse.providedBy.key.name)
+    // this line number is likely to break on every sbt update :-/
+    assertEquals(Vector(LinePosition("(sbt.Defaults) Defaults.scala", 261)), inspectResponse.definedAt)
+    assert(inspectResponse.dependencies.exists(_.key.name == "incCompileSetup"), "have incCompileSetup as dep")
+    assert(inspectResponse.derivedDependencies.isEmpty, "empty derivedDependencies")
+    inspectResponse.preanalysis match {
+      case Some(preanalysis) =>
+        assert(preanalysis.reverseDependencies.exists(_.key.name == "discoveredMainClasses"), "discoveredMainClasses in reverse deps")
+        assert(preanalysis.reverseDerivedDependencies.isEmpty, "empty reverseDerivedDependencies")
+        assertEquals(6, preanalysis.delegates.size)
+        assertEquals(1, preanalysis.related.size)
+      case None =>
+        throw new Exception("preanalysis is None")
+    }
+
+    val allSettings = waitWithError(client.listSettings(), "never received list of settings")
+    assertEquals(554, allSettings.size)
+
     val compileIncrementalKeysFuture = client.lookupScopedKey("compileIncremental")
     val compileIncrementalKeys = waitWithError(compileIncrementalKeysFuture, "Never received key lookup response!")
     assert(!compileIncrementalKeys.isEmpty && compileIncrementalKeys.head.key.name == "compileIncremental", s"Failed to find compile key: $compileIncrementalKeys!")

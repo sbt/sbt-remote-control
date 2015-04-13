@@ -142,4 +142,16 @@ object SbtToProtocolUtils {
   def seqAttributedFileToProtocol(attrs: Seq[sbt.Attributed[File]]): Seq[protocol.Attributed[File]] = {
     attrs.map(attributedToProtocol)
   }
+
+  def sourcePositionToProtocol(pos: sbt.SourcePosition): sbt.protocol.SourcePosition = {
+    pos match {
+      case sbt.LinePosition(path, startLine) =>
+        sbt.protocol.LinePosition(path, startLine)
+      case sbt.NoPosition =>
+        sbt.protocol.NoPosition()
+      case sbt.RangePosition(path, range) =>
+        sbt.protocol.RangePosition(path,
+          sbt.protocol.LineRange(range.start, range.end))
+    }
+  }
 }

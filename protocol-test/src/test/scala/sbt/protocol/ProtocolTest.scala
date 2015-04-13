@@ -458,6 +458,10 @@ class ProtocolTest {
       Vector(protocol.Problem("something", xsbti.Severity.Error, "stuff didn't go well", FakePosition)))) { _ / "complex" / "compile_failed.json" }
 
     // message
+    oneWayTrip[Message](protocol.ListSettingsRequest(), ProtocolVersion2) { _ / "message" / "list_settings_request.json" }
+    oneWayTrip[Message](protocol.ListSettingsResponse(Vector(scopedKey)), ProtocolVersion2) { _ / "message" / "list_settings_response.json" }
+    oneWayTrip[Message](protocol.InspectRequest(scopedKey, preanalyze = true), ProtocolVersion2) { _ / "message" / "inspect_request.json" }
+    oneWayTrip[Message](protocol.InspectResponse(Some("description blah"), scopedKey, Vector(LinePosition("foo/bar", 10)), Vector(scopedKey), Vector(scopedKey), Some(InspectPreanalysis(Vector(scopedKey), Vector(scopedKey), Vector(scopedKey), Vector(scopedKey)))), ProtocolVersion2) { _ / "message" / "inspect_response.json" }
     oneWayTrip[Message](protocol.RegisterClientRequest(protocol.ClientInfo("350954c2-6bf0-4925-b066-3bf20f32906b", "foo", "FOO", ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_request.json" }
     oneWayTrip[Message](protocol.RegisterClientResponse(protocol.ServerInfo(ProtocolVersion1, Vector(FeatureTagUnknown)))) { _ / "message" / "register_client_response.json" }
     oneWayTrip[Message](protocol.DaemonRequest(true)) { _ / "message" / "daemon_req.json" }
