@@ -77,7 +77,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     val allSettings = waitWithError(client.listSettings(), "never received list of settings")
-    assertEquals(555, allSettings.size)
+    assertEquals(554, allSettings.size)
 
     val compileIncrementalKeysFuture = client.lookupScopedKey("compileIncremental")
     val compileIncrementalKeys = waitWithError(compileIncrementalKeysFuture, "Never received key lookup response!")

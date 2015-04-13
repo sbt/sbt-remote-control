@@ -9,7 +9,7 @@ object Inspect {
   def listSettingsResponse(state: State): ListSettingsResponse = {
     val extracted = sbt.Project.extract(state)
     val settings =
-      for (setting <- extracted.structure.settings)
+      for (setting <- extracted.session.mergeSettings)
         yield SbtToProtocolUtils.scopedKeyToProtocol(setting.key)
 
     ListSettingsResponse(settings.toVector)
