@@ -108,18 +108,20 @@ private final class ConnectThread(doneHandler: Try[SbtChannel] => Unit,
     val rawClient = new ipc.Client(socket)
     val uuid = java.util.UUID.randomUUID()
     val registerSerial = rawClient.serialGetAndIncrement()
-    rawClient.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName, protocolVersion = ProtocolVersion1, featureTags = Vector.empty)), registerSerial)
-    Envelope(rawClient.receive()) match {
+    rawClient.sendJson[Message](RegisterClientRequest(ClientInfo(uuid.toString, configName, humanReadableName, protocolVersion = ProtocolVersion.protocolVersionLatest, featureTags = Vector.empty)), registerSerial)
+    val serverInfo = Envelope(rawClient.receive()) match {
       case Envelope(_, `registerSerial`, ErrorResponse(message)) =>
         throw new RuntimeException(s"Failed to register client with sbt: ${message}")
       case Envelope(_, `registerSerial`, reply: RegisterClientResponse) =>
-      // TODO extract the ServerInfo and make it available in an API somewhere
+        reply.info
       case wtf => {
         rawClient.close()
         throw new RuntimeException(s"unexpected initial message from server was not a reply to ${registerSerial}: ${wtf}")
       }
     }
-    new SimpleSbtChannel(uuid, configName, humanReadableName, rawClient, () => closedPromise.success(()))
+    new SimpleSbtChannel(uuid, configName, humanReadableName,
+      serverInfo.protocolVersion, serverInfo.featureTags,
+      rawClient, () => closedPromise.success(()))
   }
 }
 

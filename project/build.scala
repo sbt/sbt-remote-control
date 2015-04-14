@@ -52,7 +52,7 @@ object TheBuild extends Build {
     settings(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
-        serialization,
+        serializationLib,
         junitInterface % Test
       )
     )
@@ -123,7 +123,7 @@ object TheBuild extends Build {
        Keys.libraryDependencies ++=
          Seq(
                "org.scala-lang" % "scala-reflect" % Keys.scalaVersion.value,
-               serialization,
+               serializationLib,
                sbtLauncherInterface,
                sbtCompilerInterface
          ),

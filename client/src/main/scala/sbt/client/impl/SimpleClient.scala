@@ -24,6 +24,8 @@ private[client] final class SimpleSbtClient(override val channel: SbtChannel) ex
   override def uuid: java.util.UUID = channel.uuid
   override def configName: String = channel.configName
   override def humanReadableName: String = channel.humanReadableName
+  override def serverProtocolVersion: protocol.ProtocolVersion = channel.serverProtocolVersion
+  override def serverTags: Seq[protocol.FeatureTag] = channel.serverTags
 
   def watchBuild(listener: BuildStructureListener)(implicit ex: ExecutionContext): Subscription = {
     val sub = buildEventManager.watch(listener)(ex)

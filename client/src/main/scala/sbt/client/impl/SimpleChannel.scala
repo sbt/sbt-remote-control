@@ -19,6 +19,8 @@ import java.io.Closeable
 final private class SimpleSbtChannel(override val uuid: java.util.UUID,
   override val configName: String,
   override val humanReadableName: String,
+  override val serverProtocolVersion: protocol.ProtocolVersion,
+  override val serverTags: Seq[protocol.FeatureTag],
   socket: ipc.Client, closeHandler: () => Unit) extends SbtChannel {
 
   // counted down when we should start sending events

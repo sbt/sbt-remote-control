@@ -25,7 +25,7 @@ object Dependencies {
   }
 
   // Reference versions
-  val sbt13Version = "0.13.8-M5"
+  val sbt13Version = "0.13.8"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
@@ -54,7 +54,7 @@ object Dependencies {
   val serializationVersion = "0.1.0"
   val serialization210 = "org.scala-sbt" % "serialization_2.10" % serializationVersion
   val serialization211 = "org.scala-sbt" % "serialization_2.11" % serializationVersion
-  val serialization = "org.scala-sbt" %% "serialization" % serializationVersion
+  val serializationLib = "org.scala-sbt" %% "serialization" % serializationVersion
 
   // These are needed for integration tests. Use the values used by sbt/serialization
   val picklingVersion = "0.10.0-M4"
