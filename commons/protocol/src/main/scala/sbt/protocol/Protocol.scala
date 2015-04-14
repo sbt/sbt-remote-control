@@ -117,11 +117,16 @@ object ProtocolVersion {
         case (x, y) => x.name.compareTo(y.name)
       }
   }
+
+  // this is private because in general third parties should
+  // not use a "symlink" like this.
+  private[sbt] val protocolVersionLatest = ProtocolVersion2
 }
 
 case object ProtocolVersionUnknown extends ProtocolVersion("unknown")
 case object ProtocolVersion1 extends ProtocolVersion("1")
 case object ProtocolVersion2 extends ProtocolVersion("2")
+// WHEN YOU ADD SOMETHING HERE, UPDATE protocolVersionLatest ABOVE
 
 // These enable or disable certain behaviors. For example you might have
 // a tag like "SupportsFoo" and if a client sets that tag the server
