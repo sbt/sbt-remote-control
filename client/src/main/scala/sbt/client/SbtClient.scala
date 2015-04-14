@@ -10,6 +10,9 @@ import scala.concurrent.{ ExecutionContext, Future }
  * This is the high-level interface for talking to an sbt server; use SbtChannel for the low-level one.
  *  This high-level interface tracks a lot of state on the client side and provides convenience methods
  *  to shield you from using the raw protocol.
+ *
+ * Note: this trait will add methods over time, which will be ABI-compatible but not source compatible
+ * if you subtype it. Don't extend this trait if you can't live with that.
  */
 trait SbtClient extends Closeable {
 
@@ -18,6 +21,12 @@ trait SbtClient extends Closeable {
   def uuid: java.util.UUID
   def configName: String
   def humanReadableName: String
+
+  /** version of protocol supported by server */
+  def serverProtocolVersion: ProtocolVersion
+
+  /** protocol feature tags exported by server */
+  def serverTags: Seq[FeatureTag]
 
   /**
    * Set whether the client keeps the sbt server alive. Daemon clients do not prevent

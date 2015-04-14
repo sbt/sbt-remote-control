@@ -4,7 +4,7 @@ package client
 import java.io.Closeable
 import concurrent.{ ExecutionContext, Future }
 import sbt.serialization._
-import sbt.protocol.{ Message, Response }
+import sbt.protocol.{ Message, Response, ProtocolVersion, FeatureTag }
 
 final class ChannelInUseException() extends Exception("This channel is already in use and can only be claimed once")
 
@@ -12,6 +12,9 @@ final class ChannelInUseException() extends Exception("This channel is already i
  * SbtChannel is a "raw" connection to the sbt server which gives you the plain
  *  protocol without keeping track of or caching anything for you. Wrap it
  *  in SbtClient for a much more convenient API.
+ *
+ * Note: this trait will add methods over time, which will be ABI-compatible but not source compatible
+ * if you subtype it. Don't extend this trait if you can't live with that.
  */
 trait SbtChannel extends Closeable {
   /** UUID of this sbt connection, different every time we connect. */
@@ -23,6 +26,12 @@ trait SbtChannel extends Closeable {
   def configName: String
   /** Human-readable name of this client, such as the name of the app. */
   def humanReadableName: String
+
+  /** version of protocol supported by server */
+  def serverProtocolVersion: ProtocolVersion
+
+  /** protocol feature tags exported by server */
+  def serverTags: Seq[FeatureTag]
 
   /**
    * Send a message over the sbt socket.
