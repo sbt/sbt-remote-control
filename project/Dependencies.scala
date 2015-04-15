@@ -51,13 +51,13 @@ object Dependencies {
   val coreNext210          = sbtOrg % "core-next_2.10" % coreNextVersion
   val coreNextPlugin13     = Defaults.sbtPluginExtra(sbtOrg % "sbt-core-next" % coreNextVersion, "0.13", "2.10")
 
-  val serializationVersion = "0.1.0"
+  val serializationVersion = "0.1.1"
   val serialization210 = "org.scala-sbt" % "serialization_2.10" % serializationVersion
   val serialization211 = "org.scala-sbt" % "serialization_2.11" % serializationVersion
   val serializationLib = "org.scala-sbt" %% "serialization" % serializationVersion
 
   // These are needed for integration tests. Use the values used by sbt/serialization
-  val picklingVersion = "0.10.0-M4"
+  val picklingVersion = "0.10.0"
   val pickling210 = "org.scala-lang.modules" % "scala-pickling_2.10" % picklingVersion
   val pickling211 = "org.scala-lang.modules" % "scala-pickling_2.11" % picklingVersion
   val pickling = "org.scala-lang.modules" %% "scala-pickling" % picklingVersion

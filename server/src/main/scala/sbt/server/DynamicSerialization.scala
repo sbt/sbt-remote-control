@@ -273,7 +273,8 @@ private object NonTrivialSerializers {
       RegisteredSerializer[MinimalBuildStructure],
       RegisteredSerializer[CompileFailedException],
       RegisteredSerializer[ModuleId],
-      RegisteredSerializer[protocol.Attributed[File]])
+      RegisteredSerializer[protocol.Attributed[File]],
+      RegisteredSerializer[sbt.UpdateReport])
     serializers.foldLeft(base) { (sofar, next) =>
       sofar.register(next.serializer)(next.manifest)
     }
