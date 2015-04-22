@@ -1,6 +1,7 @@
 package sbt.protocol
 
 import java.net.URI
+import java.io.File
 import sbt.serialization._
 
 /**
@@ -111,8 +112,17 @@ object MinimalProjectStructure {
   implicit val pickler: Pickler[MinimalProjectStructure] = genPickler[MinimalProjectStructure]
 }
 
+final case class BuildData(
+  uri: URI,
+  classpath: Vector[File],
+  imports: Vector[String])
+object BuildData {
+  implicit val picklerUnpickler = PicklerUnpickler.generate[BuildData]
+}
+
 final case class MinimalBuildStructure(
   builds: Vector[URI],
+  buildsData: Vector[BuildData],
   projects: Vector[MinimalProjectStructure] // TODO - For each project, we may want to include a list of serializable key by configuration (minimize amount of data sent) that we can
   // "unwind" on the client side into ScopedKeys.
   )

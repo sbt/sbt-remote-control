@@ -16,7 +16,7 @@ import sbt.serialization._
 
 object SbtClientProxySpec {
   val sampleEvent: protocol.Event = protocol.ExecutionStarting(100)
-  val sampleBuild: protocol.MinimalBuildStructure = protocol.MinimalBuildStructure(Vector.empty[URI], Vector.empty[protocol.MinimalProjectStructure])
+  val sampleBuild: protocol.MinimalBuildStructure = protocol.MinimalBuildStructure(Vector.empty[URI], Vector.empty[protocol.BuildData], Vector.empty[protocol.MinimalProjectStructure])
   val sampleScopedKey = protocol.ScopedKey(protocol.AttributeKey[String]("foo"), protocol.SbtScope())
   val sampleScopedKey1 = protocol.ScopedKey(protocol.AttributeKey[String]("foo1"), protocol.SbtScope())
   def sampleScopedKeyLookup(in: String): Future[Seq[protocol.ScopedKey]] = Future.successful(in match {
