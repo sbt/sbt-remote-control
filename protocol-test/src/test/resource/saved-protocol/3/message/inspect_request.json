@@ -1,0 +1,1 @@
+{"preanalyze":true,"key":{"key":{"name":"name","manifest":"java.lang.String"},"scope":{"build":null,"project":{"build":"file:\/\/\/test\/project","name":"test"},"config":null,"task":null}},"$type":"sbt.protocol.InspectRequest"}
