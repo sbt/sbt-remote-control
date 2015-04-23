@@ -117,7 +117,7 @@ final case class BuildData(
   classpath: Vector[File],
   imports: Vector[String])
 object BuildData {
-  implicit val picklerUnpickler = PicklerUnpickler.generate[BuildData]
+  implicit val picklerUnpickler: Pickler[BuildData] with Unpickler[BuildData] = PicklerUnpickler.generate[BuildData]
 }
 
 final case class MinimalBuildStructure(

@@ -1,1 +1,1 @@
-{"builds":["file:\/\/\/test\/project"],"projects":[{"id":{"build":"file:\/\/\/test\/project","name":"test"},"plugins":["com.foo.Plugin"],"dependencies":null,"$type":"sbt.protocol.MinimalProjectStructure"}],"$type":"sbt.protocol.MinimalBuildStructure"}
+{"builds":["file:\/\/\/test\/project"],"buildsData":[],"projects":[{"id":{"build":"file:\/\/\/test\/project","name":"test"},"plugins":["com.foo.Plugin"],"dependencies":null,"$type":"sbt.protocol.MinimalProjectStructure"}],"$type":"sbt.protocol.MinimalBuildStructure"}
