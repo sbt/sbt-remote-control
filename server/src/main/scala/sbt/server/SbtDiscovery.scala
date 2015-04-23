@@ -36,9 +36,17 @@ private[server] object SbtDiscovery {
         plugins = resolved.autoPlugins.map(getRootObjectName).toVector
       } yield protocol.MinimalProjectStructure(ref, plugins, Some(projectDependencies(resolved)))).toVector
 
+    val buildsData =
+      (for {
+        (build, unit) <- extracted.structure.units
+        classpath = unit.classpath.toVector
+        imports = unit.imports.toVector
+      } yield protocol.BuildData(build, classpath, imports)).toVector
+
     val builds = projects.map(_.id.build).distinct
     protocol.MinimalBuildStructure(
       builds = builds,
+      buildsData = buildsData,
       projects = projects)
   }
 

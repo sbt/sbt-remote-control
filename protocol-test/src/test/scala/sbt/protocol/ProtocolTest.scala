@@ -129,10 +129,12 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
+      buildsData = Vector.empty,
       projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     val buildStructureWithDeps = protocol.MinimalBuildStructure(
       builds = Vector(build),
+      buildsData = Vector.empty,
       projects = Vector(
         protocol.MinimalProjectStructure(
           scope.project.get,
@@ -140,6 +142,11 @@ class ProtocolTest {
           Some(protocol.ProjectDependencies(
             classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "lib"), Some("*->*"))),
             aggregate = Vector(protocol.ProjectReference(build, "test")))))))
+
+    val buildStructureWithBuildsData = protocol.MinimalBuildStructure(
+      builds = Vector(build),
+      buildsData = Vector(protocol.BuildData(build, Vector(new File("/test/foo.jar")), Vector("import com.foo._"))),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     val specifics = Seq(
       // Requests
@@ -171,6 +178,7 @@ class ProtocolTest {
       protocol.TaskFinished(50, 2, Some(scopedKey), true, None),
       protocol.BuildStructureChanged(buildStructure),
       protocol.BuildStructureChanged(buildStructureWithDeps),
+      protocol.BuildStructureChanged(buildStructureWithBuildsData),
       // equals() doesn't work on Exception so we can't actually check this easily
       //protocol.ValueChanged(scopedKey, protocol.TaskFailure("O NOES", protocol.BuildValue(new Exception("Exploded"), serializations))),
       protocol.ValueChanged(scopedKey, protocol.TaskSuccess(protocol.BuildValue("HI"))),
@@ -282,11 +290,13 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
+      buildsData = Vector.empty,
       projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     val buildStructure2 =
       protocol.MinimalBuildStructure(
         builds = Vector(build),
+        buildsData = Vector.empty,
         projects = Vector(
           protocol.MinimalProjectStructure(
             scope.project.get,
@@ -295,6 +305,11 @@ class ProtocolTest {
               protocol.ProjectDependencies(
                 classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "test"), Some("compile"))),
                 aggregate = Vector(protocol.ProjectReference(build, "test")))))))
+
+    val buildStructureWithBuildsData = protocol.MinimalBuildStructure(
+      builds = Vector(build),
+      buildsData = Vector(protocol.BuildData(build, Vector(new File("/test/foo.jar")), Vector("import com.foo._"))),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     roundtrip("Foo")
     roundtrip(new java.io.File("/tmp"))
@@ -329,6 +344,7 @@ class ProtocolTest {
     roundtrip(scopedKey)
     roundtrip(buildStructure)
     roundtrip(buildStructure2)
+    roundtrip(buildStructureWithBuildsData)
     roundtrip(new Exception(null, null))
     roundtrip(new Exception("fail fail fail", new RuntimeException("some cause")))
     roundtrip(new protocol.CompileFailedException("the compile failed", null,
@@ -386,11 +402,13 @@ class ProtocolTest {
     val scopedKey = protocol.ScopedKey(key, scope)
     val buildStructure = protocol.MinimalBuildStructure(
       builds = Vector(build),
+      buildsData = Vector.empty,
       projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     val buildStructureWithDeps =
       protocol.MinimalBuildStructure(
         builds = Vector(build),
+        buildsData = Vector.empty,
         projects = Vector(
           protocol.MinimalProjectStructure(
             scope.project.get,
@@ -399,6 +417,11 @@ class ProtocolTest {
               protocol.ProjectDependencies(
                 classpath = Vector(protocol.ClasspathDep(protocol.ProjectReference(build, "test"), Some("compile"))),
                 aggregate = Vector(protocol.ProjectReference(build, "test")))))))
+
+    val buildStructureWithBuildsData = protocol.MinimalBuildStructure(
+      builds = Vector(build),
+      buildsData = Vector(protocol.BuildData(build, Vector(new File("/test/foo.jar")), Vector("import com.foo._"))),
+      projects = Vector(protocol.MinimalProjectStructure(scope.project.get, Vector("com.foo.Plugin"), None)))
 
     // simple data type
     oneWayTrip("Foo") { _ / "simple" / "string.json" }
@@ -489,6 +512,7 @@ class ProtocolTest {
     oneWayTrip[Message](protocol.TaskFinished(48, 1, Some(scopedKey), false, Some("error message here"))) { _ / "event" / "task_finished_failed.json" }
     oneWayTrip[Message](protocol.BuildStructureChanged(buildStructure)) { _ / "event" / "build_structure_changed.json" }
     oneWayTrip[Message](protocol.BuildStructureChanged(buildStructureWithDeps), ProtocolVersion2) { _ / "event" / "build_structure_changed_with_deps.json" }
+    oneWayTrip[Message](protocol.BuildStructureChanged(buildStructureWithBuildsData), ProtocolVersion3) { _ / "event" / "build_structure_changed_with_builds_data.json" }
     // oneWayTrip[Message](protocol.ValueChanged(scopedKey, protocol.TaskFailure(protocol.BuildValue(new Exception("Exploded"), serializations)))) {
     //   _ / "event" / "value_changed_task_failure.json"
     // }
@@ -525,6 +549,7 @@ class ProtocolTest {
 
     oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion1.toString, ProtocolVersion1)
     oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion2.toString, ProtocolVersion2)
+    oneWayTripTest(JsonToObject, baseDir / protocol.ProtocolVersion3.toString, ProtocolVersion3)
 
     // uncomment this line to write new files
     //oneWayTripTest(ObjectToJson, baseDir / protocol.ProtocolVersion2.toString, ProtocolVersion2)

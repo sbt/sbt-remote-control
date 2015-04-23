@@ -98,6 +98,7 @@ object ProtocolVersion {
     {
       case "1" => ProtocolVersion1
       case "2" => ProtocolVersion2
+      case "3" => ProtocolVersion3
       // we don't want to explode here if we get a version
       // we don't know. If it's handled somehow, it'd be
       // elsewhere (in the client or server logic).
@@ -120,12 +121,13 @@ object ProtocolVersion {
 
   // this is private because in general third parties should
   // not use a "symlink" like this.
-  private[sbt] val protocolVersionLatest = ProtocolVersion2
+  private[sbt] val protocolVersionLatest = ProtocolVersion3
 }
 
 case object ProtocolVersionUnknown extends ProtocolVersion("unknown")
 case object ProtocolVersion1 extends ProtocolVersion("1")
 case object ProtocolVersion2 extends ProtocolVersion("2")
+case object ProtocolVersion3 extends ProtocolVersion("3")
 // WHEN YOU ADD SOMETHING HERE, UPDATE protocolVersionLatest ABOVE
 
 // These enable or disable certain behaviors. For example you might have
