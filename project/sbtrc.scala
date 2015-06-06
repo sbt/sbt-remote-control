@@ -4,6 +4,7 @@ import com.typesafe.sbt.SbtScalariform
 import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.SbtGit
 import Dependencies.getScalaVersionForSbtVersion
+import bintray.BintrayPlugin.autoImport._
 
 object SbtRcBuild {
 
@@ -38,7 +39,9 @@ object SbtRcBuild {
       resolvers += typesafeIvyReleases,
       resolvers += typesafeIvySnapshots,
       // TODO - Publish to ivy for sbt plugins, maven central otherwise?
-      publishTo := Some(typesafeIvyReleases),
+      bintrayOrganization := Some("typesafe"),
+      bintrayRepository := "ivy-releases",
+      licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html")),
       publishMavenStyle := false,
       scalacOptions <<= (scalaVersion) map { sv =>
         Seq("-unchecked", "-deprecation", "-Xmax-classfile-name", "72") ++
@@ -61,7 +64,8 @@ object SbtRcBuild {
     Seq(
       organization := "com.typesafe.sbt",
       publishMavenStyle := true,
-      publishTo := Some(typesafeMvnReleases),
+      bintrayOrganization := Some("typesafe"),
+      bintrayRepository := "maven-releases",
       pomIncludeRepository := { _ => false },
       managedClasspath in RepackageDep := {
         // TODO - Anything else we don't include?

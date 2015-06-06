@@ -23,7 +23,7 @@ object TheBuild extends Build {
       Keys.publish := {},
       Keys.publishLocal := {}
     )
-  )
+  ).disablePlugins(bintray.BintrayPlugin)
 
   // These are the projects we want in the local repository we deploy.
   lazy val sbt13ProbeProjects = Set(sbtServer13)
@@ -55,7 +55,7 @@ object TheBuild extends Build {
         serializationLib,
         junitInterface % Test
       )
-    )
+    ).disablePlugins(bintray.BintrayPlugin)
 
   // ================= Remote Controler main project ==========================
 
@@ -264,6 +264,6 @@ object TheBuild extends Build {
       localRepoArtifacts += junitInterface,
       Keys.resolvers += Resolver.url("typesafe-ivy-releases-2", new URL("http://private-repo.typesafe.com/typesafe/ivy-releases"))(Resolver.ivyStylePatterns)
     )
-  )
+  ).disablePlugins(bintray.BintrayPlugin)
 
 }
