@@ -95,6 +95,11 @@ class SimpleSbtTerminal extends xsbti.AppMain {
   }
 
   final case class Exit(code: Int) extends xsbti.Exit
+
+  def makeLogLine(label: String, labelColor: String, msg: String): String = {
+    // TODO - if ansi enabled
+    s"[${labelColor}${label}${scala.Console.RESET}] $msg"
+  }
   override def run(configuration: AppConfiguration): xsbti.Exit = {
     System.out.println("Connecting to sbt...")
     val connector = SbtConnector("terminal", "Command Line Terminal", configuration.baseDirectory)
@@ -108,20 +113,21 @@ class SimpleSbtTerminal extends xsbti.AppMain {
       clearAndSchedule(TakeNextCommand(client, reader))
 
       import protocol._
+      import scala.Console.{ BLUE, GREEN, RED, RESET, YELLOW }
       (client handleEvents {
         case event: LogEvent => event.entry match {
           case LogSuccess(msg) =>
             // TODO - ASCII CHARACTER CODES!
-            reader.printLineAndRedrawPrompt(msg)
+            reader.printLineAndRedrawPrompt(makeLogLine("success", GREEN, msg))
           case LogMessage(LogMessage.INFO, msg) =>
-            reader.printLineAndRedrawPrompt(s"[info] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("info", BLUE, msg))
           case LogMessage(LogMessage.WARN, msg) =>
-            reader.printLineAndRedrawPrompt(s"[warn] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("warn", YELLOW, msg))
           case LogMessage(LogMessage.ERROR, msg) =>
-            reader.printLineAndRedrawPrompt(s"[error] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("error", RED, msg))
           case LogMessage(_, _) => // debug or some weird unexpected string
           case LogTrace(exceptionClassName, msg) =>
-            reader.printLineAndRedrawPrompt(s"[trace] $exceptionClassName: $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("trace", RED, msg))
           case LogStdOut(msg) =>
             reader.printLineAndRedrawPrompt(msg)
           case LogStdErr(msg) =>
@@ -129,7 +135,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             reader.printLineAndRedrawPrompt(msg)
         }
         case _ => ()
-      })(RunOnSameThreadContext)
+      })(ReadContext)
     }
 
     def onError(reconnecting: Boolean, message: String): Unit = {

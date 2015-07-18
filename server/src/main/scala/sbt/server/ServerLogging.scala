@@ -26,7 +26,12 @@ private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val lo
   }
 
   def log(level: Level.Value, message: => String): Unit = {
-    send(protocol.LogMessage(level.toString, message))
+    // Here we're trying to catch when the message already has the log level in it, for some reason.
+    val m = message
+    val msg = logLevelRegex.findFirstMatchIn(m).flatMap { m =>
+      Some(m.group("message"))
+    } getOrElse (m)
+    send(protocol.LogMessage(level.toString, msg))
   }
 
   def control(event: sbt.ControlEvent.Value, message: => String): Unit = {
@@ -84,17 +89,23 @@ private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val lo
       val levelString = m.group("level")
       val message = m.group("message")
       Level(levelString) match {
-        // These messages are duplicated by the logger itself.
-        case Some(level) => Some(protocol.LogMessage(level.toString, "Read from stdout: " + message))
+        // These messages are duplicated by the logger itself.  Let's stop sending them/figure out how to stop them from hitting stdout.
+        case Some(level) =>
+          //Some(protocol.LogMessage(level.toString, "Read from stdout: " + message))
+          None
         case None => levelString match {
           case "success" => Some(protocol.LogSuccess(message))
           case _ => None
         }
       }
     } getOrElse {
-      protocol.LogMessage(Level.Info.toString, line)
+      // TODO - We probably shouldn't be logging these at ALL, as this will wind up with duplicated log messages.
+      protocol.LogStdOut(line)
+      //protocol.LogMessage(Level.Info.toString, line)
     }
   }
+  // TODO - We need to alter this so that we can DROP duplicated stderr/stdout messages we also get via other means.
+  //        Right now, consoleWriter may be logging too many messages, as we think it's used to log semantically AND log raw strings at the same time.
   private val consoleWriter = new LogWriter(lineToMessage)
   private[sbt] val consoleOut = ConsoleOut.printWriterOut(new PrintWriter(consoleWriter))
   private[sbt] val voidConsoleOut = ConsoleOut.printWriterOut(new PrintWriter(new java.io.Writer() {
@@ -130,6 +141,8 @@ private[sbt] abstract class EventLogger[E <: protocol.LogEvent](protected val lo
     }
   }
 
+  // TODO - We may need to be smarter here.  For example, we may need to use registered thread-locals
+  //        TO determine how to route logs by task/background task.
   def takeoverSystemStreams(): Unit = {
     def printStream(lineToEntry: String => protocol.LogEntry): java.io.PrintStream = {
       val logStream = new LogStream(lineToEntry)
