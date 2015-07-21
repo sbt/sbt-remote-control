@@ -1,3 +1,4 @@
+import java.util.{Timer, TimerTask}
 import sbt._
 import Keys._
 import SbtSupport.sbtLaunchJar
@@ -95,19 +96,35 @@ final case class IntegrationContext(launchJar: File,
     val cwd = target / "integration-test" / friendlyName
     val logFile = target / "integration-test" / (friendlyName + ".log")
     sbt.IO.touch(logFile)
-    val fileLogger = ConsoleLogger(new java.io.PrintWriter(new java.io.FileWriter(logFile)))
+    val pw = new java.io.PrintWriter(new java.io.FileWriter(logFile))
+    val fileLogger = ConsoleLogger(pw)
     // TODO - Filter logs so we're not so chatty on the console.
-    val logger = new MultiLogger(List(fileLogger, streams.log.asInstanceOf[AbstractLogger]))
+    // Start printing dots to the screen.
     // First clean the old test....
     IO delete cwd
     IO createDirectory cwd
+    object StatusDot extends TimerTask {
+      // TODO - This should be sbt-server friendly
+      override def run(): Unit = print(".")
+    }
+    streams.log.info(s"[IT] $name running")
+    val t = new Timer()
+    t.schedule(StatusDot, 0, 5000)
     // Here, let's create a new logger that can store logs in a location of our choosing too...
-    restoringTerminal(setup(name, cwd) ! logger match {
-      case 0 => 
+    restoringTerminal(setup(name, cwd) ! fileLogger match {
+      case 0 =>
+        println()
+        t.cancel()
         streams.log.info(s" [IT] $name result: SUCCESS")
         IntegrationTestResult(name, true, logFile)
-      case n => 
+      case n =>
+        pw.close()
+        t.cancel()
+        println()
         streams.log.error(s" [IT] $name result: FAILURE   - $n")
+        // Here we dump the file logs onto the screen.
+        // TODO - this should be sbt-server friendly
+        IO.readLines(logFile) foreach (l => streams.log.error(l))
         IntegrationTestResult(name, false, logFile)
     })
   }
@@ -140,7 +157,7 @@ final case class IntegrationContext(launchJar: File,
         launchJar.getAbsolutePath,
         "@"+props.toURI.toASCIIString)
     // TODO - Report args:
-    println("Running with args:\n\t"+args.mkString("\n\t"))
+    streams.log.debug("Running with args:\n\t"+args.mkString("\n\t"))
     Process(args, cwd)
   }
   
