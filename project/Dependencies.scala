@@ -25,7 +25,7 @@ object Dependencies {
   }
 
   // Reference versions
-  val sbt13Version = "0.13.8"
+  val sbt13Version = "0.13.9-RC2"
   val sbt13ScalaVersion = getScalaVersionForSbtVersion(sbt13Version)
   val sbtAtmosDefaultVersion = "0.3.1"
 
@@ -42,7 +42,7 @@ object Dependencies {
   val sbtIo                = sbtOrg % "io" % sbtMainVersion
   val sbtCollections       = sbtOrg % "collections" % sbtMainVersion
   // We use an old version here, so we're compatible...
-  val sbtLauncherInterface = sbtOrg % "launcher-interface" % sbtMainVersion
+  val sbtLauncherInterface = sbtOrg % "launcher-interface" % "1.0.0-M1"
   val sbtCompilerInterface = sbtOrg % "interface" % sbtMainVersion
   val sbtCompletion        = sbtOrg % "completion" % sbtMainVersion
 

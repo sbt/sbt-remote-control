@@ -63,7 +63,7 @@ class CanLoadSimpleProject extends SbtClientTest {
     assertEquals(Some("Compiles sources."), inspectResponse.description)
     assertEquals("compile", inspectResponse.providedBy.key.name)
     // this line number is likely to break on every sbt update :-/
-    assertEquals(Vector(LinePosition("(sbt.Defaults) Defaults.scala", 261)), inspectResponse.definedAt)
+    assertEquals(Vector(LinePosition("(sbt.Defaults) Defaults.scala", 267)), inspectResponse.definedAt)
     assert(inspectResponse.dependencies.exists(_.key.name == "incCompileSetup"), "have incCompileSetup as dep")
     assert(inspectResponse.derivedDependencies.isEmpty, "empty derivedDependencies")
     inspectResponse.preanalysis match {
@@ -77,7 +77,8 @@ class CanLoadSimpleProject extends SbtClientTest {
     }
 
     val allSettings = waitWithError(client.listSettings(), "never received list of settings")
-    assertEquals(554, allSettings.size)
+    // NOTE - This will msot liekly change with every release of sbt.
+    assertEquals(564, allSettings.size)
 
     val compileIncrementalKeysFuture = client.lookupScopedKey("compileIncremental")
     val compileIncrementalKeys = waitWithError(compileIncrementalKeysFuture, "Never received key lookup response!")
