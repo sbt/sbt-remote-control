@@ -245,7 +245,9 @@ class ServerEngine(requestQueue: ServerEngineQueue,
     def globalLogging(backing: GlobalLogBacking): GlobalLogging =
       GlobalLogging(
         full = eventLogger, // TODO - Send this to the "writer" we get in newLogger.
-        console = eventLogger.consoleOut,
+        // TODO - We may actually want to use a void console logger here.
+        //console = eventLogger.consoleOut,
+        console = eventLogger.voidConsoleOut,
         backed = eventLogger,
         backing = backing,
         // TODO - This needs to be fixed.  Does not use the correct writer to enable "last" to work properly.

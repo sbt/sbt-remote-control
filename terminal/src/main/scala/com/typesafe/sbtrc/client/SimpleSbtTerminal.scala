@@ -1,6 +1,8 @@
 package com.typesafe.sbtrc
 package client
 
+import java.util.Locale
+
 import xsbti.{ AppMain, AppConfiguration }
 import scala.concurrent.{ ExecutionContext, Promise }
 import sbt.client.{
@@ -13,7 +15,41 @@ import sbt.client.{
 import sbt.JLine
 import sbt.protocol
 
+object AnsiHelp {
+  val formatEnabled =
+    {
+      import java.lang.Boolean.{ getBoolean, parseBoolean }
+      val value = System.getProperty("sbt.log.format")
+      if (value eq null) (ansiSupported && !getBoolean("sbt.log.noformat")) else parseBoolean(value)
+    }
+  private[this] def ansiSupported =
+    try {
+      val terminal = jline.TerminalFactory.get
+      terminal.restore // #460
+      terminal.isAnsiSupported
+    } catch {
+      case e: Exception => !isWindows
+
+      // sbt 0.13 drops JLine 1.0 from the launcher and uses 2.x as a normal dependency
+      // when 0.13 is used with a 0.12 launcher or earlier, the JLine classes from the launcher get loaded
+      // this results in a linkage error as detected below.  The detection is likely jvm specific, but the priority
+      // is avoiding mistakenly identifying something as a launcher incompatibility when it is not
+      case e: IncompatibleClassChangeError if e.getMessage == jline1to2CompatMsg =>
+        throw new IncompatibleClassChangeError("JLine incompatibility detected.  Check that the sbt launcher is version 0.13.x or later.")
+    }
+  private[this] def os = System.getProperty("os.name")
+  private[this] def isWindows = os.toLowerCase(Locale.ENGLISH).indexOf("windows") >= 0
+  private[this] def jline1to2CompatMsg = "Found class jline.Terminal, but interface was expected"
+
+  def makeLogLine(label: String, labelColor: String, msg: String): String = {
+    if (formatEnabled) s"[${labelColor}${label}${scala.Console.RESET}] $msg"
+    else s"[$label] $msg"
+  }
+
+}
+
 class SimpleSbtTerminal extends xsbti.AppMain {
+
   private var queue = new java.util.concurrent.LinkedBlockingDeque[Runnable]
   private def schedule(run: Runnable): Unit = queue.add(run)
   private def clearAndSchedule(run: Runnable): Unit = {
@@ -108,20 +144,22 @@ class SimpleSbtTerminal extends xsbti.AppMain {
       clearAndSchedule(TakeNextCommand(client, reader))
 
       import protocol._
+      import scala.Console.{ BLUE, GREEN, RED, RESET, YELLOW }
+      import AnsiHelp.makeLogLine
       (client handleEvents {
         case event: LogEvent => event.entry match {
           case LogSuccess(msg) =>
             // TODO - ASCII CHARACTER CODES!
-            reader.printLineAndRedrawPrompt(msg)
+            reader.printLineAndRedrawPrompt(makeLogLine("success", GREEN, msg))
           case LogMessage(LogMessage.INFO, msg) =>
-            reader.printLineAndRedrawPrompt(s"[info] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("info", BLUE, msg))
           case LogMessage(LogMessage.WARN, msg) =>
-            reader.printLineAndRedrawPrompt(s"[warn] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("warn", YELLOW, msg))
           case LogMessage(LogMessage.ERROR, msg) =>
-            reader.printLineAndRedrawPrompt(s"[error] $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("error", RED, msg))
           case LogMessage(_, _) => // debug or some weird unexpected string
           case LogTrace(exceptionClassName, msg) =>
-            reader.printLineAndRedrawPrompt(s"[trace] $exceptionClassName: $msg")
+            reader.printLineAndRedrawPrompt(makeLogLine("trace", RED, msg))
           case LogStdOut(msg) =>
             reader.printLineAndRedrawPrompt(msg)
           case LogStdErr(msg) =>
@@ -129,7 +167,7 @@ class SimpleSbtTerminal extends xsbti.AppMain {
             reader.printLineAndRedrawPrompt(msg)
         }
         case _ => ()
-      })(RunOnSameThreadContext)
+      })(ReadContext)
     }
 
     def onError(reconnecting: Boolean, message: String): Unit = {

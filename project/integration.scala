@@ -98,11 +98,10 @@ final case class IntegrationContext(launchJar: File,
     sbt.IO.touch(logFile)
     val pw = new java.io.PrintWriter(new java.io.FileWriter(logFile))
     val fileLogger = ConsoleLogger(pw)
-    // TODO - Filter logs so we're not so chatty on the console.
-    // Start printing dots to the screen.
     // First clean the old test....
     IO delete cwd
     IO createDirectory cwd
+    // Start printing dots to the screen.
     object StatusDot extends TimerTask {
       // TODO - This should be sbt-server friendly
       override def run(): Unit = print(".")
@@ -115,15 +114,14 @@ final case class IntegrationContext(launchJar: File,
       case 0 =>
         println()
         t.cancel()
-        streams.log.info(s" [IT] $name result: SUCCESS")
+        streams.log.info(s" [IT] $name result: ${scala.Console.GREEN}SUCCESS${scala.Console.RESET}")
         IntegrationTestResult(name, true, logFile)
       case n =>
         pw.close()
         t.cancel()
         println()
-        streams.log.error(s" [IT] $name result: FAILURE   - $n")
+        streams.log.error(s" [IT] $name result: ${scala.Console.RED}FAILURE${scala.Console.RESET}   - $n")
         // Here we dump the file logs onto the screen.
-        // TODO - this should be sbt-server friendly
         IO.readLines(logFile) foreach (l => streams.log.error(l))
         IntegrationTestResult(name, false, logFile)
     })
