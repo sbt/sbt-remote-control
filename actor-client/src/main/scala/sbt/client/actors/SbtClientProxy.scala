@@ -9,7 +9,7 @@ import sbt.client.{ Subscription, SbtConnector, SbtClient, Interaction, SettingK
 import scala.concurrent.ExecutionContext
 import scala.util.{ Try, Success, Failure }
 import sbt.protocol
-import sbt.protocol.{ CompileFailedException, TaskResult, ScopedKey, BuildValue, CompilationFailure }
+import sbt.protocol.{ CompileFailedException, TaskResult, ScopedKey, BuildValue, CompilationFailure, Completion }
 import sbt.serialization._
 import scala.language.existentials, scala.language.higherKinds
 import scala.collection.TraversableOnce
@@ -38,6 +38,7 @@ object SbtClientProxy {
   case class SettingWatchRemoved(key: SettingKey[_]) extends Response
   case object Closed extends Response
   case object DaemonSet extends Response
+  case class AutoCompletions(completions: Try[Vector[Completion]]) extends Response
 
   sealed trait LocalRequest[Resp] extends Request[Resp]
   case class LookupScopedKey(name: String, sendTo: ActorRef) extends LocalRequest[LookupScopedKeyResponse] {
@@ -86,6 +87,9 @@ object SbtClientProxy {
   }
   case class SetDaemon(daemon: Boolean, sendTo: ActorRef) extends LocalRequest[DaemonSet.type] {
     def set()(implicit sender: ActorRef): Unit = response(DaemonSet)
+  }
+  case class PossibleAutoCompletions(partialCommand: String, detailLevel: Int, sendTo: ActorRef) extends LocalRequest[AutoCompletions] {
+    def completions(completions: Try[Vector[Completion]])(implicit sender: ActorRef): Unit = response(AutoCompletions(completions))
   }
 
   sealed trait GenericKey[T] {
@@ -311,6 +315,8 @@ final class SbtClientProxy(initialClient: SbtClient,
         state.client.requestExecution(r.key, r.interaction).onComplete(id => r.responseWithExecutionId(id))
       case r: CancelExecution =>
         state.client.cancelExecution(r.id).onComplete(x => r.responseWithResult(x))
+      case r: PossibleAutoCompletions =>
+        state.client.possibleAutocompletions(r.partialCommand, r.detailLevel).onComplete(x => r.completions(x))
       case r: SubscribeToEvents =>
         runWith(state.addOrUpdateEventSubscriptions(r.sendTo, () => state.client.handleEvents(eventListener(self))))
         context.watch(r.sendTo)

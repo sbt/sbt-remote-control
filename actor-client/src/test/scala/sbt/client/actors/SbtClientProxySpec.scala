@@ -13,6 +13,7 @@ import java.net.URI
 import scala.concurrent.Future
 import sbt.client.{ SettingKey, TaskKey }
 import sbt.serialization._
+import scala.util.{ Try, Success, Failure }
 
 object SbtClientProxySpec {
   val sampleEvent: protocol.Event = protocol.ExecutionStarting(100)
@@ -23,6 +24,15 @@ object SbtClientProxySpec {
     case "foo" => Seq(sampleScopedKey)
     case _ => Seq.empty[protocol.ScopedKey]
   })
+
+  val sampleCompletions = Vector(protocol.Completion("age", "foobage", false), protocol.Completion("bub", "foobub", false))
+  val sampleCompletionsFailure = new Exception("Failed to complete")
+
+  def sampleAutocompletions(partialCommand: String, detailLevel: Int): Future[Vector[protocol.Completion]] = partialCommand match {
+    case "foo" => Future.successful(sampleCompletions)
+    case "bar" => Future.failed(sampleCompletionsFailure)
+    case _ => Future.successful(Vector.empty[protocol.Completion])
+  }
 
   val sampleTaskKey = TaskKey[String](sampleScopedKey)
   val sampleSettingKey = SettingKey[String](sampleScopedKey1)
@@ -233,4 +243,22 @@ class SbtClientProxySpec extends DefaultSpecification {
       Assert.assertTrue("client was set to daemon mode", client.daemon)
     }
   }
+
+  @Test
+  def testPossibleAutocompletions(): Unit = withHelper { helper =>
+    import helper._
+    withFakeSbtClient(autocompletions = sampleAutocompletions) { client =>
+      withSbtClientProxy(client) { cp =>
+        cp ! PossibleAutoCompletions("foo", 0, testActor)
+        Assert.assertEquals(expectMsgType[AutoCompletions], AutoCompletions(Success(sampleCompletions)))
+
+        cp ! PossibleAutoCompletions("bar", 0, testActor)
+        Assert.assertEquals(expectMsgType[AutoCompletions], AutoCompletions(Failure(sampleCompletionsFailure)))
+
+        cp ! PossibleAutoCompletions("baz", 0, testActor)
+        Assert.assertEquals(expectMsgType[AutoCompletions], AutoCompletions(Success(Vector.empty[protocol.Completion])))
+      }
+    }
+  }
+
 }
