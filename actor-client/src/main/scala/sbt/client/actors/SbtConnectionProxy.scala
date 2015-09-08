@@ -9,9 +9,14 @@ import sbt.client.{ Subscription, SbtConnector, SbtClient, SbtChannel }
 import scala.concurrent.ExecutionContext
 import sbt.serialization._
 
+trait Unapplyable[T] {
+  def unapply(in: Any): Option[T]
+}
+
 trait Request[Resp] {
   def sendTo: ActorRef
   final def response(in: Resp)(implicit sender: ActorRef): Unit = sendTo.tell(in, sender)
+  def MatchResponse: Unapplyable[Resp]
 }
 
 object SbtClientBuilder {
@@ -108,9 +113,23 @@ object SbtConnectionProxy {
       response(NewClientResponse.Connected(client))
     def responseWithError(reconnect: Boolean, error: String)(implicit sender: ActorRef): Unit =
       response(NewClientResponse.Error(reconnect, error))
+
+    object MatchResponse extends Unapplyable[NewClientResponse] {
+      def unapply(in: Any): Option[NewClientResponse] = in match {
+        case a: NewClientResponse => Some(a)
+        case _ => None
+      }
+    }
   }
   case class Close(sendTo: ActorRef) extends LocalRequest[Closed.type] {
     def closed()(implicit sender: ActorRef): Unit = response(Closed)
+
+    object MatchResponse extends Unapplyable[Closed.type] {
+      def unapply(in: Any): Option[Closed.type] = in match {
+        case a: Closed.type => Some(a)
+        case _ => None
+      }
+    }
   }
 
   def props(connector: SbtConnector,

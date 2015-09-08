@@ -43,11 +43,25 @@ object SbtClientProxy {
   sealed trait LocalRequest[Resp] extends Request[Resp]
   case class LookupScopedKey(name: String, sendTo: ActorRef) extends LocalRequest[LookupScopedKeyResponse] {
     def responseWithResult(result: Try[Seq[ScopedKey]])(implicit sender: ActorRef): Unit = response(LookupScopedKeyResponse(name, result))
+
+    object MatchResponse extends Unapplyable[LookupScopedKeyResponse] {
+      def unapply(in: Any): Option[LookupScopedKeyResponse] = in match {
+        case a: LookupScopedKeyResponse => Some(a)
+        case _ => None
+      }
+    }
   }
 
   sealed trait RequestExecution extends LocalRequest[ExecutionId] {
     def interaction: Option[(Interaction, ExecutionContext)]
     final def responseWithExecutionId(id: Try[Long])(implicit sender: ActorRef): Unit = response(ExecutionId(id, this))
+
+    object MatchResponse extends Unapplyable[ExecutionId] {
+      def unapply(in: Any): Option[ExecutionId] = in match {
+        case a: ExecutionId => Some(a)
+        case _ => None
+      }
+    }
   }
   object RequestExecution {
     case class ByCommandOrTask(commandOrTask: String, interaction: Option[(Interaction, ExecutionContext)], sendTo: ActorRef) extends RequestExecution
@@ -56,40 +70,124 @@ object SbtClientProxy {
 
   case class CancelExecution(id: Long, sendTo: ActorRef) extends LocalRequest[CancelExecutionResponse] {
     final def responseWithResult(r: Try[Boolean])(implicit sender: ActorRef): Unit = response(CancelExecutionResponse(id, r))
+
+    object MatchResponse extends Unapplyable[CancelExecutionResponse] {
+      def unapply(in: Any): Option[CancelExecutionResponse] = in match {
+        case a: CancelExecutionResponse => Some(a)
+        case _ => None
+      }
+    }
   }
 
   case class SubscribeToEvents(sendTo: ActorRef) extends LocalRequest[EventsSubscribed.type] {
     def subscribed()(implicit sender: ActorRef): Unit = response(EventsSubscribed)
+
+    object MatchResponse extends Unapplyable[EventsSubscribed.type] {
+      def unapply(in: Any): Option[EventsSubscribed.type] = in match {
+        case a: EventsSubscribed.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class UnsubscribeFromEvents(sendTo: ActorRef) extends LocalRequest[EventsUnsubscribed.type] {
     def unsubscribed()(implicit sender: ActorRef): Unit = response(EventsUnsubscribed)
+
+    object MatchResponse extends Unapplyable[EventsUnsubscribed.type] {
+      def unapply(in: Any): Option[EventsUnsubscribed.type] = in match {
+        case a: EventsUnsubscribed.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class SubscribeToBuild(sendTo: ActorRef) extends LocalRequest[BuildSubscribed.type] {
     def subscribed()(implicit sender: ActorRef): Unit = response(BuildSubscribed)
+
+    object MatchResponse extends Unapplyable[BuildSubscribed.type] {
+      def unapply(in: Any): Option[BuildSubscribed.type] = in match {
+        case a: BuildSubscribed.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class UnsubscribeFromBuild(sendTo: ActorRef) extends LocalRequest[BuildUnsubscribed.type] {
     def unsubscribed()(implicit sender: ActorRef): Unit = response(BuildUnsubscribed)
+
+    object MatchResponse extends Unapplyable[BuildUnsubscribed.type] {
+      def unapply(in: Any): Option[BuildUnsubscribed.type] = in match {
+        case a: BuildUnsubscribed.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class WatchTask(key: TaskKey[_], sendTo: ActorRef) extends LocalRequest[WatchingTask] {
     def watching(key: TaskKey[_])(implicit sender: ActorRef): Unit = response(WatchingTask(key))
+
+    object MatchResponse extends Unapplyable[WatchingTask] {
+      def unapply(in: Any): Option[WatchingTask] = in match {
+        case a: WatchingTask => Some(a)
+        case _ => None
+      }
+    }
   }
   case class RemoveTaskWatch(key: TaskKey[_], sendTo: ActorRef) extends LocalRequest[TaskWatchRemoved] {
     def removed(key: TaskKey[_])(implicit sender: ActorRef): Unit = response(TaskWatchRemoved(key))
+
+    object MatchResponse extends Unapplyable[TaskWatchRemoved] {
+      def unapply(in: Any): Option[TaskWatchRemoved] = in match {
+        case a: TaskWatchRemoved => Some(a)
+        case _ => None
+      }
+    }
   }
   case class WatchSetting(key: SettingKey[_], sendTo: ActorRef) extends LocalRequest[WatchingSetting] {
     def watching(key: SettingKey[_])(implicit sender: ActorRef): Unit = response(WatchingSetting(key))
+
+    object MatchResponse extends Unapplyable[WatchingSetting] {
+      def unapply(in: Any): Option[WatchingSetting] = in match {
+        case a: WatchingSetting => Some(a)
+        case _ => None
+      }
+    }
   }
   case class RemoveSettingWatch(key: SettingKey[_], sendTo: ActorRef) extends LocalRequest[SettingWatchRemoved] {
     def removed(key: SettingKey[_])(implicit sender: ActorRef): Unit = response(SettingWatchRemoved(key))
+
+    object MatchResponse extends Unapplyable[SettingWatchRemoved] {
+      def unapply(in: Any): Option[SettingWatchRemoved] = in match {
+        case a: SettingWatchRemoved => Some(a)
+        case _ => None
+      }
+    }
   }
   case class Close(sendTo: ActorRef) extends LocalRequest[Closed.type] {
     def closed()(implicit sender: ActorRef): Unit = response(Closed)
+
+    object MatchResponse extends Unapplyable[Closed.type] {
+      def unapply(in: Any): Option[Closed.type] = in match {
+        case a: Closed.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class SetDaemon(daemon: Boolean, sendTo: ActorRef) extends LocalRequest[DaemonSet.type] {
     def set()(implicit sender: ActorRef): Unit = response(DaemonSet)
+
+    object MatchResponse extends Unapplyable[DaemonSet.type] {
+      def unapply(in: Any): Option[DaemonSet.type] = in match {
+        case a: DaemonSet.type => Some(a)
+        case _ => None
+      }
+    }
   }
   case class PossibleAutoCompletions(partialCommand: String, detailLevel: Int, sendTo: ActorRef) extends LocalRequest[AutoCompletions] {
     def completions(completions: Try[Vector[Completion]])(implicit sender: ActorRef): Unit = response(AutoCompletions(completions))
+
+    object MatchResponse extends Unapplyable[AutoCompletions] {
+      def unapply(in: Any): Option[AutoCompletions] = in match {
+        case a: AutoCompletions => Some(a)
+        case _ => None
+      }
+    }
   }
 
   sealed trait GenericKey[T] {
