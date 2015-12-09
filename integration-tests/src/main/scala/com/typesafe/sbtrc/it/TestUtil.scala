@@ -115,6 +115,6 @@ object Main3 extends App { println("Hello World 3") }
 
 object TestUtil {
   // TODO - hook this up to build in some fashion
-  val sbt13TestVersion = "0.13.7"
+  val sbt13TestVersion = "0.13.9"
   def defaultSbtTestVersion = sbt13TestVersion
 }
